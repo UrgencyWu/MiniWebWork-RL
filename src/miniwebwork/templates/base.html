@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}MiniWebWork-RL Procurement{% endblock %}</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 1rem; max-width: 960px; margin: 0 auto; }
+        nav { margin-bottom: 1rem; padding: 0.5rem 0; border-bottom: 1px solid #ddd; }
+        nav a { margin-right: 1rem; text-decoration: none; color: #06c; }
+        .flash { padding: 0.5rem; margin: 0.5rem 0; border-radius: 4px; }
+        .flash-error { background: #fee; color: #c00; }
+        .flash-info { background: #eef; color: #006; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; }
+        th { background: #f5f5f5; }
+        .btn { display: inline-block; padding: 0.4rem 0.8rem; border: 1px solid #aaa; border-radius: 3px; text-decoration: none; color: #333; background: #f8f8f8; cursor: pointer; font-size: 0.9rem; }
+        .btn-primary { background: #06c; color: white; border-color: #06c; }
+        .btn-danger { background: #c00; color: white; border-color: #c00; }
+        .card { border: 1px solid #ddd; border-radius: 4px; padding: 1rem; margin: 0.5rem 0; }
+        .filter-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; margin: 1rem 0; padding: 1rem; background: #f9f9f9; border-radius: 4px; }
+        .filter-form label { font-size: 0.8rem; display: block; }
+        .filter-form input, .filter-form select { padding: 0.3rem; font-size: 0.9rem; }
+        .field-group { display: flex; flex-direction: column; }
+        footer { margin-top: 2rem; padding: 1rem 0; border-top: 1px solid #ddd; font-size: 0.8rem; color: #999; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">Home</a>
+        <a href="/products">Products</a>
+        <a href="/smoke">Smoke Test</a>
+        <a href="/health">Health</a>
+    </nav>
+    {% block content %}{% endblock %}
+    <footer>MiniWebWork-RL M1.1 Procurement Environment</footer>
+</body>
+</html>

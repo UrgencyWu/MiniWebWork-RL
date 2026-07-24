@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ supplier.name }}{% endblock %}
+{% block content %}
+<h1>{{ supplier.name }}</h1>
+<div class="card">
+    <table>
+        <tr><th>供应商编号</th><td data-testid="supplier-id">{{ supplier.supplier_id }}</td></tr>
+        <tr><th>评分</th><td data-testid="supplier-rating">{{ supplier.rating }}</td></tr>
+        <tr><th>地区</th><td data-testid="supplier-region">{{ supplier.region }}</td></tr>
+        <tr><th>认证状态</th><td>{% if supplier.certified %}<span style="color:green">已认证</span>{% else %}<span style="color:red">未认证</span>{% endif %}</td></tr>
+        <tr><th>交付可靠性</th><td>{{ "%.0f"|format(supplier.delivery_reliability * 100) }}%</td></tr>
+        <tr><th>描述</th><td>{{ supplier.description or '-' }}</td></tr>
+    </table>
+</div>
+
+<h2>商品列表</h2>
+<p>共 {{ products|length }} 个商品</p>
+{% for product in products %}
+<div class="card" data-testid="product-card-{{ product.product_id }}">
+    <h3><a href="/products/{{ product.product_id }}?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">{{ product.name }}</a></h3>
+    <p>价格: ¥{{ "%.2f"|format(product.price) }} | 类别: {{ product.category }}
+       {% if product.memory_gb %} | 显存: {{ product.memory_gb }} GB{% endif %}
+       | 库存: {% if product.stock > 0 %}{{ product.stock }}{% else %}缺货{% endif %}</p>
+</div>
+{% endfor %}
+
+<p><a href="/products">&larr; 返回商品列表</a></p>
+{% endblock %}

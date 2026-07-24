@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+<h1 data-testid="product-detail-name">{{ product.name }}</h1>
+<div class="card">
+    <table>
+        <tr><th>产品编号</th><td data-testid="product-id">{{ product.product_id }}</td></tr>
+        <tr><th>型号</th><td>{{ product.model_number or '-' }}</td></tr>
+        <tr><th>类别</th><td>{{ product.category }}</td></tr>
+        <tr><th>价格</th><td>¥{{ "%.2f"|format(product.price) }}</td></tr>
+        <tr><th>显存</th><td>{% if product.memory_gb %}{{ product.memory_gb }} GB{% else %}-{% endif %}</td></tr>
+        <tr><th>库存</th><td>{% if product.stock > 0 %}{{ product.stock }}{% else %}<span style="color:red">缺货</span>{% endif %}</td></tr>
+        <tr><th>交付时间</th><td>{{ product.delivery_days }} 天</td></tr>
+        <tr><th>保修期</th><td>{{ product.warranty_months }} 月</td></tr>
+        <tr><th>描述</th><td>{{ product.description or '-' }}</td></tr>
+    </table>
+</div>
+
+<h2>供应商信息</h2>
+<div class="card">
+    <p><strong><a data-testid="supplier-link-{{ product.supplier_id }}" href="/suppliers/{{ product.supplier_id }}">{{ product.supplier_name }}</a></strong></p>
+    <p>评分: {{ product.rating }} | 地区: {{ product.supplier_region }}{% if product.certified %} | <span style="color:green">已认证</span>{% else %} | <span style="color:red">未认证</span>{% endif %}</p>
+</div>
+
+<div style="margin:1rem 0;">
+    {% if episode_id and task %}
+    <a class="btn btn-primary" data-testid="select-product" href="/procurement/new?episode_id={{ episode_id }}&task_id={{ task.task_id }}&product_id={{ product.product_id }}">选择此商品</a>
+    <a class="btn" href="/procurement/new?episode_id={{ episode_id }}&task_id={{ task.task_id }}&product_id=">声明无可行商品</a>
+    {% endif %}
+    <a class="btn" href="/products?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">&larr; 返回商品列表</a>
+</div>
+{% endblock %}

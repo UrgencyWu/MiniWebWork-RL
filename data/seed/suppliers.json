@@ -1,0 +1,56 @@
+[
+  {
+    "supplier_id": "SUP-001",
+    "name": "CloudCompute 数字科技有限公司",
+    "rating": 4.8,
+    "region": "华北",
+    "certified": 1,
+    "delivery_reliability": 0.95,
+    "description": "行业领先的企业级计算解决方案提供商，专注 GPU 服务器和 AI 加速平台。ISO 9001 认证，与 NVIDIA、Intel 深度合作。"
+  },
+  {
+    "supplier_id": "SUP-002",
+    "name": "鹏程服务器设备有限公司",
+    "rating": 4.2,
+    "region": "华南",
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "华南地区知名服务器集成商，提供定制化企业计算方案，覆盖金融、制造和云计算行业。"
+  },
+  {
+    "supplier_id": "SUP-003",
+    "name": "东方存储科技有限公司",
+    "rating": 4.5,
+    "region": "华东",
+    "certified": 1,
+    "delivery_reliability": 0.92,
+    "description": "专注存储和数据分析平台，同时代理多个主流 GPU 品牌。拥有自主仓储物流体系。"
+  },
+  {
+    "supplier_id": "SUP-004",
+    "name": "极速互联设备贸易公司",
+    "rating": 3.6,
+    "region": "华南",
+    "certified": 0,
+    "delivery_reliability": 0.75,
+    "description": "中小型 IT 设备贸易商，价格有竞争力但认证体系不完善，适合非关键业务采购。"
+  },
+  {
+    "supplier_id": "SUP-005",
+    "name": "北冥计算技术有限公司",
+    "rating": 4.9,
+    "region": "华北",
+    "certified": 1,
+    "delivery_reliability": 0.97,
+    "description": "国家级高新技术企业，多次获得数据中心优秀供应商称号。拥有完善的技术支持和售后体系。"
+  },
+  {
+    "supplier_id": "SUP-006",
+    "name": "西域科技发展有限公司",
+    "rating": 3.9,
+    "region": "西北",
+    "certified": 0,
+    "delivery_reliability": 0.70,
+    "description": "西北地区新兴 IT 设备供应商，价格较低但物流周期较长，适合预算优先的采购项目。"
+  }
+]

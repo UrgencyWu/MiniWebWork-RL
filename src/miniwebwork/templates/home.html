@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}MiniWebWork-RL Procurement{% endblock %}
+{% block content %}
+<h1>MiniWebWork-RL Procurement</h1>
+<p>轻量采购调研环境 — 可用任务列表</p>
+<table>
+    <thead>
+        <tr><th>任务编号</th><th>任务说明</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+    {% for task in tasks %}
+    <tr>
+        <td data-testid="task-id-{{ task.task_id }}">{{ task.task_id }}</td>
+        <td data-testid="task-instruction">{{ task.instruction }}</td>
+        <td><a class="btn btn-primary" href="/tasks/{{ task.task_id }}" data-testid="task-link-{{ task.task_id }}">查看任务</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

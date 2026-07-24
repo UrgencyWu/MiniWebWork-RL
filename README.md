@@ -2,18 +2,20 @@
 
 轻量级浏览器智能体强化训练项目，面向采购调研任务。
 
-## 当前阶段：M1.0
+## 当前阶段：M1.1
 
-**环境建立与最小浏览器烟雾测试**
+**确定性采购环境 (Deterministic Procurement Environment)**
 
-本阶段目标：快速、可复现地跑通浏览器 Agent 强化训练之前的基础环境闭环。
+已完成：
+- M1.0: 环境建立与浏览器烟雾测试 → PASS
+- M1.1: 采购数据库、任务集、网站、Verifier、Slurm E2E → PASS
 
 ## 已冻结技术范围
 
 | 项目 | 选型 |
 |---|---|
-| 本地 Web 服务 | FastAPI + Uvicorn |
-| 数据库 | SQLite |
+| 本地 Web 服务 | FastAPI + Uvicorn + Jinja2 |
+| 数据库 | SQLite (6 供应商, 24 商品) |
 | 浏览器自动化 | Playwright + Chromium (headless) |
 | LLM 推理 | Qwen3.5-4B via Transformers |
 | 训练微调 | LoRA PEFT |
@@ -34,46 +36,88 @@
 conda activate miniwebwork
 ```
 
-环境基于 `qwen9B` 克隆，包含所有核心 ML 依赖。
+## 初始化数据库
 
-## 本地网站启动
+```bash
+python -m miniwebwork.cli init-db
+# 或
+bash scripts/init_db.sh
+```
+
+## 重置数据库
+
+```bash
+python -m miniwebwork.cli reset-db
+# 或
+bash scripts/reset_db.sh
+```
+
+## 启动网站
 
 ```bash
 python -m miniwebwork.webapp
 # 或
-bash scripts/run_local_site.sh
+bash scripts/run_procurement_site.sh
 ```
 
 默认监听 `http://127.0.0.1:18080`。
 
-## 浏览器烟雾测试
+## 运行测试
 
 ```bash
+# 全部单元/集成测试
+python -m pytest -q
+
+# 任务验证
+python -m miniwebwork.cli validate-tasks
+
+# 种子数据验证
+python -m miniwebwork.cli validate-seed
+
+# M1.0 浏览器烟雾测试
 python -m miniwebwork.browser_smoke
 ```
 
-在 Slurm 作业中运行：
+## 运行 Slurm E2E
 
 ```bash
+# 采购端到端测试
+sbatch scripts/slurm/m1_1_procurement_e2e.sbatch
+
+# M1.0 浏览器烟雾测试
 sbatch scripts/slurm/m1_browser_smoke.sbatch
-```
 
-## 模型烟雾测试
-
-```bash
+# M1.0 模型烟雾测试
 sbatch scripts/slurm/m1_model_smoke.sbatch
 ```
 
-## 尚未实现
+## 任务文件位置
 
-- 采购业务网站
-- 商品/供应商数据库
+| 文件 | 说明 |
+|---|---|
+| `data/tasks/tasks_public.jsonl` | 用户可见任务 (不含答案) |
+| `data/tasks/tasks_oracle.jsonl` | 私有 Oracle (含约束、正确答案) |
+| `data/seed/suppliers.json` | 供应商种子数据 |
+| `data/seed/products.json` | 商品种子数据 |
+| `data/seed/manifest.json` | 种子数据清单和哈希 |
+
+## Verifier 使用方式
+
+```bash
+python -m miniwebwork.cli verify --task-id TASK-001 --episode-id EP-XXXX
+```
+
+## 当前未实现
+
 - Agent 推理循环 (ReAct)
+- Function Calling
+- DOM 压缩 / Accessibility Tree
 - SFT 数据构造
 - LoRA 训练
 - GRPO 强化训练
 - 多模态视觉
 - 多浏览器并发
+- vLLM 推理服务
 
 ## 已知限制
 
@@ -81,7 +125,12 @@ sbatch scripts/slurm/m1_model_smoke.sbatch
 - 单任务最多使用 2 张 GPU
 - 任务最长运行 24 小时
 - 无 Docker 环境
+- 采购数据为虚构，不连接真实采购网站
 
-## 下一阶段 (M1.1)
+## 下一阶段 (M1.2)
 
-建立最小采购网站数据模型、商品页面、供应商页面和第一批确定性采购任务。
+将采购网站封装为标准 Agent Environment：
+- 文本 DOM observation
+- 固定 JSON action space
+- step/reset 接口
+- 基于规则的无模型 Agent 基线

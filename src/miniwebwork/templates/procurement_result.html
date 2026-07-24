@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}提交结果{% endblock %}
+{% block content %}
+<h1>采购申请已提交</h1>
+
+<div class="card">
+    <table data-testid="submission-result">
+        <tr><th>提交编号</th><td>{{ submission.submission_id }}</td></tr>
+        <tr><th>Episode</th><td>{{ submission.episode_id }}</td></tr>
+        <tr><th>任务</th><td>{{ submission.task_id }}</td></tr>
+        <tr><th>决定类型</th><td>{% if submission.decision_type == 'select_product' %}选择商品{% else %}无可行商品{% endif %}</td></tr>
+        {% if submission.product_id %}
+        <tr><th>已选商品</th><td>{{ submission.product_id }}</td></tr>
+        <tr><th>数量</th><td>{{ submission.quantity }}</td></tr>
+        {% endif %}
+        <tr><th>说明</th><td>{{ submission.justification or '-' }}</td></tr>
+        <tr><th>提交时间</th><td>{{ submission.submitted_at }}</td></tr>
+    </table>
+</div>
+
+<p><a href="/">&larr; 返回首页</a></p>
+{% endblock %}

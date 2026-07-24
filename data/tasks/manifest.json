@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0.0",
+  "task_version": "1.0.0",
+  "public_task_count": 15,
+  "oracle_task_count": 15,
+  "task_types": ["exact_product", "cheapest_feasible", "highest_rating_supplier", "no_feasible_product"]
+}

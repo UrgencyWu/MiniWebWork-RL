@@ -18,27 +18,27 @@ def test_index_returns_200(client):
     assert "text/html" in response.headers.get("content-type", "")
 
 
-def test_index_contains_query_input(client):
-    """Page contains #query input."""
-    response = client.get("/")
+def test_smoke_contains_query_input(client):
+    """Smoke page contains #query input."""
+    response = client.get("/smoke")
     assert 'id="query"' in response.text
 
 
-def test_index_contains_search_button(client):
-    """Page contains #search-button."""
-    response = client.get("/")
+def test_smoke_contains_search_button(client):
+    """Smoke page contains #search-button."""
+    response = client.get("/smoke")
     assert 'id="search-button"' in response.text
 
 
-def test_index_contains_result_div(client):
-    """Page contains #result div."""
-    response = client.get("/")
+def test_smoke_contains_result_div(client):
+    """Smoke page contains #result div."""
+    response = client.get("/smoke")
     assert 'id="result"' in response.text
 
 
-def test_index_contains_ready_text(client):
-    """Page initial result text is 'ready'."""
-    response = client.get("/")
+def test_smoke_contains_ready_text(client):
+    """Smoke page initial result text is 'ready'."""
+    response = client.get("/smoke")
     assert "ready" in response.text
 
 

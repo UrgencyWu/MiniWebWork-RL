@@ -1,6 +1,6 @@
 {
   "success": true,
-  "url": "http://127.0.0.1:18080/",
+  "url": "http://127.0.0.1:18080/smoke",
   "title": "MiniWebWork-RL Smoke Test",
   "input_count": 1,
   "button_count": 1,

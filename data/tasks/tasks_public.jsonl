@@ -1,0 +1,15 @@
+{"task_id":"TASK-001","instruction":"查找型号为 CC-A100X-80G 的 GPU 加速卡，并确认其价格和供应商信息。","start_path":"/products","task_type":"exact_product"}
+{"task_id":"TASK-002","instruction":"查找型号为 BM-H100X-80G 的旗舰 GPU 加速卡。","start_path":"/products","task_type":"exact_product"}
+{"task_id":"TASK-003","instruction":"查找价格不超过 25000 元、有库存的 GPU。选择价格最低的。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-004","instruction":"采购部门要求：显存不小于 64GB 的 GPU，预算上限 50000 元，且必须有库存。请查找并判断是否存在可行商品。","start_path":"/products","task_type":"no_feasible_product"}
+{"task_id":"TASK-005","instruction":"需要采购显存至少 32GB 的 GPU，预算不超过 70000 元。选择价格最低的商品。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-006","instruction":"采购政策要求只从认证供应商采购。需要一款价格不超过 30000 元的 GPU。选择价格最低的。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-007","instruction":"项目位于华北地区，优先从华北供应商采购 GPU。选择华北地区价格最低的 GPU。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-008","instruction":"需要一款价格不超过 20000 元、有库存的 GPU。如果有多个选择，优先选供应商评分最高的。","start_path":"/products","task_type":"highest_rating_supplier"}
+{"task_id":"TASK-009","instruction":"需要显存至少 24GB、价格不超过 30000 元、有库存、交付时间不超过 14 天的 GPU。选择价格最低的。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-010","instruction":"需要显存至少 48GB 的 GPU，交付时间不超过 14 天，必须有库存。选择价格最低的。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-011","instruction":"采购 GPU，要求显存至少 32GB，预算不超过 80000 元。优先选供应商评分最高的，评分相同选价格最低的。","start_path":"/products","task_type":"highest_rating_supplier"}
+{"task_id":"TASK-012","instruction":"需要在华东地区寻找非认证供应商的 GPU。请查找并判断是否存在符合条件的商品。","start_path":"/products","task_type":"no_feasible_product"}
+{"task_id":"TASK-013","instruction":"需要一款显存至少 16GB、价格不超过 25000 元、保修期至少 24 个月、有库存的 GPU。选择符合条件的商品。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-014","instruction":"需要显存至少 32GB、价格不超过 60000 元、有库存、交付时间不超过 14 天的 GPU。选择价格最低的。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"TASK-015","instruction":"需要一款价格不超过 50000 元、保修期至少 36 个月、有库存的 GPU。选择供应商评分最高的。","start_path":"/products","task_type":"highest_rating_supplier"}

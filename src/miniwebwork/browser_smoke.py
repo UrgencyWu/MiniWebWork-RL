@@ -20,7 +20,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-BASE_URL = os.environ.get("MINIWEBWORK_URL", "http://127.0.0.1:18080")
+BASE_URL = os.environ.get("MINIWEBWORK_URL", "http://127.0.0.1:18080") + "/smoke"
 ARTIFACTS_DIR = os.environ.get(
     "MINIWEBWORK_ARTIFACTS",
     str(Path(__file__).resolve().parent.parent.parent / "artifacts"),

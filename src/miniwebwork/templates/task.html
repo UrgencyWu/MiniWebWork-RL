@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Task {{ task.task_id }}{% endblock %}
+{% block content %}
+<h1 data-testid="task-id-display">{{ task.task_id }}</h1>
+<div class="card">
+    <h2>任务说明</h2>
+    <p data-testid="task-instruction">{{ task.instruction }}</p>
+</div>
+<form action="/tasks/{{ task.task_id }}/start" method="post">
+    <button class="btn btn-primary" data-testid="start-task-button" type="submit">开始任务</button>
+</form>
+<p><a href="/">&larr; 返回任务列表</a></p>
+{% endblock %}

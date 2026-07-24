@@ -135,7 +135,7 @@ matplotlib==3.10.9
 mbstrdecoder==1.1.5
 mcp==1.26.0
 mdurl==0.1.2
-# Editable install with no version control (miniwebwork==0.1.0)
+# Editable Git install with no remote (miniwebwork==0.1.0)
 -e /home/wushaohua/data/MiniWebWork-RL
 mistral_common==1.9.1
 mmh3==5.2.1

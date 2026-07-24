@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}采购申请{% endblock %}
+{% block content %}
+<h1>采购申请</h1>
+
+<div class="card">
+    <p><strong>Episode:</strong> <code>{{ episode_id }}</code></p>
+    <p><strong>Task:</strong> {{ task.task_id }} — {{ task.instruction }}</p>
+</div>
+
+{% if product %}
+<div class="card">
+    <h2>已选商品</h2>
+    <table>
+        <tr><th>型号</th><td>{{ product.model_number or product.product_id }}</td></tr>
+        <tr><th>名称</th><td>{{ product.name }}</td></tr>
+        <tr><th>价格</th><td>¥{{ "%.2f"|format(product.price) }}</td></tr>
+        <tr><th>供应商</th><td>{{ product.supplier_name }}</td></tr>
+    </table>
+</div>
+{% else %}
+<div class="card" style="background:#fff3cd;">
+    <h2>声明无可行商品</h2>
+    <p>你已选择声明此任务没有符合条件的商品。</p>
+</div>
+{% endif %}
+
+<form action="/procurement/submit" method="post">
+    <input type="hidden" name="episode_id" value="{{ episode_id }}">
+    <input type="hidden" name="task_id" value="{{ task.task_id }}">
+    <input type="hidden" name="decision_type" value="{% if product %}select_product{% else %}no_solution{% endif %}">
+    {% if product %}<input type="hidden" name="product_id" value="{{ product.product_id }}">{% endif %}
+
+    {% if product %}
+    <div class="field-group" style="margin:1rem 0;">
+        <label for="quantity">数量</label>
+        <input type="number" id="quantity" name="quantity" data-testid="procurement-quantity" value="1" min="1" max="999">
+    </div>
+    {% endif %}
+
+    <div class="field-group" style="margin:1rem 0;">
+        <label for="justification">说明/理由</label>
+        <textarea id="justification" name="justification" data-testid="procurement-justification" rows="3" style="width:100%;">{% if not product %}经搜索和筛选，未找到满足所有条件的商品。{% endif %}</textarea>
+    </div>
+
+    <button class="btn btn-primary" data-testid="submit-procurement" type="submit">提交采购申请</button>
+    <a class="btn" href="/products?episode_id={{ episode_id }}&task_id={{ task.task_id }}">取消</a>
+</form>
+{% endblock %}

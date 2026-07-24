@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block content %}
+{% if task %}
+<div class="card">
+    <strong>任务 {{ task.task_id }}:</strong> {{ task.instruction }}
+</div>
+{% endif %}
+{% if episode_id %}
+<p>Episode: <code data-testid="episode-id">{{ episode_id }}</code></p>
+{% endif %}
+
+<form class="filter-form" method="get" action="/products">
+    {% if episode_id %}<input type="hidden" name="episode_id" value="{{ episode_id }}">{% endif %}
+    {% if task %}<input type="hidden" name="task_id" value="{{ task.task_id }}">{% endif %}
+    <div class="field-group">
+        <label for="q">搜索关键词</label>
+        <input type="text" id="q" name="q" data-testid="search-query" value="{{ q or '' }}">
+    </div>
+    <div class="field-group">
+        <label for="category">类别</label>
+        <select id="category" name="category" data-testid="filter-category">
+            <option value="">全部</option>
+            {% for cat in ["GPU", "服务器", "存储", "网络"] %}
+            <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="field-group">
+        <label for="max_price">最高价格(元)</label>
+        <input type="number" id="max_price" name="max_price" data-testid="filter-max-price" value="{{ max_price or '' }}" step="0.01">
+    </div>
+    <div class="field-group">
+        <label for="min_memory_gb">最低显存(GB)</label>
+        <input type="number" id="min_memory_gb" name="min_memory_gb" data-testid="filter-min-memory" value="{{ min_memory_gb or '' }}">
+    </div>
+    <div class="field-group">
+        <label for="max_delivery_days">最长交付(天)</label>
+        <input type="number" id="max_delivery_days" name="max_delivery_days" data-testid="filter-max-delivery" value="{{ max_delivery_days or '' }}">
+    </div>
+    <div class="field-group">
+        <label for="certified_only">仅认证供应商</label>
+        <input type="checkbox" id="certified_only" name="certified_only" data-testid="filter-certified" value="1" {% if certified_only %}checked{% endif %}>
+    </div>
+    <div class="field-group">
+        <label for="min_supplier_rating">最低供应商评分</label>
+        <input type="number" id="min_supplier_rating" name="min_supplier_rating" data-testid="filter-min-rating" value="{{ min_supplier_rating or '' }}" step="0.1" min="0" max="5">
+    </div>
+    <div class="field-group">
+        <label for="supplier_region">地区</label>
+        <select id="supplier_region" name="supplier_region" data-testid="filter-region">
+            <option value="">全部</option>
+            {% for r in ["华北", "华南", "华东", "西北"] %}
+            <option value="{{ r }}" {% if supplier_region == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="field-group">
+        <label for="in_stock_only">仅显示有库存</label>
+        <input type="checkbox" id="in_stock_only" name="in_stock_only" data-testid="filter-in-stock" value="1" {% if in_stock_only %}checked{% endif %}>
+    </div>
+    <div class="field-group">
+        <label for="min_warranty_months">最低保修(月)</label>
+        <input type="number" id="min_warranty_months" name="min_warranty_months" data-testid="filter-min-warranty" value="{{ min_warranty_months or '' }}">
+    </div>
+    <div class="field-group">
+        <button class="btn btn-primary" data-testid="apply-filters" type="submit">筛选</button>
+        <a class="btn" href="/products?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">重置</a>
+    </div>
+</form>
+
+<p data-testid="result-count">共 {{ products|length }} 条结果</p>
+
+{% if products|length == 0 %}
+<div class="card" style="text-align:center; padding:2rem;">
+    <p>没有符合条件的商品</p>
+    {% if episode_id and task %}
+    <a class="btn btn-danger" data-testid="declare-no-solution" href="/procurement/new?episode_id={{ episode_id }}&task_id={{ task.task_id }}&product_id=">声明无可行商品</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% for product in products %}
+<div class="card" data-testid="product-card-{{ product.product_id }}">
+    <h3><a data-testid="product-link-{{ product.product_id }}" href="/products/{{ product.product_id }}?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">{{ product.name }}</a></h3>
+    <table>
+        <tr><th>型号</th><td>{{ product.model_number or '-' }}</td><th>类别</th><td>{{ product.category }}</td></tr>
+        <tr><th>价格</th><td>¥{{ "%.2f"|format(product.price) }}</td>
+            <th>显存</th><td>{% if product.memory_gb %}{{ product.memory_gb }} GB{% else %}-{% endif %}</td></tr>
+        <tr><th>库存</th><td>{% if product.stock > 0 %}{{ product.stock }}{% else %}<span style="color:red">缺货</span>{% endif %}</td>
+            <th>交付</th><td>{{ product.delivery_days }} 天</td></tr>
+        <tr><th>保修</th><td>{{ product.warranty_months }} 月</td>
+            <th>供应商</th><td><a data-testid="supplier-link-{{ product.supplier_id }}" href="/suppliers/{{ product.supplier_id }}">{{ product.supplier_name }}</a> ({{ product.supplier_region }}, {% if product.certified %}已认证{% else %}未认证{% endif %}, 评分 {{ product.rating }})</td></tr>
+    </table>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "seed_version": "1.0.0",
+  "description": "MiniWebWork-RL M1.1 seed data manifest",
+  "supplier_count": 6,
+  "product_count": 24,
+  "files": {
+    "suppliers.json": {
+      "sha256": "e1d5d392c7a2731682559c231362f08204a7e82791dc91fc2a967abd7eb2aacc"
+    },
+    "products.json": {
+      "sha256": "911f5de5e9793f858ef5a6c5672ec375511e7d974b8cde6f086185387e6e3b7e"
+    }
+  }
+}

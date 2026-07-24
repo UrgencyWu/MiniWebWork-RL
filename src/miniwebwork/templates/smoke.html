@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MiniWebWork-RL Smoke Test</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        input, button { padding: 0.5rem; font-size: 1rem; }
+        #result { margin-top: 1rem; padding: 1rem; border: 1px solid #ccc; min-height: 2rem; }
+    </style>
+</head>
+<body>
+    <h1>MiniWebWork-RL Smoke Test</h1>
+    <input id="query" type="text" placeholder="Enter search term...">
+    <button id="search-button" onclick="doSearch()">Search</button>
+    <div id="result">ready</div>
+    <script>
+        function doSearch() {
+            var q = document.getElementById('query').value;
+            document.getElementById('result').textContent = 'searched: ' + q;
+        }
+    </script>
+</body>
+</html>

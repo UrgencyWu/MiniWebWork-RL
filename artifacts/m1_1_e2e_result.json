@@ -1,0 +1,129 @@
+{
+  "overall_success": true,
+  "cases": [
+    {
+      "case": "A",
+      "task_id": "TASK-001",
+      "episode_id": "EP-B93AAA212AC0",
+      "submission_id": "",
+      "verifier": {
+        "success": true,
+        "task_id": "TASK-001",
+        "episode_id": "EP-B93AAA212AC0",
+        "submission_id": "SUB-D60C38D07F3C",
+        "decision_type": "select_product",
+        "selected_product_id": "PRD-001",
+        "expected_decision_type": "select_product",
+        "expected_product_id": "PRD-001",
+        "constraints_satisfied": true,
+        "objective_satisfied": true,
+        "failure_reasons": [],
+        "details": {},
+        "verifier_version": "1.0.0"
+      },
+      "success": true,
+      "urls": [
+        "http://127.0.0.1:18080/products?episode_id=EP-B93AAA212AC0&task_id=TASK-001",
+        "http://127.0.0.1:18080/products?q=CC-A100X&episode_id=EP-B93AAA212AC0&task_id=TASK-001",
+        "http://127.0.0.1:18080/products/PRD-001?episode_id=EP-B93AAA212AC0&task_id=TASK-001",
+        "http://127.0.0.1:18080/suppliers/SUP-001?episode_id=EP-B93AAA212AC0&task_id=TASK-001",
+        "http://127.0.0.1:18080/procurement/new?product_id=PRD-001&episode_id=EP-B93AAA212AC0&task_id=TASK-001",
+        "http://127.0.0.1:18080/procurement/submit"
+      ],
+      "elapsed_s": 4.51
+    },
+    {
+      "case": "B",
+      "task_id": "TASK-010",
+      "episode_id": "EP-317B62407200",
+      "submission_id": "",
+      "verifier": {
+        "success": true,
+        "task_id": "TASK-010",
+        "episode_id": "EP-317B62407200",
+        "submission_id": "SUB-FED2977CE239",
+        "decision_type": "select_product",
+        "selected_product_id": "PRD-002",
+        "expected_decision_type": "select_product",
+        "expected_product_id": "PRD-002",
+        "constraints_satisfied": true,
+        "objective_satisfied": true,
+        "failure_reasons": [],
+        "details": {},
+        "verifier_version": "1.0.0"
+      },
+      "success": true,
+      "urls": [
+        "http://127.0.0.1:18080/products?episode_id=EP-317B62407200&task_id=TASK-010",
+        "http://127.0.0.1:18080/products?category=GPU&min_memory_gb=48&max_delivery_days=14&in_stock_only=1&episode_id=EP-317B62407200&task_id=TASK-010",
+        "http://127.0.0.1:18080/products/PRD-002?episode_id=EP-317B62407200&task_id=TASK-010",
+        "http://127.0.0.1:18080/procurement/submit"
+      ],
+      "elapsed_s": 3.79
+    },
+    {
+      "case": "C",
+      "task_id": "TASK-004",
+      "episode_id": "EP-312907221583",
+      "submission_id": "",
+      "verifier": {
+        "success": true,
+        "task_id": "TASK-004",
+        "episode_id": "EP-312907221583",
+        "submission_id": "SUB-1DEDFAAAB2FD",
+        "decision_type": "no_solution",
+        "selected_product_id": "",
+        "expected_decision_type": "no_solution",
+        "expected_product_id": "",
+        "constraints_satisfied": true,
+        "objective_satisfied": true,
+        "failure_reasons": [],
+        "details": {},
+        "verifier_version": "1.0.0"
+      },
+      "success": true,
+      "urls": [
+        "http://127.0.0.1:18080/products?episode_id=EP-312907221583&task_id=TASK-004",
+        "http://127.0.0.1:18080/products?category=GPU&min_memory_gb=64&max_price=50000&in_stock_only=1&episode_id=EP-312907221583&task_id=TASK-004",
+        "http://127.0.0.1:18080/procurement/new?episode_id=EP-312907221583&task_id=TASK-004&product_id=",
+        "http://127.0.0.1:18080/procurement/submit"
+      ],
+      "elapsed_s": 3.21
+    },
+    {
+      "case": "D",
+      "task_id": "TASK-003",
+      "episode_id": "EP-F2C66F26DA19",
+      "submission_id": "",
+      "verifier": {
+        "success": false,
+        "task_id": "TASK-003",
+        "episode_id": "EP-F2C66F26DA19",
+        "submission_id": "SUB-2F381CFBD6B4",
+        "decision_type": "select_product",
+        "selected_product_id": "PRD-023",
+        "expected_decision_type": "select_product",
+        "expected_product_id": "PRD-022",
+        "constraints_satisfied": true,
+        "objective_satisfied": false,
+        "failure_reasons": [
+          "objective_not_optimal"
+        ],
+        "details": {
+          "optimal_product": "PRD-022",
+          "optimal_price": 18000.0,
+          "optimal_rating": 3.9
+        },
+        "verifier_version": "1.0.0"
+      },
+      "success": true,
+      "verifier_success": false,
+      "urls": [
+        "http://127.0.0.1:18080/products?episode_id=EP-F2C66F26DA19&task_id=TASK-003",
+        "http://127.0.0.1:18080/products/PRD-023?episode_id=EP-F2C66F26DA19&task_id=TASK-003",
+        "http://127.0.0.1:18080/procurement/submit"
+      ],
+      "elapsed_s": 3.09
+    }
+  ]
+}
