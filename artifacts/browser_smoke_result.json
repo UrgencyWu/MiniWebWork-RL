@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "url": "http://127.0.0.1:18080/",
+  "title": "MiniWebWork-RL Smoke Test",
+  "input_count": 1,
+  "button_count": 1,
+  "result_text": "searched: RTX PRO 6000",
+  "browser": "chromium",
+  "headless": true
+}

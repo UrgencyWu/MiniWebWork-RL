@@ -1,0 +1,46 @@
+# Conda
+*.tar.bz2
+*.conda
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+*.whl
+
+# Tests & CI
+.pytest_cache/
+htmlcov/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project runtime
+data/runtime/*.db
+data/runtime/*.db-journal
+data/runtime/*.db-wal
+
+# Slurm logs (keep .gitkeep)
+logs/*.out
+logs/*.err
+
+# Models (never commit)
+models/
+
+# Browser cache
+.cache/
+
+# Environment files are committed, but not large binaries
+# Conda env directory itself is never committed

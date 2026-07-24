@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=80", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miniwebwork"
+version = "0.1.0"
+description = "MiniWebWork-RL: Lightweight browser agent RL training for procurement tasks"
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "MiniWebWork-RL Team"}
+]
+
+[project.optional-dependencies]
+test = ["pytest>=9.0"]
+web = ["fastapi>=0.135", "uvicorn>=0.41", "flask>=3.1"]
+browser = ["playwright>=1.61"]
+training = ["trl>=1.9", "peft>=0.19", "accelerate>=1.13"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
