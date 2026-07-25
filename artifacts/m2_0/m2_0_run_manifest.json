@@ -1,0 +1,37 @@
+{
+  "run_id": "m2_0_d122d47a",
+  "model_info": {
+    "model_path": "/data/share/model/Qwen3.5-4B",
+    "model_type": "qwen3_5_text",
+    "dtype": "bfloat16",
+    "device": "cuda:0",
+    "chat_template_sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715",
+    "enable_thinking": false,
+    "generation_config": {
+      "max_new_tokens": 128,
+      "do_sample": false,
+      "use_cache": true
+    },
+    "load_time_s": 4.082550287246704,
+    "peak_memory_gb": 7.8338494300842285
+  },
+  "prompt_info": {
+    "prompt_version": "browser_agent_v1",
+    "prompt_sha256": "8319d896248381889096de195afa7c74ad204549134808c3a6eecebdb596330d",
+    "chat_template_sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715",
+    "history_window": 5
+  },
+  "args": {
+    "model_path": "/data/share/model/Qwen3.5-4B",
+    "tasks": "all",
+    "max_model_turns": 20,
+    "max_env_steps": 15,
+    "history_window": 5,
+    "output_dir": "artifacts/m2_0",
+    "prompt_version": "browser_agent_v1",
+    "dry_run": false,
+    "limit": 0,
+    "resume": false
+  },
+  "started_at": "2026-07-25T18:40:19"
+}

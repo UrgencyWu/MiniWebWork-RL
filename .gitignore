@@ -44,7 +44,12 @@ data/runtime/*.db-wal
 # Screenshots are artifacts, not committed
 artifacts/*.png
 artifacts/m1_1_screenshots/
-artifacts/m1_2/
+artifacts/m1_2/per_task/
+artifacts/m1_2/trajectories/
+artifacts/m1_2/raw_outputs/
+artifacts/m2_0/per_task/
+artifacts/m2_0/trajectories/
+artifacts/m2_0/raw_outputs/
 
 # Models (never commit)
 models/

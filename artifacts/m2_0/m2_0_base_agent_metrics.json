@@ -1,0 +1,224 @@
+{
+  "total_tasks": 15,
+  "successful_tasks": 5,
+  "success_rate": 0.3333333333333333,
+  "failed_tasks": 10,
+  "truncated_tasks": 0,
+  "average_model_turns": 12.266666666666667,
+  "average_environment_steps": 12.266666666666667,
+  "median_environment_steps": 15,
+  "total_reward": 5.0,
+  "total_generations": 184,
+  "nonempty_generation_rate": 1.0,
+  "strict_json_success_rate": 0.9456521739130435,
+  "fallback_parse_rate": 0.05434782608695652,
+  "effective_json_success_rate": 0.9456521739130435,
+  "action_schema_valid_rate": 1.0,
+  "target_valid_rate": 1.0,
+  "premature_finish_count": 0,
+  "model_output_failure_limit_count": 0,
+  "no_submission_count": 0,
+  "action_distribution": {
+    "click": 154,
+    "fill": 30
+  },
+  "total_input_tokens": 1148822,
+  "total_output_tokens": 2503,
+  "mean_input_tokens_per_turn": 6243.597826086957,
+  "mean_output_tokens_per_turn": 13.603260869565217,
+  "mean_generation_latency_ms": 1349.7062169987223,
+  "task_type_breakdown": {
+    "exact_product": {
+      "total": 2,
+      "success": 2
+    },
+    "cheapest_feasible": {
+      "total": 8,
+      "success": 2
+    },
+    "no_feasible_product": {
+      "total": 2,
+      "success": 0
+    },
+    "highest_rating_supplier": {
+      "total": 3,
+      "success": 1
+    }
+  },
+  "termination_reason_breakdown": {
+    "verified_submission": 15
+  },
+  "per_task": [
+    {
+      "task_id": "TASK-001",
+      "success": true,
+      "reward": 1.0,
+      "model_turns": 4,
+      "environment_steps": 4,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [],
+      "elapsed_s": 11.395544052124023
+    },
+    {
+      "task_id": "TASK-002",
+      "success": true,
+      "reward": 1.0,
+      "model_turns": 4,
+      "environment_steps": 4,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [],
+      "elapsed_s": 10.371960639953613
+    },
+    {
+      "task_id": "TASK-003",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 28.516732692718506
+    },
+    {
+      "task_id": "TASK-004",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 28.99591612815857
+    },
+    {
+      "task_id": "TASK-005",
+      "success": true,
+      "reward": 1.0,
+      "model_turns": 8,
+      "environment_steps": 8,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [],
+      "elapsed_s": 18.768705129623413
+    },
+    {
+      "task_id": "TASK-006",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 28.61095428466797
+    },
+    {
+      "task_id": "TASK-007",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 27.635297298431396
+    },
+    {
+      "task_id": "TASK-008",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 27.700261116027832
+    },
+    {
+      "task_id": "TASK-009",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 29.809041738510132
+    },
+    {
+      "task_id": "TASK-010",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 28.579060077667236
+    },
+    {
+      "task_id": "TASK-011",
+      "success": true,
+      "reward": 1.0,
+      "model_turns": 8,
+      "environment_steps": 8,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [],
+      "elapsed_s": 18.679508924484253
+    },
+    {
+      "task_id": "TASK-012",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 27.897883653640747
+    },
+    {
+      "task_id": "TASK-013",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 29.23868417739868
+    },
+    {
+      "task_id": "TASK-014",
+      "success": true,
+      "reward": 1.0,
+      "model_turns": 10,
+      "environment_steps": 10,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [],
+      "elapsed_s": 23.147719621658325
+    },
+    {
+      "task_id": "TASK-015",
+      "success": false,
+      "reward": 0.0,
+      "model_turns": 15,
+      "environment_steps": 15,
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "elapsed_s": 28.1919424533844
+    }
+  ],
+  "run_id": "m2_0_d122d47a"
+}

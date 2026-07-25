@@ -95,13 +95,15 @@ class ProcurementBrowserEnv:
         self._terminated = False
         self._truncated = False
 
-        # Setup isolated DB
-        self._setup_database()
+        # Setup isolated DB (only on first reset)
+        if not self._db_path:
+            self._setup_database()
 
-        # Start web service
-        self._start_web_service()
+        # Start web service (only if not running)
+        if self._web_process is None or self._web_process.poll() is not None:
+            self._start_web_service()
 
-        # Start browser
+        # Start browser (reuse Playwright across resets)
         self._start_browser()
 
         # Navigate to task start page and click start
@@ -249,7 +251,7 @@ class ProcurementBrowserEnv:
     # Internal helpers
     # ================================================================
     def _cleanup_episode(self):
-        """Clean up resources from current episode."""
+        """Clean up resources from current episode (keep Playwright/browser alive)."""
         if self._page and not self._page.is_closed():
             try:
                 self._page.close()
@@ -260,11 +262,7 @@ class ProcurementBrowserEnv:
                 self._context.close()
             except Exception:
                 pass
-        if self._browser:
-            try:
-                self._browser.close()
-            except Exception:
-                pass
+        # Don't close browser — reuse across resets to avoid async loop issues
         if self._web_process:
             try:
                 self._web_process.send_signal(signal.SIGTERM)
@@ -312,13 +310,14 @@ class ProcurementBrowserEnv:
                 time.sleep(0.3)
 
     def _start_browser(self):
-        """Start Playwright Chromium browser."""
+        """Start Playwright Chromium browser (reuses Playwright across resets)."""
         if self._playwright is None:
             self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(
-            headless=self.headless,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
-        )
+        if self._browser is None or not self._browser.is_connected():
+            self._browser = self._playwright.chromium.launch(
+                headless=self.headless,
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
         self._context = self._browser.new_context()
         self._page = self._context.new_page()
 

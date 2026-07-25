@@ -1,0 +1,67 @@
+{
+  "smoke_test": "M2.0 model action smoke",
+  "model_info": {
+    "model_path": "/data/share/model/Qwen3.5-4B",
+    "model_type": "qwen3_5_text",
+    "dtype": "bfloat16",
+    "device": "cuda:0",
+    "chat_template_sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715",
+    "enable_thinking": false,
+    "generation_config": {
+      "max_new_tokens": 128,
+      "do_sample": false,
+      "use_cache": true
+    },
+    "load_time_s": 4.0938560962677,
+    "peak_memory_gb": 7.833984375
+  },
+  "prompt_sha256": "8319d896248381889096de195afa7c74ad204549134808c3a6eecebdb596330d",
+  "turns": [
+    {
+      "turn": 1,
+      "raw_output": "{\"action\":\"click\",\"target\":\"e1\"}",
+      "strict_json_success": true,
+      "fallback_used": false,
+      "schema_valid": true,
+      "action": {
+        "action": "click",
+        "target": "e1"
+      },
+      "errors": [],
+      "input_tokens": 585,
+      "output_tokens": 11,
+      "latency_ms": 1350.306749343872
+    },
+    {
+      "turn": 2,
+      "raw_output": "{\"action\":\"click\",\"target\":\"e1\"}",
+      "strict_json_success": true,
+      "fallback_used": false,
+      "schema_valid": true,
+      "action": {
+        "action": "click",
+        "target": "e1"
+      },
+      "errors": [],
+      "input_tokens": 585,
+      "output_tokens": 11,
+      "latency_ms": 655.0033092498779
+    },
+    {
+      "turn": 3,
+      "raw_output": "{\"action\":\"click\",\"target\":\"e1\"}",
+      "strict_json_success": true,
+      "fallback_used": false,
+      "schema_valid": true,
+      "action": {
+        "action": "click",
+        "target": "e1"
+      },
+      "errors": [],
+      "input_tokens": 585,
+      "output_tokens": 11,
+      "latency_ms": 655.5662155151367
+    }
+  ],
+  "all_nonempty": true
+}

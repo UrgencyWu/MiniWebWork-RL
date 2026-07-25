@@ -1,0 +1,202 @@
+{
+  "analyzed_tasks": [
+    {
+      "task_id": "TASK-001",
+      "success": true,
+      "tags": [],
+      "primary_failure": null
+    },
+    {
+      "task_id": "TASK-002",
+      "success": true,
+      "tags": [],
+      "primary_failure": null
+    },
+    {
+      "task_id": "TASK-003",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "non_json_output",
+        "repeated_action"
+      ],
+      "primary_failure": "output_format_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-004",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "non_json_output"
+      ],
+      "primary_failure": "output_format_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-005",
+      "success": true,
+      "tags": [],
+      "primary_failure": null
+    },
+    {
+      "task_id": "TASK-006",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "repeated_action"
+      ],
+      "primary_failure": "element_grounding_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-007",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "non_json_output",
+        "repeated_action"
+      ],
+      "primary_failure": "output_format_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-008",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "non_json_output",
+        "repeated_action"
+      ],
+      "primary_failure": "output_format_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-009",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "non_json_output"
+      ],
+      "primary_failure": "output_format_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-010",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission"
+      ],
+      "primary_failure": "element_grounding_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-011",
+      "success": true,
+      "tags": [],
+      "primary_failure": null
+    },
+    {
+      "task_id": "TASK-012",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "repeated_action"
+      ],
+      "primary_failure": "element_grounding_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-013",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission",
+        "non_json_output"
+      ],
+      "primary_failure": "output_format_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    },
+    {
+      "task_id": "TASK-014",
+      "success": true,
+      "tags": [],
+      "primary_failure": null
+    },
+    {
+      "task_id": "TASK-015",
+      "success": false,
+      "tags": [
+        "incompatible_action",
+        "no_submission"
+      ],
+      "primary_failure": "element_grounding_failure",
+      "termination_reason": "verified_submission",
+      "failure_reasons": [
+        "missing_submission"
+      ],
+      "model_turns": 15,
+      "environment_steps": 15
+    }
+  ],
+  "summary": {
+    "primary_failure_counts": {
+      "null": 5,
+      "output_format_failure": 6,
+      "element_grounding_failure": 4
+    }
+  }
+}
