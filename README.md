@@ -2,13 +2,14 @@
 
 轻量级浏览器智能体强化训练项目，面向采购调研任务。
 
-## 当前阶段：M1.1
+## 当前阶段：M1.2
 
-**确定性采购环境 (Deterministic Procurement Environment)**
+**Agent Environment Contract & Rule-based Baseline**
 
 已完成：
 - M1.0: 环境建立与浏览器烟雾测试 → PASS
 - M1.1: 采购数据库、任务集、网站、Verifier、Slurm E2E → PASS
+- M1.2: Agent 环境接口、Observation/Action Schema、规则基线Agent、轨迹采集 → PASS
 
 ## 已冻结技术范围
 

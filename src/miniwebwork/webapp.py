@@ -129,18 +129,18 @@ async def start_task(task_id: str):
 @app.get("/products", response_class=HTMLResponse)
 async def product_list(
     request: Request,
-    q: Optional[str] = None,
-    category: Optional[str] = None,
-    max_price: Optional[float] = None,
-    min_memory_gb: Optional[int] = None,
-    max_delivery_days: Optional[int] = None,
-    certified_only: Optional[str] = None,
-    min_supplier_rating: Optional[float] = None,
-    supplier_region: Optional[str] = None,
-    in_stock_only: Optional[str] = None,
-    min_warranty_months: Optional[int] = None,
-    episode_id: Optional[str] = None,
-    task_id: Optional[str] = None,
+    q: str = "",
+    category: str = "",
+    max_price: str = "",
+    min_memory_gb: str = "",
+    max_delivery_days: str = "",
+    certified_only: str = "",
+    min_supplier_rating: str = "",
+    supplier_region: str = "",
+    in_stock_only: str = "",
+    min_warranty_months: str = "",
+    episode_id: str = "",
+    task_id: str = "",
 ):
     conn = get_db()
 
@@ -162,24 +162,36 @@ async def product_list(
         query += " AND p.category = ?"
         params.append(category)
 
-    if max_price is not None:
-        query += " AND p.price <= ?"
-        params.append(max_price)
+    if max_price:
+        try:
+            query += " AND p.price <= ?"
+            params.append(float(max_price))
+        except ValueError:
+            pass
 
-    if min_memory_gb is not None:
-        query += " AND (p.memory_gb IS NOT NULL AND p.memory_gb >= ?)"
-        params.append(min_memory_gb)
+    if min_memory_gb:
+        try:
+            query += " AND (p.memory_gb IS NOT NULL AND p.memory_gb >= ?)"
+            params.append(int(min_memory_gb))
+        except ValueError:
+            pass
 
-    if max_delivery_days is not None:
-        query += " AND p.delivery_days <= ?"
-        params.append(max_delivery_days)
+    if max_delivery_days:
+        try:
+            query += " AND p.delivery_days <= ?"
+            params.append(int(max_delivery_days))
+        except ValueError:
+            pass
 
     if certified_only == "1":
         query += " AND s.certified = 1"
 
-    if min_supplier_rating is not None:
-        query += " AND s.rating >= ?"
-        params.append(min_supplier_rating)
+    if min_supplier_rating:
+        try:
+            query += " AND s.rating >= ?"
+            params.append(float(min_supplier_rating))
+        except ValueError:
+            pass
 
     if supplier_region:
         query += " AND s.region = ?"
@@ -188,9 +200,12 @@ async def product_list(
     if in_stock_only == "1":
         query += " AND p.stock > 0"
 
-    if min_warranty_months is not None:
-        query += " AND p.warranty_months >= ?"
-        params.append(min_warranty_months)
+    if min_warranty_months:
+        try:
+            query += " AND p.warranty_months >= ?"
+            params.append(int(min_warranty_months))
+        except ValueError:
+            pass
 
     query += " ORDER BY p.price ASC"
 

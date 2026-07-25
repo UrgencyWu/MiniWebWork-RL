@@ -36,6 +36,16 @@ data/runtime/*.db-wal
 logs/*.out
 logs/*.err
 
+# Runtime databases
+data/runtime/*.db
+data/runtime/*.db-journal
+data/runtime/*.db-wal
+
+# Screenshots are artifacts, not committed
+artifacts/*.png
+artifacts/m1_1_screenshots/
+artifacts/m1_2/
+
 # Models (never commit)
 models/
 
