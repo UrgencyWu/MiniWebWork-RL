@@ -31,6 +31,8 @@ Thumbs.db
 data/runtime/*.db
 data/runtime/*.db-journal
 data/runtime/*.db-wal
+data/runtime/m1_2/
+data/runtime/m2_1/
 
 # Slurm logs (keep .gitkeep)
 logs/*.out

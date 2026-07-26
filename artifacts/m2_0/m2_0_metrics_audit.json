@@ -1,0 +1,104 @@
+{
+  "old_reported": {
+    "successful_tasks": 5,
+    "success_rate": 0.3333333333333333,
+    "total_generations": 184,
+    "nonempty_generation_rate": 1.0,
+    "strict_json_success_rate": 0.9456521739130435,
+    "fallback_parse_rate": 0.05434782608695652,
+    "effective_json_success_rate": 0.9456521739130435,
+    "action_schema_valid_rate": 1.0,
+    "target_valid_rate": 1.0,
+    "average_model_turns": 12.266666666666667
+  },
+  "corrected": {
+    "total_tasks": 15,
+    "total_model_turns": 184,
+    "total_generations": 184,
+    "empty_generation_count": 0,
+    "nonempty_generation_count": 184,
+    "strict_parse_success_count": 174,
+    "fallback_attempt_count": 10,
+    "fallback_success_count": 10,
+    "fallback_failure_count": 0,
+    "effective_json_success_count": 184,
+    "schema_valid_count": 184,
+    "schema_invalid_count": 0,
+    "env_step_attempt_count": 184,
+    "environment_action_success_count": 34,
+    "environment_action_failure_count": 150,
+    "target_valid_count": 184,
+    "target_invalid_count": 0,
+    "successful_tasks": 5,
+    "failed_tasks": 10,
+    "verifier_success_count": 0,
+    "verifier_failure_count": 0,
+    "task_format_failure_count": 0,
+    "task_grounding_failure_count": 0
+  },
+  "rates": {
+    "nonempty_generation_rate": {
+      "numerator": 184,
+      "denominator": 184,
+      "value": 1.0
+    },
+    "strict_json_success_rate": {
+      "numerator": 174,
+      "denominator": 184,
+      "value": 0.9456521739130435
+    },
+    "fallback_attempt_rate": {
+      "numerator": 10,
+      "denominator": 184,
+      "value": 0.05434782608695652
+    },
+    "fallback_success_rate": {
+      "numerator": 10,
+      "denominator": 10,
+      "value": 1.0
+    },
+    "effective_json_success_rate": {
+      "numerator": 184,
+      "denominator": 184,
+      "value": 1.0
+    },
+    "schema_valid_rate": {
+      "numerator": 184,
+      "denominator": 184,
+      "value": 1.0
+    },
+    "target_valid_rate": {
+      "numerator": 184,
+      "denominator": 184,
+      "value": 1.0
+    },
+    "environment_action_success_rate": {
+      "numerator": 34,
+      "denominator": 184,
+      "value": 0.18478260869565216
+    },
+    "task_success_rate": {
+      "numerator": 5,
+      "denominator": 15,
+      "value": 0.3333333333333333
+    }
+  },
+  "contingency": {
+    "gen_level": {
+      "empty": 0,
+      "nonempty": 184,
+      "strict_ok": 174,
+      "fallback_ok": 10,
+      "fallback_fail": 0
+    },
+    "schema_level": {
+      "schema_valid": 184,
+      "schema_invalid": 0
+    },
+    "env_level": {
+      "env_action_ok": 34,
+      "env_action_fail": 150,
+      "target_bad": 0
+    }
+  }
+}
