@@ -1,0 +1,13 @@
+{
+  "train_samples": 189,
+  "valid_samples": 0,
+  "action_dist": {
+    "fill": 72,
+    "select": 27,
+    "check": 18,
+    "click": 72
+  },
+  "task_type_dist": {
+    "": 189
+  }
+}

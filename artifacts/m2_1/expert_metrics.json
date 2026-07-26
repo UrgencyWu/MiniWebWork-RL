@@ -1,0 +1,12 @@
+{
+  "train": {
+    "total": 96,
+    "success": 24,
+    "rate": 0.25
+  },
+  "valid": {
+    "total": 24,
+    "success": 0,
+    "rate": 0.0
+  }
+}

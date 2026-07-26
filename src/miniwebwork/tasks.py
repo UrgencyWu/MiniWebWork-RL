@@ -12,32 +12,57 @@ from .models import (
     TaskConstraints,
 )
 
+import os
+
 TASKS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "tasks"
+
+
+def _get_public_paths() -> list:
+    """Get public task file paths, including M2.1 custom paths if set."""
+    paths = [TASKS_DIR / "tasks_public.jsonl"]
+    extra = os.environ.get("MINIWEBWORK_TASK_DIR", "")
+    if extra:
+        ep = Path(extra)
+        for f in sorted(ep.glob("*_public.jsonl")):
+            if f not in paths:
+                paths.append(f)
+    return paths
+
+
+def _get_oracle_paths() -> list:
+    paths = [TASKS_DIR / "tasks_oracle.jsonl"]
+    extra = os.environ.get("MINIWEBWORK_TASK_DIR", "")
+    if extra:
+        ep = Path(extra)
+        for f in sorted(ep.glob("*_oracle.jsonl")):
+            if f not in paths:
+                paths.append(f)
+    return paths
 
 
 def load_public_tasks() -> list:
     """Load public tasks from JSONL."""
     tasks = []
-    path = TASKS_DIR / "tasks_public.jsonl"
-    if path.exists():
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    tasks.append(json.loads(line))
+    for path in _get_public_paths():
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        tasks.append(json.loads(line))
     return tasks
 
 
 def load_oracle_tasks() -> list:
     """Load oracle tasks from JSONL."""
     tasks = []
-    path = TASKS_DIR / "tasks_oracle.jsonl"
-    if path.exists():
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    tasks.append(json.loads(line))
+    for path in _get_oracle_paths():
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        tasks.append(json.loads(line))
     return tasks
 
 

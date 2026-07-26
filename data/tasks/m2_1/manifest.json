@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "seed": 20260726,
+  "train_task_count": 96,
+  "valid_task_count": 24,
+  "train_public_sha256": "4b01e51f9e75886a5a33e5d1ba8d146795b5cf7f38439c34821d694e4677d486",
+  "train_oracle_sha256": "7aabb2f4f0dc3b7bc5a88ac7571bc0c1bf7001a2f4476a8bb63023c3ce17bad6",
+  "valid_public_sha256": "590de213c98893ec44f70728365a9415788acdc90bef46ff1248d81c6fd74f24",
+  "valid_oracle_sha256": "a99a5400f1149d24924f91a09a56e880612c7adb26df24817901626cc5992f5e"
+}
