@@ -1,6 +1,5 @@
 {
   "oracle_leak": 0,
-  "expected_product_leak": 0,
   "test_task_leak": 0,
-  "cross_split_duplicate": 3
+  "cross_split_dup": 1
 }

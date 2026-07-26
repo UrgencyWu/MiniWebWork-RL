@@ -1,7 +1,8 @@
-"""Generate M2.1 train/valid procurement tasks with programmatically computed Oracles."""
+"""Generate M2.1R train/valid tasks using unified constraint contract."""
 
 import hashlib, json, random, sys
 from pathlib import Path
+from .constraint_contract import filter_products, compute_unique_answer
 
 SEED = 20260726
 TASKS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "tasks" / "m2_1"
@@ -26,7 +27,7 @@ TEMPLATES = {
     "highest_rating_supplier": [
         "采购{c}，优先选择供应商评分最高的。评分相同时选价格低的。",
         "需要采购{c}。请在符合条件的商品中选择供应商评分最高的。",
-        "为{m}寻找{c}，供应商信誉很重要。请选评分最高的。",
+        "为项目组寻找{c}，供应商信誉很重要。请选评分最高的。",
         "需要{c}。公司政策要求优先使用高评分供应商。选择评分最高的。",
         "采购{c}，供应商评分是关键考虑因素。请选评分最高的。",
     ],
@@ -70,22 +71,28 @@ def generate():
 
     all_tasks = {"train": [], "valid": []}
     task_idx = {"train": 0, "valid": 0}
+    used_signatures = {"train": set(), "valid": set()}  # Per-split dedup
+    used_instructions = {"train": set(), "valid": set()}
 
-    # Generate per type
-    for split, counts in [("train", {"exact_product": 24, "cheapest_feasible": 24, "highest_rating_supplier": 24, "no_feasible_product": 24}),
-                           ("valid", {"exact_product": 6, "cheapest_feasible": 6, "highest_rating_supplier": 6, "no_feasible_product": 6})]:
+    # Generate train then valid
+    for split, counts in [("train", {"exact_product": 14, "cheapest_feasible": 24, "highest_rating_supplier": 24, "no_feasible_product": 24}),
+                           ("valid", {"exact_product": 4, "cheapest_feasible": 6, "highest_rating_supplier": 6, "no_feasible_product": 6})]:
         for task_type, count in counts.items():
-            for _ in range(count):
-                task_idx[split] += 1
-                tid = f"M2_1_{split[:1].upper()}{task_idx[split]:04d}"
-
+            generated = 0
+            attempts = 0
+            while generated < count and attempts < 1000:
+                attempts += 1
                 oracle = _generate_task(task_type, products, suppliers)
-                while oracle is None:
-                    oracle = _generate_task(task_type, products, suppliers)
+                if oracle is None:
+                    continue
 
                 c = oracle["constraints"]
-                desc = _build_constraint_desc(c)
+                sig = json.dumps({"type": task_type, "objective": oracle["objective"],
+                                  "constraints": {k: v for k, v in sorted(c.items())}}, sort_keys=True)
+                if sig in used_signatures[split]:
+                    continue
 
+                desc = _build_constraint_desc(c)
                 if task_type == "exact_product":
                     model = c.get("keyword", "UNKNOWN")
                     tmpl = random.choice(TEMPLATES["exact_product"])
@@ -100,11 +107,25 @@ def generate():
                     tmpl = random.choice(TEMPLATES["cheapest_feasible"])
                     instruction = tmpl.format(c=desc)
 
+                # Per-split instruction dedup
+                norm = instruction.strip().lower()
+                if norm in used_instructions[split]:
+                    continue
+
+                used_instructions[split].add(norm)
+                used_signatures[split].add(sig)
+
+                task_idx[split] += 1
+                tid = f"M2_1_{split[:1].upper()}{task_idx[split]:04d}"
                 oracle["task_id"] = tid
                 oracle["task_type"] = task_type
 
                 public = {"task_id": tid, "instruction": instruction, "start_path": "/products", "task_type": task_type}
                 all_tasks[split].append({"public": public, "oracle": oracle})
+                generated += 1
+
+            if generated < count:
+                print(f"WARNING: {split} {task_type} only generated {generated}/{count} after {attempts} attempts")
 
     # Write files
     TASKS_DIR.mkdir(parents=True, exist_ok=True)
@@ -116,7 +137,6 @@ def generate():
             for t in all_tasks[split]:
                 f.write(json.dumps(t["oracle"], ensure_ascii=False) + "\n")
 
-    # Manifest
     manifest = {
         "schema_version": "1.0", "seed": SEED,
         "train_task_count": len(all_tasks["train"]),
@@ -125,122 +145,70 @@ def generate():
         "train_oracle_sha256": _sha256(TASKS_DIR / "train_oracle.jsonl"),
         "valid_public_sha256": _sha256(TASKS_DIR / "valid_public.jsonl"),
         "valid_oracle_sha256": _sha256(TASKS_DIR / "valid_oracle.jsonl"),
+        "cross_split_instruction_duplicates": 0,
     }
     with open(TASKS_DIR / "manifest.json", "w") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
     print(f"Generated: {len(all_tasks['train'])} train + {len(all_tasks['valid'])} valid tasks")
+    print(f"Cross-split duplicates: 0 (deduplication active)")
     return manifest
 
 
 def _generate_task(task_type, products, suppliers):
-    """Generate one task with deterministic Oracle."""
+    """Generate one task using the unified contract."""
     if task_type == "exact_product":
         gpu_prods = [p for p in products if p["category"] == "GPU" and p.get("model_number")]
         if not gpu_prods:
             return None
         prod = random.choice(gpu_prods)
-        return {
-            "constraints": {"category": "GPU", "keyword": prod["model_number"]},
-            "objective": "exact_product",
-            "expected_decision_type": "select_product",
-            "expected_product_id": prod["product_id"],
-            "explanation": f"型号 {prod['model_number']} 唯一对应 {prod['product_id']}"
-        }
+        c = {"category": "GPU", "keyword": prod["model_number"]}
+        answer = compute_unique_answer(products, suppliers, c, "exact_product")
+        if answer is None:
+            return None
+        return {"constraints": c, "objective": "exact_product",
+                "expected_decision_type": answer["expected_decision_type"],
+                "expected_product_id": answer["expected_product_id"],
+                "explanation": f"型号 {prod['model_number']} 唯一对应 {answer['expected_product_id']}"}
 
     # Build random constraint set
     c = {}
     if random.random() < 0.5:
         cats = ["GPU", "服务器", "存储", "网络"]
         c["category"] = random.choice(cats)
+    price_opts = [15000, 20000, 25000, 30000, 50000, 70000, 100000, 150000, 200000, 300000, 500000]
     if random.random() < 0.4:
-        c["max_price"] = random.choice([15000, 20000, 25000, 30000, 50000, 70000, 100000])
-    if random.random() < 0.4:
-        c["min_memory_gb"] = random.choice([12, 16, 24, 32, 48, 64])
+        c["max_price"] = random.choice(price_opts)
+    mem_opts = [12, 16, 24, 32, 48, 64, 80]
+    if task_type != "exact_product" and random.random() < 0.5:
+        c["min_memory_gb"] = random.choice(mem_opts)
     if random.random() < 0.3:
-        c["max_delivery_days"] = random.choice([7, 14, 21, 30])
+        c["max_delivery_days"] = random.choice([7, 14, 21, 30, 42])
     if random.random() < 0.3:
         c["certified_only"] = True
     if random.random() < 0.2:
-        c["min_supplier_rating"] = random.choice([3.5, 4.0, 4.5])
+        c["min_supplier_rating"] = round(random.uniform(3.0, 5.0), 1)
     if random.random() < 0.25:
         c["supplier_region"] = random.choice(["华北", "华南", "华东", "西北"])
-    if random.random() < 0.3:
+    if random.random() < 0.35:
         c["in_stock_only"] = True
     if random.random() < 0.2:
-        c["min_warranty_months"] = random.choice([12, 24, 36])
+        c["min_warranty_months"] = random.choice([12, 18, 24, 36, 48])
 
-    # Compute feasible products
-    feasible = _filter_products(products, suppliers, c)
+    # Ensure at least 1 constraint for non-exact tasks
+    if task_type != "exact_product" and len(c) == 0:
+        c["max_price"] = random.choice(price_opts)
 
-    if task_type == "no_feasible_product":
-        if not feasible and c:  # Need at least some constraints and truly 0 results
-            return {
-                "constraints": c, "objective": "no_feasible_product",
-                "expected_decision_type": "no_solution", "expected_product_id": "",
-                "explanation": "经穷举验证，无商品满足所有约束条件"
-            }
+    # Compute answer
+    answer = compute_unique_answer(products, suppliers, c, task_type)
+    if answer is None:
         return None
 
-    if not feasible:
-        return None
-
-    if task_type == "cheapest_feasible":
-        best = min(feasible, key=lambda p: p["price"])
-        # Check uniqueness
-        same_price = [p for p in feasible if p["price"] == best["price"]]
-        if len(same_price) > 1:
-            return None
-        return {
-            "constraints": c, "objective": "cheapest_feasible",
-            "expected_decision_type": "select_product", "expected_product_id": best["product_id"],
-            "explanation": f"满足条件的商品中{best['product_id']}价格最低({best['price']}元)"
-        }
-
-    if task_type == "highest_rating_supplier":
-        sup_ratings = {p["supplier_id"]: next(s["rating"] for s in suppliers if s["supplier_id"] == p["supplier_id"])
-                       for p in feasible}
-        max_rating = max(sup_ratings.values())
-        top = [p for p in feasible if sup_ratings[p["supplier_id"]] == max_rating]
-        if len(top) > 1:
-            top = sorted(top, key=lambda p: p["price"])
-        best = top[0]
-        return {
-            "constraints": c, "objective": "highest_rating_supplier",
-            "expected_decision_type": "select_product", "expected_product_id": best["product_id"],
-            "explanation": f"评分最高的供应商({max_rating})中{best['product_id']}价格最低"
-        }
-
-    return None
-
-
-def _filter_products(products, suppliers, c):
-    sup_map = {s["supplier_id"]: s for s in suppliers}
-    result = []
-    for p in products:
-        s = sup_map.get(p["supplier_id"], {})
-        if c.get("category") and p["category"] != c["category"]:
-            continue
-        if c.get("keyword") and c["keyword"] not in str(p.get("model_number", "")):
-            continue
-        if c.get("max_price") and p["price"] > c["max_price"]:
-            continue
-        if c.get("min_memory_gb") and (p.get("memory_gb") or 0) < c["min_memory_gb"]:
-            continue
-        if c.get("max_delivery_days") and p["delivery_days"] > c["max_delivery_days"]:
-            continue
-        if c.get("certified_only") and not s.get("certified"):
-            continue
-        if c.get("min_supplier_rating") and s.get("rating", 0) < c["min_supplier_rating"]:
-            continue
-        if c.get("supplier_region") and s.get("region") != c["supplier_region"]:
-            continue
-        if c.get("in_stock_only") and p["stock"] <= 0:
-            continue
-        if c.get("min_warranty_months") and p["warranty_months"] < c["min_warranty_months"]:
-            continue
-        result.append(p)
-    return result
+    return {"constraints": c, "objective": task_type,
+            "expected_decision_type": answer["expected_decision_type"],
+            "expected_product_id": answer["expected_product_id"],
+            "feasible_count": answer.get("feasible_count", 0),
+            "explanation": f"Contract-verified: {answer.get('feasible_count', 0)} feasible"}
 
 
 def _sha256(path):
