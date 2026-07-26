@@ -1391,8 +1391,8 @@
       "PRD-008",
       "PRD-021"
     ],
-    "expert_selected_id": "PRD-021",
-    "expected_product_id": "PRD-021",
+    "expert_selected_id": "PRD-008",
+    "expected_product_id": "PRD-008",
     "verifier_result": {
       "success": true
     },
@@ -1419,8 +1419,8 @@
       "PRD-011",
       "PRD-021"
     ],
-    "expert_selected_id": "PRD-021",
-    "expected_product_id": "PRD-021",
+    "expert_selected_id": "PRD-008",
+    "expected_product_id": "PRD-008",
     "verifier_result": {
       "success": true
     },
@@ -1490,8 +1490,8 @@
       "PRD-020",
       "PRD-021"
     ],
-    "expert_selected_id": "PRD-019",
-    "expected_product_id": "PRD-019",
+    "expert_selected_id": "PRD-006",
+    "expected_product_id": "PRD-006",
     "verifier_result": {
       "success": true
     },
@@ -2377,18 +2377,21 @@
   {
     "task_id": "M2_1_T0063",
     "constraints": {
-      "min_memory_gb": 64,
-      "max_delivery_days": 42,
-      "min_supplier_rating": 4.8,
-      "supplier_region": "西北",
-      "in_stock_only": true,
-      "min_warranty_months": 12
+      "max_price": 70000,
+      "min_memory_gb": 48,
+      "max_delivery_days": 7
     },
-    "oracle_feasible_ids": [],
-    "sql_feasible_ids": [],
-    "browser_visible_ids": [],
-    "expert_selected_id": null,
-    "expected_product_id": "",
+    "oracle_feasible_ids": [
+      "PRD-002"
+    ],
+    "sql_feasible_ids": [
+      "PRD-002"
+    ],
+    "browser_visible_ids": [
+      "PRD-002"
+    ],
+    "expert_selected_id": "PRD-002",
+    "expected_product_id": "PRD-002",
     "verifier_result": {
       "success": true
     },
@@ -2398,16 +2401,60 @@
   {
     "task_id": "M2_1_T0064",
     "constraints": {
-      "category": "服务器",
-      "max_price": 300000,
-      "min_memory_gb": 16,
-      "min_supplier_rating": 3.5
+      "max_delivery_days": 30,
+      "certified_only": true,
+      "in_stock_only": true
     },
-    "oracle_feasible_ids": [],
-    "sql_feasible_ids": [],
-    "browser_visible_ids": [],
-    "expert_selected_id": null,
-    "expected_product_id": "",
+    "oracle_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-004",
+      "PRD-005",
+      "PRD-006",
+      "PRD-007",
+      "PRD-008",
+      "PRD-009",
+      "PRD-010",
+      "PRD-012",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019"
+    ],
+    "sql_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-004",
+      "PRD-005",
+      "PRD-006",
+      "PRD-007",
+      "PRD-008",
+      "PRD-009",
+      "PRD-010",
+      "PRD-012",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019"
+    ],
+    "browser_visible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-004",
+      "PRD-005",
+      "PRD-006",
+      "PRD-007",
+      "PRD-008",
+      "PRD-009",
+      "PRD-010",
+      "PRD-012",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019"
+    ],
+    "expert_selected_id": "PRD-019",
+    "expected_product_id": "PRD-019",
     "verifier_result": {
       "success": true
     },
@@ -2417,15 +2464,22 @@
   {
     "task_id": "M2_1_T0065",
     "constraints": {
-      "max_price": 15000,
-      "min_memory_gb": 48,
-      "supplier_region": "西北"
+      "max_price": 15000
     },
-    "oracle_feasible_ids": [],
-    "sql_feasible_ids": [],
-    "browser_visible_ids": [],
-    "expert_selected_id": null,
-    "expected_product_id": "",
+    "oracle_feasible_ids": [
+      "PRD-013",
+      "PRD-016"
+    ],
+    "sql_feasible_ids": [
+      "PRD-013",
+      "PRD-016"
+    ],
+    "browser_visible_ids": [
+      "PRD-013",
+      "PRD-016"
+    ],
+    "expert_selected_id": "PRD-016",
+    "expected_product_id": "PRD-016",
     "verifier_result": {
       "success": true
     },
@@ -2435,14 +2489,81 @@
   {
     "task_id": "M2_1_T0066",
     "constraints": {
-      "max_price": 15000,
-      "min_supplier_rating": 4.6
+      "max_price": 500000,
+      "in_stock_only": true,
+      "min_warranty_months": 12
     },
-    "oracle_feasible_ids": [],
-    "sql_feasible_ids": [],
-    "browser_visible_ids": [],
-    "expert_selected_id": null,
-    "expected_product_id": "",
+    "oracle_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-004",
+      "PRD-005",
+      "PRD-006",
+      "PRD-007",
+      "PRD-008",
+      "PRD-009",
+      "PRD-010",
+      "PRD-011",
+      "PRD-012",
+      "PRD-014",
+      "PRD-016",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019",
+      "PRD-021",
+      "PRD-022",
+      "PRD-023",
+      "PRD-024"
+    ],
+    "sql_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-004",
+      "PRD-005",
+      "PRD-006",
+      "PRD-007",
+      "PRD-008",
+      "PRD-009",
+      "PRD-010",
+      "PRD-011",
+      "PRD-012",
+      "PRD-014",
+      "PRD-016",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019",
+      "PRD-021",
+      "PRD-022",
+      "PRD-023",
+      "PRD-024"
+    ],
+    "browser_visible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-004",
+      "PRD-005",
+      "PRD-006",
+      "PRD-007",
+      "PRD-008",
+      "PRD-009",
+      "PRD-010",
+      "PRD-011",
+      "PRD-012",
+      "PRD-014",
+      "PRD-016",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019",
+      "PRD-021",
+      "PRD-022",
+      "PRD-023",
+      "PRD-024"
+    ],
+    "expert_selected_id": "PRD-019",
+    "expected_product_id": "PRD-019",
     "verifier_result": {
       "success": true
     },
@@ -2452,15 +2573,34 @@
   {
     "task_id": "M2_1_T0067",
     "constraints": {
-      "max_price": 50000,
-      "min_memory_gb": 80,
-      "max_delivery_days": 14
+      "max_price": 25000
     },
-    "oracle_feasible_ids": [],
-    "sql_feasible_ids": [],
-    "browser_visible_ids": [],
-    "expert_selected_id": null,
-    "expected_product_id": "",
+    "oracle_feasible_ids": [
+      "PRD-006",
+      "PRD-013",
+      "PRD-014",
+      "PRD-016",
+      "PRD-022",
+      "PRD-023"
+    ],
+    "sql_feasible_ids": [
+      "PRD-006",
+      "PRD-013",
+      "PRD-014",
+      "PRD-016",
+      "PRD-022",
+      "PRD-023"
+    ],
+    "browser_visible_ids": [
+      "PRD-006",
+      "PRD-013",
+      "PRD-014",
+      "PRD-016",
+      "PRD-022",
+      "PRD-023"
+    ],
+    "expert_selected_id": "PRD-006",
+    "expected_product_id": "PRD-006",
     "verifier_result": {
       "success": true
     },
@@ -2470,15 +2610,59 @@
   {
     "task_id": "M2_1_T0068",
     "constraints": {
-      "category": "存储",
-      "max_price": 200000,
-      "min_memory_gb": 64
+      "min_memory_gb": 12,
+      "max_delivery_days": 42
     },
-    "oracle_feasible_ids": [],
-    "sql_feasible_ids": [],
-    "browser_visible_ids": [],
-    "expert_selected_id": null,
-    "expected_product_id": "",
+    "oracle_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-005",
+      "PRD-006",
+      "PRD-009",
+      "PRD-010",
+      "PRD-013",
+      "PRD-014",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019",
+      "PRD-022",
+      "PRD-023"
+    ],
+    "sql_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-005",
+      "PRD-006",
+      "PRD-009",
+      "PRD-010",
+      "PRD-013",
+      "PRD-014",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019",
+      "PRD-022",
+      "PRD-023"
+    ],
+    "browser_visible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-003",
+      "PRD-005",
+      "PRD-006",
+      "PRD-009",
+      "PRD-010",
+      "PRD-013",
+      "PRD-014",
+      "PRD-017",
+      "PRD-018",
+      "PRD-019",
+      "PRD-022",
+      "PRD-023"
+    ],
+    "expert_selected_id": "PRD-019",
+    "expected_product_id": "PRD-019",
     "verifier_result": {
       "success": true
     },
@@ -2488,17 +2672,58 @@
   {
     "task_id": "M2_1_T0069",
     "constraints": {
-      "category": "服务器",
-      "max_price": 500000,
-      "min_memory_gb": 32,
-      "max_delivery_days": 14,
-      "min_warranty_months": 18
+      "max_price": 70000
     },
-    "oracle_feasible_ids": [],
-    "sql_feasible_ids": [],
-    "browser_visible_ids": [],
-    "expert_selected_id": null,
-    "expected_product_id": "",
+    "oracle_feasible_ids": [
+      "PRD-002",
+      "PRD-003",
+      "PRD-006",
+      "PRD-009",
+      "PRD-010",
+      "PRD-013",
+      "PRD-014",
+      "PRD-015",
+      "PRD-016",
+      "PRD-018",
+      "PRD-019",
+      "PRD-022",
+      "PRD-023",
+      "PRD-024"
+    ],
+    "sql_feasible_ids": [
+      "PRD-002",
+      "PRD-003",
+      "PRD-006",
+      "PRD-009",
+      "PRD-010",
+      "PRD-013",
+      "PRD-014",
+      "PRD-015",
+      "PRD-016",
+      "PRD-018",
+      "PRD-019",
+      "PRD-022",
+      "PRD-023",
+      "PRD-024"
+    ],
+    "browser_visible_ids": [
+      "PRD-002",
+      "PRD-003",
+      "PRD-006",
+      "PRD-009",
+      "PRD-010",
+      "PRD-013",
+      "PRD-014",
+      "PRD-015",
+      "PRD-016",
+      "PRD-018",
+      "PRD-019",
+      "PRD-022",
+      "PRD-023",
+      "PRD-024"
+    ],
+    "expert_selected_id": "PRD-019",
+    "expected_product_id": "PRD-019",
     "verifier_result": {
       "success": true
     },
@@ -2507,6 +2732,46 @@
   },
   {
     "task_id": "M2_1_T0070",
+    "constraints": {
+      "max_price": 500000,
+      "min_memory_gb": 32,
+      "max_delivery_days": 14,
+      "min_warranty_months": 18
+    },
+    "oracle_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-005",
+      "PRD-009",
+      "PRD-018",
+      "PRD-019"
+    ],
+    "sql_feasible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-005",
+      "PRD-009",
+      "PRD-018",
+      "PRD-019"
+    ],
+    "browser_visible_ids": [
+      "PRD-001",
+      "PRD-002",
+      "PRD-005",
+      "PRD-009",
+      "PRD-018",
+      "PRD-019"
+    ],
+    "expert_selected_id": "PRD-019",
+    "expected_product_id": "PRD-019",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0071",
     "constraints": {
       "category": "网络",
       "max_price": 30000,
@@ -2526,7 +2791,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0071",
+    "task_id": "M2_1_T0072",
     "constraints": {
       "max_price": 20000,
       "certified_only": true
@@ -2543,7 +2808,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0072",
+    "task_id": "M2_1_T0073",
     "constraints": {
       "category": "GPU",
       "max_price": 20000,
@@ -2562,7 +2827,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0073",
+    "task_id": "M2_1_T0074",
     "constraints": {
       "category": "网络",
       "max_price": 70000,
@@ -2582,7 +2847,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0074",
+    "task_id": "M2_1_T0075",
     "constraints": {
       "category": "存储",
       "min_memory_gb": 64,
@@ -2600,7 +2865,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0075",
+    "task_id": "M2_1_T0076",
     "constraints": {
       "max_price": 25000,
       "min_memory_gb": 24,
@@ -2619,7 +2884,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0076",
+    "task_id": "M2_1_T0077",
     "constraints": {
       "category": "网络",
       "max_price": 300000,
@@ -2639,7 +2904,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0077",
+    "task_id": "M2_1_T0078",
     "constraints": {
       "category": "GPU",
       "max_price": 15000,
@@ -2660,7 +2925,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0078",
+    "task_id": "M2_1_T0079",
     "constraints": {
       "category": "网络",
       "max_price": 20000,
@@ -2678,7 +2943,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0079",
+    "task_id": "M2_1_T0080",
     "constraints": {
       "category": "网络",
       "max_price": 500000,
@@ -2696,7 +2961,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0080",
+    "task_id": "M2_1_T0081",
     "constraints": {
       "category": "网络",
       "max_delivery_days": 21,
@@ -2716,7 +2981,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0081",
+    "task_id": "M2_1_T0082",
     "constraints": {
       "category": "服务器",
       "max_price": 15000,
@@ -2735,7 +3000,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0082",
+    "task_id": "M2_1_T0083",
     "constraints": {
       "category": "存储",
       "max_price": 500000,
@@ -2755,7 +3020,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0083",
+    "task_id": "M2_1_T0084",
     "constraints": {
       "category": "存储",
       "min_memory_gb": 32,
@@ -2775,7 +3040,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0084",
+    "task_id": "M2_1_T0085",
     "constraints": {
       "category": "存储",
       "min_memory_gb": 24,
@@ -2795,7 +3060,7 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0085",
+    "task_id": "M2_1_T0086",
     "constraints": {
       "category": "网络",
       "max_price": 70000,
@@ -2816,11 +3081,175 @@
     "failure_reason": ""
   },
   {
-    "task_id": "M2_1_T0086",
+    "task_id": "M2_1_T0087",
     "constraints": {
       "category": "存储",
       "max_price": 70000,
       "min_memory_gb": 24
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0088",
+    "constraints": {
+      "category": "GPU",
+      "max_price": 25000,
+      "min_memory_gb": 48,
+      "max_delivery_days": 30,
+      "in_stock_only": true
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0089",
+    "constraints": {
+      "category": "存储",
+      "min_memory_gb": 48,
+      "certified_only": true
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0090",
+    "constraints": {
+      "max_price": 30000,
+      "min_memory_gb": 80
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0091",
+    "constraints": {
+      "category": "存储",
+      "min_memory_gb": 12
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0092",
+    "constraints": {
+      "category": "GPU",
+      "supplier_region": "西北",
+      "min_warranty_months": 36
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0093",
+    "constraints": {
+      "max_price": 25000,
+      "min_supplier_rating": 3.4,
+      "min_warranty_months": 48
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0094",
+    "constraints": {
+      "max_price": 30000,
+      "min_memory_gb": 32,
+      "supplier_region": "西北"
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0095",
+    "constraints": {
+      "min_supplier_rating": 5.0,
+      "supplier_region": "华北"
+    },
+    "oracle_feasible_ids": [],
+    "sql_feasible_ids": [],
+    "browser_visible_ids": [],
+    "expert_selected_id": null,
+    "expected_product_id": "",
+    "verifier_result": {
+      "success": true
+    },
+    "first_divergence_layer": null,
+    "failure_reason": ""
+  },
+  {
+    "task_id": "M2_1_T0096",
+    "constraints": {
+      "category": "GPU",
+      "max_price": 20000,
+      "max_delivery_days": 30,
+      "min_supplier_rating": 4.5,
+      "supplier_region": "西北",
+      "min_warranty_months": 24
     },
     "oracle_feasible_ids": [],
     "sql_feasible_ids": [],

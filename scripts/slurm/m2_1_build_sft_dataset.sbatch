@@ -165,6 +165,10 @@ Path("data/sft/m2_1/manifest.json").write_text(json.dumps(manifest, indent=2, en
 print(f"Manifest: {manifest}")
 PYEOF
 
+# Step 4.5: Completion mask audit
+echo "=== Step 4.5: Mask audit ==="
+python -m miniwebwork.data_generation.mask_audit data/sft/m2_1/train.jsonl data/sft/m2_1/valid.jsonl artifacts/m2_1/completion_mask_audit.json
+
 # Step 5: Leakage audit
 echo "=== Step 5: Leakage audit ==="
 python - <<'PYEOF'

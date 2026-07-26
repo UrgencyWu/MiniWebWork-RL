@@ -61,3 +61,5 @@ models/
 
 # Environment files are committed, but not large binaries
 # Conda env directory itself is never committed
+data/expert/
+artifacts/m1_2/

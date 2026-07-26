@@ -71,16 +71,18 @@ def generate():
 
     all_tasks = {"train": [], "valid": []}
     task_idx = {"train": 0, "valid": 0}
-    used_signatures = {"train": set(), "valid": set()}  # Per-split dedup
+    used_signatures = {"train": set(), "valid": set()}
+    # Per-split instruction dedup + cross-split duplicate check
     used_instructions = {"train": set(), "valid": set()}
+    all_instructions = set()  # Cross-split dedup
 
-    # Generate train then valid
-    for split, counts in [("train", {"exact_product": 14, "cheapest_feasible": 24, "highest_rating_supplier": 24, "no_feasible_product": 24}),
-                           ("valid", {"exact_product": 4, "cheapest_feasible": 6, "highest_rating_supplier": 6, "no_feasible_product": 6})]:
+    # Generate train first, then valid (valid reuses constraint signatures but NOT instructions)
+    for split, counts in [("train", {"exact_product": 14, "cheapest_feasible": 28, "highest_rating_supplier": 28, "no_feasible_product": 26}),
+                           ("valid", {"exact_product": 4, "cheapest_feasible": 8, "highest_rating_supplier": 6, "no_feasible_product": 6})]:
         for task_type, count in counts.items():
             generated = 0
             attempts = 0
-            while generated < count and attempts < 1000:
+            while generated < count and attempts < 2000:
                 attempts += 1
                 oracle = _generate_task(task_type, products, suppliers)
                 if oracle is None:
@@ -107,11 +109,15 @@ def generate():
                     tmpl = random.choice(TEMPLATES["cheapest_feasible"])
                     instruction = tmpl.format(c=desc)
 
-                # Per-split instruction dedup
+                # Per-split dedup
                 norm = instruction.strip().lower()
                 if norm in used_instructions[split]:
                     continue
+                # Cross-split dedup
+                if norm in all_instructions:
+                    continue
 
+                all_instructions.add(norm)
                 used_instructions[split].add(norm)
                 used_signatures[split].add(sig)
 

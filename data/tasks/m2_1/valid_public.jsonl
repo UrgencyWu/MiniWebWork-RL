@@ -1,22 +1,24 @@
-{"task_id": "M2_1_V0001", "instruction": "型号 CC-A100X-80G 的物料需要补充库存，请查找并提交采购申请。", "start_path": "/products", "task_type": "exact_product"}
-{"task_id": "M2_1_V0002", "instruction": "查找产品型号 CC-A40-48G，核实库存后下单采购。", "start_path": "/products", "task_type": "exact_product"}
-{"task_id": "M2_1_V0003", "instruction": "请定位型号为 DF-S300-24G 的产品，确认是否有库存。", "start_path": "/products", "task_type": "exact_product"}
-{"task_id": "M2_1_V0004", "instruction": "查找产品型号 CC-C500-24G，核实库存后下单采购。", "start_path": "/products", "task_type": "exact_product"}
-{"task_id": "M2_1_V0005", "instruction": "请帮我找到最便宜的显存至少32GB，并完成采购流程。", "start_path": "/products", "task_type": "cheapest_feasible"}
-{"task_id": "M2_1_V0006", "instruction": "请帮我找到最便宜的交付时间不超过30天，必须有库存，并完成采购流程。", "start_path": "/products", "task_type": "cheapest_feasible"}
-{"task_id": "M2_1_V0007", "instruction": "请筛选类别为服务器，交付时间不超过30天，供应商位于华北地区，保修期至少18个月，从中选择价格最低的商品进行采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
-{"task_id": "M2_1_V0008", "instruction": "采购部门要求采购类别为网络，交付时间不超过30天。选择价格最低的选项。", "start_path": "/products", "task_type": "cheapest_feasible"}
-{"task_id": "M2_1_V0009", "instruction": "请筛选显存至少48GB，仅限认证供应商，必须有库存，从中选择价格最低的商品进行采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
-{"task_id": "M2_1_V0010", "instruction": "需要采购显存至少48GB，价格不超过100000元，仅限认证供应商，供应商位于华南地区。请筛选出价格最低的可行商品并提交采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
-{"task_id": "M2_1_V0011", "instruction": "采购价格不超过300000元，交付时间不超过21天，仅限认证供应商，供应商评分不低于3.1，供应商评分是关键考虑因素。请选评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
-{"task_id": "M2_1_V0012", "instruction": "采购类别为网络，交付时间不超过7天，供应商评分是关键考虑因素。请选评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
-{"task_id": "M2_1_V0013", "instruction": "采购类别为存储，仅限认证供应商，供应商评分不低于4.2，供应商评分是关键考虑因素。请选评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
-{"task_id": "M2_1_V0014", "instruction": "需要类别为服务器，保修期至少48个月。公司政策要求优先使用高评分供应商。选择评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
-{"task_id": "M2_1_V0015", "instruction": "需要仅限认证供应商，供应商位于华南地区，必须有库存。公司政策要求优先使用高评分供应商。选择评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
-{"task_id": "M2_1_V0016", "instruction": "采购价格不超过50000元，必须有库存，供应商评分是关键考虑因素。请选评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
-{"task_id": "M2_1_V0017", "instruction": "请问是否存在显存至少80GB，供应商评分不低于4.6，供应商位于西北地区？如果没有请声明无解决方案。", "start_path": "/products", "task_type": "no_feasible_product"}
-{"task_id": "M2_1_V0018", "instruction": "请问是否存在类别为网络，仅限认证供应商，供应商评分不低于3.4，必须有库存，保修期至少18个月？如果没有请声明无解决方案。", "start_path": "/products", "task_type": "no_feasible_product"}
-{"task_id": "M2_1_V0019", "instruction": "采购部门要求类别为服务器，显存至少24GB，价格不超过500000元，仅限认证供应商，供应商位于华东地区。请判断是否存在满足所有条件的商品。", "start_path": "/products", "task_type": "no_feasible_product"}
-{"task_id": "M2_1_V0020", "instruction": "需要类别为存储，显存至少48GB，价格不超过25000元，供应商位于华北地区。请确认是否存在符合条件的商品。", "start_path": "/products", "task_type": "no_feasible_product"}
-{"task_id": "M2_1_V0021", "instruction": "请帮我查找类别为服务器，交付时间不超过7天，供应商位于华东地区，如果不存在请声明无可行商品。", "start_path": "/products", "task_type": "no_feasible_product"}
-{"task_id": "M2_1_V0022", "instruction": "请帮我查找类别为网络，显存至少16GB，如果不存在请声明无可行商品。", "start_path": "/products", "task_type": "no_feasible_product"}
+{"task_id": "M2_1_V0001", "instruction": "请定位型号为 BM-H100X-80G 的产品，确认是否有库存。", "start_path": "/products", "task_type": "exact_product"}
+{"task_id": "M2_1_V0002", "instruction": "公司需要采购型号 BM-V100-32G 的设备，请在系统中查找并提交。", "start_path": "/products", "task_type": "exact_product"}
+{"task_id": "M2_1_V0003", "instruction": "查找产品型号 CC-A100X-80G，核实库存后下单采购。", "start_path": "/products", "task_type": "exact_product"}
+{"task_id": "M2_1_V0004", "instruction": "查找产品型号 PC-C100-16G，核实库存后下单采购。", "start_path": "/products", "task_type": "exact_product"}
+{"task_id": "M2_1_V0005", "instruction": "请筛选类别为GPU，显存至少16GB，从中选择价格最低的商品进行采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0006", "instruction": "请筛选类别为GPU，从中选择价格最低的商品进行采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0007", "instruction": "请筛选交付时间不超过30天，仅限认证供应商，从中选择价格最低的商品进行采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0008", "instruction": "请筛选类别为GPU，显存至少24GB，价格不超过70000元，供应商位于华北地区，从中选择价格最低的商品进行采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0009", "instruction": "请筛选价格不超过300000元，从中选择价格最低的商品进行采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0010", "instruction": "需采购价格不超过50000元，交付时间不超过7天，仅限认证供应商，预算有限，请选出价格最低且满足条件的商品。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0011", "instruction": "需采购交付时间不超过7天，仅限认证供应商，供应商位于华北地区，预算有限，请选出价格最低且满足条件的商品。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0012", "instruction": "需要采购类别为存储，供应商位于华南地区。请筛选出价格最低的可行商品并提交采购。", "start_path": "/products", "task_type": "cheapest_feasible"}
+{"task_id": "M2_1_V0013", "instruction": "需要交付时间不超过7天，仅限认证供应商。公司政策要求优先使用高评分供应商。选择评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
+{"task_id": "M2_1_V0014", "instruction": "采购显存至少16GB，价格不超过50000元，交付时间不超过42天，必须有库存，优先选择供应商评分最高的。评分相同时选价格低的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
+{"task_id": "M2_1_V0015", "instruction": "采购交付时间不超过42天，必须有库存，优先选择供应商评分最高的。评分相同时选价格低的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
+{"task_id": "M2_1_V0016", "instruction": "为项目组寻找类别为GPU，价格不超过15000元，供应商信誉很重要。请选评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
+{"task_id": "M2_1_V0017", "instruction": "需要采购价格不超过70000元。请在符合条件的商品中选择供应商评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
+{"task_id": "M2_1_V0018", "instruction": "需要采购价格不超过25000元，必须有库存，保修期至少12个月。请在符合条件的商品中选择供应商评分最高的。", "start_path": "/products", "task_type": "highest_rating_supplier"}
+{"task_id": "M2_1_V0019", "instruction": "请确认类别为服务器，显存至少12GB，必须有库存是否有库存。如果没有可行选项请申报。", "start_path": "/products", "task_type": "no_feasible_product"}
+{"task_id": "M2_1_V0020", "instruction": "请帮我查找显存至少48GB，价格不超过15000元，交付时间不超过30天，必须有库存，如果不存在请声明无可行商品。", "start_path": "/products", "task_type": "no_feasible_product"}
+{"task_id": "M2_1_V0021", "instruction": "采购部门要求类别为存储，显存至少16GB，价格不超过150000元。请判断是否存在满足所有条件的商品。", "start_path": "/products", "task_type": "no_feasible_product"}
+{"task_id": "M2_1_V0022", "instruction": "请问是否存在类别为网络，仅限认证供应商？如果没有请声明无解决方案。", "start_path": "/products", "task_type": "no_feasible_product"}
+{"task_id": "M2_1_V0023", "instruction": "请帮我查找显存至少64GB，价格不超过20000元，供应商评分不低于3.9，如果不存在请声明无可行商品。", "start_path": "/products", "task_type": "no_feasible_product"}
+{"task_id": "M2_1_V0024", "instruction": "请确认类别为网络，显存至少80GB，价格不超过20000元，仅限认证供应商，必须有库存是否有库存。如果没有可行选项请申报。", "start_path": "/products", "task_type": "no_feasible_product"}

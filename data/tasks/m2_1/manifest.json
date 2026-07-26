@@ -1,11 +1,11 @@
 {
   "schema_version": "1.0",
   "seed": 20260726,
-  "train_task_count": 86,
-  "valid_task_count": 22,
-  "train_public_sha256": "9fe09166f46425a8cec331e06befae1aacc0c6e3d8d2543f473b1afff0fef96f",
-  "train_oracle_sha256": "bc01275e8c9975c1b4716c82a2e4132332278e393d8616c581762eac8bfc70ed",
-  "valid_public_sha256": "12f7a70e2014f6904f56e4a34b2ffee4ee53b48402e918b6b744920e1d6e5074",
-  "valid_oracle_sha256": "d183a3b539583ef717127235d1b8f68ac3370f3531fc35d914227fbef693b3d6",
+  "train_task_count": 96,
+  "valid_task_count": 24,
+  "train_public_sha256": "0ffd321b2bdc271e014a343ea761278827bcf4889c69b7edea1ce24339daf262",
+  "train_oracle_sha256": "588c84b0e0b2bcbed29524d3c306a4f2cc018af2e0b1f3a43daf3a35ec52b0c7",
+  "valid_public_sha256": "226df431d728830de0963f643ac67a867fb9439216171fe9906a4ffcdd271f02",
+  "valid_oracle_sha256": "a6e038e10cf7db1b8da53ce93bd3792d330a7df362ffad5f3023af375046948d",
   "cross_split_instruction_duplicates": 0
 }
