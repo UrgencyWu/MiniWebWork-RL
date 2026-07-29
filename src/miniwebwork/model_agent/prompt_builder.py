@@ -10,16 +10,20 @@ PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "prompts"
 MAX_VISIBLE_TEXT = 8000
 HISTORY_WINDOW = 5
 MAX_ELEMENTS = 100
+PROMPT_VERSION = "browser_agent_v2"
 
 
-def load_system_prompt(version: str = "browser_agent_v1") -> str:
+def load_system_prompt(version: str = None) -> str:
+    """Load system prompt. Defaults to PROMPT_VERSION (canonical v2)."""
+    version = version or PROMPT_VERSION
     path = PROMPTS_DIR / f"{version}.txt"
     if path.exists():
         return path.read_text(encoding="utf-8")
     return "You are a web browser procurement agent."
 
 
-def prompt_sha256(version: str = "browser_agent_v1") -> str:
+def prompt_sha256(version: str = None) -> str:
+    version = version or PROMPT_VERSION
     return hashlib.sha256(load_system_prompt(version).encode()).hexdigest()
 
 
@@ -52,9 +56,10 @@ def _serialize_history(history: list, window: int = HISTORY_WINDOW) -> list:
     return entries
 
 
-def build_messages(observation, history: list = None, version: str = "browser_agent_v1",
+def build_messages(observation, history: list = None, version: str = None,
                    max_text: int = MAX_VISIBLE_TEXT, history_window: int = HISTORY_WINDOW) -> list:
-    """Build chat messages for the model."""
+    """Build chat messages for the model. Defaults to PROMPT_VERSION (browser_agent_v2)."""
+    version = version or PROMPT_VERSION
     system = load_system_prompt(version)
     history = history or []
 
