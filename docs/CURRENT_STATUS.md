@@ -90,14 +90,31 @@ Frozen Test 得分不得用于 checkpoint 选择。
 
 这些指标证明数据和训练管道成立，不代表闭环 rollout 已通过。正式结论必须等待修复后的 canonical probe 重跑。
 
-## 4. 当前唯一权威执行路径
+## 4. 2026-07-31 合同收敛
+
+代码和文档已统一到以下合同：
+
+- Action Schema v1.1：`submit` 可作用于 button；
+- Prompt Contract v2：Base、SFT、E2E 和 rollout 共用；
+- Task source：默认集与开发集互斥加载，重复 task ID fail-fast；
+- Browser：单一 async Playwright worker，显式启动、停止和 join；
+- Web：episode 与 task 绑定，页面导航保持上下文；
+- Verifier：检查 episode/task、单一 submission、约束和目标最优性；
+- Failure：策略失败 reward 0，基础设施失败 reward null；
+- Rollout：保存 prompt/completion tokens、原始策略 log-prob 和可选采样分布 log-prob；
+- Metrics：Schema、环境动作和任务成功使用明确且互不混淆的分母；
+- Slurm：禁止全局 `pkill`，禁止 Python 在 CUDA 初始化后改写设备可见性。
+
+已删除：旧 M2.3 Probe/Comparison、browser-agent-v1 SFT builder、主机专用环境转储和重复 Sync Observation 实现。
+
+## 5. 当前唯一权威执行路径
 
 ```text
 scripts/m2_3_mini_single_probe.py
 scripts/slurm/m2_3_mini_single_probe.sbatch
 ```
 
-已删除旧的 temperature-sweep 和 comparison probe。旧脚本包含硬编码路径、错误 reward 归因和 Schema-invalid fallback，不得从历史提交恢复为正式入口。
+旧脚本包含硬编码路径、错误 reward 归因或 Schema-invalid fallback，不得从历史提交恢复为正式入口。
 
 单任务 smoke：
 
@@ -112,19 +129,20 @@ sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8
 sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8
 ```
 
-## 5. M3.0B 准入条件
+## 6. M3.0B 准入条件
 
 只有同时满足以下条件，才能启动策略梯度更新：
 
 1. 基础设施错误不进入 reward，正式 rollout 中基础设施错误率接近 0；
 2. 至少一个任务组同时包含 reward 0 和 reward 1；
 3. 至少一个 no-solution rollout 成功；
-4. 每个训练 step 保存准确的 prompt token IDs、completion token IDs 和 old-policy log-probabilities；
-5. M2.3-mini 不显著提高 false no-solution；
-6. 通用任务能力相对 M2.2R 不明显退化；
-7. Frozen Test 未用于采样温度、checkpoint 或超参数选择。
+4. 每个模型 turn 保存准确的 prompt token IDs、completion token IDs、原始 old-policy log-probabilities；
+5. stochastic rollout 同时保留采样分布 log-probabilities，用于诊断或采样—训练分布校正；
+6. M2.3-mini 不显著提高 false no-solution；
+7. 通用任务能力相对 M2.2R 不明显退化；
+8. Frozen Test 未用于采样温度、checkpoint 或超参数选择。
 
-## 6. 尚未完成
+## 7. 尚未完成
 
 - M2.3-mini canonical A/B GPU rollout；
 - 独立 `rollout_dev` 上的温度选择；
