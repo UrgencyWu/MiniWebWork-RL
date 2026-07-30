@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #SBATCH --job-name=m2_3_single_probe
 #SBATCH --partition=compute
 #SBATCH --time=08:00:00
@@ -22,21 +22,20 @@ POLICY="${1:-A}"
 TEMP="${2:-0.2}"
 SEED="${3:-20260731}"
 K="${4:-8}"
+MAX_TASKS="${5:-}"
 
-if [[ "$POLICY" == "A" ]]; then
-    ADAPTER="$PROJECT_ROOT/outputs/m2_2r/seed_1234/final_adapter"
-elif [[ "$POLICY" == "B" ]]; then
-    ADAPTER="$PROJECT_ROOT/outputs/m2_3_mini/seed_1234/final_adapter"
-else
-    echo "ERROR: policy must be A or B, got '$POLICY'" >&2
-    exit 2
-fi
+case "$POLICY" in
+    A) ADAPTER="$PROJECT_ROOT/outputs/m2_2r/seed_1234/final_adapter" ;;
+    B) ADAPTER="$PROJECT_ROOT/outputs/m2_3_mini/seed_1234/final_adapter" ;;
+    *) echo "ERROR: policy must be A or B, got '$POLICY'" >&2; exit 2 ;;
+esac
 
 TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_no_solution_v1"
 export MINIWEBWORK_TASK_DIR="$TASK_DIR"
 export TOKENIZERS_PARALLELISM=false
-# Slurm owns CUDA visibility.  Set CUDA_LAUNCH_BLOCKING=1 only for a
-# dedicated diagnostic run because it substantially reduces throughput.
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+# Set CUDA_LAUNCH_BLOCKING=1 only for a dedicated diagnostic run.
 export CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}"
 
 HEARTBEAT_FILE="$PROJECT_ROOT/outputs/m2_3_mini/heartbeat_${POLICY}_t${TEMP}.json"
@@ -75,17 +74,20 @@ trap on_signal SIGTERM SIGINT
 MONITOR_PID=$!
 
 [[ -d "$ADAPTER" ]] || { echo "ERROR: missing adapter: $ADAPTER" >&2; exit 1; }
-[[ -f "$TASK_DIR/valid_public.jsonl" ]] || { echo "ERROR: missing task file" >&2; exit 1; }
+[[ -f "$TASK_DIR/valid_public.jsonl" ]] || { echo "ERROR: missing valid public tasks" >&2; exit 1; }
+[[ -f "$TASK_DIR/valid_oracle.jsonl" ]] || { echo "ERROR: missing valid oracle tasks" >&2; exit 1; }
 
 python - <<'PY'
 import importlib
-for module in ("torch", "transformers", "peft", "playwright"):
+for module in ("torch", "transformers", "peft", "playwright", "numpy"):
     importlib.import_module(module)
 print("Dependency preflight: PASS")
 PY
 
-echo "=== M2.3-mini Single-Temperature Probe ==="
+GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+echo "=== M2.3-mini Canonical Rollout Probe ==="
 echo "Job: ${SLURM_JOB_ID:-none}"
+echo "Git SHA: $GIT_SHA"
 echo "Started: $(date -Is)"
 echo "Host: $(hostname)"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
@@ -93,17 +95,24 @@ echo "Policy: $POLICY"
 echo "Temperature: $TEMP"
 echo "Seed: $SEED"
 echo "K: $K"
+echo "Max tasks: ${MAX_TASKS:-all}"
 echo "Adapter: $ADAPTER"
 echo "Task dir: $TASK_DIR"
 nvidia-smi --query-gpu=index,name,memory.total,memory.used --format=csv,noheader || true
 
-python scripts/m2_3_mini_single_probe.py \
-    --policy "$POLICY" \
-    --adapter "$ADAPTER" \
-    --temperature "$TEMP" \
-    --seed "$SEED" \
-    --K "$K" \
-    --split valid \
+ARGS=(
+    --policy "$POLICY"
+    --adapter "$ADAPTER"
+    --temperature "$TEMP"
+    --seed "$SEED"
+    --K "$K"
+    --split valid
     --task-dir "$TASK_DIR"
+)
+if [[ -n "$MAX_TASKS" ]]; then
+    ARGS+=(--max-tasks "$MAX_TASKS")
+fi
+
+srun --ntasks=1 python scripts/m2_3_mini_single_probe.py "${ARGS[@]}"
 
 echo "=== Complete: $(date -Is) ==="
