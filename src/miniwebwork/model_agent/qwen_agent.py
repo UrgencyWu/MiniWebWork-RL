@@ -12,9 +12,9 @@ from ..agent_env.schemas import AgentAction
 class ModelActionAttempt:
     """Complete evidence for one model decision.
 
-    The token fields are intentionally retained here rather than reconstructed
-    from decoded JSON.  M3.0 policy updates require the exact generated token
-    sequence and the corresponding old-policy log-probabilities.
+    The token fields are retained rather than reconstructed from decoded JSON.
+    M3.0 policy updates require the exact prompt/completion token sequence and
+    the corresponding old-policy log-probabilities.
     """
 
     model_turn_index: int = 0
@@ -29,12 +29,17 @@ class ModelActionAttempt:
     input_tokens: int = 0
     output_tokens: int = 0
     latency_ms: float = 0.0
+    prompt_token_ids: list[int] = field(default_factory=list)
     generated_token_ids: list[int] = field(default_factory=list)
     token_logprobs: list[float] = field(default_factory=list)
     sampling_logprobs: list[float] = field(default_factory=list)
 
     def validate_rollout_evidence(self) -> None:
         """Raise when token-level evidence is internally inconsistent."""
+        if self.prompt_token_ids and len(self.prompt_token_ids) != self.input_tokens:
+            raise ValueError(
+                f"prompt_token_ids={len(self.prompt_token_ids)} but input_tokens={self.input_tokens}"
+            )
         if self.generated_token_ids and len(self.generated_token_ids) != self.output_tokens:
             raise ValueError(
                 f"generated_token_ids={len(self.generated_token_ids)} but output_tokens={self.output_tokens}"
@@ -80,6 +85,7 @@ class QwenBrowserAgent:
         attempt.input_tokens = generation.input_tokens
         attempt.output_tokens = generation.new_tokens
         attempt.latency_ms = generation.latency_ms
+        attempt.prompt_token_ids = list(getattr(generation, "prompt_token_ids", []))
         attempt.generated_token_ids = list(getattr(generation, "generated_token_ids", []))
         attempt.token_logprobs = list(getattr(generation, "logprobs", []))
         attempt.sampling_logprobs = list(getattr(generation, "sampling_logprobs", []))
