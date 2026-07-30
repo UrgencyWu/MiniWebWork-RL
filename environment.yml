@@ -1,0 +1,13 @@
+name: miniwebwork
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip>=25
+  - sqlite
+  - pip:
+      - -e .[test,training]
+
+# Install a CUDA-compatible PyTorch build for the target node before running
+# GPU jobs.  PyTorch is intentionally not pinned here because the correct wheel
+# depends on the server driver/CUDA combination.
