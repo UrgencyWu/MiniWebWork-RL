@@ -1,8 +1,4 @@
-# Conda
-*.tar.bz2
-*.conda
-
-# Python
+# Python / packaging
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -12,54 +8,56 @@ dist/
 build/
 *.whl
 
-# Tests & CI
+# Conda packages and local environments
+*.tar.bz2
+*.conda
+.conda/
+.venv/
+venv/
+
+# Tests and coverage
 .pytest_cache/
 htmlcov/
 .coverage
+.coverage.*
 
-# IDE
+# IDE / OS
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Project runtime
-data/runtime/*.db
-data/runtime/*.db-journal
-data/runtime/*.db-wal
-data/runtime/m1_2/
-data/runtime/m2_1/
-
-# Slurm logs (keep .gitkeep)
-logs/*.out
-logs/*.err
-
 # Runtime databases
-data/runtime/*.db
-data/runtime/*.db-journal
-data/runtime/*.db-wal
+/data/runtime/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
-# Screenshots are artifacts, not committed
-artifacts/*.png
-artifacts/m1_1_screenshots/
-artifacts/m1_2/per_task/
-artifacts/m1_2/trajectories/
-artifacts/m1_2/raw_outputs/
-artifacts/m2_0/per_task/
-artifacts/m2_0/trajectories/
-artifacts/m2_0/raw_outputs/
+# Slurm and runtime logs
+/logs/*
+!/logs/.gitkeep
+*.out
+*.err
+nohup.out
 
-# Models (never commit)
-models/
+# Generated experiment artifacts and model checkpoints
+/outputs/
+/artifacts/
+/models/
+/data/expert/
+/data/generated/
+/checkpoints/
 
-# Browser cache
+# Browser/model caches
 .cache/
+playwright/.local-browsers/
 
-# Environment files are committed, but not large binaries
-# Conda env directory itself is never committed
-data/expert/
-artifacts/m1_2/
+# Local secrets and overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
