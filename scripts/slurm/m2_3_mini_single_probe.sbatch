@@ -9,72 +9,101 @@
 #SBATCH --error=logs/m2_3_single_probe_%j.err
 #SBATCH --gres=gpu:1
 
-set -o pipefail
+set -euo pipefail
+
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 cd "$PROJECT_ROOT"
+mkdir -p logs outputs/m2_3_mini
+
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate miniwebwork
 
-echo "=== Single-Temperature Probe ==="
-echo "Job: ${SLURM_JOB_ID:-none}, Started: $(date)"
-echo "GPU: ${CUDA_VISIBLE_DEVICES:-none}"
-echo "Host: $(hostname)"
+POLICY="${1:-A}"
+TEMP="${2:-0.2}"
+SEED="${3:-20260731}"
+K="${4:-8}"
 
-# --- Diagnostics ---
-export MINIWEBWORK_TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_no_solution_v1"
+if [[ "$POLICY" == "A" ]]; then
+    ADAPTER="$PROJECT_ROOT/outputs/m2_2r/seed_1234/final_adapter"
+elif [[ "$POLICY" == "B" ]]; then
+    ADAPTER="$PROJECT_ROOT/outputs/m2_3_mini/seed_1234/final_adapter"
+else
+    echo "ERROR: policy must be A or B, got '$POLICY'" >&2
+    exit 2
+fi
 
-# Signal trap: write diagnostic info on cancellation/timeout
-_JOB_ID="${SLURM_JOB_ID:-$$}"
-trap '{
-    echo "[TRAP] Signal received at $(date)"
-    echo "[TRAP] GPU memory:"
-    python3 -c "import torch; print(f\"  allocated={torch.cuda.memory_allocated()/1024**3:.2f}GB\")" 2>/dev/null || true
-}' SIGTERM SIGINT
+TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_no_solution_v1"
+export MINIWEBWORK_TASK_DIR="$TASK_DIR"
+export TOKENIZERS_PARALLELISM=false
+# Slurm owns CUDA visibility.  Set CUDA_LAUNCH_BLOCKING=1 only for a
+# dedicated diagnostic run because it substantially reduces throughput.
+export CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}"
 
-# Monitor GPU memory in background
-_MEM_LOG="$PROJECT_ROOT/logs/gpu_mem_${_JOB_ID}.log"
+HEARTBEAT_FILE="$PROJECT_ROOT/outputs/m2_3_mini/heartbeat_${POLICY}_t${TEMP}.json"
+GPU_MEM_LOG="$PROJECT_ROOT/logs/gpu_mem_${SLURM_JOB_ID:-$$}.log"
+
+cleanup() {
+    if [[ -n "${MONITOR_PID:-}" ]]; then
+        kill "$MONITOR_PID" 2>/dev/null || true
+        wait "$MONITOR_PID" 2>/dev/null || true
+    fi
+}
+
+on_signal() {
+    echo "[signal] received at $(date -Is)" >&2
+    echo "[signal] last heartbeat:" >&2
+    cat "$HEARTBEAT_FILE" 2>/dev/null || echo "[signal] no heartbeat file" >&2
+    echo "[signal] GPU processes:" >&2
+    nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader 2>/dev/null || true
+    exit 143
+}
+
+trap cleanup EXIT
+trap on_signal SIGTERM SIGINT
+
 (
     while true; do
-        python3 -c "
-import torch
-if torch.cuda.is_available():
-    torch.cuda.synchronize()
-    print(f\"\$(date +%s) alloc={torch.cuda.memory_allocated()/1024**3:.2f}GB reserved={torch.cuda.memory_reserved()/1024**3:.2f}GB\", flush=True)
-" 2>/dev/null
+        {
+            date -Is
+            nvidia-smi \
+                --query-compute-apps=pid,process_name,used_memory \
+                --format=csv,noheader 2>/dev/null || true
+        } >> "$GPU_MEM_LOG"
         sleep 60
     done
 ) &
-_MEM_PID=$!
-echo "GPU memory monitor PID: $_MEM_PID"
+MONITOR_PID=$!
 
-cleanup() {
-    echo "[cleanup] Stopping GPU memory monitor..."
-    kill $_MEM_PID 2>/dev/null || true
-    wait $_MEM_PID 2>/dev/null || true
-}
-trap cleanup EXIT
+[[ -d "$ADAPTER" ]] || { echo "ERROR: missing adapter: $ADAPTER" >&2; exit 1; }
+[[ -f "$TASK_DIR/valid_public.jsonl" ]] || { echo "ERROR: missing task file" >&2; exit 1; }
 
-POLICY="${1:-A}"
-TEMP="${2:-0.2}"
+python - <<'PY'
+import importlib
+for module in ("torch", "transformers", "peft", "playwright"):
+    importlib.import_module(module)
+print("Dependency preflight: PASS")
+PY
 
-if [ "$POLICY" = "A" ]; then
-    ADAPTER="$PROJECT_ROOT/outputs/m2_2r/seed_1234/final_adapter"
-else
-    ADAPTER="$PROJECT_ROOT/outputs/m2_3_mini/seed_1234/final_adapter"
-fi
-
-echo "Policy: $POLICY, Temperature: $TEMP, Adapter: $ADAPTER"
-echo "PyTorch: $(python3 -c 'import torch; print(torch.__version__)' 2>/dev/null)"
-echo "CUDA: $(python3 -c 'import torch; print(torch.version.cuda)' 2>/dev/null)"
+echo "=== M2.3-mini Single-Temperature Probe ==="
+echo "Job: ${SLURM_JOB_ID:-none}"
+echo "Started: $(date -Is)"
+echo "Host: $(hostname)"
+echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
+echo "Policy: $POLICY"
+echo "Temperature: $TEMP"
+echo "Seed: $SEED"
+echo "K: $K"
+echo "Adapter: $ADAPTER"
+echo "Task dir: $TASK_DIR"
+nvidia-smi --query-gpu=index,name,memory.total,memory.used --format=csv,noheader || true
 
 python scripts/m2_3_mini_single_probe.py \
     --policy "$POLICY" \
     --adapter "$ADAPTER" \
     --temperature "$TEMP" \
-    --seed 20260731 \
-    --K 8 \
-    --split valid
+    --seed "$SEED" \
+    --K "$K" \
+    --split valid \
+    --task-dir "$TASK_DIR"
 
-_EXIT_CODE=$?
-echo "=== Exit code: $_EXIT_CODE | Complete: $(date) ==="
-exit $_EXIT_CODE
+echo "=== Complete: $(date -Is) ==="
