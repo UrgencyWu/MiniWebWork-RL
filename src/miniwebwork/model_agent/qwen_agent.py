@@ -10,12 +10,7 @@ from ..agent_env.schemas import AgentAction
 
 @dataclass
 class ModelActionAttempt:
-    """Complete evidence for one model decision.
-
-    The token fields are retained rather than reconstructed from decoded JSON.
-    M3.0 policy updates require the exact prompt/completion token sequence and
-    the corresponding old-policy log-probabilities.
-    """
+    """Complete evidence for one model decision."""
 
     model_turn_index: int = 0
     raw_output: str = ""
@@ -117,18 +112,62 @@ class QwenBrowserAgent:
 
         return attempt
 
+    @staticmethod
+    def _compact_action_result(attempt: ModelActionAttempt, action_result) -> dict:
+        """Normalize StepResult/ActionResult/dict to a bounded feedback record.
+
+        Storing `StepResult.to_dict()` would recursively embed the next full
+        Observation in prompt history.  That duplicates the current state,
+        changes the training/inference contract, and can exceed the context
+        budget.  Only the deterministic action result is retained.
+        """
+        if action_result is None:
+            if attempt.schema_valid:
+                return {"success": False, "error_code": "not_executed", "message": ""}
+            return {
+                "success": False,
+                "error_code": "schema_invalid",
+                "message": "; ".join(attempt.errors)[:200],
+            }
+
+        info = getattr(action_result, "info", None)
+        if isinstance(info, dict) and isinstance(info.get("action_result"), dict):
+            payload = info["action_result"]
+        elif isinstance(action_result, dict):
+            payload = action_result.get("action_result", action_result)
+        elif hasattr(action_result, "to_dict"):
+            payload = action_result.to_dict()
+            if isinstance(payload, dict) and isinstance(payload.get("info"), dict):
+                payload = payload["info"].get("action_result", payload)
+        else:
+            payload = {"success": False, "error_code": "unknown_result", "message": ""}
+
+        if not isinstance(payload, dict):
+            payload = {"success": False, "error_code": "malformed_result", "message": ""}
+        return {
+            "success": bool(payload.get("success", False)),
+            "error_code": str(payload.get("error_code", ""))[:100],
+            "message": str(payload.get("message", ""))[:200],
+            "page_changed": bool(payload.get("page_changed", False)),
+        }
+
     def record_feedback(self, attempt: ModelActionAttempt, action_result, page_type: str) -> None:
-        """Record compact action feedback for the bounded prompt history."""
+        """Record bounded, truthful action feedback for canonical history."""
         self._history.append(
             {
                 "model_turn_index": attempt.model_turn_index,
                 "action": attempt.action.to_dict() if attempt.action else None,
                 "parse_ok": attempt.schema_valid,
-                "result": action_result.to_dict() if action_result else {"success": False},
-                "page_type": page_type,
+                "result": self._compact_action_result(attempt, action_result),
+                "page_type": str(page_type),
             }
         )
 
     @property
     def model_turn(self) -> int:
         return self._model_turn
+
+    @property
+    def history(self) -> tuple[dict, ...]:
+        """Read-only view for diagnostics and tests."""
+        return tuple(self._history)
