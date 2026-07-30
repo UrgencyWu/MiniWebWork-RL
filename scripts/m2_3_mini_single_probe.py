@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Canonical single-policy, single-temperature rollout probe.
 
-One Slurm job evaluates one policy/temperature pair.  The script preserves the
-exact generated tokens and old-policy log-probabilities required by M3.0 while
-keeping infrastructure failures out of the reward stream.
+One Slurm job evaluates one policy/temperature pair. The script preserves the
+exact prompt/completion tokens and raw old-policy log-probabilities required by
+M3.0 while excluding infrastructure failures from the reward stream.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import random
+import subprocess
 import sys
 import time
 import uuid
@@ -50,6 +51,7 @@ DEFAULT_SEED = 20260731
 MAX_OUTPUT_FAILURES = 3
 MAX_MODEL_TURNS = 25
 PROMPT_CONTRACT = "browser_agent_v2"
+TOP_P = 0.9
 
 
 class Heartbeat:
@@ -81,18 +83,20 @@ class Heartbeat:
         self.write()
 
     def write(self):
-        payload = {
-            "policy": self.policy,
-            "temperature": self.temperature,
-            "uptime_s": round(time.time() - self.started, 1),
-            "tasks_done": self.tasks_done,
-            "total_tasks": self.total_tasks,
-            "current_task": self.current_task,
-            "current_rollout": self.current_rollout,
-            "last_error": self.last_error,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        _atomic_json_write(self.path, payload)
+        _atomic_json_write(
+            self.path,
+            {
+                "policy": self.policy,
+                "temperature": self.temperature,
+                "uptime_s": round(time.time() - self.started, 1),
+                "tasks_done": self.tasks_done,
+                "total_tasks": self.total_tasks,
+                "current_task": self.current_task,
+                "current_rollout": self.current_rollout,
+                "last_error": self.last_error,
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            },
+        )
 
 
 def _atomic_json_write(path: Path, payload: Any) -> None:
@@ -157,6 +161,15 @@ def _load_split_tasks(task_dir: Path, split: str) -> list[dict]:
     return tasks
 
 
+def _git_sha() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True
+        ).strip()
+    except Exception:
+        return "unknown"
+
+
 def _seed_everything(seed: int) -> None:
     import numpy as np
     import torch
@@ -169,12 +182,7 @@ def _seed_everything(seed: int) -> None:
 
 
 def _disable_transformers_allocator_warmup() -> None:
-    """Compatibility workaround for the audited cluster image.
-
-    The model is loaded on CPU and moved to the single Slurm-visible GPU only
-    after PEFT attachment.  Transformers allocator warmup is therefore not
-    needed and has caused driver-level failures on this specific node.
-    """
+    """Compatibility workaround for the audited cluster image."""
     import transformers.modeling_utils as modeling_utils
 
     if hasattr(modeling_utils, "caching_allocator_warmup"):
@@ -225,7 +233,7 @@ def load_policy(base_model_path: str, adapter_path: Path, temperature: float):
         max_new_tokens=128,
         do_sample=True,
         temperature=temperature,
-        top_p=0.9,
+        top_p=TOP_P,
         dtype="bfloat16",
         device="cuda:0",
         enable_thinking=False,
@@ -238,8 +246,7 @@ def load_policy(base_model_path: str, adapter_path: Path, temperature: float):
     backend._loaded = True
 
     prompt_builder.HISTORY_WINDOW = 5
-    agent = QwenBrowserAgent(backend, prompt_builder, parse)
-    return backend, agent
+    return backend, QwenBrowserAgent(backend, prompt_builder, parse)
 
 
 def _infrastructure_record(
@@ -251,11 +258,11 @@ def _infrastructure_record(
     rollout_seed: int,
     episode_id: str,
     reason: str,
-    steps: list[RolloutStep] | None = None,
+    steps: list[RolloutStep],
+    environment_steps: int,
 ) -> RolloutRecord:
-    steps = steps or []
     valid_count = sum(1 for step in steps if step.schema_valid)
-    return RolloutRecord(
+    record = RolloutRecord(
         task_id=task["task_id"],
         task_type=task.get("task_type", ""),
         episode_id=episode_id,
@@ -267,13 +274,15 @@ def _infrastructure_record(
         reward=None,
         rollout_valid=False,
         failure_origin=INFRASTRUCTURE_FAILURE,
-        termination_reason=reason,
+        termination_reason=reason[:500],
         model_turns=len(steps),
-        environment_steps=sum(1 for step in steps if not step.skipped),
+        environment_steps=environment_steps,
         schema_valid_count=valid_count,
         schema_invalid_count=len(steps) - valid_count,
         steps=steps,
     )
+    record.validate()
+    return record
 
 
 def run_rollout(
@@ -289,65 +298,72 @@ def run_rollout(
     rollout_seed = derive_rollout_seed(master_seed, task_id, rollout_index)
     _seed_everything(rollout_seed)
     run_id = f"probe_{uuid.uuid4().hex[:10]}"
+    episode_id = run_id
     steps: list[RolloutStep] = []
     environment_steps = 0
     output_failure_streak = 0
     success = False
-    reward = 0.0
     termination_reason = "max_model_turns"
     verification: dict = {}
-    env = ProcurementBrowserEnv(
-        max_steps=MAX_MODEL_TURNS,
-        run_id=run_id,
-        headless=True,
-        task_dir=task_dir,
-    )
+    env = None
+    record: RolloutRecord | None = None
 
     try:
+        env = ProcurementBrowserEnv(
+            max_steps=MAX_MODEL_TURNS,
+            run_id=run_id,
+            headless=True,
+            task_dir=task_dir,
+        )
         env.set_agent_name("m2_3_mini_rollout_probe")
         observation = env.reset(task_id)
+        episode_id = observation.episode_id
         agent.reset(observation.task_id, observation.instruction)
 
         for turn in range(1, MAX_MODEL_TURNS + 1):
-            try:
-                attempt = agent.act(observation)
-            except Exception as exc:
-                return _infrastructure_record(
-                    task=task,
-                    policy=policy,
-                    temperature=temperature,
-                    rollout_index=rollout_index,
-                    rollout_seed=rollout_seed,
-                    episode_id=run_id,
-                    reason=f"agent_exception:{type(exc).__name__}:{exc}",
-                    steps=steps,
-                )
-
+            attempt = agent.act(observation)
             step = RolloutStep(
                 turn=turn,
                 page_type=observation.page_type,
                 prompt_hash=attempt.prompt_hash,
+                prompt_token_ids=list(attempt.prompt_token_ids),
                 raw_model_output=attempt.raw_output[:1000],
                 generated_token_ids=list(attempt.generated_token_ids),
                 token_logprobs=list(attempt.token_logprobs),
+                strict_json_success=attempt.strict_json_success,
+                fallback_used=attempt.fallback_used,
                 schema_valid=attempt.schema_valid,
                 schema_errors=list(attempt.errors),
                 parsed_action=attempt.action.to_dict() if attempt.action else None,
                 skipped=not attempt.schema_valid,
             )
 
-            if any(error.startswith(("generation_error", "rollout_evidence_error")) for error in attempt.errors):
+            evidence_missing = bool(
+                attempt.output_tokens > 0
+                and (
+                    len(attempt.prompt_token_ids) != attempt.input_tokens
+                    or len(attempt.generated_token_ids) != attempt.output_tokens
+                    or len(attempt.token_logprobs) != attempt.output_tokens
+                )
+            )
+            backend_error = any(
+                error.startswith(("generation_error", "rollout_evidence_error"))
+                for error in attempt.errors
+            )
+            if evidence_missing or backend_error:
                 steps.append(step)
-                return _infrastructure_record(
+                record = _infrastructure_record(
                     task=task,
                     policy=policy,
                     temperature=temperature,
                     rollout_index=rollout_index,
                     rollout_seed=rollout_seed,
-                    episode_id=run_id,
-                    reason="model_backend_error",
+                    episode_id=episode_id,
+                    reason="missing_rollout_evidence" if evidence_missing else "model_backend_error",
                     steps=steps,
+                    environment_steps=environment_steps,
                 )
+                break
 
             if not attempt.schema_valid:
                 steps.append(step)
@@ -364,16 +380,18 @@ def run_rollout(
                 step.skipped = False
                 step.env_error_code = f"{type(exc).__name__}:{exc}"[:500]
                 steps.append(step)
-                return _infrastructure_record(
+                record = _infrastructure_record(
                     task=task,
                     policy=policy,
                     temperature=temperature,
                     rollout_index=rollout_index,
                     rollout_seed=rollout_seed,
-                    episode_id=run_id,
+                    episode_id=episode_id,
                     reason="environment_step_error",
                     steps=steps,
+                    environment_steps=environment_steps,
                 )
+                break
 
             environment_steps += 1
             action_result = result.info.get("action_result", {})
@@ -391,56 +409,82 @@ def run_rollout(
                 agent.record_feedback(attempt, result, "unknown")
 
             if result.terminated or result.truncated:
-                reward = float(result.reward)
-                success = reward > 0.5
+                success = float(result.reward) > 0.5
                 termination_reason = result.info.get("termination_reason", "terminal")
                 break
 
-        trajectory = env.trajectory
-        if trajectory is not None:
-            verification = trajectory.verification or {}
-            if trajectory.termination_reason:
-                termination_reason = trajectory.termination_reason
-            if verification:
-                success = bool(verification.get("success", success))
-                reward = 1.0 if success else 0.0
+        if record is None:
+            trajectory = env.trajectory
+            if trajectory is not None:
+                verification = trajectory.verification or {}
+                if trajectory.termination_reason:
+                    termination_reason = trajectory.termination_reason
+                if verification:
+                    success = bool(verification.get("success", success))
 
-        record = RolloutRecord(
-            task_id=task_id,
-            task_type=task.get("task_type", ""),
-            episode_id=getattr(env, "_episode_id", "") or run_id,
-            rollout_index=rollout_index,
-            rollout_seed=rollout_seed,
+            record = RolloutRecord(
+                task_id=task_id,
+                task_type=task.get("task_type", ""),
+                episode_id=episode_id,
+                rollout_index=rollout_index,
+                rollout_seed=rollout_seed,
+                policy=policy,
+                temperature=temperature,
+                success=success,
+                reward=1.0 if success else 0.0,
+                rollout_valid=True,
+                failure_origin=NO_FAILURE if success else POLICY_FAILURE,
+                termination_reason=termination_reason,
+                model_turns=len(steps),
+                environment_steps=environment_steps,
+                schema_valid_count=sum(1 for step in steps if step.schema_valid),
+                schema_invalid_count=sum(1 for step in steps if not step.schema_valid),
+                verification=verification,
+                steps=steps,
+            )
+            record.validate()
+
+    except Exception as exc:
+        record = _infrastructure_record(
+            task=task,
             policy=policy,
             temperature=temperature,
-            success=success,
-            reward=1.0 if success else 0.0,
-            rollout_valid=True,
-            failure_origin=NO_FAILURE if success else POLICY_FAILURE,
-            termination_reason=termination_reason,
-            model_turns=len(steps),
-            environment_steps=environment_steps,
-            schema_valid_count=sum(1 for step in steps if step.schema_valid),
-            schema_invalid_count=sum(1 for step in steps if not step.schema_valid),
-            verification=verification,
+            rollout_index=rollout_index,
+            rollout_seed=rollout_seed,
+            episode_id=episode_id,
+            reason=f"rollout_exception:{type(exc).__name__}:{exc}",
             steps=steps,
+            environment_steps=environment_steps,
         )
-        record.validate()
-        return record
     finally:
-        try:
-            env.close()
-        except Exception:
-            # A shutdown failure happens after the rollout record has already
-            # been determined.  It is surfaced to the job log and the next
-            # environment creation will fail fast if resources leaked.
-            print(f"[WARN] Environment cleanup failed for {task_id}/{rollout_index}", flush=True)
+        if env is not None:
+            try:
+                env.close()
+            except Exception as exc:
+                record = _infrastructure_record(
+                    task=task,
+                    policy=policy,
+                    temperature=temperature,
+                    rollout_index=rollout_index,
+                    rollout_seed=rollout_seed,
+                    episode_id=episode_id,
+                    reason=f"environment_cleanup_error:{type(exc).__name__}:{exc}",
+                    steps=steps,
+                    environment_steps=environment_steps,
+                )
+
+    if record is None:
+        raise RuntimeError("Rollout ended without a record")
+    record.validate()
+    return record
 
 
 def _run_metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
     valid = [record for record in records if record.rollout_valid]
-    valid_turns = sum(record.model_turns for record in valid)
-    schema_valid = sum(record.schema_valid_count for record in valid)
+    valid_steps = [step for record in valid for step in record.steps]
+    environment_steps = [
+        step for step in valid_steps if not step.skipped and step.env_action_success is not None
+    ]
     no_solution = [record for record in valid if record.task_type == "no_feasible_product"]
     return {
         "total_trajectories": len(records),
@@ -448,8 +492,15 @@ def _run_metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
         "infrastructure_errors": len(records) - len(valid),
         "total_successes": sum(1 for record in valid if record.success),
         "success_rate": sum(1 for record in valid if record.success) / max(len(valid), 1),
-        "total_model_turns": valid_turns,
-        "schema_valid_action_rate": schema_valid / max(valid_turns, 1),
+        "total_model_turns": len(valid_steps),
+        "strict_json_rate": sum(1 for step in valid_steps if step.strict_json_success)
+        / max(len(valid_steps), 1),
+        "schema_valid_action_rate": sum(1 for step in valid_steps if step.schema_valid)
+        / max(len(valid_steps), 1),
+        "environment_action_success_rate": sum(
+            1 for step in environment_steps if step.env_action_success
+        )
+        / max(len(environment_steps), 1),
         "premature_finish": sum(
             1 for record in valid if record.termination_reason == "premature_finish"
         ),
@@ -539,39 +590,41 @@ def main() -> None:
             groups.append(summary)
             heartbeat.finish_task()
 
-            incremental = {
-                "schema_version": "3.0",
-                "phase": "m2_3_mini_rollout_probe",
-                "complete": False,
-                "policy": policy,
-                "temperature": args.temperature,
-                "K": args.K,
-                "seed": args.seed,
-                "task_source_sha256": task_hash,
-                "adapter_sha256": adapter_hash,
-                "groups": groups,
-                "records": [record.to_dict() for record in records],
-            }
             _atomic_json_write(
                 output_dir / f"incremental_{args.policy}_t{args.temperature}.json",
-                incremental,
+                {
+                    "schema_version": "3.0",
+                    "phase": "m2_3_mini_rollout_probe",
+                    "complete": False,
+                    "git_sha": _git_sha(),
+                    "policy": policy,
+                    "temperature": args.temperature,
+                    "K": args.K,
+                    "seed": args.seed,
+                    "task_source_sha256": task_hash,
+                    "adapter_sha256": adapter_hash,
+                    "groups": groups,
+                    "records": [record.to_dict() for record in records],
+                },
             )
 
         output = {
             "schema_version": "3.0",
             "phase": "m2_3_mini_rollout_probe",
             "complete": True,
+            "git_sha": _git_sha(),
             "policy": policy,
             "base_model": args.base_model,
             "adapter_path": str(adapter_dir),
             "adapter_sha256": adapter_hash,
             "prompt_contract": PROMPT_CONTRACT,
             "prompt_builder_sha256": prompt_hash,
+            "chat_template_sha256": backend.get_chat_template_hash(),
             "task_dir": str(task_dir),
             "task_source_sha256": task_hash,
             "split": args.split,
             "temperature": args.temperature,
-            "top_p": 0.9,
+            "top_p": TOP_P,
             "K": args.K,
             "seed": args.seed,
             "max_model_turns": MAX_MODEL_TURNS,
