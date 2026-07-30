@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""M2.3-mini single-temperature rollout probe.
+"""Canonical single-policy, single-temperature rollout probe.
 
-One invocation evaluates one policy/temperature pair.  The script is strict
-about experimental contracts: infrastructure failures never become policy
-rewards, prompt/task/adaptor identities are recorded, and every model turn is
-retained for diagnosis.
+One Slurm job evaluates one policy/temperature pair.  The script preserves the
+exact generated tokens and old-policy log-probabilities required by M3.0 while
+keeping infrastructure failures out of the reward stream.
 """
 
 from __future__ import annotations
@@ -32,6 +31,15 @@ from miniwebwork.agent_env.environment import ProcurementBrowserEnv
 from miniwebwork.model_agent.model_backend import ModelConfig, QwenTransformersBackend
 from miniwebwork.model_agent.output_parser import parse
 from miniwebwork.model_agent.qwen_agent import QwenBrowserAgent
+from miniwebwork.rollout import (
+    INFRASTRUCTURE_FAILURE,
+    NO_FAILURE,
+    POLICY_FAILURE,
+    RolloutRecord,
+    RolloutStep,
+    derive_rollout_seed,
+    summarize_group,
+)
 import miniwebwork.model_agent.prompt_builder as prompt_builder
 
 DEFAULT_BASE_MODEL = "/data/share/model/Qwen3.5-4B"
@@ -39,34 +47,117 @@ DEFAULT_TASK_DIR = PROJECT_ROOT / "data" / "tasks" / "rollout_dev_no_solution_v1
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "m2_3_mini"
 DEFAULT_K = 8
 DEFAULT_SEED = 20260731
-MAX_MODEL_TURNS = 25
 MAX_OUTPUT_FAILURES = 3
+MAX_MODEL_TURNS = 25
+PROMPT_CONTRACT = "browser_agent_v2"
 
 
-def file_sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+class Heartbeat:
+    def __init__(self, path: Path, policy: str, temperature: float, total_tasks: int):
+        self.path = path
+        self.policy = policy
+        self.temperature = temperature
+        self.total_tasks = total_tasks
+        self.tasks_done = 0
+        self.current_task = ""
+        self.current_rollout = 0
+        self.last_error = ""
+        self.started = time.time()
+        self.write()
+
+    def update(self, *, task: str | None = None, rollout: int | None = None, error: str = ""):
+        if task is not None:
+            self.current_task = task
+        if rollout is not None:
+            self.current_rollout = rollout
+        if error:
+            self.last_error = error[:500]
+        self.write()
+
+    def finish_task(self):
+        self.tasks_done += 1
+        self.current_task = ""
+        self.current_rollout = 0
+        self.write()
+
+    def write(self):
+        payload = {
+            "policy": self.policy,
+            "temperature": self.temperature,
+            "uptime_s": round(time.time() - self.started, 1),
+            "tasks_done": self.tasks_done,
+            "total_tasks": self.total_tasks,
+            "current_task": self.current_task,
+            "current_rollout": self.current_rollout,
+            "last_error": self.last_error,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        _atomic_json_write(self.path, payload)
 
 
-def directory_sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    for file_path in sorted(p for p in path.rglob("*") if p.is_file()):
-        h.update(str(file_path.relative_to(path)).encode("utf-8"))
-        with file_path.open("rb") as f:
-            for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                h.update(chunk)
-    return h.hexdigest()
+def _atomic_json_write(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(path)
 
 
-def stable_rollout_seed(master_seed: int, task_id: str, rollout_index: int) -> int:
-    digest = hashlib.sha256(f"{master_seed}:{task_id}:{rollout_index}".encode()).digest()
-    return int.from_bytes(digest[:4], "big")
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
-def seed_everything(seed: int) -> None:
+def _sha256_directory(path: Path) -> str:
+    digest = hashlib.sha256()
+    files = sorted(file for file in path.rglob("*") if file.is_file())
+    if not files:
+        raise ValueError(f"Adapter directory contains no files: {path}")
+    for file in files:
+        digest.update(str(file.relative_to(path)).encode("utf-8"))
+        digest.update(_sha256_file(file).encode("ascii"))
+    return digest.hexdigest()
+
+
+def _task_source_hash(task_dir: Path, split: str) -> str:
+    public_file = task_dir / f"{split}_public.jsonl"
+    oracle_file = task_dir / f"{split}_oracle.jsonl"
+    if not public_file.is_file() or not oracle_file.is_file():
+        raise FileNotFoundError(
+            f"Expected {public_file.name} and {oracle_file.name} in {task_dir}"
+        )
+    digest = hashlib.sha256()
+    for file in (public_file, oracle_file):
+        digest.update(file.name.encode("utf-8"))
+        digest.update(_sha256_file(file).encode("ascii"))
+    return digest.hexdigest()
+
+
+def _load_split_tasks(task_dir: Path, split: str) -> list[dict]:
+    path = task_dir / f"{split}_public.jsonl"
+    if not path.is_file():
+        raise FileNotFoundError(f"Task file not found: {path}")
+    tasks: list[dict] = []
+    seen: set[str] = set()
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not raw_line.strip():
+            continue
+        task = json.loads(raw_line)
+        task_id = task.get("task_id")
+        if not isinstance(task_id, str) or not task_id:
+            raise ValueError(f"Missing task_id in {path}:{line_number}")
+        if task_id in seen:
+            raise ValueError(f"Duplicate task_id {task_id!r} in {path}")
+        seen.add(task_id)
+        tasks.append(task)
+    if not tasks:
+        raise ValueError(f"No tasks found in {path}")
+    return tasks
+
+
+def _seed_everything(seed: int) -> None:
     import numpy as np
     import torch
 
@@ -77,60 +168,38 @@ def seed_everything(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(path)
+def _disable_transformers_allocator_warmup() -> None:
+    """Compatibility workaround for the audited cluster image.
+
+    The model is loaded on CPU and moved to the single Slurm-visible GPU only
+    after PEFT attachment.  Transformers allocator warmup is therefore not
+    needed and has caused driver-level failures on this specific node.
+    """
+    import transformers.modeling_utils as modeling_utils
+
+    if hasattr(modeling_utils, "caching_allocator_warmup"):
+        modeling_utils.caching_allocator_warmup = lambda *args, **kwargs: None
 
 
-class ProbeHeartbeat:
-    def __init__(self, output_dir: Path, policy: str, temperature: float):
-        self.path = output_dir / f"heartbeat_{policy}_t{temperature}.json"
-        self.policy = policy
-        self.temperature = temperature
-        self.started_at = time.time()
-        self.tasks_done = 0
-        self.total_tasks = 0
-        self.current_task = ""
-        self.current_k = 0
-        self.last_error = ""
-        self.write()
-
-    def write(self) -> None:
-        atomic_write_json(self.path, {
-            "policy": self.policy,
-            "temperature": self.temperature,
-            "uptime_s": round(time.time() - self.started_at, 1),
-            "tasks_done": self.tasks_done,
-            "total_tasks": self.total_tasks,
-            "current_task": self.current_task,
-            "current_k": self.current_k,
-            "last_error": self.last_error,
-            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        })
-
-
-def load_policy(base_model_path: str, adapter_path: str, temperature: float):
+def load_policy(base_model_path: str, adapter_path: Path, temperature: float):
     import torch
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    if prompt_builder.PROMPT_VERSION != "browser_agent_v2":
+    if not adapter_path.is_dir():
+        raise FileNotFoundError(f"Adapter directory not found: {adapter_path}")
+    if prompt_builder.PROMPT_VERSION != PROMPT_CONTRACT:
         raise RuntimeError(
-            f"Prompt contract drift: {prompt_builder.PROMPT_VERSION!r}; "
-            "expected 'browser_agent_v2'"
+            f"Prompt contract drift: expected {PROMPT_CONTRACT}, got {prompt_builder.PROMPT_VERSION}"
         )
-    prompt_builder.HISTORY_WINDOW = 5
 
-    adapter_dir = Path(adapter_path).resolve()
-    if not adapter_dir.is_dir():
-        raise FileNotFoundError(f"Adapter directory not found: {adapter_dir}")
-
+    _disable_transformers_allocator_warmup()
     tokenizer = AutoTokenizer.from_pretrained(
-        base_model_path, local_files_only=True, trust_remote_code=True,
+        base_model_path,
+        local_files_only=True,
+        trust_remote_code=True,
     )
-    if tokenizer.pad_token is None:
+    if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     base_model = AutoModelForCausalLM.from_pretrained(
@@ -140,13 +209,13 @@ def load_policy(base_model_path: str, adapter_path: str, temperature: float):
         trust_remote_code=True,
     )
     model = PeftModel.from_pretrained(
-        base_model, adapter_dir, torch_dtype=torch.bfloat16,
+        base_model,
+        adapter_path,
+        torch_dtype=torch.bfloat16,
     )
     model.enable_adapter_layers()
-    model.eval()
-    if not getattr(model, "active_adapters", []):
-        raise RuntimeError("Adapter loaded but no active adapter is registered")
-
+    if not getattr(model, "active_adapters", None):
+        raise RuntimeError("PEFT adapter loaded without an active adapter")
     model = model.to("cuda:0")
     model.eval()
     torch.cuda.synchronize()
@@ -160,299 +229,367 @@ def load_policy(base_model_path: str, adapter_path: str, temperature: float):
         dtype="bfloat16",
         device="cuda:0",
         enable_thinking=False,
+        collect_policy_logprobs=True,
+        collect_sampling_logprobs=False,
     )
     backend = QwenTransformersBackend(config)
     backend._model = model
     backend._tokenizer = tokenizer
     backend._loaded = True
+
+    prompt_builder.HISTORY_WINDOW = 5
     agent = QwenBrowserAgent(backend, prompt_builder, parse)
-    return backend, agent, tokenizer, adapter_dir
+    return backend, agent
+
+
+def _infrastructure_record(
+    *,
+    task: dict,
+    policy: str,
+    temperature: float,
+    rollout_index: int,
+    rollout_seed: int,
+    episode_id: str,
+    reason: str,
+    steps: list[RolloutStep] | None = None,
+) -> RolloutRecord:
+    steps = steps or []
+    valid_count = sum(1 for step in steps if step.schema_valid)
+    return RolloutRecord(
+        task_id=task["task_id"],
+        task_type=task.get("task_type", ""),
+        episode_id=episode_id,
+        rollout_index=rollout_index,
+        rollout_seed=rollout_seed,
+        policy=policy,
+        temperature=temperature,
+        success=False,
+        reward=None,
+        rollout_valid=False,
+        failure_origin=INFRASTRUCTURE_FAILURE,
+        termination_reason=reason,
+        model_turns=len(steps),
+        environment_steps=sum(1 for step in steps if not step.skipped),
+        schema_valid_count=valid_count,
+        schema_invalid_count=len(steps) - valid_count,
+        steps=steps,
+    )
 
 
 def run_rollout(
-    task: dict[str, Any],
+    task: dict,
     rollout_index: int,
-    agent: QwenBrowserAgent,
-    task_dir: Path,
     master_seed: int,
-) -> dict[str, Any]:
+    policy: str,
+    temperature: float,
+    task_dir: Path,
+    agent: QwenBrowserAgent,
+) -> RolloutRecord:
     task_id = task["task_id"]
-    rollout_seed = stable_rollout_seed(master_seed, task_id, rollout_index)
-    seed_everything(rollout_seed)
+    rollout_seed = derive_rollout_seed(master_seed, task_id, rollout_index)
+    _seed_everything(rollout_seed)
     run_id = f"probe_{uuid.uuid4().hex[:10]}"
-
-    model_turns = 0
+    steps: list[RolloutStep] = []
     environment_steps = 0
-    schema_valid_count = 0
-    schema_invalid_count = 0
     output_failure_streak = 0
-    step_events: list[dict[str, Any]] = []
-    termination_reason = "max_model_turns"
-    rollout_valid = True
-    failure_origin = "policy"
     success = False
-    verification: dict[str, Any] = {}
+    reward = 0.0
+    termination_reason = "max_model_turns"
+    verification: dict = {}
+    env = ProcurementBrowserEnv(
+        max_steps=MAX_MODEL_TURNS,
+        run_id=run_id,
+        headless=True,
+        task_dir=task_dir,
+    )
 
     try:
-        with ProcurementBrowserEnv(
-            max_steps=MAX_MODEL_TURNS,
-            run_id=run_id,
-            headless=True,
-            task_dir=task_dir,
-        ) as env:
-            env.set_agent_name("m2_3_mini_rollout_probe")
-            obs = env.reset(task_id)
-            agent.reset(obs.task_id, obs.instruction)
+        env.set_agent_name("m2_3_mini_rollout_probe")
+        observation = env.reset(task_id)
+        agent.reset(observation.task_id, observation.instruction)
 
-            for _ in range(MAX_MODEL_TURNS):
-                page_type_before = obs.page_type
-                attempt = agent.act(obs)
-                model_turns += 1
+        for turn in range(1, MAX_MODEL_TURNS + 1):
+            try:
+                attempt = agent.act(observation)
+            except Exception as exc:
+                return _infrastructure_record(
+                    task=task,
+                    policy=policy,
+                    temperature=temperature,
+                    rollout_index=rollout_index,
+                    rollout_seed=rollout_seed,
+                    episode_id=run_id,
+                    reason=f"agent_exception:{type(exc).__name__}:{exc}",
+                    steps=steps,
+                )
 
-                event = {
-                    "turn": model_turns,
-                    "page_type": page_type_before,
-                    "raw_model_output": (attempt.raw_output or "")[:2000],
-                    "strict_json_success": attempt.strict_json_success,
-                    "fallback_used": attempt.fallback_used,
-                    "schema_valid": attempt.schema_valid,
-                    "schema_errors": list(attempt.errors),
-                    "prompt_hash": attempt.prompt_hash,
-                    "input_tokens": attempt.input_tokens,
-                    "output_tokens": attempt.output_tokens,
-                    "parsed_action": attempt.action.to_dict() if attempt.action else None,
-                    "generation_logprobs": getattr(agent._backend.generate, "logprobs", None),
-                }
+            step = RolloutStep(
+                turn=turn,
+                page_type=observation.page_type,
+                prompt_hash=attempt.prompt_hash,
+                raw_model_output=attempt.raw_output[:1000],
+                generated_token_ids=list(attempt.generated_token_ids),
+                token_logprobs=list(attempt.token_logprobs),
+                schema_valid=attempt.schema_valid,
+                schema_errors=list(attempt.errors),
+                parsed_action=attempt.action.to_dict() if attempt.action else None,
+                skipped=not attempt.schema_valid,
+            )
 
-                if not attempt.schema_valid or attempt.action is None:
-                    schema_invalid_count += 1
-                    output_failure_streak += 1
-                    event["skipped_env_step"] = True
-                    step_events.append(event)
-                    if output_failure_streak >= MAX_OUTPUT_FAILURES:
-                        termination_reason = "model_output_failure_limit"
-                        break
-                    continue
+            if any(error.startswith(("generation_error", "rollout_evidence_error")) for error in attempt.errors):
+                steps.append(step)
+                return _infrastructure_record(
+                    task=task,
+                    policy=policy,
+                    temperature=temperature,
+                    rollout_index=rollout_index,
+                    rollout_seed=rollout_seed,
+                    episode_id=run_id,
+                    reason="model_backend_error",
+                    steps=steps,
+                )
 
-                schema_valid_count += 1
-                output_failure_streak = 0
-                result = env.step(attempt.action)
-                environment_steps += 1
-                event.update({
-                    "skipped_env_step": False,
-                    "env_action_success": result.info.get("action_result", {}).get("success"),
-                    "terminated": result.terminated,
-                    "truncated": result.truncated,
-                    "termination_reason": result.info.get("termination_reason", ""),
-                })
-                step_events.append(event)
-
-                if result.observation is not None:
-                    agent.record_feedback(attempt, result, result.observation.page_type)
-                    obs = result.observation
-                else:
-                    agent.record_feedback(attempt, result, "unknown")
-
-                if result.terminated or result.truncated:
-                    termination_reason = result.info.get("termination_reason", "terminal")
-                    success = bool(result.reward > 0.5)
+            if not attempt.schema_valid:
+                steps.append(step)
+                output_failure_streak += 1
+                if output_failure_streak >= MAX_OUTPUT_FAILURES:
+                    termination_reason = "model_output_failure_limit"
                     break
+                continue
 
-            trajectory = env.trajectory
-            if trajectory is None:
-                raise RuntimeError("Environment did not create a trajectory")
+            output_failure_streak = 0
+            try:
+                result = env.step(attempt.action)
+            except Exception as exc:
+                step.skipped = False
+                step.env_error_code = f"{type(exc).__name__}:{exc}"[:500]
+                steps.append(step)
+                return _infrastructure_record(
+                    task=task,
+                    policy=policy,
+                    temperature=temperature,
+                    rollout_index=rollout_index,
+                    rollout_seed=rollout_seed,
+                    episode_id=run_id,
+                    reason="environment_step_error",
+                    steps=steps,
+                )
+
+            environment_steps += 1
+            action_result = result.info.get("action_result", {})
+            step.skipped = False
+            step.env_action_success = action_result.get("success")
+            step.env_error_code = action_result.get("error_code", "")
+            step.terminated = result.terminated
+            step.truncated = result.truncated
+            steps.append(step)
+
+            if result.observation is not None:
+                agent.record_feedback(attempt, result, result.observation.page_type)
+                observation = result.observation
+            else:
+                agent.record_feedback(attempt, result, "unknown")
+
+            if result.terminated or result.truncated:
+                reward = float(result.reward)
+                success = reward > 0.5
+                termination_reason = result.info.get("termination_reason", "terminal")
+                break
+
+        trajectory = env.trajectory
+        if trajectory is not None:
             verification = trajectory.verification or {}
-            success = bool(verification.get("success", success))
-            termination_reason = trajectory.termination_reason or termination_reason
+            if trajectory.termination_reason:
+                termination_reason = trajectory.termination_reason
+            if verification:
+                success = bool(verification.get("success", success))
+                reward = 1.0 if success else 0.0
 
-    except Exception as exc:
-        rollout_valid = False
-        failure_origin = "infrastructure"
-        termination_reason = "infrastructure_error"
-        verification = {
-            "exception_type": type(exc).__name__,
-            "exception_message": str(exc)[:1000],
-        }
+        record = RolloutRecord(
+            task_id=task_id,
+            task_type=task.get("task_type", ""),
+            episode_id=getattr(env, "_episode_id", "") or run_id,
+            rollout_index=rollout_index,
+            rollout_seed=rollout_seed,
+            policy=policy,
+            temperature=temperature,
+            success=success,
+            reward=1.0 if success else 0.0,
+            rollout_valid=True,
+            failure_origin=NO_FAILURE if success else POLICY_FAILURE,
+            termination_reason=termination_reason,
+            model_turns=len(steps),
+            environment_steps=environment_steps,
+            schema_valid_count=sum(1 for step in steps if step.schema_valid),
+            schema_invalid_count=sum(1 for step in steps if not step.schema_valid),
+            verification=verification,
+            steps=steps,
+        )
+        record.validate()
+        return record
+    finally:
+        try:
+            env.close()
+        except Exception:
+            # A shutdown failure happens after the rollout record has already
+            # been determined.  It is surfaced to the job log and the next
+            # environment creation will fail fast if resources leaked.
+            print(f"[WARN] Environment cleanup failed for {task_id}/{rollout_index}", flush=True)
 
-    if schema_valid_count + schema_invalid_count != model_turns:
-        rollout_valid = False
-        failure_origin = "infrastructure"
-        termination_reason = "metrics_invariant_failure"
 
-    reward = (1.0 if success else 0.0) if rollout_valid else None
+def _run_metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
+    valid = [record for record in records if record.rollout_valid]
+    valid_turns = sum(record.model_turns for record in valid)
+    schema_valid = sum(record.schema_valid_count for record in valid)
+    no_solution = [record for record in valid if record.task_type == "no_feasible_product"]
     return {
-        "task_id": task_id,
-        "task_type": task.get("task_type", ""),
-        "episode_id": run_id,
-        "k": rollout_index,
-        "rollout_seed": rollout_seed,
-        "rollout_valid": rollout_valid,
-        "failure_origin": failure_origin,
-        "success": success,
-        "reward": reward,
-        "termination_reason": termination_reason,
-        "model_turns": model_turns,
-        "environment_steps": environment_steps,
-        "schema_valid_count": schema_valid_count,
-        "schema_invalid_count": schema_invalid_count,
-        "verification": verification,
-        "step_events": step_events,
-    }
-
-
-def summarize(groups: list[dict[str, Any]]) -> dict[str, Any]:
-    all_trajs = [traj for group in groups for traj in group["trajectories"]]
-    valid = [t for t in all_trajs if t["rollout_valid"]]
-    total_turns = sum(t["model_turns"] for t in valid)
-    valid_actions = sum(t["schema_valid_count"] for t in valid)
-    invalid_actions = sum(t["schema_invalid_count"] for t in valid)
-    no_solution_ids = {g["task_id"] for g in groups if g["task_type"] == "no_feasible_product"}
-    no_solution_trajs = [t for t in valid if t["task_id"] in no_solution_ids]
-
-    return {
-        "total_trajectories": len(all_trajs),
+        "total_trajectories": len(records),
         "valid_trajectories": len(valid),
-        "infrastructure_errors": len(all_trajs) - len(valid),
-        "total_successes": sum(1 for t in valid if t["success"]),
-        "success_rate": sum(1 for t in valid if t["success"]) / max(len(valid), 1),
-        "total_model_turns": total_turns,
-        "total_schema_valid_actions": valid_actions,
-        "total_schema_invalid_actions": invalid_actions,
-        "schema_valid_action_rate": valid_actions / max(total_turns, 1),
-        "premature_finish": sum(1 for t in valid if t["termination_reason"] == "premature_finish"),
-        "no_solution_tasks": len(no_solution_ids),
-        "no_solution_trajectories": len(no_solution_trajs),
-        "no_solution_successes": sum(1 for t in no_solution_trajs if t["success"]),
+        "infrastructure_errors": len(records) - len(valid),
+        "total_successes": sum(1 for record in valid if record.success),
+        "success_rate": sum(1 for record in valid if record.success) / max(len(valid), 1),
+        "total_model_turns": valid_turns,
+        "schema_valid_action_rate": schema_valid / max(valid_turns, 1),
+        "premature_finish": sum(
+            1 for record in valid if record.termination_reason == "premature_finish"
+        ),
+        "no_solution_trajectories": len(no_solution),
+        "no_solution_successes": sum(1 for record in no_solution if record.success),
+        "groups_with_reward_variance": sum(1 for group in groups if group["has_reward_variance"]),
+        "groups_valid_for_grpo": sum(1 for group in groups if group["valid_for_grpo_update"]),
     }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="M2.3-mini single-temperature rollout probe")
+    parser = argparse.ArgumentParser(description="Canonical M2.3-mini rollout probe")
     parser.add_argument("--policy", required=True, choices=["A", "B"])
-    parser.add_argument("--adapter", required=True)
+    parser.add_argument("--adapter", required=True, type=Path)
     parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
     parser.add_argument("--task-dir", type=Path, default=DEFAULT_TASK_DIR)
     parser.add_argument("--temperature", required=True, type=float)
     parser.add_argument("--K", type=int, default=DEFAULT_K)
-    parser.add_argument("--split", choices=["train", "valid"], default="valid")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--split", choices=["train", "valid"], default="valid")
+    parser.add_argument("--max-tasks", type=int, default=None)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
 
     if args.K <= 0:
         raise ValueError("K must be positive")
     if args.temperature <= 0:
         raise ValueError("temperature must be positive for stochastic rollout")
+    if args.max_tasks is not None and args.max_tasks <= 0:
+        raise ValueError("max-tasks must be positive")
 
-    args.task_dir = args.task_dir.resolve()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    os.environ["MINIWEBWORK_TASK_DIR"] = str(args.task_dir)
+    task_dir = args.task_dir.expanduser().resolve()
+    adapter_dir = args.adapter.expanduser().resolve()
+    output_dir = args.output_dir.expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    tasks = _load_split_tasks(task_dir, args.split)
+    if args.max_tasks is not None:
+        tasks = tasks[: args.max_tasks]
 
-    public_path = args.task_dir / f"{args.split}_public.jsonl"
-    if not public_path.is_file():
-        raise FileNotFoundError(public_path)
-    tasks = [json.loads(line) for line in public_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if not tasks:
-        raise ValueError(f"No tasks found in {public_path}")
-
-    policy_label = "A_M2.2R" if args.policy == "A" else "B_M2.3-mini"
-    backend, agent, tokenizer, adapter_dir = load_policy(
-        args.base_model, args.adapter, args.temperature,
+    policy = "A_M2.2R" if args.policy == "A" else "B_M2.3-mini"
+    task_hash = _task_source_hash(task_dir, args.split)
+    adapter_hash = _sha256_directory(adapter_dir)
+    prompt_hash = _sha256_file(Path(prompt_builder.__file__).resolve())
+    heartbeat = Heartbeat(
+        output_dir / f"heartbeat_{args.policy}_t{args.temperature}.json",
+        policy,
+        args.temperature,
+        len(tasks),
     )
 
-    heartbeat = ProbeHeartbeat(args.output_dir, args.policy, args.temperature)
-    heartbeat.total_tasks = len(tasks)
-    heartbeat.write()
+    print(
+        f"Policy={policy} temperature={args.temperature} K={args.K} "
+        f"tasks={len(tasks)} seed={args.seed}",
+        flush=True,
+    )
+    backend, agent = load_policy(args.base_model, adapter_dir, args.temperature)
+    records: list[RolloutRecord] = []
+    groups: list[dict] = []
+    started = time.time()
 
-    groups: list[dict[str, Any]] = []
-    started_at = time.time()
-    incremental_path = args.output_dir / f"incremental_{args.policy}_t{args.temperature}.json"
+    try:
+        for task_index, task in enumerate(tasks, start=1):
+            task_id = task["task_id"]
+            heartbeat.update(task=task_id, rollout=0)
+            task_records: list[RolloutRecord] = []
+            print(f"[{task_index}/{len(tasks)}] {task_id}", flush=True)
+            for rollout_index in range(args.K):
+                heartbeat.update(rollout=rollout_index + 1)
+                record = run_rollout(
+                    task,
+                    rollout_index,
+                    args.seed,
+                    policy,
+                    args.temperature,
+                    task_dir,
+                    agent,
+                )
+                task_records.append(record)
+                records.append(record)
+                print(
+                    f"  k={rollout_index} valid={record.rollout_valid} "
+                    f"success={record.success} term={record.termination_reason}",
+                    flush=True,
+                )
 
-    for task_index, task in enumerate(tasks):
-        heartbeat.current_task = task["task_id"]
-        heartbeat.current_k = 0
-        heartbeat.write()
-        task_started = time.time()
-        trajectories = []
-        for k in range(args.K):
-            heartbeat.current_k = k
-            heartbeat.write()
-            trajectories.append(run_rollout(task, k, agent, args.task_dir, args.seed))
+            summary = summarize_group(task_records, requested_k=args.K).to_dict()
+            groups.append(summary)
+            heartbeat.finish_task()
 
-        valid_rewards = [t["reward"] for t in trajectories if t["rollout_valid"]]
-        mean_reward = sum(valid_rewards) / max(len(valid_rewards), 1)
-        variance = (
-            sum((r - mean_reward) ** 2 for r in valid_rewards) / len(valid_rewards)
-            if valid_rewards else 0.0
-        )
-        group = {
-            "task_id": task["task_id"],
-            "task_type": task.get("task_type", ""),
-            "policy": policy_label,
-            "temperature": args.temperature,
-            "K": args.K,
-            "num_valid": len(valid_rewards),
-            "num_infrastructure_errors": len(trajectories) - len(valid_rewards),
-            "success_count": sum(1 for r in valid_rewards if r == 1.0),
-            "group_reward_mean": mean_reward,
-            "group_reward_std": variance ** 0.5,
-            "has_variance": variance > 0.0,
-            "valid_for_update": variance > 0.0 and 0 < sum(valid_rewards) < len(valid_rewards),
-            "reward_sequence": valid_rewards,
-            "elapsed_s": round(time.time() - task_started, 2),
-            "trajectories": trajectories,
-        }
-        groups.append(group)
-        heartbeat.tasks_done = task_index + 1
-        heartbeat.current_task = ""
-        heartbeat.current_k = 0
-        heartbeat.write()
+            incremental = {
+                "schema_version": "3.0",
+                "phase": "m2_3_mini_rollout_probe",
+                "complete": False,
+                "policy": policy,
+                "temperature": args.temperature,
+                "K": args.K,
+                "seed": args.seed,
+                "task_source_sha256": task_hash,
+                "adapter_sha256": adapter_hash,
+                "groups": groups,
+                "records": [record.to_dict() for record in records],
+            }
+            _atomic_json_write(
+                output_dir / f"incremental_{args.policy}_t{args.temperature}.json",
+                incremental,
+            )
 
-        atomic_write_json(incremental_path, {
+        output = {
             "schema_version": "3.0",
-            "complete": False,
-            "policy": policy_label,
+            "phase": "m2_3_mini_rollout_probe",
+            "complete": True,
+            "policy": policy,
+            "base_model": args.base_model,
+            "adapter_path": str(adapter_dir),
+            "adapter_sha256": adapter_hash,
+            "prompt_contract": PROMPT_CONTRACT,
+            "prompt_builder_sha256": prompt_hash,
+            "task_dir": str(task_dir),
+            "task_source_sha256": task_hash,
+            "split": args.split,
             "temperature": args.temperature,
+            "top_p": 0.9,
             "K": args.K,
             "seed": args.seed,
+            "max_model_turns": MAX_MODEL_TURNS,
+            "max_output_failures": MAX_OUTPUT_FAILURES,
+            "metrics": _run_metrics(records, groups),
             "groups": groups,
-            "metrics": summarize(groups),
-        })
-
-    output = {
-        "schema_version": "3.0",
-        "complete": True,
-        "phase": "m2_3_mini_single_probe",
-        "policy": policy_label,
-        "base_model": args.base_model,
-        "adapter_path": str(adapter_dir),
-        "adapter_sha256": directory_sha256(adapter_dir),
-        "task_file": str(public_path),
-        "task_file_sha256": file_sha256(public_path),
-        "prompt_contract": prompt_builder.PROMPT_VERSION,
-        "prompt_builder_sha256": file_sha256(Path(prompt_builder.__file__)),
-        "temperature": args.temperature,
-        "top_p": 0.9,
-        "K": args.K,
-        "seed": args.seed,
-        "num_tasks": len(tasks),
-        "elapsed_s": round(time.time() - started_at, 2),
-        "metrics": summarize(groups),
-        "groups": groups,
-    }
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    out_path = args.output_dir / f"single_probe_{args.policy}_t{args.temperature}_{timestamp}.json"
-    atomic_write_json(out_path, output)
-    print(json.dumps(output["metrics"], indent=2, ensure_ascii=False), flush=True)
-    print(f"Results saved to {out_path}", flush=True)
-
-    del backend, agent, tokenizer
-    gc.collect()
-    try:
-        import torch
-        torch.cuda.empty_cache()
-    except Exception:
-        pass
+            "records": [record.to_dict() for record in records],
+            "elapsed_s": round(time.time() - started, 1),
+        }
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        result_path = output_dir / f"single_probe_{args.policy}_t{args.temperature}_{timestamp}.json"
+        _atomic_json_write(result_path, output)
+        print(f"Results saved: {result_path}", flush=True)
+        print(json.dumps(output["metrics"], indent=2, ensure_ascii=False), flush=True)
+    finally:
+        backend.unload()
+        del agent, backend
+        gc.collect()
 
 
 if __name__ == "__main__":
