@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #SBATCH --job-name=m2_0_eval
 #SBATCH --partition=compute
 #SBATCH --time=02:00:00
@@ -10,48 +10,40 @@
 #SBATCH --error=logs/m2_0_eval_%j.err
 
 set -euo pipefail
+
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 cd "$PROJECT_ROOT"
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate miniwebwork
 
 export TOKENIZERS_PARALLELISM=false
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
+OUTPUT_DIR="$PROJECT_ROOT/artifacts/m2_0_canonical_v2"
+mkdir -p "$OUTPUT_DIR" logs
 
-mkdir -p artifacts/m2_0 logs
+# Environment children are closed by exact handles. Broad process-name cleanup
+# is forbidden on a shared Slurm node.
+trap 'echo "[signal] Base evaluation interrupted at $(date -Is)" >&2; exit 143' SIGTERM SIGINT
 
-cleanup() {
-    echo "=== Cleanup ==="
-    pkill -f "uvicorn miniwebwork" 2>/dev/null || true
-    pkill -f "chromium" 2>/dev/null || true
-    echo "Cleanup done at $(date)"
-}
-trap cleanup EXIT INT TERM
-
-echo "=== M2.0 Base Agent Evaluation ==="
+ echo "=== Canonical Base Agent Evaluation ==="
 echo "Job: ${SLURM_JOB_ID:-none}"
-echo "GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
-echo "CUDA: ${CUDA_VISIBLE_DEVICES:-unset}"
-echo "Started: $(date)"
+echo "Git SHA: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
+echo "Started: $(date -Is)"
+nvidia-smi --query-gpu=index,name,memory.total,memory.used --format=csv,noheader || true
 
-echo "=== Running tests ==="
-python -m pytest -q 2>&1 | tail -5
+python -m pytest -q \
+    tests/test_model_backend_logprobs.py \
+    tests/test_qwen_agent_feedback_contract.py \
+    tests/test_environment_lifecycle_contract.py
 
-echo "=== Running full evaluation ==="
-python -m miniwebwork.model_agent_runner \
+srun --ntasks=1 python -m miniwebwork.model_agent_runner \
     --model-path /data/share/model/Qwen3.5-4B \
     --tasks all \
+    --prompt-version browser_agent_v2 \
     --max-model-turns 20 \
     --max-env-steps 15 \
     --history-window 5 \
-    --output-dir artifacts/m2_0
+    --output-dir "$OUTPUT_DIR"
 
-RC=$?
-echo "=== Eval exit: $RC ==="
-
-echo "=== Artifacts ==="
-ls -la artifacts/m2_0/ 2>/dev/null
-echo "Per-task: $(ls artifacts/m2_0/per_task/ 2>/dev/null | wc -l)"
-
-echo "=== Complete at $(date) ==="
-exit $RC
+echo "=== Complete at $(date -Is) ==="
