@@ -48,17 +48,19 @@ def load_policy(base_model_path, adapter_path, temperature):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    print(f"  Loading base model (pinned to cuda:0)...", flush=True)
+    print(f"  Loading base model on CPU (bypass cudaMemGetInfo)...", flush=True)
+    # Load on CPU first to avoid caching_allocator_warmup ->
+    # cudaMemGetInfo -> IndexKernel on this GPU.
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_path,
         dtype=torch.bfloat16,
         local_files_only=True,
         trust_remote_code=True,
-        device_map={"": "cuda:0"},
     )
+    print(f"  Base model on {base_model.device}", flush=True)
 
     if adapter_path and Path(adapter_path).exists():
-        print(f"  Loading adapter: {adapter_path}", flush=True)
+        print(f"  Loading adapter on CPU...", flush=True)
         model = PeftModel.from_pretrained(base_model, adapter_path, torch_dtype=torch.bfloat16)
     else:
         print(f"  WARNING: adapter not found", flush=True)
@@ -68,11 +70,20 @@ def load_policy(base_model_path, adapter_path, temperature):
     model.enable_adapter_layers()
     print(f"  Active adapters: {model.active_adapters}", flush=True)
 
+    # Move to CUDA after all loading is complete
+    print(f"  Moving model to CUDA...", flush=True)
+    model = model.to("cuda:0")
+    model.eval()
+    torch.cuda.synchronize()
+    print(f"  Model on {next(model.parameters()).device}, "
+          f"mem={torch.cuda.memory_allocated()/1024**3:.1f}GB", flush=True)
+
     print(f"  Warm-up forward...", flush=True)
     with torch.inference_mode():
         _dummy = tokenizer("warmup", return_tensors="pt").to(model.device)
         _ = model(**_dummy)
     torch.cuda.synchronize()
+    print(f"  Warm-up OK", flush=True)
 
     config = ModelConfig(
         model_path=base_model_path,
