@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Canonical single-policy, single-temperature rollout probe.
+"""Canonical M2.3-mini rollout probe.
 
-One Slurm job evaluates one policy/temperature pair. The script preserves the
-exact prompt/completion tokens and raw old-policy log-probabilities required by
-M3.0 while excluding infrastructure failures from the reward stream.
+One process evaluates one policy at one temperature.  The artifact preserves
+exact prompt/completion tokens, raw model-policy log-probabilities, actual
+sampling-distribution log-probabilities, environment evidence, and terminal
+Verifier results.  Infrastructure failures never enter the reward stream.
 """
 
 from __future__ import annotations
@@ -12,7 +13,6 @@ import argparse
 import gc
 import hashlib
 import json
-import os
 import random
 import subprocess
 import sys
@@ -48,65 +48,57 @@ DEFAULT_TASK_DIR = PROJECT_ROOT / "data" / "tasks" / "rollout_dev_no_solution_v1
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "m2_3_mini"
 DEFAULT_K = 8
 DEFAULT_SEED = 20260731
-MAX_OUTPUT_FAILURES = 3
-MAX_MODEL_TURNS = 25
 PROMPT_CONTRACT = "browser_agent_v2"
 TOP_P = 0.9
+MAX_MODEL_TURNS = 25
+MAX_OUTPUT_FAILURES = 3
 
 
 class Heartbeat:
+    """Atomic progress record for Slurm timeout and signal diagnostics."""
+
     def __init__(self, path: Path, policy: str, temperature: float, total_tasks: int):
         self.path = path
-        self.policy = policy
-        self.temperature = temperature
-        self.total_tasks = total_tasks
-        self.tasks_done = 0
-        self.current_task = ""
-        self.current_rollout = 0
-        self.last_error = ""
-        self.started = time.time()
+        self.payload = {
+            "policy": policy,
+            "temperature": temperature,
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "tasks_done": 0,
+            "total_tasks": total_tasks,
+            "current_task": "",
+            "current_rollout": 0,
+            "last_error": "",
+        }
+        self._started = time.time()
         self.write()
 
-    def update(self, *, task: str | None = None, rollout: int | None = None, error: str = ""):
-        if task is not None:
-            self.current_task = task
-        if rollout is not None:
-            self.current_rollout = rollout
-        if error:
-            self.last_error = error[:500]
+    def update(self, **changes) -> None:
+        self.payload.update(changes)
         self.write()
 
-    def finish_task(self):
-        self.tasks_done += 1
-        self.current_task = ""
-        self.current_rollout = 0
+    def finish_task(self) -> None:
+        self.payload["tasks_done"] += 1
+        self.payload["current_task"] = ""
+        self.payload["current_rollout"] = 0
         self.write()
 
-    def write(self):
-        _atomic_json_write(
-            self.path,
-            {
-                "policy": self.policy,
-                "temperature": self.temperature,
-                "uptime_s": round(time.time() - self.started, 1),
-                "tasks_done": self.tasks_done,
-                "total_tasks": self.total_tasks,
-                "current_task": self.current_task,
-                "current_rollout": self.current_rollout,
-                "last_error": self.last_error,
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            },
-        )
+    def write(self) -> None:
+        self.payload["uptime_s"] = round(time.time() - self._started, 1)
+        self.payload["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        _atomic_json_write(self.path, self.payload)
 
 
-def _atomic_json_write(path: Path, payload: Any) -> None:
+def _atomic_json_write(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    temporary.write_text(
+        json.dumps(value, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     temporary.replace(path)
 
 
-def _sha256_file(path: Path) -> str:
+def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -114,63 +106,63 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _sha256_directory(path: Path) -> str:
-    digest = hashlib.sha256()
+def _directory_sha256(path: Path) -> str:
     files = sorted(file for file in path.rglob("*") if file.is_file())
     if not files:
-        raise ValueError(f"Adapter directory contains no files: {path}")
+        raise ValueError(f"Directory contains no files: {path}")
+    digest = hashlib.sha256()
     for file in files:
         digest.update(str(file.relative_to(path)).encode("utf-8"))
-        digest.update(_sha256_file(file).encode("ascii"))
+        digest.update(_file_sha256(file).encode("ascii"))
     return digest.hexdigest()
-
-
-def _task_source_hash(task_dir: Path, split: str) -> str:
-    public_file = task_dir / f"{split}_public.jsonl"
-    oracle_file = task_dir / f"{split}_oracle.jsonl"
-    if not public_file.is_file() or not oracle_file.is_file():
-        raise FileNotFoundError(
-            f"Expected {public_file.name} and {oracle_file.name} in {task_dir}"
-        )
-    digest = hashlib.sha256()
-    for file in (public_file, oracle_file):
-        digest.update(file.name.encode("utf-8"))
-        digest.update(_sha256_file(file).encode("ascii"))
-    return digest.hexdigest()
-
-
-def _load_split_tasks(task_dir: Path, split: str) -> list[dict]:
-    path = task_dir / f"{split}_public.jsonl"
-    if not path.is_file():
-        raise FileNotFoundError(f"Task file not found: {path}")
-    tasks: list[dict] = []
-    seen: set[str] = set()
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        if not raw_line.strip():
-            continue
-        task = json.loads(raw_line)
-        task_id = task.get("task_id")
-        if not isinstance(task_id, str) or not task_id:
-            raise ValueError(f"Missing task_id in {path}:{line_number}")
-        if task_id in seen:
-            raise ValueError(f"Duplicate task_id {task_id!r} in {path}")
-        seen.add(task_id)
-        tasks.append(task)
-    if not tasks:
-        raise ValueError(f"No tasks found in {path}")
-    return tasks
 
 
 def _git_sha() -> str:
     try:
         return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True
+            ["git", "rev-parse", "HEAD"],
+            cwd=PROJECT_ROOT,
+            text=True,
         ).strip()
     except Exception:
         return "unknown"
 
 
-def _seed_everything(seed: int) -> None:
+def _load_tasks(task_dir: Path, split: str) -> tuple[list[dict], str]:
+    public_path = task_dir / f"{split}_public.jsonl"
+    oracle_path = task_dir / f"{split}_oracle.jsonl"
+    if not public_path.is_file() or not oracle_path.is_file():
+        raise FileNotFoundError(
+            f"Expected {public_path.name} and {oracle_path.name} in {task_dir}"
+        )
+
+    tasks: list[dict] = []
+    seen: set[str] = set()
+    for line_number, raw_line in enumerate(
+        public_path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        if not raw_line.strip():
+            continue
+        task = json.loads(raw_line)
+        task_id = task.get("task_id")
+        if not isinstance(task_id, str) or not task_id:
+            raise ValueError(f"Missing task_id in {public_path}:{line_number}")
+        if task_id in seen:
+            raise ValueError(f"Duplicate task_id {task_id!r} in {public_path}")
+        seen.add(task_id)
+        tasks.append(task)
+    if not tasks:
+        raise ValueError(f"No tasks found in {public_path}")
+
+    digest = hashlib.sha256()
+    for path in (public_path, oracle_path):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(_file_sha256(path).encode("ascii"))
+    return tasks, digest.hexdigest()
+
+
+def _seed_all(seed: int) -> None:
     import numpy as np
     import torch
 
@@ -181,27 +173,28 @@ def _seed_everything(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def _disable_transformers_allocator_warmup() -> None:
-    """Compatibility workaround for the audited cluster image."""
+def _disable_allocator_warmup() -> None:
+    """Node-specific compatibility workaround; model loads on CPU first."""
     import transformers.modeling_utils as modeling_utils
 
     if hasattr(modeling_utils, "caching_allocator_warmup"):
         modeling_utils.caching_allocator_warmup = lambda *args, **kwargs: None
 
 
-def load_policy(base_model_path: str, adapter_path: Path, temperature: float):
+def load_policy(base_model_path: str, adapter_dir: Path, temperature: float):
     import torch
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    if not adapter_path.is_dir():
-        raise FileNotFoundError(f"Adapter directory not found: {adapter_path}")
+    if not adapter_dir.is_dir():
+        raise FileNotFoundError(f"Adapter directory not found: {adapter_dir}")
     if prompt_builder.PROMPT_VERSION != PROMPT_CONTRACT:
         raise RuntimeError(
-            f"Prompt contract drift: expected {PROMPT_CONTRACT}, got {prompt_builder.PROMPT_VERSION}"
+            f"Prompt contract drift: expected {PROMPT_CONTRACT}, "
+            f"got {prompt_builder.PROMPT_VERSION}"
         )
 
-    _disable_transformers_allocator_warmup()
+    _disable_allocator_warmup()
     tokenizer = AutoTokenizer.from_pretrained(
         base_model_path,
         local_files_only=True,
@@ -218,7 +211,7 @@ def load_policy(base_model_path: str, adapter_path: Path, temperature: float):
     )
     model = PeftModel.from_pretrained(
         base_model,
-        adapter_path,
+        adapter_dir,
         torch_dtype=torch.bfloat16,
     )
     model.enable_adapter_layers()
@@ -228,40 +221,58 @@ def load_policy(base_model_path: str, adapter_path: Path, temperature: float):
     model.eval()
     torch.cuda.synchronize()
 
-    config = ModelConfig(
-        model_path=base_model_path,
-        max_new_tokens=128,
-        do_sample=True,
-        temperature=temperature,
-        top_p=TOP_P,
-        dtype="bfloat16",
-        device="cuda:0",
-        enable_thinking=False,
-        collect_policy_logprobs=True,
-        collect_sampling_logprobs=False,
+    backend = QwenTransformersBackend(
+        ModelConfig(
+            model_path=base_model_path,
+            max_new_tokens=128,
+            do_sample=True,
+            temperature=temperature,
+            top_p=TOP_P,
+            dtype="bfloat16",
+            device="cuda:0",
+            enable_thinking=False,
+            collect_policy_logprobs=True,
+            collect_sampling_logprobs=True,
+        )
     )
-    backend = QwenTransformersBackend(config)
     backend._model = model
     backend._tokenizer = tokenizer
     backend._loaded = True
-
     prompt_builder.HISTORY_WINDOW = 5
     return backend, QwenBrowserAgent(backend, prompt_builder, parse)
+
+
+def _step_from_attempt(turn: int, page_type: str, attempt) -> RolloutStep:
+    return RolloutStep(
+        turn=turn,
+        page_type=page_type,
+        prompt_hash=attempt.prompt_hash,
+        prompt_token_ids=list(attempt.prompt_token_ids),
+        raw_model_output=attempt.raw_output,
+        generated_token_ids=list(attempt.generated_token_ids),
+        token_logprobs=list(attempt.token_logprobs),
+        sampling_logprobs=list(attempt.sampling_logprobs),
+        strict_json_success=attempt.strict_json_success,
+        fallback_used=attempt.fallback_used,
+        schema_valid=attempt.schema_valid,
+        schema_errors=list(attempt.errors),
+        parsed_action=attempt.action.to_dict() if attempt.action else None,
+        skipped=not attempt.schema_valid,
+    )
 
 
 def _infrastructure_record(
     *,
     task: dict,
-    policy: str,
-    temperature: float,
     rollout_index: int,
     rollout_seed: int,
+    policy: str,
+    temperature: float,
     episode_id: str,
     reason: str,
     steps: list[RolloutStep],
     environment_steps: int,
 ) -> RolloutRecord:
-    valid_count = sum(1 for step in steps if step.schema_valid)
     record = RolloutRecord(
         task_id=task["task_id"],
         task_type=task.get("task_type", ""),
@@ -277,12 +288,23 @@ def _infrastructure_record(
         termination_reason=reason[:500],
         model_turns=len(steps),
         environment_steps=environment_steps,
-        schema_valid_count=valid_count,
-        schema_invalid_count=len(steps) - valid_count,
+        schema_valid_count=sum(step.schema_valid for step in steps),
+        schema_invalid_count=sum(not step.schema_valid for step in steps),
         steps=steps,
     )
     record.validate()
     return record
+
+
+def _evidence_complete(attempt) -> bool:
+    if attempt.output_tokens == 0:
+        return not attempt.prompt_token_ids or len(attempt.prompt_token_ids) == attempt.input_tokens
+    return (
+        len(attempt.prompt_token_ids) == attempt.input_tokens
+        and len(attempt.generated_token_ids) == attempt.output_tokens
+        and len(attempt.token_logprobs) == attempt.output_tokens
+        and len(attempt.sampling_logprobs) == attempt.output_tokens
+    )
 
 
 def run_rollout(
@@ -296,7 +318,7 @@ def run_rollout(
 ) -> RolloutRecord:
     task_id = task["task_id"]
     rollout_seed = derive_rollout_seed(master_seed, task_id, rollout_index)
-    _seed_everything(rollout_seed)
+    _seed_all(rollout_seed)
     run_id = f"probe_{uuid.uuid4().hex[:10]}"
     episode_id = run_id
     steps: list[RolloutStep] = []
@@ -305,68 +327,49 @@ def run_rollout(
     success = False
     termination_reason = "max_model_turns"
     verification: dict = {}
-    env = None
+    environment = None
     record: RolloutRecord | None = None
 
     try:
-        env = ProcurementBrowserEnv(
+        environment = ProcurementBrowserEnv(
             max_steps=MAX_MODEL_TURNS,
             run_id=run_id,
             headless=True,
             task_dir=task_dir,
         )
-        env.set_agent_name("m2_3_mini_rollout_probe")
-        observation = env.reset(task_id)
+        environment.set_agent_name("m2_3_mini_rollout_probe")
+        observation = environment.reset(task_id)
         episode_id = observation.episode_id
         agent.reset(observation.task_id, observation.instruction)
 
         for turn in range(1, MAX_MODEL_TURNS + 1):
             attempt = agent.act(observation)
-            step = RolloutStep(
-                turn=turn,
-                page_type=observation.page_type,
-                prompt_hash=attempt.prompt_hash,
-                prompt_token_ids=list(attempt.prompt_token_ids),
-                raw_model_output=attempt.raw_output[:1000],
-                generated_token_ids=list(attempt.generated_token_ids),
-                token_logprobs=list(attempt.token_logprobs),
-                strict_json_success=attempt.strict_json_success,
-                fallback_used=attempt.fallback_used,
-                schema_valid=attempt.schema_valid,
-                schema_errors=list(attempt.errors),
-                parsed_action=attempt.action.to_dict() if attempt.action else None,
-                skipped=not attempt.schema_valid,
-            )
+            step = _step_from_attempt(turn, observation.page_type, attempt)
+            steps.append(step)
 
-            evidence_missing = bool(
-                attempt.output_tokens > 0
-                and (
-                    len(attempt.prompt_token_ids) != attempt.input_tokens
-                    or len(attempt.generated_token_ids) != attempt.output_tokens
-                    or len(attempt.token_logprobs) != attempt.output_tokens
-                )
-            )
             backend_error = any(
                 error.startswith(("generation_error", "rollout_evidence_error"))
                 for error in attempt.errors
             )
-            if evidence_missing or backend_error:
-                steps.append(step)
+            if backend_error or not _evidence_complete(attempt):
                 record = _infrastructure_record(
                     task=task,
-                    policy=policy,
-                    temperature=temperature,
                     rollout_index=rollout_index,
                     rollout_seed=rollout_seed,
+                    policy=policy,
+                    temperature=temperature,
                     episode_id=episode_id,
-                    reason="missing_rollout_evidence" if evidence_missing else "model_backend_error",
+                    reason=(
+                        "model_backend_error"
+                        if backend_error
+                        else "missing_rollout_evidence"
+                    ),
                     steps=steps,
                     environment_steps=environment_steps,
                 )
                 break
 
             if not attempt.schema_valid:
-                steps.append(step)
                 output_failure_streak += 1
                 if output_failure_streak >= MAX_OUTPUT_FAILURES:
                     termination_reason = "model_output_failure_limit"
@@ -375,17 +378,16 @@ def run_rollout(
 
             output_failure_streak = 0
             try:
-                result = env.step(attempt.action)
+                result = environment.step(attempt.action)
             except Exception as exc:
                 step.skipped = False
-                step.env_error_code = f"{type(exc).__name__}:{exc}"[:500]
-                steps.append(step)
+                step.env_error_code = f"{type(exc).__name__}: {exc}"[:500]
                 record = _infrastructure_record(
                     task=task,
-                    policy=policy,
-                    temperature=temperature,
                     rollout_index=rollout_index,
                     rollout_seed=rollout_seed,
+                    policy=policy,
+                    temperature=temperature,
                     episode_id=episode_id,
                     reason="environment_step_error",
                     steps=steps,
@@ -400,13 +402,15 @@ def run_rollout(
             step.env_error_code = action_result.get("error_code", "")
             step.terminated = result.terminated
             step.truncated = result.truncated
-            steps.append(step)
 
+            next_page_type = (
+                result.observation.page_type
+                if result.observation is not None
+                else "unknown"
+            )
+            agent.record_feedback(attempt, result, next_page_type)
             if result.observation is not None:
-                agent.record_feedback(attempt, result, result.observation.page_type)
                 observation = result.observation
-            else:
-                agent.record_feedback(attempt, result, "unknown")
 
             if result.terminated or result.truncated:
                 success = float(result.reward) > 0.5
@@ -414,11 +418,10 @@ def run_rollout(
                 break
 
         if record is None:
-            trajectory = env.trajectory
+            trajectory = environment.trajectory
             if trajectory is not None:
                 verification = trajectory.verification or {}
-                if trajectory.termination_reason:
-                    termination_reason = trajectory.termination_reason
+                termination_reason = trajectory.termination_reason or termination_reason
                 if verification:
                     success = bool(verification.get("success", success))
 
@@ -437,8 +440,8 @@ def run_rollout(
                 termination_reason=termination_reason,
                 model_turns=len(steps),
                 environment_steps=environment_steps,
-                schema_valid_count=sum(1 for step in steps if step.schema_valid),
-                schema_invalid_count=sum(1 for step in steps if not step.schema_valid),
+                schema_valid_count=sum(step.schema_valid for step in steps),
+                schema_invalid_count=sum(not step.schema_valid for step in steps),
                 verification=verification,
                 steps=steps,
             )
@@ -447,26 +450,26 @@ def run_rollout(
     except Exception as exc:
         record = _infrastructure_record(
             task=task,
-            policy=policy,
-            temperature=temperature,
             rollout_index=rollout_index,
             rollout_seed=rollout_seed,
+            policy=policy,
+            temperature=temperature,
             episode_id=episode_id,
             reason=f"rollout_exception:{type(exc).__name__}:{exc}",
             steps=steps,
             environment_steps=environment_steps,
         )
     finally:
-        if env is not None:
+        if environment is not None:
             try:
-                env.close()
+                environment.close()
             except Exception as exc:
                 record = _infrastructure_record(
                     task=task,
-                    policy=policy,
-                    temperature=temperature,
                     rollout_index=rollout_index,
                     rollout_seed=rollout_seed,
+                    policy=policy,
+                    temperature=temperature,
                     episode_id=episode_id,
                     reason=f"environment_cleanup_error:{type(exc).__name__}:{exc}",
                     steps=steps,
@@ -474,40 +477,60 @@ def run_rollout(
                 )
 
     if record is None:
-        raise RuntimeError("Rollout ended without a record")
+        raise RuntimeError("Rollout ended without producing a record")
     record.validate()
     return record
 
 
-def _run_metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
+def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
     valid = [record for record in records if record.rollout_valid]
-    valid_steps = [step for record in valid for step in record.steps]
-    environment_steps = [
-        step for step in valid_steps if not step.skipped and step.env_action_success is not None
+    steps = [step for record in valid for step in record.steps]
+    executed = [
+        step
+        for step in steps
+        if not step.skipped and step.env_action_success is not None
     ]
-    no_solution = [record for record in valid if record.task_type == "no_feasible_product"]
+    no_solution = [
+        record for record in valid if record.task_type == "no_feasible_product"
+    ]
     return {
         "total_trajectories": len(records),
         "valid_trajectories": len(valid),
         "infrastructure_errors": len(records) - len(valid),
-        "total_successes": sum(1 for record in valid if record.success),
-        "success_rate": sum(1 for record in valid if record.success) / max(len(valid), 1),
-        "total_model_turns": len(valid_steps),
-        "strict_json_rate": sum(1 for step in valid_steps if step.strict_json_success)
-        / max(len(valid_steps), 1),
-        "schema_valid_action_rate": sum(1 for step in valid_steps if step.schema_valid)
-        / max(len(valid_steps), 1),
+        "total_successes": sum(record.success for record in valid),
+        "success_rate": sum(record.success for record in valid) / max(len(valid), 1),
+        "total_model_turns": len(steps),
+        "strict_json_rate": sum(step.strict_json_success for step in steps)
+        / max(len(steps), 1),
+        "schema_valid_action_rate": sum(step.schema_valid for step in steps)
+        / max(len(steps), 1),
         "environment_action_success_rate": sum(
-            1 for step in environment_steps if step.env_action_success
+            bool(step.env_action_success) for step in executed
         )
-        / max(len(environment_steps), 1),
+        / max(len(executed), 1),
+        "raw_policy_logprob_coverage": sum(
+            len(step.token_logprobs) == len(step.generated_token_ids)
+            for step in steps
+            if step.generated_token_ids
+        )
+        / max(sum(bool(step.generated_token_ids) for step in steps), 1),
+        "sampling_logprob_coverage": sum(
+            len(step.sampling_logprobs) == len(step.generated_token_ids)
+            for step in steps
+            if step.generated_token_ids
+        )
+        / max(sum(bool(step.generated_token_ids) for step in steps), 1),
         "premature_finish": sum(
-            1 for record in valid if record.termination_reason == "premature_finish"
+            record.termination_reason == "premature_finish" for record in valid
         ),
         "no_solution_trajectories": len(no_solution),
-        "no_solution_successes": sum(1 for record in no_solution if record.success),
-        "groups_with_reward_variance": sum(1 for group in groups if group["has_reward_variance"]),
-        "groups_valid_for_grpo": sum(1 for group in groups if group["valid_for_grpo_update"]),
+        "no_solution_successes": sum(record.success for record in no_solution),
+        "groups_with_reward_variance": sum(
+            group["has_reward_variance"] for group in groups
+        ),
+        "groups_valid_for_grpo": sum(
+            group["valid_for_grpo_update"] for group in groups
+        ),
     }
 
 
@@ -528,7 +551,7 @@ def main() -> None:
     if args.K <= 0:
         raise ValueError("K must be positive")
     if args.temperature <= 0:
-        raise ValueError("temperature must be positive for stochastic rollout")
+        raise ValueError("temperature must be positive")
     if args.max_tasks is not None and args.max_tasks <= 0:
         raise ValueError("max-tasks must be positive")
 
@@ -536,14 +559,14 @@ def main() -> None:
     adapter_dir = args.adapter.expanduser().resolve()
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    tasks = _load_split_tasks(task_dir, args.split)
+    tasks, task_source_hash = _load_tasks(task_dir, args.split)
     if args.max_tasks is not None:
         tasks = tasks[: args.max_tasks]
 
     policy = "A_M2.2R" if args.policy == "A" else "B_M2.3-mini"
-    task_hash = _task_source_hash(task_dir, args.split)
-    adapter_hash = _sha256_directory(adapter_dir)
-    prompt_hash = _sha256_file(Path(prompt_builder.__file__).resolve())
+    adapter_hash = _directory_sha256(adapter_dir)
+    prompt_hash = _file_sha256(Path(prompt_builder.__file__).resolve())
+    git_sha = _git_sha()
     heartbeat = Heartbeat(
         output_dir / f"heartbeat_{args.policy}_t{args.temperature}.json",
         policy,
@@ -551,24 +574,19 @@ def main() -> None:
         len(tasks),
     )
 
-    print(
-        f"Policy={policy} temperature={args.temperature} K={args.K} "
-        f"tasks={len(tasks)} seed={args.seed}",
-        flush=True,
-    )
     backend, agent = load_policy(args.base_model, adapter_dir, args.temperature)
     records: list[RolloutRecord] = []
     groups: list[dict] = []
     started = time.time()
-
     try:
         for task_index, task in enumerate(tasks, start=1):
             task_id = task["task_id"]
-            heartbeat.update(task=task_id, rollout=0)
+            heartbeat.update(current_task=task_id, current_rollout=0)
             task_records: list[RolloutRecord] = []
             print(f"[{task_index}/{len(tasks)}] {task_id}", flush=True)
+
             for rollout_index in range(args.K):
-                heartbeat.update(rollout=rollout_index + 1)
+                heartbeat.update(current_rollout=rollout_index + 1)
                 record = run_rollout(
                     task,
                     rollout_index,
@@ -578,41 +596,41 @@ def main() -> None:
                     task_dir,
                     agent,
                 )
-                task_records.append(record)
                 records.append(record)
+                task_records.append(record)
+                if not record.rollout_valid:
+                    heartbeat.update(last_error=record.termination_reason)
                 print(
                     f"  k={rollout_index} valid={record.rollout_valid} "
                     f"success={record.success} term={record.termination_reason}",
                     flush=True,
                 )
 
-            summary = summarize_group(task_records, requested_k=args.K).to_dict()
-            groups.append(summary)
+            groups.append(summarize_group(task_records, args.K).to_dict())
             heartbeat.finish_task()
-
             _atomic_json_write(
                 output_dir / f"incremental_{args.policy}_t{args.temperature}.json",
                 {
-                    "schema_version": "3.0",
-                    "phase": "m2_3_mini_rollout_probe",
+                    "schema_version": "3.1",
                     "complete": False,
-                    "git_sha": _git_sha(),
+                    "git_sha": git_sha,
                     "policy": policy,
                     "temperature": args.temperature,
+                    "top_p": TOP_P,
                     "K": args.K,
                     "seed": args.seed,
-                    "task_source_sha256": task_hash,
+                    "task_source_sha256": task_source_hash,
                     "adapter_sha256": adapter_hash,
                     "groups": groups,
                     "records": [record.to_dict() for record in records],
                 },
             )
 
-        output = {
-            "schema_version": "3.0",
+        result = {
+            "schema_version": "3.1",
             "phase": "m2_3_mini_rollout_probe",
             "complete": True,
-            "git_sha": _git_sha(),
+            "git_sha": git_sha,
             "policy": policy,
             "base_model": args.base_model,
             "adapter_path": str(adapter_dir),
@@ -621,7 +639,7 @@ def main() -> None:
             "prompt_builder_sha256": prompt_hash,
             "chat_template_sha256": backend.get_chat_template_hash(),
             "task_dir": str(task_dir),
-            "task_source_sha256": task_hash,
+            "task_source_sha256": task_source_hash,
             "split": args.split,
             "temperature": args.temperature,
             "top_p": TOP_P,
@@ -629,16 +647,22 @@ def main() -> None:
             "seed": args.seed,
             "max_model_turns": MAX_MODEL_TURNS,
             "max_output_failures": MAX_OUTPUT_FAILURES,
-            "metrics": _run_metrics(records, groups),
+            "logprob_contract": {
+                "token_logprobs": "raw model-policy log probabilities",
+                "sampling_logprobs": "post generation-processor behavior probabilities",
+            },
+            "metrics": _metrics(records, groups),
             "groups": groups,
             "records": [record.to_dict() for record in records],
             "elapsed_s": round(time.time() - started, 1),
         }
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        result_path = output_dir / f"single_probe_{args.policy}_t{args.temperature}_{timestamp}.json"
-        _atomic_json_write(result_path, output)
-        print(f"Results saved: {result_path}", flush=True)
-        print(json.dumps(output["metrics"], indent=2, ensure_ascii=False), flush=True)
+        output_path = output_dir / (
+            f"single_probe_{args.policy}_t{args.temperature}_"
+            f"{time.strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        _atomic_json_write(output_path, result)
+        print(f"Results saved: {output_path}", flush=True)
+        print(json.dumps(result["metrics"], indent=2, ensure_ascii=False), flush=True)
     finally:
         backend.unload()
         del agent, backend
