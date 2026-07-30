@@ -1,116 +1,161 @@
-"""Compute aggregate metrics from model agent evaluation results."""
+"""Aggregate closed-loop Agent metrics with explicit failure denominators."""
 
-import json
+from __future__ import annotations
 
 
-def compute_metrics(task_results: list, trajectories: list = None) -> dict:
-    """Compute comprehensive metrics from task results."""
-    total = len(task_results)
-    if total == 0:
-        return {"total_tasks": 0}
+def _rate(numerator: int | float, denominator: int) -> float:
+    return float(numerator) / denominator if denominator else 0.0
 
-    successful = [r for r in task_results if r.get("success")]
-    failed = [r for r in task_results if not r.get("success")]
-    truncated = [r for r in task_results if r.get("termination_reason") == "truncated"]
 
-    # Count model turns
-    model_turns = [r.get("model_turns", 0) for r in task_results]
-    env_steps = [r.get("environment_steps", 0) for r in task_results]
-    sorted_env = sorted(env_steps)
+def compute_metrics(task_results: list, trajectories: list | None = None) -> dict:
+    """Compute metrics from valid policy rollouts only.
 
-    # Parse stats
-    all_turns = []
-    for r in task_results:
-        for t in r.get("turns", []):
-            all_turns.append(t)
+    Infrastructure failures remain visible in separate counts but do not enter
+    success, reward, action-format, or task-type denominators.
+    """
+    requested = len(task_results)
+    if requested == 0:
+        return {
+            "requested_tasks": 0,
+            "valid_tasks": 0,
+            "infrastructure_errors": 0,
+            "total_tasks": 0,
+        }
 
-    total_gens = len(all_turns)
-    nonempty = [t for t in all_turns if t.get("raw_output", "").strip()]
-    strict_json = [t for t in all_turns if t.get("strict_json_success")]
-    fallback = [t for t in all_turns if t.get("fallback_used")]
-    schema_ok = [t for t in all_turns if t.get("schema_valid")]
-    has_action = [t for t in all_turns if t.get("action")]
+    valid_results = [result for result in task_results if result.get("rollout_valid", True)]
+    infrastructure_results = [
+        result for result in task_results if not result.get("rollout_valid", True)
+    ]
+    successful = [result for result in valid_results if result.get("success")]
+    failed = [result for result in valid_results if not result.get("success")]
+    truncated = [
+        result
+        for result in valid_results
+        if result.get("termination_reason") in {"truncated", "max_environment_steps"}
+    ]
 
-    # Action distribution
-    action_dist = {}
-    for t in all_turns:
-        a = t.get("action", {})
-        if a:
-            act_type = a.get("action", "unknown")
-            action_dist[act_type] = action_dist.get(act_type, 0) + 1
+    all_turns = [
+        turn
+        for result in valid_results
+        for turn in result.get("turns", [])
+    ]
+    environment_turns = [
+        turn
+        for turn in all_turns
+        if isinstance(turn.get("action_result"), dict)
+        and "success" in turn["action_result"]
+    ]
 
-    # Token stats
-    input_tokens = [t.get("input_tokens", 0) for t in all_turns]
-    output_tokens = [t.get("output_tokens", 0) for t in all_turns]
-    latencies = [t.get("latency_ms", 0) for t in all_turns]
+    nonempty = [turn for turn in all_turns if turn.get("raw_output", "").strip()]
+    strict_json = [turn for turn in all_turns if turn.get("strict_json_success")]
+    fallback = [turn for turn in all_turns if turn.get("fallback_used")]
+    effective_json = [
+        turn
+        for turn in all_turns
+        if turn.get("strict_json_success")
+        or (turn.get("fallback_used") and turn.get("action") is not None)
+    ]
+    schema_valid = [turn for turn in all_turns if turn.get("schema_valid")]
+    has_action = [turn for turn in all_turns if turn.get("action") is not None]
 
-    # Task type breakdown
-    task_type_results = {}
-    for r in task_results:
-        tt = r.get("task_type", "unknown")
-        if tt not in task_type_results:
-            task_type_results[tt] = {"total": 0, "success": 0}
-        task_type_results[tt]["total"] += 1
-        if r.get("success"):
-            task_type_results[tt]["success"] += 1
+    action_distribution: dict[str, int] = {}
+    for turn in has_action:
+        action_type = turn["action"].get("action", "unknown")
+        action_distribution[action_type] = action_distribution.get(action_type, 0) + 1
 
-    # Termination breakdown
-    term_reasons = {}
-    for r in task_results:
-        reason = r.get("termination_reason", "unknown")
-        term_reasons[reason] = term_reasons.get(reason, 0) + 1
+    task_type_breakdown: dict[str, dict] = {}
+    for result in valid_results:
+        task_type = result.get("task_type", "unknown")
+        bucket = task_type_breakdown.setdefault(task_type, {"total": 0, "success": 0})
+        bucket["total"] += 1
+        bucket["success"] += int(bool(result.get("success")))
+    for bucket in task_type_breakdown.values():
+        bucket["success_rate"] = _rate(bucket["success"], bucket["total"])
 
-    return {
-        # Task metrics
-        "total_tasks": total,
+    termination_breakdown: dict[str, int] = {}
+    for result in valid_results:
+        reason = result.get("termination_reason", "unknown")
+        termination_breakdown[reason] = termination_breakdown.get(reason, 0) + 1
+
+    model_turns = [result.get("model_turns", 0) for result in valid_results]
+    environment_steps = [result.get("environment_steps", 0) for result in valid_results]
+    input_tokens = [turn.get("input_tokens", 0) for turn in all_turns]
+    output_tokens = [turn.get("output_tokens", 0) for turn in all_turns]
+    latencies = [turn.get("latency_ms", 0.0) for turn in all_turns]
+    sorted_environment_steps = sorted(environment_steps)
+
+    metrics = {
+        "requested_tasks": requested,
+        "valid_tasks": len(valid_results),
+        "infrastructure_errors": len(infrastructure_results),
+        # Compatibility alias: total_tasks is the valid denominator.
+        "total_tasks": len(valid_results),
         "successful_tasks": len(successful),
-        "success_rate": len(successful) / total,
+        "success_rate": _rate(len(successful), len(valid_results)),
         "failed_tasks": len(failed),
         "truncated_tasks": len(truncated),
-        "average_model_turns": sum(model_turns) / max(total, 1),
-        "average_environment_steps": sum(env_steps) / max(total, 1),
-        "median_environment_steps": sorted_env[len(sorted_env) // 2] if sorted_env else 0,
-        "total_reward": sum(r.get("reward", 0) for r in task_results),
-
-        # Output format metrics
-        "total_generations": total_gens,
-        "nonempty_generation_rate": len(nonempty) / max(total_gens, 1),
-        "strict_json_success_rate": len(strict_json) / max(total_gens, 1),
-        "fallback_parse_rate": len(fallback) / max(total_gens, 1),
-        "effective_json_success_rate": (len(strict_json) + len([t for t in fallback if t.get("parsed_payload")])) / max(total_gens, 1),
-        "action_schema_valid_rate": len(schema_ok) / max(total_gens, 1),
-        "target_valid_rate": len(has_action) / max(total_gens, 1),
-
-        # Behavior metrics
-        "premature_finish_count": sum(1 for r in task_results if r.get("termination_reason") == "premature_finish"),
-        "model_output_failure_limit_count": sum(1 for r in task_results if r.get("termination_reason") == "model_output_failure_limit"),
-        "no_submission_count": sum(1 for r in task_results if r.get("termination_reason") == "max_model_turns"),
-
-        # Action distribution
-        "action_distribution": action_dist,
-
-        # Token efficiency
+        "average_model_turns": _rate(sum(model_turns), len(valid_results)),
+        "average_environment_steps": _rate(sum(environment_steps), len(valid_results)),
+        "median_environment_steps": (
+            sorted_environment_steps[len(sorted_environment_steps) // 2]
+            if sorted_environment_steps
+            else 0
+        ),
+        "total_reward": sum(float(result.get("reward", 0.0)) for result in valid_results),
+        "total_generations": len(all_turns),
+        "nonempty_generation_rate": _rate(len(nonempty), len(all_turns)),
+        "strict_json_success_rate": _rate(len(strict_json), len(all_turns)),
+        "fallback_parse_rate": _rate(len(fallback), len(all_turns)),
+        "effective_json_success_rate": _rate(len(effective_json), len(all_turns)),
+        "action_schema_valid_rate": _rate(len(schema_valid), len(all_turns)),
+        "target_valid_rate": _rate(len(has_action), len(all_turns)),
+        "environment_action_success_rate": _rate(
+            sum(1 for turn in environment_turns if turn["action_result"].get("success")),
+            len(environment_turns),
+        ),
+        "premature_finish_count": sum(
+            1 for result in valid_results
+            if result.get("termination_reason") == "premature_finish"
+        ),
+        "model_output_failure_limit_count": sum(
+            1 for result in valid_results
+            if result.get("termination_reason") == "model_output_failure_limit"
+        ),
+        "no_submission_count": sum(
+            1 for result in valid_results
+            if result.get("termination_reason") in {"max_model_turns", "max_environment_steps"}
+        ),
+        "action_distribution": action_distribution,
         "total_input_tokens": sum(input_tokens),
         "total_output_tokens": sum(output_tokens),
-        "mean_input_tokens_per_turn": sum(input_tokens) / max(total_gens, 1),
-        "mean_output_tokens_per_turn": sum(output_tokens) / max(total_gens, 1),
-        "mean_generation_latency_ms": sum(latencies) / max(total_gens, 1),
-
-        # Task type breakdown
-        "task_type_breakdown": task_type_results,
-
-        # Termination breakdown
-        "termination_reason_breakdown": term_reasons,
-
-        # Per task
-        "per_task": [{
-            "task_id": r["task_id"],
-            "success": r.get("success", False),
-            "reward": r.get("reward", 0),
-            "model_turns": r.get("model_turns", 0),
-            "environment_steps": r.get("environment_steps", 0),
-            "termination_reason": r.get("termination_reason", ""),
-            "failure_reasons": r.get("failure_reasons", []),
-            "elapsed_s": r.get("elapsed_s", 0),
-        } for r in task_results],
+        "mean_input_tokens_per_turn": _rate(sum(input_tokens), len(all_turns)),
+        "mean_output_tokens_per_turn": _rate(sum(output_tokens), len(all_turns)),
+        "mean_generation_latency_ms": _rate(sum(latencies), len(all_turns)),
+        "task_type_breakdown": task_type_breakdown,
+        "termination_reason_breakdown": termination_breakdown,
+        "infrastructure_failure_breakdown": _termination_counts(infrastructure_results),
+        "per_task": [
+            {
+                "task_id": result["task_id"],
+                "success": result.get("success", False),
+                "reward": result.get("reward"),
+                "rollout_valid": result.get("rollout_valid", True),
+                "failure_origin": result.get("failure_origin", "policy"),
+                "model_turns": result.get("model_turns", 0),
+                "environment_steps": result.get("environment_steps", 0),
+                "termination_reason": result.get("termination_reason", ""),
+                "failure_reasons": result.get("failure_reasons", []),
+                "elapsed_s": result.get("elapsed_s", 0.0),
+            }
+            for result in task_results
+        ],
     }
+    return metrics
+
+
+def _termination_counts(results: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for result in results:
+        reason = result.get("termination_reason", "unknown")
+        counts[reason] = counts.get(reason, 0) + 1
+    return counts
