@@ -1,25 +1,32 @@
 """Versioned schemas for Observation, Action, StepResult, and Trajectory."""
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Optional
 
 OBSERVATION_SCHEMA_VERSION = "1.0"
-ACTION_SCHEMA_VERSION = "1.0"
+ACTION_SCHEMA_VERSION = "1.1"
 TRAJECTORY_SCHEMA_VERSION = "1.0"
 
-# Supported page types
 VALID_PAGE_TYPES = {
-    "home", "task", "products", "product_detail", "supplier_detail",
-    "procurement_form", "procurement_result", "smoke", "error", "unknown",
+    "home",
+    "task",
+    "products",
+    "product_detail",
+    "supplier_detail",
+    "procurement_form",
+    "procurement_result",
+    "smoke",
+    "error",
+    "unknown",
 }
 
-# Supported action types
 VALID_ACTION_TYPES = {"click", "fill", "select", "check", "back", "submit", "finish"}
 
-# Role-to-action compatibility
+# `submit` targets the same visible button role as `click`, but remains a
+# distinct semantic action for trajectory analysis and prompting.
 ROLE_ACTION_COMPAT = {
     "link": {"click"},
-    "button": {"click"},
+    "button": {"click", "submit"},
     "textbox": {"fill"},
     "searchbox": {"fill"},
     "checkbox": {"check"},
@@ -28,7 +35,6 @@ ROLE_ACTION_COMPAT = {
     "textarea": {"fill"},
 }
 
-# Error codes
 ERROR_CODES = {
     "invalid_action_type",
     "malformed_action",
@@ -47,22 +53,24 @@ ERROR_CODES = {
 
 @dataclass
 class ElementDescriptor:
-    """An interactive element visible to the agent."""
+    """An interactive element visible to the Agent."""
+
     element_id: str
-    role: str          # link, button, textbox, searchbox, checkbox, combobox, spinbutton, textarea
-    tag: str           # a, button, input, select, textarea
-    name: str          # accessible name or label
-    text: str          # visible text content
-    value: str         # current value for inputs
-    input_type: str    # for <input>: text, number, checkbox
-    testid: str        # data-testid if present
-    options: list      # for <select>: list of {value, label}
+    role: str
+    tag: str
+    name: str
+    text: str
+    value: str
+    input_type: str
+    testid: str
+    options: list
     disabled: bool
 
 
 @dataclass
 class Observation:
-    """Textual observation of the current page state."""
+    """Textual observation of the current browser state."""
+
     schema_version: str = OBSERVATION_SCHEMA_VERSION
     task_id: str = ""
     episode_id: str = ""
@@ -91,18 +99,21 @@ class Observation:
             "title": self.title,
             "visible_text": self.visible_text,
             "text_truncated": self.text_truncated,
-            "elements": [{
-                "element_id": e.element_id,
-                "role": e.role,
-                "tag": e.tag,
-                "name": e.name,
-                "text": e.text,
-                "value": e.value,
-                "input_type": e.input_type,
-                "testid": e.testid,
-                "options": e.options,
-                "disabled": e.disabled,
-            } for e in self.elements],
+            "elements": [
+                {
+                    "element_id": element.element_id,
+                    "role": element.role,
+                    "tag": element.tag,
+                    "name": element.name,
+                    "text": element.text,
+                    "value": element.value,
+                    "input_type": element.input_type,
+                    "testid": element.testid,
+                    "options": element.options,
+                    "disabled": element.disabled,
+                }
+                for element in self.elements
+            ],
             "last_action_result": self.last_action_result,
             "terminal": self.terminal,
         }
@@ -110,7 +121,8 @@ class Observation:
 
 @dataclass
 class AgentAction:
-    """A validated, typed action from the agent."""
+    """A typed action emitted by the Agent."""
+
     action: str
     target: str = ""
     value: str = ""
@@ -126,19 +138,20 @@ class AgentAction:
         )
 
     def to_dict(self) -> dict:
-        d = {"action": self.action}
+        payload = {"action": self.action}
         if self.target:
-            d["target"] = self.target
+            payload["target"] = self.target
         if self.value:
-            d["value"] = self.value
+            payload["value"] = self.value
         if self.checked is not None:
-            d["checked"] = self.checked
-        return d
+            payload["checked"] = self.checked
+        return payload
 
 
 @dataclass
 class ActionResult:
-    """Result of executing an action."""
+    """Deterministic validation or browser execution result."""
+
     success: bool
     error_code: str = ""
     message: str = ""
@@ -155,7 +168,8 @@ class ActionResult:
 
 @dataclass
 class StepResult:
-    """Returned by environment.step()."""
+    """Result returned by `ProcurementBrowserEnv.step`."""
+
     observation: Optional[Observation] = None
     reward: float = 0.0
     terminated: bool = False
