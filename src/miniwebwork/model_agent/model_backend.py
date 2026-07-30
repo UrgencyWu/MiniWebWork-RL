@@ -1,4 +1,16 @@
-"""Qwen3.5-4B Transformers backend — single GPU, greedy/stochastic decoding."""
+"""Qwen3.5-4B Transformers backend for browser-agent inference and rollout.
+
+The backend exposes two distinct probability concepts:
+
+* ``logprobs``: raw policy log-probabilities from a teacher-forced forward
+  pass over ``prompt + generated completion``.  These are the values that a
+  later GRPO/PPO update must recompute under the old/current policy.
+* ``sampling_logprobs``: optional log-probabilities from Transformers'
+  generation scores after sampling processors/warpers.  They are diagnostic
+  only and must not be mixed with raw policy log-probabilities.
+"""
+
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -22,6 +34,13 @@ class ModelConfig:
     use_cache: bool = True
     local_files_only: bool = True
     enable_thinking: bool = False
+    # Policy log-probabilities are required for RL rollouts.  They are only
+    # computed for stochastic generation, so deterministic evaluation keeps
+    # the single-forward inference cost.
+    collect_policy_logprobs: bool = True
+    # Post-warp sampling scores are useful for diagnostics but are not the
+    # canonical GRPO policy score.
+    collect_sampling_logprobs: bool = False
 
 
 @dataclass
@@ -31,7 +50,11 @@ class GenerationResult:
     input_tokens: int = 0
     latency_ms: float = 0.0
     error: str = ""
+    generated_token_ids: list[int] = field(default_factory=list)
+    # Raw model policy log-probabilities, one per generated token.
     logprobs: list[float] = field(default_factory=list)
+    # Optional post-processor/warper sampling log-probabilities.
+    sampling_logprobs: list[float] = field(default_factory=list)
 
 
 def extract_generated_token_logprobs(
@@ -39,7 +62,7 @@ def extract_generated_token_logprobs(
     prompt_length: int,
     generated_ids: torch.Tensor,
 ) -> torch.Tensor:
-    """Return log-probabilities assigned to generated tokens.
+    """Return raw model log-probabilities assigned to generated tokens.
 
     ``logits[:, t, :]`` predicts token ``t + 1``.  Therefore the first
     generated token is predicted by the final prompt position
@@ -83,8 +106,28 @@ def extract_generated_token_logprobs(
     return torch.log_softmax(token_logits.float(), dim=-1)[positions, ids]
 
 
+def _sampling_logprobs(scores: tuple[torch.Tensor, ...], generated_ids: torch.Tensor) -> list[float]:
+    """Extract one post-warp sampling log-probability per emitted token."""
+    if len(scores) != int(generated_ids.numel()):
+        raise RuntimeError(
+            f"Generation score mismatch: {len(scores)} score tensors for "
+            f"{generated_ids.numel()} generated tokens"
+        )
+
+    values: list[float] = []
+    for index, score in enumerate(scores):
+        token_id = generated_ids[index].to(score.device, dtype=torch.long)
+        if token_id.item() < 0 or token_id.item() >= score.shape[-1]:
+            raise ValueError(
+                f"Generated token id {token_id.item()} outside vocabulary size {score.shape[-1]}"
+            )
+        value = torch.log_softmax(score[0].float(), dim=-1)[token_id]
+        values.append(float(value.detach().cpu()))
+    return values
+
+
 class QwenTransformersBackend:
-    """Loads Qwen model once and provides generation for chat messages."""
+    """Load Qwen once and generate one JSON action per browser turn."""
 
     def __init__(self, config: ModelConfig | None = None):
         self.config = config or ModelConfig()
@@ -104,29 +147,31 @@ class QwenTransformersBackend:
 
     @property
     def peak_memory_gb(self) -> float:
-        return self._peak_memory / (1024 ** 3) if self._peak_memory else 0
+        return self._peak_memory / (1024**3) if self._peak_memory else 0.0
 
     @property
     def load_time_s(self) -> float:
         return self._load_time
 
-    def load(self):
-        """Load model and tokenizer once."""
+    def load(self) -> None:
+        """Load model and tokenizer once on the configured logical device."""
         if self._loaded:
             return
 
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        t0 = time.time()
+        started = time.time()
         print(f"Loading tokenizer from {self.config.model_path}...")
         self._tokenizer = AutoTokenizer.from_pretrained(
             self.config.model_path,
             local_files_only=self.config.local_files_only,
             trust_remote_code=True,
         )
+        if self._tokenizer.pad_token_id is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
 
-        print(f"Loading model ({self.config.dtype})...")
         dtype = getattr(torch, self.config.dtype)
+        print(f"Loading model ({self.config.dtype})...")
         self._model = AutoModelForCausalLM.from_pretrained(
             self.config.model_path,
             torch_dtype=dtype,
@@ -136,7 +181,7 @@ class QwenTransformersBackend:
         )
         self._model.eval()
 
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and str(self.config.device).startswith("cuda"):
             torch.cuda.synchronize()
             self._peak_memory = torch.cuda.max_memory_allocated()
             torch.cuda.reset_peak_memory_stats()
@@ -144,16 +189,16 @@ class QwenTransformersBackend:
             gpu_name = torch.cuda.get_device_properties(device_index).name
             print(f"GPU: {gpu_name}, peak memory: {self.peak_memory_gb:.1f} GB")
 
-        self._load_time = time.time() - t0
+        self._load_time = time.time() - started
         self._loaded = True
         print(f"Model loaded in {self._load_time:.1f}s")
 
-    def generate(self, messages: list) -> GenerationResult:
-        """Tokenize messages, generate, decode new tokens and record logprobs."""
+    def generate(self, messages: list[dict]) -> GenerationResult:
+        """Render chat messages, generate an action, and capture rollout data."""
         if not self._loaded:
             self.load()
 
-        t0 = time.time()
+        started = time.time()
         result = GenerationResult()
 
         try:
@@ -168,66 +213,84 @@ class QwenTransformersBackend:
             attention_mask = inputs.get("attention_mask")
             if attention_mask is not None:
                 attention_mask = attention_mask.to(self.config.device)
-            result.input_tokens = input_ids.shape[1]
+            prompt_length = int(input_ids.shape[1])
+            result.input_tokens = prompt_length
 
-            gen_kwargs = {
+            want_sampling_scores = self.config.do_sample and self.config.collect_sampling_logprobs
+            generation_kwargs = {
                 "max_new_tokens": self.config.max_new_tokens,
                 "do_sample": self.config.do_sample,
                 "use_cache": self.config.use_cache,
                 "num_beams": 1,
                 "return_dict_in_generate": True,
-                "output_scores": self.config.do_sample,
+                "output_scores": want_sampling_scores,
             }
             if attention_mask is not None:
-                gen_kwargs["attention_mask"] = attention_mask
+                generation_kwargs["attention_mask"] = attention_mask
             if self.config.do_sample:
-                gen_kwargs["temperature"] = self.config.temperature
-                gen_kwargs["top_p"] = self.config.top_p
+                if self.config.temperature <= 0:
+                    raise ValueError("temperature must be > 0 when do_sample=True")
+                generation_kwargs["temperature"] = self.config.temperature
+                generation_kwargs["top_p"] = self.config.top_p
             if self._tokenizer.pad_token_id is not None:
-                gen_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
+                generation_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
             if self._tokenizer.eos_token_id is not None:
-                gen_kwargs["eos_token_id"] = self._tokenizer.eos_token_id
+                generation_kwargs["eos_token_id"] = self._tokenizer.eos_token_id
 
             with torch.inference_mode():
-                generated = self._model.generate(input_ids, **gen_kwargs)
+                generated = self._model.generate(input_ids, **generation_kwargs)
 
             sequences = generated.sequences
-            new_ids = sequences[0, input_ids.shape[1]:]
+            new_ids = sequences[0, prompt_length:]
             result.new_tokens = int(new_ids.numel())
+            result.generated_token_ids = [int(value) for value in new_ids.detach().cpu().tolist()]
             result.raw_text = self._tokenizer.decode(new_ids, skip_special_tokens=True)
 
-            # Generation scores are already aligned one-to-one with emitted tokens.
-            # Prefer them over a second full forward pass; this avoids cache/state
-            # coupling and is the exact on-policy distribution used for sampling.
-            if self.config.do_sample and result.new_tokens > 0:
-                scores = list(generated.scores or [])
-                if len(scores) != result.new_tokens:
-                    raise RuntimeError(
-                        f"Generation score mismatch: {len(scores)} score tensors for "
-                        f"{result.new_tokens} generated tokens"
+            # RL contract: store raw model policy log-probabilities, not only
+            # post-top-p sampling scores.  A correctly aligned second forward
+            # is deterministic and independent of generation cache internals.
+            if self.config.do_sample and self.config.collect_policy_logprobs and result.new_tokens:
+                full_ids = sequences[:, : prompt_length + result.new_tokens]
+                full_attention_mask = None
+                if attention_mask is not None:
+                    completion_mask = torch.ones(
+                        (attention_mask.shape[0], result.new_tokens),
+                        dtype=attention_mask.dtype,
+                        device=attention_mask.device,
                     )
-                token_logprobs = []
-                for idx, score in enumerate(scores):
-                    token_id = new_ids[idx].to(score.device, dtype=torch.long)
-                    if token_id.item() < 0 or token_id.item() >= score.shape[-1]:
-                        raise ValueError(
-                            f"Generated token id {token_id.item()} outside vocabulary "
-                            f"size {score.shape[-1]}"
-                        )
-                    lp = torch.log_softmax(score[0].float(), dim=-1)[token_id]
-                    token_logprobs.append(float(lp.detach().cpu()))
-                result.logprobs = token_logprobs
+                    full_attention_mask = torch.cat([attention_mask, completion_mask], dim=1)
 
-        except Exception as exc:
-            result.error = str(exc)
+                with torch.inference_mode():
+                    forward_output = self._model(
+                        input_ids=full_ids,
+                        attention_mask=full_attention_mask,
+                        use_cache=False,
+                    )
+                policy_logprobs = extract_generated_token_logprobs(
+                    forward_output.logits,
+                    prompt_length,
+                    new_ids,
+                )
+                result.logprobs = [float(value) for value in policy_logprobs.detach().cpu().tolist()]
+
+            if want_sampling_scores and result.new_tokens:
+                result.sampling_logprobs = _sampling_logprobs(tuple(generated.scores or ()), new_ids)
+
+            if result.logprobs and len(result.logprobs) != result.new_tokens:
+                raise RuntimeError("Policy logprob count does not match generated token count")
+            if result.sampling_logprobs and len(result.sampling_logprobs) != result.new_tokens:
+                raise RuntimeError("Sampling logprob count does not match generated token count")
+
+        except Exception as exc:  # keep agent loop alive with a structured failure
+            result.error = f"{type(exc).__name__}: {exc}"
             logger.exception("Model generation failed")
 
-        result.latency_ms = (time.time() - t0) * 1000
+        result.latency_ms = (time.time() - started) * 1000
         return result
 
     def get_chat_template_hash(self) -> str:
-        ct = getattr(self._tokenizer, "chat_template", "") if self._tokenizer else ""
-        return hashlib.sha256(ct.encode() if ct else b"").hexdigest()
+        template = getattr(self._tokenizer, "chat_template", "") if self._tokenizer else ""
+        return hashlib.sha256(template.encode() if template else b"").hexdigest()
 
     def get_model_info(self) -> dict:
         return {
@@ -243,12 +306,14 @@ class QwenTransformersBackend:
                 "temperature": self.config.temperature,
                 "top_p": self.config.top_p,
                 "use_cache": self.config.use_cache,
+                "collect_policy_logprobs": self.config.collect_policy_logprobs,
+                "collect_sampling_logprobs": self.config.collect_sampling_logprobs,
             },
             "load_time_s": self._load_time,
             "peak_memory_gb": self.peak_memory_gb,
         }
 
-    def unload(self):
+    def unload(self) -> None:
         if self._model is not None:
             del self._model
             self._model = None
