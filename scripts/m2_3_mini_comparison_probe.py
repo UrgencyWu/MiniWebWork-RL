@@ -224,9 +224,24 @@ def run_policy_probe(policy_label, adapter_path, base_model_path, tasks, tempera
     all_results = []
     task_summaries = []
 
+    # Load model ONCE per policy to avoid repeated
+    # caching_allocator_warmup -> cudaMemGetInfo that triggers
+    # IndexKernel on this GPU.
+    print(f"  Loading model once for all temperatures...", flush=True)
+    backend, agent, tokenizer = load_policy(base_model_path, adapter_path, temperatures[0])
+
     for temp in temperatures:
         print(f"\n  Temperature: {temp}", flush=True)
-        backend, agent, tokenizer = load_policy(base_model_path, adapter_path, temp)
+
+        # Update backend config for this temperature (no model reload)
+        backend.config.temperature = temp
+        backend.config.do_sample = True
+        # Recreate agent with the updated backend
+        import miniwebwork.model_agent.prompt_builder as pb
+        pb.HISTORY_WINDOW = 5
+        from miniwebwork.model_agent.qwen_agent import QwenBrowserAgent
+        from miniwebwork.model_agent.output_parser import parse
+        agent = QwenBrowserAgent(backend, pb, parse)
 
         temp_results = []
         temp_groups = []
@@ -279,16 +294,15 @@ def run_policy_probe(policy_label, adapter_path, base_model_path, tasks, tempera
         print(f"\n  Temp {temp}: {temp_successes}/{temp_total} success, "
               f"{temp_groups_with_var}/{len(temp_groups)} groups with variance", flush=True)
 
-        del backend, agent, tokenizer
-        import torch
-        try:
-            torch.cuda.empty_cache()
-        except Exception as _e:
-            print(f'  [WARN] torch.cuda.empty_cache() failed: {_e}', flush=True)
+    # Cleanup once after all temperatures
+    del backend, agent, tokenizer
+    import torch
+    try:
+        torch.cuda.empty_cache()
+    except Exception as _e:
+        print(f"  [WARN] torch.cuda.empty_cache() failed: {_e}", flush=True)
 
     return all_results, task_summaries
-
-
 def main():
     parser = argparse.ArgumentParser(description="M2.3-mini controlled comparison probe")
     parser.add_argument("--policy-a", type=str, required=True)
