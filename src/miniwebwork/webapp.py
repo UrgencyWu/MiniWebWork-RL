@@ -185,6 +185,8 @@ async def product_list(
 
     if certified_only == "1":
         query += " AND s.certified = 1"
+    elif certified_only == "0":
+        query += " AND s.certified = 0"
 
     if min_supplier_rating:
         try:

@@ -92,6 +92,15 @@ def parse(raw: str) -> ParseResult:
         result.errors.append("non_json_output" if not result.strict_json_success else "empty_parsed")
         return result
 
+    # Normalize field names: accept element_id as alias for target
+    payload = result.parsed_payload
+    if "element_id" in payload and "target" not in payload:
+        payload["target"] = payload.pop("element_id")
+
+    # Normalize action names: accept fill_text as alias for fill
+    if payload.get("action") == "fill_text":
+        payload["action"] = "fill"
+
     # Schema validation
     _validate_schema(result)
 
@@ -106,8 +115,8 @@ def _validate_schema(result: ParseResult):
         return
 
     action = payload.get("action", "")
-    if action not in VALID_ACTIONS:
-        result.schema_error = f"unknown_action: {action}"
+    if not isinstance(action, str) or action not in VALID_ACTIONS:
+        result.schema_error = f"unknown_action: {action!r}"
         result.errors.append("unknown_action")
         return
 

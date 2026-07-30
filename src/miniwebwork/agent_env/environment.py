@@ -522,11 +522,13 @@ class ProcurementBrowserEnv:
     """
 
     def __init__(self, max_steps: int = 20, run_id: str = None,
-                 headless: bool = True, keep_db: bool = True):
+                 headless: bool = True, keep_db: bool = True,
+                 task_dir: Path = None):
         self.max_steps = max_steps
         self.run_id = run_id or uuid.uuid4().hex[:12].upper()
         self.headless = headless
         self.keep_db = keep_db
+        self._task_dir = task_dir  # explicit task directory; falls back to env var
 
         # Playwright manager (persistent worker thread)
         self._pw = PlaywrightThreadManager()
@@ -551,6 +553,10 @@ class ProcurementBrowserEnv:
         """Initialize or reset the environment for a new task."""
         if self._closed:
             raise EnvironmentClosedError("Environment is closed")
+
+        # Ensure task directory is set for this episode
+        if self._task_dir is not None:
+            os.environ["MINIWEBWORK_TASK_DIR"] = str(self._task_dir)
 
         # Clean up previous episode
         self._cleanup_episode()

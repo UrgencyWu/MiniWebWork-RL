@@ -39,8 +39,12 @@
         <input type="number" id="max_delivery_days" name="max_delivery_days" data-testid="filter-max-delivery" value="{{ max_delivery_days or '' }}">
     </div>
     <div class="field-group">
-        <label for="certified_only">仅认证供应商</label>
-        <input type="checkbox" id="certified_only" name="certified_only" data-testid="filter-certified" value="1" {% if certified_only %}checked{% endif %}>
+        <label for="certified_only">供应商认证</label>
+        <select id="certified_only" name="certified_only" data-testid="filter-certified">
+            <option value="">全部</option>
+            <option value="1" {% if certified_only == '1' or certified_only == '仅认证' %}selected{% endif %}>仅认证</option>
+            <option value="0" {% if certified_only == '0' or certified_only == '仅未认证' %}selected{% endif %}>仅未认证</option>
+        </select>
     </div>
     <div class="field-group">
         <label for="min_supplier_rating">最低供应商评分</label>

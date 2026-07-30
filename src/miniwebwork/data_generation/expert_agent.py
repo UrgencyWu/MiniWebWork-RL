@@ -89,12 +89,13 @@ class OracleExpertProcurementAgent:
                         return AgentAction(action="select", target=e.element_id, value=val)
                     return AgentAction(action="fill", target=e.element_id, value=val)
 
-        # 3) Check certified
-        if c.get("certified_only") and not self._state.get("chk_cert"):
-            self._state["chk_cert"] = True
+        # 3) Select certified filter (select: "1"=仅认证, "0"=仅未认证, ""=全部)
+        if c.get("certified_only") is not None and not self._state.get("cert_done"):
+            self._state["cert_done"] = True
             e = self._find(els, "filter-certified")
             if e:
-                return AgentAction(action="check", target=e.element_id, checked=True)
+                val = "1" if c["certified_only"] else "0"
+                return AgentAction(action="select", target=e.element_id, value=val)
 
         # 4) Check in_stock
         if c.get("in_stock_only") and not self._state.get("chk_stock"):
