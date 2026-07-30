@@ -5,7 +5,7 @@
 ```text
 ┌──────────────────────────────────────────────────────────┐
 │ Task and Data Layer                                      │
-│ public task / private oracle / supplier-product database │
+│ public task / private Oracle / supplier-product database │
 └──────────────────────────┬───────────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────────┐
@@ -17,7 +17,7 @@
 ┌──────────────────────────▼───────────────────────────────┐
 │ Agent Runtime                                             │
 │ Canonical Prompt v2 → Qwen3.5-4B → JSON parser → action │
-│ bounded history / action feedback / trajectory evidence  │
+│ bounded history / compact feedback / token evidence      │
 └──────────────────────────┬───────────────────────────────┘
                            │ Action
 ┌──────────────────────────▼───────────────────────────────┐
@@ -27,15 +27,15 @@
                            │ reward ∈ {0,1} or null
 ┌──────────────────────────▼───────────────────────────────┐
 │ Training and Evaluation                                  │
-│ Expert SFT / rollout groups / planned outcome-only GRPO  │
+│ Expert SFT / grouped multi-turn rollout / GRPO-style RL  │
 └──────────────────────────────────────────────────────────┘
 ```
 
-The project already has a custom Agent runtime. It intentionally does not use LangChain, LangGraph, AutoGen, or Qwen-Agent. The missing component is not an “Agent framework”; it is the on-policy RL optimizer and training scheduler.
+The project already contains a custom Agent runtime. It intentionally does not use LangChain, LangGraph, AutoGen, or Qwen-Agent. The missing capability is the online multi-turn policy optimizer, not an “Agent framework.”
 
 ## 2. Task Source Contract
 
-A process must read tasks from exactly one source:
+A process reads tasks from exactly one source:
 
 ```text
 no MINIWEBWORK_TASK_DIR
@@ -47,136 +47,210 @@ explicit task_dir or MINIWEBWORK_TASK_DIR
 
 Default and development datasets are never merged. Duplicate `task_id` values fail fast.
 
-Public files contain instructions and non-answer metadata. Oracle files contain constraints, expected decision type, and expected product. Oracle content must never enter model prompts or rollout policy inputs.
+Public files contain instructions and non-answer metadata. Oracle files contain constraints, expected decision type, and expected product. Oracle content never enters prompts, observations, policy history, or checkpoint selection.
 
 ## 3. Observation Contract
 
-An Observation is a text-only snapshot containing:
+An Observation is a text-only browser snapshot containing:
 
 - `task_id`, `episode_id`, instruction;
-- page URL/path and typed `page_type`;
+- URL/path and typed `page_type`;
 - bounded visible text;
-- interactive elements with stable `element_id`, role, label, value, options, and disabled state;
-- previous action result;
+- interactive elements with stable `element_id`, role, name, value, options, and disabled state;
+- compact previous action result;
 - terminal flag.
 
-The model does not receive screenshots or hidden DOM state. Layout recovery and visual grounding are out of scope.
+The model does not receive screenshots, hidden DOM state, SQLite rows, or Oracle fields. Layout recovery and visual grounding are outside the first project scope.
+
+Observation extraction has one canonical async implementation inside the Playwright worker. The obsolete Sync Playwright extractor was removed to prevent divergent element IDs and truncation behavior.
 
 ## 4. Action Contract
 
-The model emits one strict JSON object per turn. Supported actions are:
+The model emits one JSON object per turn. Action Schema v1.1 supports:
 
 ```text
 click / fill / select / check / back / submit / finish
 ```
 
-A parseable JSON object is not automatically Schema Valid. Action-specific target/value requirements are validated separately.
+A parseable JSON object is not automatically Schema Valid. Action-specific target/value requirements and observed role compatibility are validated independently.
 
-Schema-invalid output is a policy output failure. The runner must not replace it with a fabricated `finish` action. After a bounded number of consecutive output failures, the episode terminates as `model_output_failure_limit`.
+`submit` may target a button. It remains distinct from `click` for trajectory semantics.
 
-## 5. Prompt Contract
+Schema-invalid model output:
 
-All SFT, teacher-forced evaluation, Frozen E2E, and rollout collection use:
+```text
+counts as a model turn
+→ does not call env.step
+→ is never replaced by synthetic finish
+→ terminates after a bounded consecutive failure limit
+```
+
+## 5. Prompt and History Contract
+
+All active SFT, teacher-forced evaluation, Base/SFT closed-loop evaluation, and rollout collection use:
 
 ```text
 PROMPT_VERSION = browser_agent_v2
 HISTORY_WINDOW = 5
 ```
 
-The rendered prompt is identified by:
+The history stores only:
+
+```text
+previous parsed action
+parse status
+compact deterministic action result
+resulting page type
+```
+
+It does not recursively embed the next full Observation. The current Observation appears once in the current turn prompt.
+
+Prompt identity contains:
 
 - prompt contract version;
 - prompt-builder source SHA-256;
-- chat-template SHA-256;
+- tokenizer chat-template SHA-256;
 - per-turn prompt hash;
-- exact prompt token IDs in rollout artifacts.
+- exact prompt token IDs.
 
-Changing the prompt contract requires a new version and re-baselining Base/SFT under the same contract.
+Changing this contract creates a new experiment family and requires re-baselining Base and trained policies under the same version.
 
 ## 6. Environment and Browser Contract
 
-Playwright runs in a persistent dedicated thread using `async_playwright`. All Browser, Context, Page, navigation, action, and observation operations remain in that worker thread.
+Playwright runs through `async_playwright` inside one dedicated worker thread. All Browser, Context, Page, navigation, action, and observation operations remain in that thread.
 
 Lifecycle invariant:
 
 ```text
-start
+thread start
 → event loop ready
-→ Playwright started
-→ browser connected
-→ context/page created
-→ actions
-→ page/context/browser/Playwright closed
-→ loop stopped
-→ worker joined
+→ Playwright/browser start
+→ fresh context/page
+→ browser actions and observations
+→ page/context close
+→ browser/Playwright close
+→ event loop stop
+→ worker join
 ```
 
-A browser, database, service, CUDA, parser implementation, or cleanup exception is an infrastructure failure. It must not become a policy reward of zero.
+The main loop exposes synchronous `reset / step / close`. Startup, step, service, database, timeout, and cleanup exceptions are infrastructure failures.
 
-## 7. Verifier Contract
+The FastAPI child process receives task/database paths through its own subprocess environment. The parent process does not mutate global task/database state per episode.
+
+Shared-node rule: cleanup is by exact process/thread handle only. Broad `pkill -f chromium` or `pkill -f uvicorn` is forbidden.
+
+## 7. Web and Persistence Contract
+
+Every task flow preserves both:
+
+```text
+episode_id + task_id
+```
+
+across product, supplier, form, and result pages. The Web layer rejects mismatched episode/task pairs.
+
+SQLite enforces:
+
+- valid decision type;
+- positive quantity;
+- product presence for `select_product`;
+- no product for `no_solution`;
+- one final submission per episode;
+- active-episode-only submission;
+- transactional insert and episode status update.
+
+Numeric filter errors return a structured client error instead of being silently ignored.
+
+## 8. Verifier Contract
 
 The Verifier is deterministic and has no LLM dependency. It:
 
-1. resolves the Oracle from the same task source as the environment;
-2. verifies that `episode_id` exists and belongs to `task_id`;
+1. resolves the Oracle from the same exclusive task source;
+2. verifies that the episode exists and belongs to the requested task;
 3. requires one persisted submission;
 4. recomputes feasible products from SQLite;
 5. checks every explicit constraint;
-6. recomputes objective optimality;
-7. returns a structured result and failure reasons.
+6. recomputes objective optimality with deterministic tie-breaking;
+7. returns structured success and failure reasons.
 
-Connections are closed on every return path.
+All database connections close on every path.
 
 Terminal reward:
 
 ```text
-verified success  → 1.0
-valid policy fail → 0.0
-infrastructure fail → null
+verified success       → 1.0
+valid policy failure   → 0.0
+infrastructure failure → null
 ```
 
-## 8. Rollout Evidence Contract
+## 9. Rollout Evidence Contract
 
 Every model turn stores:
 
-- prompt hash and exact prompt token IDs;
-- raw generated text;
-- exact generated token IDs;
-- old-policy raw token log-probabilities;
-- strict JSON and Schema status;
-- parsed action;
-- environment action result;
+- exact prompt token IDs;
+- exact generated action token IDs;
+- raw model-policy token log-probabilities;
+- post-generation-processor sampling log-probabilities;
+- prompt hash and raw text;
+- Strict JSON, fallback, and Schema status;
+- parsed action and environment action result;
 - termination/truncation flags.
 
-Raw policy log-probabilities are computed by a correctly aligned teacher-forced forward over `prompt + completion`. Post-top-p generation scores are a separate diagnostic field and are not the canonical GRPO score.
+Raw policy and sampling-distribution log-probabilities are separate fields. A readiness probe using temperature/top-p proves exploration and reward variance; it does not automatically prove compatibility with the optimizer distribution.
 
 Every trajectory stores:
 
 - task/policy/adapter/prompt/task-source identity;
 - deterministic rollout seed;
-- full turn sequence;
+- ordered turn sequence;
 - terminal verification;
-- `rollout_valid` and `failure_origin`;
-- reward or null.
+- `rollout_valid`, `failure_origin`, and reward or null.
 
-## 9. Agentic RL Boundary
+Every group distinguishes:
 
-M3.0 will add:
+```text
+has_reward_variance
+has_learning_signal
+update_distribution_compatible
+valid_for_grpo_update
+```
 
-- grouped stochastic rollout collection;
-- trajectory-level outcome reward;
-- group-relative advantage;
-- token-level clipped policy objective;
-- optional reference-policy KL regularization;
-- optimizer, checkpoint, and Frozen evaluation loop.
+A mixed-reward top-p diagnostic group may have learning signal while remaining ineligible for direct policy update.
+
+## 10. Multi-turn Agentic RL Boundary
+
+Each browser turn is a distinct conditional generation:
+
+```text
+Observation_t + bounded history_t
+→ Prompt_t
+→ JSON action tokens_t
+```
+
+The full trajectory is not represented as one artificial completion. M3.0 replays each turn under its actual prompt, concatenates action-token log-probability segments within the trajectory, applies one terminal group-relative advantage, averages tokens within each trajectory, then averages trajectories equally.
+
+Core objective implementation:
+
+```text
+src/miniwebwork/rl/objective.py
+```
+
+The first strict update prefers:
+
+```text
+temperature = 1.0
+top_p = 1.0
+```
+
+so the behavior distribution and raw policy distribution coincide. Any temperature-scaled fallback must recompute old/current log-probabilities under the same scaling. `top_p < 1` is diagnostic-only until the exact truncated distribution is supported in training.
 
 The first implementation does not require:
 
 - a value network;
 - generalized advantage estimation;
 - replay buffer;
-- step-level handcrafted reward;
+- handcrafted step reward;
 - visual model;
 - distributed browser farm.
 
-These may be later ablations, not prerequisites.
+These are later extensions or ablations, not prerequisites.
