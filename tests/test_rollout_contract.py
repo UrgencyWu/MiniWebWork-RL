@@ -35,6 +35,7 @@ def _record(index: int, reward: float, success: bool) -> RolloutRecord:
                 page_type="products",
                 generated_token_ids=[1],
                 token_logprobs=[-0.1],
+                sampling_logprobs=[-0.2],
                 schema_valid=True,
                 parsed_action={"action": "finish"},
                 env_action_success=True,
@@ -44,12 +45,39 @@ def _record(index: int, reward: float, success: bool) -> RolloutRecord:
     )
 
 
-def test_group_with_mixed_rewards_is_valid_for_grpo():
-    summary = summarize_group([_record(0, 0.0, False), _record(1, 1.0, True)], requested_k=2)
+def test_mixed_reward_diagnostic_group_has_learning_signal_only():
+    summary = summarize_group(
+        [_record(0, 0.0, False), _record(1, 1.0, True)],
+        requested_k=2,
+    )
 
     assert summary.reward_sequence == [0.0, 1.0]
     assert summary.has_reward_variance is True
+    assert summary.has_learning_signal is True
+    assert summary.update_distribution_compatible is False
+    assert summary.valid_for_grpo_update is False
+
+
+def test_update_compatible_mixed_group_is_valid_for_grpo():
+    summary = summarize_group(
+        [_record(0, 0.0, False), _record(1, 1.0, True)],
+        requested_k=2,
+        update_distribution_compatible=True,
+    )
+
+    assert summary.has_learning_signal is True
     assert summary.valid_for_grpo_update is True
+
+
+def test_zero_variance_group_has_no_learning_signal():
+    summary = summarize_group(
+        [_record(0, 0.0, False), _record(1, 0.0, False)],
+        requested_k=2,
+        update_distribution_compatible=True,
+    )
+
+    assert summary.has_learning_signal is False
+    assert summary.valid_for_grpo_update is False
 
 
 def test_infrastructure_failure_requires_null_reward():
