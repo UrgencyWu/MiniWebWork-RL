@@ -16,10 +16,10 @@ NO_FAILURE = "none"
 class RolloutStep:
     """One model decision and its environment consequence.
 
-    ``token_logprobs`` are raw model-policy log-probabilities.  The optional
+    ``token_logprobs`` are raw model-policy log-probabilities. The optional
     ``sampling_logprobs`` are produced after generation processors such as
-    temperature and top-p.  Both are retained because they answer different
-    questions and must never be silently interchanged.
+    temperature and top-p. They answer different questions and must never be
+    silently interchanged.
     """
 
     turn: int
@@ -127,6 +127,8 @@ class RolloutGroupSummary:
     reward_mean: float
     reward_std: float
     has_reward_variance: bool
+    has_learning_signal: bool
+    update_distribution_compatible: bool
     valid_for_grpo_update: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -140,10 +142,26 @@ def derive_rollout_seed(master_seed: int, task_id: str, rollout_index: int) -> i
     return int.from_bytes(digest[:4], "big", signed=False)
 
 
-def summarize_group(records: Iterable[RolloutRecord], requested_k: int) -> RolloutGroupSummary:
+def summarize_group(
+    records: Iterable[RolloutRecord],
+    requested_k: int,
+    *,
+    update_distribution_compatible: bool = False,
+) -> RolloutGroupSummary:
+    """Summarize one same-task rollout group.
+
+    A diagnostic group can have a useful mixed reward signal without being
+    immediately eligible for a policy update. For example, a top-p readiness
+    probe demonstrates exploration but is not the strict first on-policy
+    training distribution. The caller must explicitly attest that rollout and
+    training log-probability conventions match before
+    ``valid_for_grpo_update`` can become true.
+    """
     records = list(records)
     if not records:
         raise ValueError("Cannot summarize an empty rollout group")
+    if requested_k <= 0:
+        raise ValueError("requested_k must be positive")
     first = records[0]
     if any(record.task_id != first.task_id for record in records):
         raise ValueError("A rollout group cannot mix task IDs")
@@ -162,6 +180,7 @@ def summarize_group(records: Iterable[RolloutRecord], requested_k: int) -> Rollo
     std = variance**0.5
     successes = sum(1 for record in valid if record.success)
     has_variance = std > 0.0
+    has_learning_signal = len(valid) >= 2 and has_variance
 
     return RolloutGroupSummary(
         task_id=first.task_id,
@@ -177,7 +196,11 @@ def summarize_group(records: Iterable[RolloutRecord], requested_k: int) -> Rollo
         reward_mean=mean,
         reward_std=std,
         has_reward_variance=has_variance,
-        valid_for_grpo_update=len(valid) >= 2 and has_variance,
+        has_learning_signal=has_learning_signal,
+        update_distribution_compatible=bool(update_distribution_compatible),
+        valid_for_grpo_update=(
+            has_learning_signal and bool(update_distribution_compatible)
+        ),
     )
 
 
