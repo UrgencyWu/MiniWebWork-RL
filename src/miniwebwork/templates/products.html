@@ -42,8 +42,8 @@
         <label for="certified_only">供应商认证</label>
         <select id="certified_only" name="certified_only" data-testid="filter-certified">
             <option value="">全部</option>
-            <option value="1" {% if certified_only == '1' or certified_only == '仅认证' %}selected{% endif %}>仅认证</option>
-            <option value="0" {% if certified_only == '0' or certified_only == '仅未认证' %}selected{% endif %}>仅未认证</option>
+            <option value="1" {% if certified_only == '1' %}selected{% endif %}>仅认证</option>
+            <option value="0" {% if certified_only == '0' %}selected{% endif %}>仅未认证</option>
         </select>
     </div>
     <div class="field-group">
@@ -54,14 +54,14 @@
         <label for="supplier_region">地区</label>
         <select id="supplier_region" name="supplier_region" data-testid="filter-region">
             <option value="">全部</option>
-            {% for r in ["华北", "华南", "华东", "西北"] %}
-            <option value="{{ r }}" {% if supplier_region == r %}selected{% endif %}>{{ r }}</option>
+            {% for region in ["华北", "华南", "华东", "西北"] %}
+            <option value="{{ region }}" {% if supplier_region == region %}selected{% endif %}>{{ region }}</option>
             {% endfor %}
         </select>
     </div>
     <div class="field-group">
         <label for="in_stock_only">仅显示有库存</label>
-        <input type="checkbox" id="in_stock_only" name="in_stock_only" data-testid="filter-in-stock" value="1" {% if in_stock_only %}checked{% endif %}>
+        <input type="checkbox" id="in_stock_only" name="in_stock_only" data-testid="filter-in-stock" value="1" {% if in_stock_only == '1' %}checked{% endif %}>
     </div>
     <div class="field-group">
         <label for="min_warranty_months">最低保修(月)</label>
@@ -94,7 +94,7 @@
         <tr><th>库存</th><td>{% if product.stock > 0 %}{{ product.stock }}{% else %}<span style="color:red">缺货</span>{% endif %}</td>
             <th>交付</th><td>{{ product.delivery_days }} 天</td></tr>
         <tr><th>保修</th><td>{{ product.warranty_months }} 月</td>
-            <th>供应商</th><td><a data-testid="supplier-link-{{ product.supplier_id }}" href="/suppliers/{{ product.supplier_id }}">{{ product.supplier_name }}</a> ({{ product.supplier_region }}, {% if product.certified %}已认证{% else %}未认证{% endif %}, 评分 {{ product.rating }})</td></tr>
+            <th>供应商</th><td><a data-testid="supplier-link-{{ product.supplier_id }}" href="/suppliers/{{ product.supplier_id }}?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">{{ product.supplier_name }}</a> ({{ product.supplier_region }}, {% if product.certified %}已认证{% else %}未认证{% endif %}, 评分 {{ product.rating }})</td></tr>
     </table>
 </div>
 {% endfor %}
