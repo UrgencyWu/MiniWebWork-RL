@@ -1,0 +1,3 @@
+# Install a CUDA-compatible PyTorch build separately for the target server.
+# The project dependency groups intentionally do not pin a CUDA wheel.
+-e .[test,training]
