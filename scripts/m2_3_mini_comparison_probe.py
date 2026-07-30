@@ -33,6 +33,34 @@ DEFAULT_K = 8
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "m2_3_mini"
 
 
+def switch_adapter(model, adapter_path, adapter_name="default"):
+    """Switch to a different adapter on the same base model.
+    
+    Uses PEFT's load_adapter to avoid reloading the base model,
+    which would trigger caching_allocator_warmup -> IndexKernel.
+    """
+    import torch
+    from peft import PeftModel
+    
+    # Delete existing adapter if present
+    if hasattr(model, "peft_config") and adapter_name in model.peft_config:
+        print(f"  Deleting existing adapter: {adapter_name}", flush=True)
+        try:
+            model.delete_adapter(adapter_name)
+        except Exception as e:
+            print(f"  [WARN] delete_adapter failed: {e}", flush=True)
+    
+    # Load new adapter
+    print(f"  Loading adapter: {adapter_path}", flush=True)
+    model.load_adapter(adapter_path, adapter_name)
+    model.set_adapter(adapter_name)
+    model.enable_adapter_layers()
+    print(f"  Active adapters: {model.active_adapters}", flush=True)
+    torch.cuda.synchronize()
+    return model
+
+
+
 def load_policy(base_model_path, adapter_path, temperature=0.7):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -215,7 +243,7 @@ def compute_summary_metrics(trajectories):
     }
 
 
-def run_policy_probe(policy_label, adapter_path, base_model_path, tasks, temperatures, K):
+def run_policy_probe(policy_label, adapter_path, base_model_path, tasks, temperatures, K, model=None, tokenizer=None):
     print(f"\n{'='*60}")
     print(f"POLICY: {policy_label}")
     print(f"Adapter: {adapter_path}")
@@ -224,11 +252,35 @@ def run_policy_probe(policy_label, adapter_path, base_model_path, tasks, tempera
     all_results = []
     task_summaries = []
 
-    # Load model ONCE per policy to avoid repeated
-    # caching_allocator_warmup -> cudaMemGetInfo that triggers
-    # IndexKernel on this GPU.
-    print(f"  Loading model once for all temperatures...", flush=True)
-    backend, agent, tokenizer = load_policy(base_model_path, adapter_path, temperatures[0])
+    # Model is pre-loaded in main() to avoid repeated
+    # caching_allocator_warmup -> cudaMemGetInfo -> IndexKernel.
+    if model is None or tokenizer is None:
+        print(f"  Loading model (no pre-loaded model provided)...", flush=True)
+        backend, agent, tokenizer = load_policy(base_model_path, adapter_path, temperatures[0])
+    else:
+        print(f"  Using pre-loaded model (active_adapters={model.active_adapters})", flush=True)
+        import torch
+        from miniwebwork.model_agent.model_backend import ModelConfig, QwenTransformersBackend
+        from miniwebwork.model_agent.qwen_agent import QwenBrowserAgent
+        from miniwebwork.model_agent.output_parser import parse
+        import miniwebwork.model_agent.prompt_builder as pb
+
+        config = ModelConfig(
+            model_path=base_model_path,
+            max_new_tokens=128,
+            do_sample=True,
+            temperature=temperatures[0],
+            top_p=0.9,
+            dtype="bfloat16",
+            device="cuda:0",
+            enable_thinking=False,
+        )
+        backend = QwenTransformersBackend(config)
+        backend._model = model
+        backend._tokenizer = tokenizer
+        backend._loaded = True
+        pb.HISTORY_WINDOW = 5
+        agent = QwenBrowserAgent(backend, pb, parse)
 
     for temp in temperatures:
         print(f"\n  Temperature: {temp}", flush=True)
@@ -336,12 +388,92 @@ def main():
     print(f"Policy B: {args.policy_b}")
     print(f"Tasks: {len(tasks)}, Temps: {args.temperatures}, K={args.K}", flush=True)
 
+    # Load model ONCE for the entire comparison to avoid repeated
+    # caching_allocator_warmup -> cudaMemGetInfo -> IndexKernel.
+    # Switch adapters between policies using PEFT's load_adapter.
+    print(f"\nLoading base model (once for both policies)...", flush=True)
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from peft import PeftModel
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.base_model, local_files_only=True, trust_remote_code=True,
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    base_model = AutoModelForCausalLM.from_pretrained(
+        args.base_model,
+        dtype=torch.bfloat16,
+        local_files_only=True,
+        trust_remote_code=True,
+        device_map={"": "cuda:0"},
+    )
+
+    # Load Policy A adapter
+    print(f"Loading Policy A adapter: {args.policy_a}", flush=True)
+    model = PeftModel.from_pretrained(base_model, args.policy_a, torch_dtype=torch.bfloat16)
+    model.eval()
+    model.enable_adapter_layers()
+    print(f"Policy A active adapters: {model.active_adapters}", flush=True)
+
+    # Warm-up
+    with torch.inference_mode():
+        _dummy = tokenizer("warmup", return_tensors="pt").to(model.device)
+        _ = model(**_dummy)
+    torch.cuda.synchronize()
+    print("Model ready", flush=True)
+
+    # Run Policy A
     trajs_a, groups_a = run_policy_probe(
         "A_M2.2R", args.policy_a, args.base_model, tasks, args.temperatures, args.K,
+        model=model, tokenizer=tokenizer,
     )
+
+    # Incremental save: persist Policy A results before Policy B
+    metrics_a = compute_summary_metrics(trajs_a)
+    policy_a_only = {
+        "schema_version": "1.0",
+        "phase": "m2_3_mini_comparison_probe",
+        "base_model": args.base_model,
+        "temperatures": args.temperatures,
+        "K": args.K,
+        "num_tasks": len(tasks),
+        "policy_a": {
+            "label": "A_M2.2R_seed_1234",
+            "adapter_path": args.policy_a,
+            "metrics": metrics_a,
+            "groups": groups_a,
+            "total_trajectories": len(trajs_a),
+        },
+        "policy_b": None,
+        "grpo_readiness": None,
+    }
+    interim_path = args.output_dir / f"comparison_probe_policy_a_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    interim_path.write_text(json.dumps(policy_a_only, indent=2, ensure_ascii=False))
+    print(f"\nPolicy A results saved: {interim_path}", flush=True)
+
+    # Switch to Policy B adapter (no base model reload)
+    print(f"\nSwitching to Policy B adapter...", flush=True)
+    model = switch_adapter(model, args.policy_b, "default")
+
+    # Warm-up after adapter switch
+    with torch.inference_mode():
+        _ = model(**_dummy)
+    torch.cuda.synchronize()
+
+    # Run Policy B
     trajs_b, groups_b = run_policy_probe(
         "B_M2.3-mini", args.policy_b, args.base_model, tasks, args.temperatures, args.K,
+        model=model, tokenizer=tokenizer,
     )
+
+    # Final cleanup
+    del model, base_model, tokenizer
+    try:
+        torch.cuda.empty_cache()
+    except Exception as _e:
+        print(f"[WARN] final empty_cache failed: {_e}", flush=True)
 
     metrics_a = compute_summary_metrics(trajs_a)
     metrics_b = compute_summary_metrics(trajs_b)
