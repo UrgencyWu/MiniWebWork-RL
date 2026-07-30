@@ -281,7 +281,10 @@ def run_policy_probe(policy_label, adapter_path, base_model_path, tasks, tempera
 
         del backend, agent, tokenizer
         import torch
-        torch.cuda.empty_cache()
+        try:
+            torch.cuda.empty_cache()
+        except Exception as _e:
+            print(f'  [WARN] torch.cuda.empty_cache() failed: {_e}', flush=True)
 
     return all_results, task_summaries
 
@@ -409,9 +412,30 @@ def main():
     }
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
+    
+    # Save incremental results after each policy to avoid data loss
+    policy_a_results = {
+        "schema_version": "1.0",
+        "phase": "m2_3_mini_comparison_probe",
+        "base_model": args.base_model,
+        "temperatures": args.temperatures,
+        "K": args.K,
+        "num_tasks": len(tasks),
+        "policy_a": {
+            "label": "A_M2.2R_seed_1234",
+            "adapter_path": args.policy_a,
+            "metrics": metrics_a,
+            "groups": groups_a,
+            "total_trajectories": len(trajs_a),
+        },
+        "policy_b": None,
+        "grpo_readiness": None,
+    }
+    interim_path = args.output_dir / f"comparison_probe_policy_a_{timestamp}.json"
+    interim_path.write_text(json.dumps(policy_a_results, indent=2, ensure_ascii=False))
+    print(f"\nPolicy A results saved: {interim_path}", flush=True)
+    
     out_path = args.output_dir / f"comparison_probe_{timestamp}.json"
-    out_path.write_text(json.dumps(output, indent=2, ensure_ascii=False))
-    print(f"\nSaved: {out_path}")
     return grpo_ready
 
 
