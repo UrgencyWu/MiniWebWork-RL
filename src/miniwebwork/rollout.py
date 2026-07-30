@@ -7,7 +7,6 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Optional
 
-
 POLICY_FAILURE = "policy"
 INFRASTRUCTURE_FAILURE = "infrastructure"
 NO_FAILURE = "none"
@@ -15,12 +14,17 @@ NO_FAILURE = "none"
 
 @dataclass
 class RolloutStep:
+    """One model decision and its environment consequence."""
+
     turn: int
     page_type: str
     prompt_hash: str = ""
+    prompt_token_ids: list[int] = field(default_factory=list)
     raw_model_output: str = ""
     generated_token_ids: list[int] = field(default_factory=list)
     token_logprobs: list[float] = field(default_factory=list)
+    strict_json_success: bool = False
+    fallback_used: bool = False
     schema_valid: bool = False
     schema_errors: list[str] = field(default_factory=list)
     parsed_action: Optional[dict] = None
@@ -40,6 +44,8 @@ class RolloutStep:
             raise ValueError(f"turn {self.turn}: schema-valid step has no parsed action")
         if self.skipped and self.env_action_success is not None:
             raise ValueError(f"turn {self.turn}: skipped step cannot have environment result")
+        if self.fallback_used and self.strict_json_success:
+            raise ValueError(f"turn {self.turn}: strict JSON and fallback cannot both be true")
 
 
 @dataclass
@@ -158,8 +164,6 @@ def summarize_group(records: Iterable[RolloutRecord], requested_k: int) -> Rollo
         reward_mean=mean,
         reward_std=std,
         has_reward_variance=has_variance,
-        # GRPO requires at least two valid trajectories and non-zero group
-        # variance; success_count alone is not sufficient.
         valid_for_grpo_update=len(valid) >= 2 and has_variance,
     )
 
