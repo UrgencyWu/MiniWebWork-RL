@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  cpu-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install CPU PyTorch
+        run: python -m pip install --upgrade pip && python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install project
+        run: python -m pip install -e ".[test,training]"
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Static import and syntax checks
+        run: python -m compileall -q src scripts tests
+
+      - name: Dataset contract checks
+        run: |
+          python -m miniwebwork.cli init-db
+          python -m miniwebwork.cli validate-seed
+          python -m miniwebwork.cli validate-tasks
+
+      - name: Test suite
+        run: python -m pytest -q -m "not gpu and not slurm"
