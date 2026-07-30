@@ -18,13 +18,15 @@
 
 <h2>供应商信息</h2>
 <div class="card">
-    <p><strong><a data-testid="supplier-link-{{ product.supplier_id }}" href="/suppliers/{{ product.supplier_id }}">{{ product.supplier_name }}</a></strong></p>
+    <p><strong><a data-testid="supplier-link-{{ product.supplier_id }}" href="/suppliers/{{ product.supplier_id }}?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">{{ product.supplier_name }}</a></strong></p>
     <p>评分: {{ product.rating }} | 地区: {{ product.supplier_region }}{% if product.certified %} | <span style="color:green">已认证</span>{% else %} | <span style="color:red">未认证</span>{% endif %}</p>
 </div>
 
 <div style="margin:1rem 0;">
-    <a class="btn btn-primary" data-testid="select-product" href="/procurement/new?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}&product_id={{ product.product_id }}">选择此商品</a>
-    <a class="btn" href="/procurement/new?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}&product_id=">声明无可行商品</a>
+    {% if episode_id and task %}
+    <a class="btn btn-primary" data-testid="select-product" href="/procurement/new?episode_id={{ episode_id }}&task_id={{ task.task_id }}&product_id={{ product.product_id }}">选择此商品</a>
+    <a class="btn" href="/procurement/new?episode_id={{ episode_id }}&task_id={{ task.task_id }}&product_id=">声明无可行商品</a>
+    {% endif %}
     <a class="btn" href="/products?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">&larr; 返回商品列表</a>
 </div>
 {% endblock %}
