@@ -1,105 +1,85 @@
-# M1.2 Action Spec
+# Action Contract
 
-## Schema Version: 1.0
+> Introduced in M1.2. Current schema version: **1.1**.
 
-### Supported Actions (7)
+## Supported Actions
 
-#### click
-```json
-{"action": "click", "target": "e5"}
-```
-- Target role: link, button, submit elements
-- Triggers navigation if target is a link
+| Action | Example | Target requirement |
+|---|---|---|
+| `click` | `{"action":"click","target":"product-link"}` | link or button |
+| `fill` | `{"action":"fill","target":"max-price","value":"15000"}` | textbox, searchbox, spinbutton, or textarea |
+| `select` | `{"action":"select","target":"category","value":"GPU"}` | combobox; value must be an available option |
+| `check` | `{"action":"check","target":"in-stock","checked":true}` | checkbox |
+| `back` | `{"action":"back"}` | no target |
+| `submit` | `{"action":"submit","target":"submit-procurement"}` | button |
+| `finish` | `{"action":"finish"}` | no target |
 
-#### fill
-```json
-{"action": "fill", "target": "e2", "value": "GPU"}
-```
-- Target role: textbox, searchbox, textarea
-- Replaces current value
-- Max value length: 500 chars
+`submit` and `click` may both target a visible button. They remain separate semantic actions so trajectories can distinguish ordinary interaction from final form submission.
 
-#### select
-```json
-{"action": "select", "target": "e4", "value": "GPU"}
-```
-- Target role: combobox (select elements)
-- Value must match an option in the element's options list
+## Role–Action Compatibility
 
-#### check
-```json
-{"action": "check", "target": "e7", "checked": true}
-```
-- Target role: checkbox
-- `checked`: true = check, false = uncheck
-
-#### back
-```json
-{"action": "back"}
-```
-- No target required
-- Browser history back navigation
-
-#### submit
-```json
-{"action": "submit", "target": "e10"}
-```
-- Target: submit button or form button
-- Triggers form submission
-
-#### finish
-```json
-{"action": "finish"}
-```
-- No target required
-- Agent declares task complete
-- Environment checks if submission exists → verifier or premature_finish
-
-### Role-Action Compatibility
-
-| Element Role | Allowed Actions |
+| Element role | Allowed actions |
 |---|---|
 | link | click |
-| button | click |
+| button | click, submit |
 | textbox | fill |
 | searchbox | fill |
-| checkbox | check |
-| combobox | select |
 | spinbutton | fill |
 | textarea | fill |
+| checkbox | check |
+| combobox | select |
 
-### Validation Pipeline
+## Validation Order
 
-1. **Action type check**: must be one of 7 supported types
-2. **Target existence**: `finish`/`back` skip; others require target in current observation
-3. **Disabled check**: disabled elements rejected
-4. **Compatibility**: action must match element role
-5. **Value requirements**: fill requires non-empty value; value ≤ 500 chars
-6. **Extra fields**: unknown fields in action JSON flagged as errors
+1. action type belongs to the seven-action vocabulary;
+2. target-required actions contain a non-empty target;
+3. target ID appears in the current Observation;
+4. target is enabled;
+5. action is compatible with the observed element role;
+6. `fill` has a non-empty value no longer than 500 characters;
+7. `select` value is present in the observed option list;
+8. unknown JSON fields are rejected by the output parser.
 
-### Error Codes (12)
+A Schema-valid action can still fail deterministic environment validation, for example because the observed target became stale. Such failures are policy outcomes. A Playwright exception is an infrastructure failure and invalidates the rollout.
 
-| Code | Description |
-|---|---|
-| invalid_action_type | Unknown action name |
-| malformed_action | Action JSON structure invalid |
-| invalid_target | Target element_id not in observation |
-| stale_target | Element exists in obs but not on page |
-| incompatible_action | Action not valid for element role |
-| disabled_element | Target element is disabled |
-| value_required | fill action missing value |
-| value_too_long | Value exceeds 500 character limit |
-| navigation_blocked | External URL or unauthorized path |
-| browser_error | Playwright execution error |
-| environment_closed | Action on closed environment |
-| episode_finished | Action after terminal state |
+## Termination Semantics
 
-### Security Boundaries
+### `finish`
 
-Actions MUST NOT accept:
-- `css_selector` — arbitrary CSS selectors
-- `xpath` — XPath expressions
-- `script` / `javascript` — JavaScript execution
-- `url` — arbitrary navigation
-- `file` — local file access
-- Extra unknown fields beyond `action`, `target`, `value`, `checked`
+`finish` declares that no more browser interaction is needed. The environment then checks persistence:
+
+```text
+submission exists
+→ deterministic Verifier
+
+submission absent
+→ premature_finish, reward 0
+```
+
+The runner never fabricates `finish` when model output is invalid.
+
+### `submit`
+
+`submit` clicks a visible form button. A successful click is not itself task success. The resulting persisted submission must still pass the deterministic Verifier.
+
+## Security Boundary
+
+The policy cannot emit:
+
+- arbitrary CSS/XPath selectors;
+- JavaScript;
+- arbitrary URLs;
+- local file paths;
+- shell commands;
+- hidden Oracle fields.
+
+Only an `element_id` included in the current Observation may be targeted. The environment resolves that ID to the current DOM inside the Playwright worker thread.
+
+## Error Attribution
+
+| Class | Examples | Reward treatment |
+|---|---|---|
+| policy output | non-JSON, Schema invalid, missing target | 0 if episode fails |
+| policy grounding | invalid/stale target, incompatible action | 0 if episode fails |
+| policy planning | premature finish, wrong submission, truncation | 0 |
+| infrastructure | browser/service/database/CUDA exception | null; excluded from RL |
