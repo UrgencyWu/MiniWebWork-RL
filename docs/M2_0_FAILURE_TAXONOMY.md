@@ -1,77 +1,110 @@
-# M2.0 Failure Taxonomy
+# Failure Taxonomy
 
-## Four-Layer Classification
+> Originated in M2.0 and revised for M2.3/M3.0. The primary distinction is whether a failure is attributable to the policy or to the execution infrastructure.
 
-### 1. Output Layer (模型输出层)
-Model fails to produce valid JSON action.
+## 1. Policy Failures
 
-| Tag | Description |
+Policy failures are valid learning outcomes and receive terminal reward `0.0`.
+
+### Output and Schema
+
+| Tag | Meaning |
 |---|---|
-| empty_generation | Model returned empty string |
-| non_json_output | Output is not valid JSON |
-| multiple_json_objects | Output contains >1 JSON object |
-| malformed_json | JSON parse error |
-| schema_invalid | JSON is valid but fails action schema |
-| unknown_action | Action field is not one of 7 supported types |
-| extra_fields | JSON contains keys beyond {action, target, value, checked} |
+| `empty_generation` | model emitted no text |
+| `non_json_output` | output cannot be parsed as JSON |
+| `schema_invalid` | JSON does not satisfy the action schema |
+| `unknown_action` | unsupported action name |
+| `missing_target` | target-required action lacks a target |
+| `extra_fields` | action contains unsupported fields |
+| `model_output_failure_limit` | bounded consecutive invalid outputs reached |
 
-### 2. Action Layer (动作层)
-Valid action fails to execute on the page.
+Schema-invalid output is never replaced by a synthetic `finish` action.
 
-| Tag | Description |
+### Grounding and Execution Choice
+
+| Tag | Meaning |
 |---|---|
-| invalid_target | element_id not found in page elements |
-| stale_target | Element exists in observation but not on page |
-| incompatible_action | Action type not compatible with element role |
-| disabled_element | Target element is disabled |
-| value_too_long | fill value exceeds 500 chars |
-| environment_action_error | Playwright execution error |
+| `invalid_target` | model selected an ID absent from the observation |
+| `stale_target` | observed target no longer exists on the page |
+| `incompatible_action` | action type is invalid for the selected element |
+| `disabled_element` | model selected a disabled control |
+| `repeated_action` | same ineffective action repeats |
+| `navigation_loop` | policy cycles between states |
 
-### 3. Planning Layer (规划层)
-Agent makes poor navigation decisions.
+A browser action returning a deterministic validation failure is a policy failure. A Playwright exception is infrastructure.
 
-| Tag | Description |
+### Planning and Termination
+
+| Tag | Meaning |
 |---|---|
-| repeated_action | Same action repeated 3+ consecutive turns |
-| navigation_loop | Agent cycles between same pages |
-| premature_finish | finish called without submission |
-| no_submission | Episode ends without reaching procurement form |
-| wrong_page | Agent on incorrect page for task stage |
-| ignored_task_constraint | Task constraints not applied to filters |
-| failed_to_apply_filter | Filter form interaction fails |
-| failed_to_compare_candidates | Agent didn't compare multiple products |
+| `premature_finish` | policy explicitly finishes without a persisted submission |
+| `max_model_turns` | policy fails to reach a terminal state within the turn budget |
+| `max_environment_steps` | valid actions consume the environment step budget |
+| `ignored_task_constraint` | required filter/constraint is not applied |
+| `failed_to_compare_candidates` | policy selects before satisfying the objective |
+| `missed_no_solution` | feasible-set empty but policy does not submit no-solution |
 
-### 4. Terminal Layer (终态层)
-Submission made but verifier rejects it.
+### Verifier Rejection
 
-| Tag | Description |
+| Tag | Meaning |
 |---|---|
-| wrong_product | Selected product doesn't match expected |
-| objective_not_optimal | Product is feasible but not optimal |
-| false_no_solution | Agent claims no_solution but feasible products exist |
-| expected_no_solution | Agent submits product when no feasible exists |
-| constraint_failure | Selected product violates one or more constraints |
-| max_model_turns | Reached model turn limit without reaching terminal |
-| max_environment_steps | Reached env step limit without reaching terminal |
-| browser_error | Browser encountered unrecoverable error |
-| model_error | Environment/model interaction error |
+| `wrong_product` | selected product differs from the deterministic optimum |
+| `objective_not_optimal` | product is feasible but not optimal |
+| `false_no_solution` | no-solution submitted while feasible products exist |
+| `expected_no_solution` | product submitted when no product is feasible |
+| constraint-specific codes | price, memory, delivery, region, certification, rating, stock, or warranty violation |
+| `missing_submission` | policy reaches a terminal-like state without a persisted submission, after the environment contract has been verified |
 
-## Primary Failure Determination
+## 2. Infrastructure Failures
 
-Priority order for assigning `primary_failure`:
+Infrastructure failures invalidate a rollout and use:
 
-1. `output_format_failure` — if non_json_output or schema_invalid
-2. `element_grounding_failure` — if invalid_target or stale_target
-3. `consecutive_output_failures` — if model_output_failure_limit
-4. `no_submission_reached` — if max_model_turns or no submission
-5. `premature_finish` — if finish without submission
-6. `incorrect_product_selection` — if wrong_product or objective_not_optimal
-7. `constraint_violation` — if constraint_failure
+```text
+rollout_valid = false
+failure_origin = infrastructure
+reward = null
+```
 
-## M2.0 Results (Job 951)
+They never enter group reward statistics or policy updates.
+
+| Tag | Meaning |
+|---|---|
+| `model_load_error` | base model or adapter cannot be loaded |
+| `model_backend_error` | CUDA/OOM/device assertion or missing token/logprob evidence |
+| `environment_start_error` | web service, database, browser, or task setup fails |
+| `environment_step_error` | Playwright/database/service exception during `env.step` |
+| `environment_cleanup_error` | browser/thread/service lifecycle cannot close cleanly |
+| `task_source_error` | public/Oracle source missing, duplicated, or mismatched |
+| `artifact_contract_error` | rollout evidence violates its schema/invariants |
+
+## 3. Metric Attribution
+
+The formal denominator rules are:
+
+```text
+Task success denominator
+= valid policy trajectories
+
+Schema Valid denominator
+= all model turns in valid policy trajectories
+
+Environment Action Success denominator
+= environment actions attempted in valid policy trajectories
+
+Reward variance
+= rewards from valid policy trajectories in the same task group
+```
+
+Infrastructure failures are reported separately.
+
+## 4. Historical M2.0 Result
+
+The original Job 951 primary counts were:
 
 | Primary Failure | Count |
-|---|---|
-| (success) | 5 |
-| output_format_failure | 6 |
-| element_grounding_failure | 4 |
+|---|---:|
+| success | 5 |
+| output-format failure | 6 |
+| element-grounding failure | 4 |
+
+These values are retained as historical evidence. They were produced before the current policy/infrastructure and action-level metric contracts were frozen, so they must not be directly merged with M2.3/M3.0 statistics.
