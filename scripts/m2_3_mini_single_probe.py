@@ -31,9 +31,23 @@ DEFAULT_K = 8
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "m2_3_mini"
 
 
+def _bypass_caching_allocator_warmup():
+    """Monkeypatch transformers' caching_allocator_warmup to no-op.
+
+    The warmup function calls cudaMemGetInfo on all visible GPUs during
+    model loading, which triggers IndexKernel on this system (likely a
+    driver/PyTorch interaction bug when multiple GPUs are visible and
+    some are near-full). Since we load on CPU and move to CUDA afterwards,
+    the warmup is unnecessary.
+    """
+    import transformers.modeling_utils as mu
+    mu.caching_allocator_warmup = lambda model, device_map, quantizer: None
+
+
 def load_policy(base_model_path, adapter_path, temperature):
     """Load base model + adapter for a single temperature run."""
     import torch
+    _bypass_caching_allocator_warmup()
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import PeftModel
     from miniwebwork.model_agent.model_backend import ModelConfig, QwenTransformersBackend
