@@ -34,12 +34,7 @@ class ModelConfig:
     use_cache: bool = True
     local_files_only: bool = True
     enable_thinking: bool = False
-    # Policy log-probabilities are required for RL rollouts.  They are only
-    # computed for stochastic generation, so deterministic evaluation keeps
-    # the single-forward inference cost.
     collect_policy_logprobs: bool = True
-    # Post-warp sampling scores are useful for diagnostics but are not the
-    # canonical GRPO policy score.
     collect_sampling_logprobs: bool = False
 
 
@@ -50,6 +45,9 @@ class GenerationResult:
     input_tokens: int = 0
     latency_ms: float = 0.0
     error: str = ""
+    # Exact tokenized prompt used by the policy.  This is required to
+    # reconstruct each browser turn during an RL policy update.
+    prompt_token_ids: list[int] = field(default_factory=list)
     generated_token_ids: list[int] = field(default_factory=list)
     # Raw model policy log-probabilities, one per generated token.
     logprobs: list[float] = field(default_factory=list)
@@ -215,6 +213,7 @@ class QwenTransformersBackend:
                 attention_mask = attention_mask.to(self.config.device)
             prompt_length = int(input_ids.shape[1])
             result.input_tokens = prompt_length
+            result.prompt_token_ids = [int(value) for value in input_ids[0].detach().cpu().tolist()]
 
             want_sampling_scores = self.config.do_sample and self.config.collect_sampling_logprobs
             generation_kwargs = {
@@ -246,9 +245,6 @@ class QwenTransformersBackend:
             result.generated_token_ids = [int(value) for value in new_ids.detach().cpu().tolist()]
             result.raw_text = self._tokenizer.decode(new_ids, skip_special_tokens=True)
 
-            # RL contract: store raw model policy log-probabilities, not only
-            # post-top-p sampling scores.  A correctly aligned second forward
-            # is deterministic and independent of generation cache internals.
             if self.config.do_sample and self.config.collect_policy_logprobs and result.new_tokens:
                 full_ids = sequences[:, : prompt_length + result.new_tokens]
                 full_attention_mask = None
@@ -276,12 +272,16 @@ class QwenTransformersBackend:
             if want_sampling_scores and result.new_tokens:
                 result.sampling_logprobs = _sampling_logprobs(tuple(generated.scores or ()), new_ids)
 
+            if len(result.prompt_token_ids) != result.input_tokens:
+                raise RuntimeError("Prompt token count does not match input_tokens")
+            if result.generated_token_ids and len(result.generated_token_ids) != result.new_tokens:
+                raise RuntimeError("Generated token count does not match new_tokens")
             if result.logprobs and len(result.logprobs) != result.new_tokens:
                 raise RuntimeError("Policy logprob count does not match generated token count")
             if result.sampling_logprobs and len(result.sampling_logprobs) != result.new_tokens:
                 raise RuntimeError("Sampling logprob count does not match generated token count")
 
-        except Exception as exc:  # keep agent loop alive with a structured failure
+        except Exception as exc:
             result.error = f"{type(exc).__name__}: {exc}"
             logger.exception("Model generation failed")
 
