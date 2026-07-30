@@ -1,79 +1,120 @@
-# M1.2 Environment Contract
+# Environment Contract
 
-## Interface: ProcurementBrowserEnv
+> Introduced in M1.2 and updated to the current persistent async Playwright implementation.
 
-### Constructor
+## Interface
 
 ```python
-env = ProcurementBrowserEnv(max_steps=15, run_id="...", headless=True)
+env = ProcurementBrowserEnv(
+    max_steps=20,
+    run_id="...",
+    headless=True,
+    keep_db=True,
+    task_dir=None,
+)
+
+observation = env.reset(task_id)
+result = env.step(action)
+env.close()
 ```
 
-| Parameter | Default | Description |
-|---|---|---|
-| max_steps | 15 | Max environment steps per episode |
-| run_id | auto | Unique run identifier |
-| headless | True | Chromium headless mode |
+| Parameter | Default | Meaning |
+|---|---:|---|
+| `max_steps` | 20 | maximum environment actions, not model generations |
+| `run_id` | generated | runtime/database identity |
+| `headless` | true | Chromium mode |
+| `keep_db` | true | retain episode DB artifact after close |
+| `task_dir` | null | exclusive public/Oracle source; null uses default tasks |
 
-### reset(task_id) → Observation
+## Playwright Execution Model
 
-1. Validate task_id against public task set
-2. Setup isolated SQLite database (data/runtime/m1_2/{run_id}.db)
-3. Start local FastAPI web service on auto-allocated port
-4. Start/reuse Playwright Chromium browser with new context
-5. Navigate to task page, click start-task-button
-6. Extract episode_id from redirect URL
-7. Initialize TrajectoryRecorder
-8. Build and return initial Observation
+The main Agent loop is synchronous. Playwright uses `async_playwright` inside one persistent dedicated worker thread with its own asyncio event loop.
 
-### step(action) → StepResult
+```text
+main thread: reset / step / close
+              ↓ synchronous call
+worker thread: async browser/context/page operation
+```
 
-1. Build current Observation for action validation
-2. Execute action on Playwright page via `execute_action()`
-3. Record step in trajectory
-4. Increment step_index
-5. Check max_steps → truncated if exceeded
-6. Build new Observation
-7. Check termination: `page_type == "procurement_result"` → call verifier
-8. Handle `finish` action: check submission exists → verifier or premature_finish
-9. Return StepResult(observation, reward, terminated, truncated, info)
+All Playwright objects remain in the worker thread. The browser lifecycle is:
 
-### close()
+```text
+thread start
+→ event loop start
+→ Playwright/browser start
+→ context/page per episode
+→ page/context close
+→ browser/Playwright close
+→ event loop stop
+→ worker join
+```
 
-1. Close Playwright page and context (keep browser for reuse across resets)
-2. Terminate FastAPI web service
-3. Close database connection
-4. Idempotent — safe to call multiple times
+Initialization and shutdown errors propagate. They are infrastructure failures, not policy rewards.
+
+## reset(task_id) → Observation
+
+1. Resolve the exclusive task source.
+2. Validate `task_id` against the public task file.
+3. Clean the previous page/context/service.
+4. Create or reuse the isolated runtime SQLite database for the run.
+5. Start a local FastAPI service on a free loopback port.
+6. Start the Playwright worker/browser and create a fresh context/page.
+7. Navigate to the task page and start the episode.
+8. Resolve `episode_id` from the redirect.
+9. Initialize `TrajectoryRecorder`.
+10. Return the initial text Observation.
+
+## step(action) → StepResult
+
+1. Rebuild the current Observation for target validation.
+2. Execute the typed action in the Playwright worker.
+3. Record the action result in the trajectory.
+4. Increment environment `step_index`.
+5. Truncate when the environment-action budget is exhausted.
+6. Build the next Observation.
+7. On a procurement result page, call the deterministic Verifier.
+8. On explicit `finish`, verify a persisted submission or return `premature_finish`.
+9. Return `StepResult` with reward, terminal flags, and structured info.
+
+A Schema-invalid model output never calls `env.step`; it consumes a model turn in the rollout runner but not an environment step.
+
+## close()
+
+1. Close page and context.
+2. terminate the per-environment FastAPI process;
+3. close browser and Playwright;
+4. stop the worker event loop;
+5. join the worker thread;
+6. mark the environment closed.
+
+`close()` is idempotent at the Environment level. A failed worker shutdown is surfaced because leaked browser/event-loop state can invalidate subsequent rollouts.
 
 ## Termination Semantics
 
-| Condition | terminated | truncated | reward |
-|---|---|---|---|
-| Submission created + verifier success | true | false | 1.0 |
-| Submission created + verifier failure | true | false | 0.0 |
-| max_steps reached | true | true | 0.0 |
-| finish without submission | true | false | 0.0 (premature_finish) |
-| finish with submission | true | false | verifier result |
+| Condition | `terminated` | `truncated` | policy reward |
+|---|---:|---:|---:|
+| persisted submission + Verifier success | true | false | 1.0 |
+| persisted submission + Verifier rejection | true | false | 0.0 |
+| explicit finish without submission | true | false | 0.0 |
+| environment step budget reached | true | true | 0.0 |
+| browser/service/database exception | invalid rollout | n/a | null |
 
-## Episode Isolation
+## Isolation and Security
 
-Each `reset()`:
-- Creates new Browser Context (isolated cookies/storage)
-- Uses new episode_id (unique per task)
-- Previously created data persists in the shared database
-- Web service runs on same port across resets (reused)
+- fresh browser context/page per environment episode;
+- unique episode ID;
+- per-run SQLite database;
+- loopback-only Web service;
+- no Oracle content in observations or prompts;
+- no direct Page/SQLite/Verifier access for the policy;
+- no arbitrary CSS/XPath/JavaScript action;
+- target IDs must be present in the current Observation;
+- explicit task source prevents default/development task merging.
 
-## Security Restrictions
+## Current Limits
 
-- Agent cannot access Playwright page object
-- Agent cannot read Oracle files
-- Agent cannot query SQLite directly
-- Agent cannot call verifier
-- Actions limited to predefined schema (no CSS/XPath/JS)
-- element_id must exist in current observation
-
-## Current Limitations (M1.2)
-
-- Single environment only (no parallel rollouts)
-- All tasks share one database within a run
-- No scroll action
-- Fixed viewport
+- formal probe is sequential within one process;
+- no visual observation;
+- no scroll action;
+- fixed local website and bounded context;
+- no multi-node or browser-farm rollout.
