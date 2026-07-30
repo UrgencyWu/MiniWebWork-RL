@@ -24,5 +24,5 @@
 </div>
 {% endfor %}
 
-<p><a href="/products">&larr; 返回商品列表</a></p>
+<p><a href="/products?episode_id={{ episode_id or '' }}&task_id={{ task.task_id if task else '' }}">&larr; 返回商品列表</a></p>
 {% endblock %}
