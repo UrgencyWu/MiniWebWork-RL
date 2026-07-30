@@ -1,12 +1,14 @@
-"""SQLite database layer for MiniWebWork-RL procurement environment."""
+"""SQLite persistence for deterministic procurement episodes."""
+
+from __future__ import annotations
 
 import os
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
-# Default database path
 DEFAULT_DB_PATH = str(
     Path(__file__).resolve().parent.parent.parent / "data" / "runtime" / "miniwebwork.db"
 )
@@ -16,25 +18,28 @@ def get_db_path() -> str:
     return os.environ.get("MINIWEBWORK_DB_PATH", DEFAULT_DB_PATH)
 
 
-def get_connection(db_path: str = None) -> sqlite3.Connection:
-    """Get a database connection with foreign keys enabled."""
+def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
+    """Open a SQLite connection with foreign keys, timeout, and Row access."""
     path = db_path or get_db_path()
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.row_factory = sqlite3.Row
-    return conn
+    connection = sqlite3.connect(path, timeout=30.0)
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 30000")
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
-def init_schema(conn: sqlite3.Connection):
-    """Create all tables if they do not exist."""
-    conn.executescript("""
+def init_schema(connection: sqlite3.Connection) -> None:
+    """Create the deterministic runtime schema and integrity indexes."""
+    connection.executescript(
+        """
         CREATE TABLE IF NOT EXISTS suppliers (
             supplier_id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             rating REAL NOT NULL CHECK(rating >= 0 AND rating <= 5),
             region TEXT NOT NULL,
             certified INTEGER NOT NULL CHECK(certified IN (0, 1)),
-            delivery_reliability REAL NOT NULL CHECK(delivery_reliability >= 0 AND delivery_reliability <= 1),
+            delivery_reliability REAL NOT NULL
+                CHECK(delivery_reliability >= 0 AND delivery_reliability <= 1),
             description TEXT
         );
 
@@ -56,7 +61,8 @@ def init_schema(conn: sqlite3.Connection):
         CREATE TABLE IF NOT EXISTS episodes (
             episode_id TEXT PRIMARY KEY,
             task_id TEXT NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('active', 'submitted', 'verified', 'failed')),
+            status TEXT NOT NULL
+                CHECK(status IN ('active', 'submitted', 'verified', 'failed')),
             created_at TEXT NOT NULL,
             completed_at TEXT
         );
@@ -65,7 +71,8 @@ def init_schema(conn: sqlite3.Connection):
             submission_id TEXT PRIMARY KEY,
             episode_id TEXT NOT NULL,
             task_id TEXT NOT NULL,
-            decision_type TEXT NOT NULL CHECK(decision_type IN ('select_product', 'no_solution')),
+            decision_type TEXT NOT NULL
+                CHECK(decision_type IN ('select_product', 'no_solution')),
             product_id TEXT,
             quantity INTEGER NOT NULL DEFAULT 1 CHECK(quantity > 0),
             justification TEXT,
@@ -77,34 +84,52 @@ def init_schema(conn: sqlite3.Connection):
                 (decision_type = 'no_solution' AND product_id IS NULL)
             )
         );
-    """)
+
+        CREATE UNIQUE INDEX IF NOT EXISTS
+            idx_procurement_submissions_episode
+            ON procurement_submissions(episode_id);
+        CREATE INDEX IF NOT EXISTS idx_products_supplier
+            ON products(supplier_id);
+        CREATE INDEX IF NOT EXISTS idx_episodes_task
+            ON episodes(task_id);
+        """
+    )
+    connection.commit()
 
 
-def create_episode(conn: sqlite3.Connection, task_id: str) -> str:
-    """Create a new episode and return its ID."""
+def create_episode(connection: sqlite3.Connection, task_id: str) -> str:
+    """Create one active episode for a non-empty public task ID."""
+    if not isinstance(task_id, str) or not task_id.strip():
+        raise ValueError("task_id must be a non-empty string")
     episode_id = f"EP-{uuid.uuid4().hex[:12].upper()}"
     now = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        "INSERT INTO episodes (episode_id, task_id, status, created_at) VALUES (?, ?, ?, ?)",
+    connection.execute(
+        "INSERT INTO episodes (episode_id, task_id, status, created_at) "
+        "VALUES (?, ?, ?, ?)",
         (episode_id, task_id, "active", now),
     )
-    conn.commit()
+    connection.commit()
     return episode_id
 
 
 def create_submission(
-    conn: sqlite3.Connection,
+    connection: sqlite3.Connection,
     episode_id: str,
     task_id: str,
     decision_type: str,
-    product_id: str = None,
+    product_id: Optional[str] = None,
     quantity: int = 1,
     justification: str = "",
 ) -> str:
-    """Create a procurement submission. Returns submission_id."""
-    # Validate episode exists and matches task
-    episode = conn.execute(
-        "SELECT * FROM episodes WHERE episode_id = ?", (episode_id,)
+    """Persist the single final decision for an active task episode."""
+    if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0:
+        raise ValueError("quantity must be a positive integer")
+    if not isinstance(justification, str):
+        raise ValueError("justification must be a string")
+
+    episode = connection.execute(
+        "SELECT * FROM episodes WHERE episode_id = ?",
+        (episode_id,),
     ).fetchone()
     if episode is None:
         raise ValueError(f"Episode {episode_id} does not exist")
@@ -113,69 +138,79 @@ def create_submission(
             f"Episode task {episode['task_id']} does not match submission task {task_id}"
         )
     if episode["status"] != "active":
-        raise ValueError(f"Episode {episode_id} is not active (status: {episode['status']})")
+        raise ValueError(
+            f"Episode {episode_id} is not active (status: {episode['status']})"
+        )
 
-    # Check for duplicate submission
-    existing = conn.execute(
+    existing = connection.execute(
         "SELECT submission_id FROM procurement_submissions WHERE episode_id = ?",
         (episode_id,),
     ).fetchone()
-    if existing:
+    if existing is not None:
         raise ValueError(f"Episode {episode_id} already has a submission")
 
-    # Validate decision_type and product_id
-    if decision_type not in ("select_product", "no_solution"):
+    if decision_type not in {"select_product", "no_solution"}:
         raise ValueError(f"Invalid decision_type: {decision_type}")
-
     if decision_type == "select_product":
         if not product_id:
             raise ValueError("select_product requires product_id")
-        prod = conn.execute(
-            "SELECT product_id FROM products WHERE product_id = ?", (product_id,)
+        product = connection.execute(
+            "SELECT product_id FROM products WHERE product_id = ?",
+            (product_id,),
         ).fetchone()
-        if prod is None:
+        if product is None:
             raise ValueError(f"Product {product_id} does not exist")
-    elif decision_type == "no_solution":
-        if product_id:
-            raise ValueError("no_solution must not have product_id")
+    elif product_id:
+        raise ValueError("no_solution must not have product_id")
 
     submission_id = f"SUB-{uuid.uuid4().hex[:12].upper()}"
     now = datetime.now(timezone.utc).isoformat()
-
-    conn.execute(
-        """INSERT INTO procurement_submissions
-           (submission_id, episode_id, task_id, decision_type, product_id, quantity, justification, submitted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (submission_id, episode_id, task_id, decision_type, product_id, quantity, justification, now),
-    )
-
-    # Mark episode as submitted
-    new_status = "submitted"
-    conn.execute(
-        "UPDATE episodes SET status = ?, completed_at = ? WHERE episode_id = ?",
-        (new_status, now, episode_id),
-    )
-    conn.commit()
+    try:
+        connection.execute(
+            """INSERT INTO procurement_submissions
+               (submission_id, episode_id, task_id, decision_type, product_id,
+                quantity, justification, submitted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                submission_id,
+                episode_id,
+                task_id,
+                decision_type,
+                product_id,
+                quantity,
+                justification,
+                now,
+            ),
+        )
+        connection.execute(
+            "UPDATE episodes SET status = ?, completed_at = ? WHERE episode_id = ?",
+            ("submitted", now, episode_id),
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
     return submission_id
 
 
-def reset_db(conn: sqlite3.Connection):
-    """Drop and recreate all tables, then re-seed."""
-    conn.executescript("""
+def reset_db(connection: sqlite3.Connection) -> None:
+    """Drop and recreate all runtime tables. Seeding is a separate operation."""
+    connection.executescript(
+        """
         DROP TABLE IF EXISTS procurement_submissions;
         DROP TABLE IF EXISTS episodes;
         DROP TABLE IF EXISTS products;
         DROP TABLE IF EXISTS suppliers;
-    """)
-    init_schema(conn)
-    conn.commit()
+        """
+    )
+    init_schema(connection)
+    connection.commit()
 
 
-def get_row_counts(conn: sqlite3.Connection) -> dict:
-    """Return row counts for all tables."""
-    tables = ["suppliers", "products", "episodes", "procurement_submissions"]
-    counts = {}
-    for table in tables:
-        row = conn.execute(f"SELECT COUNT(*) as cnt FROM {table}").fetchone()
-        counts[table] = row["cnt"]
+def get_row_counts(connection: sqlite3.Connection) -> dict[str, int]:
+    """Return row counts for the fixed runtime tables."""
+    counts: dict[str, int] = {}
+    for table in ("suppliers", "products", "episodes", "procurement_submissions"):
+        row = connection.execute(f"SELECT COUNT(*) AS cnt FROM {table}").fetchone()
+        counts[table] = int(row["cnt"])
     return counts
