@@ -14,7 +14,13 @@ NO_FAILURE = "none"
 
 @dataclass
 class RolloutStep:
-    """One model decision and its environment consequence."""
+    """One model decision and its environment consequence.
+
+    ``token_logprobs`` are raw model-policy log-probabilities.  The optional
+    ``sampling_logprobs`` are produced after generation processors such as
+    temperature and top-p.  Both are retained because they answer different
+    questions and must never be silently interchanged.
+    """
 
     turn: int
     page_type: str
@@ -23,6 +29,7 @@ class RolloutStep:
     raw_model_output: str = ""
     generated_token_ids: list[int] = field(default_factory=list)
     token_logprobs: list[float] = field(default_factory=list)
+    sampling_logprobs: list[float] = field(default_factory=list)
     strict_json_success: bool = False
     fallback_used: bool = False
     schema_valid: bool = False
@@ -35,10 +42,16 @@ class RolloutStep:
     truncated: bool = False
 
     def validate(self) -> None:
-        if self.token_logprobs and len(self.token_logprobs) != len(self.generated_token_ids):
+        token_count = len(self.generated_token_ids)
+        if self.token_logprobs and len(self.token_logprobs) != token_count:
             raise ValueError(
-                f"turn {self.turn}: {len(self.token_logprobs)} logprobs for "
-                f"{len(self.generated_token_ids)} generated tokens"
+                f"turn {self.turn}: {len(self.token_logprobs)} raw logprobs for "
+                f"{token_count} generated tokens"
+            )
+        if self.sampling_logprobs and len(self.sampling_logprobs) != token_count:
+            raise ValueError(
+                f"turn {self.turn}: {len(self.sampling_logprobs)} sampling logprobs for "
+                f"{token_count} generated tokens"
             )
         if self.schema_valid and self.parsed_action is None:
             raise ValueError(f"turn {self.turn}: schema-valid step has no parsed action")
