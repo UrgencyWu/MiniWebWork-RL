@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from miniwebwork.rollout import (
@@ -56,6 +58,17 @@ def _record(
     )
 
 
+def _strict_record(index: int, reward: float, success: bool) -> RolloutRecord:
+    return _record(
+        index,
+        reward,
+        success,
+        temperature=1.0,
+        top_p=1.0,
+        top_k=0,
+    )
+
+
 def test_mixed_reward_diagnostic_group_has_learning_signal_only():
     summary = summarize_group(
         [_record(0, 0.0, False), _record(1, 1.0, True)],
@@ -73,12 +86,8 @@ def test_mixed_reward_diagnostic_group_has_learning_signal_only():
 
 
 def test_update_compatible_mixed_group_is_valid_for_grpo():
-    records = [
-        _record(0, 0.0, False, temperature=1.0, top_p=1.0, top_k=0),
-        _record(1, 1.0, True, temperature=1.0, top_p=1.0, top_k=0),
-    ]
     summary = summarize_group(
-        records,
+        [_strict_record(0, 0.0, False), _strict_record(1, 1.0, True)],
         requested_k=2,
         update_distribution_compatible=True,
     )
@@ -88,9 +97,18 @@ def test_update_compatible_mixed_group_is_valid_for_grpo():
     assert summary.valid_for_grpo_update is True
 
 
-def test_zero_variance_group_has_no_learning_signal():
+def test_caller_cannot_mark_warped_distribution_update_compatible():
+    with pytest.raises(ValueError, match="temperature=1"):
+        summarize_group(
+            [_record(0, 0.0, False), _record(1, 1.0, True)],
+            requested_k=2,
+            update_distribution_compatible=True,
+        )
+
+
+def test_zero_variance_strict_group_has_no_learning_signal():
     summary = summarize_group(
-        [_record(0, 0.0, False), _record(1, 0.0, False)],
+        [_strict_record(0, 0.0, False), _strict_record(1, 0.0, False)],
         requested_k=2,
         update_distribution_compatible=True,
     )
@@ -126,6 +144,22 @@ def test_strict_raw_policy_distribution_requires_no_sampling_warpers():
     assert strict_raw_policy_distribution(0.4, 1.0, 0) is False
     assert strict_raw_policy_distribution(1.0, 0.9, 0) is False
     assert strict_raw_policy_distribution(1.0, 1.0, 50) is False
+
+
+def test_nonfinite_policy_logprob_is_rejected():
+    record = _strict_record(0, 0.0, False)
+    record.steps[0].token_logprobs = [math.nan]
+
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        record.validate()
+
+
+def test_nonfinite_sampling_logprob_is_rejected():
+    record = _strict_record(0, 0.0, False)
+    record.steps[0].sampling_logprobs = [math.inf]
+
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        record.validate()
 
 
 def test_infrastructure_failure_requires_null_reward():
