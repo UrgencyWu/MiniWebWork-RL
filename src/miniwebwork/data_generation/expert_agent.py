@@ -61,8 +61,10 @@ class OracleExpertProcurementAgent:
 
     # ---- products page handler ----
     def _handle_products(self, els, c, expected_pid, expected_decision, obj):
-        # 1) Fill keyword
-        if obj == "exact_product" and not self._state.get("kw_filled"):
+        # 1) Fill keyword. M4 uses a unique world keyword for every objective,
+        # not only exact-product tasks, so this must follow the constraint
+        # contract rather than infer intent from the objective name.
+        if c.get("keyword") and not self._state.get("kw_filled"):
             kw = c.get("keyword", "")
             if kw:
                 self._state["kw_filled"] = True

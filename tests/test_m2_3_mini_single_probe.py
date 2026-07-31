@@ -1,4 +1,5 @@
 import importlib.util
+import inspect
 from pathlib import Path
 
 import pytest
@@ -27,3 +28,10 @@ def test_custom_policy_requires_nonblank_label(label):
 
     with pytest.raises(ValueError):
         probe._resolve_policy_label("custom", label)
+
+
+def test_collector_exposes_versioned_seed_and_explicit_rollout_limits():
+    probe = _load_probe_module()
+    parameters = inspect.signature(probe.run_rollout).parameters
+
+    assert {"seed_dir", "max_model_turns", "max_environment_steps", "max_output_failures"} <= set(parameters)

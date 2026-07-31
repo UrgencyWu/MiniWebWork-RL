@@ -400,6 +400,11 @@ def run_rollout(
     top_k: int,
     task_dir: Path,
     agent: QwenBrowserAgent,
+    *,
+    seed_dir: Path | None = None,
+    max_model_turns: int = MAX_MODEL_TURNS,
+    max_environment_steps: int = MAX_MODEL_TURNS,
+    max_output_failures: int = MAX_OUTPUT_FAILURES,
 ) -> RolloutRecord:
     task_id = task["task_id"]
     rollout_seed = derive_rollout_seed(master_seed, task_id, rollout_index)
@@ -417,17 +422,18 @@ def run_rollout(
 
     try:
         environment = ProcurementBrowserEnv(
-            max_steps=MAX_MODEL_TURNS,
+            max_steps=max_environment_steps,
             run_id=run_id,
             headless=True,
             task_dir=task_dir,
+            seed_dir=seed_dir,
         )
         environment.set_agent_name("m2_3_mini_rollout_probe")
         observation = environment.reset(task_id)
         episode_id = observation.episode_id
         agent.reset(observation.task_id, observation.instruction)
 
-        for turn in range(1, MAX_MODEL_TURNS + 1):
+        for turn in range(1, max_model_turns + 1):
             attempt = agent.act(observation)
             step = _step_from_attempt(turn, observation.page_type, attempt)
             steps.append(step)
@@ -458,7 +464,7 @@ def run_rollout(
 
             if not attempt.schema_valid:
                 output_failure_streak += 1
-                if output_failure_streak >= MAX_OUTPUT_FAILURES:
+                if output_failure_streak >= max_output_failures:
                     termination_reason = "model_output_failure_limit"
                     break
                 continue
@@ -647,13 +653,27 @@ def main() -> None:
     parser.add_argument("--adapter", required=True, type=Path)
     parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
     parser.add_argument("--task-dir", type=Path, default=DEFAULT_TASK_DIR)
+    parser.add_argument(
+        "--seed-dir",
+        type=Path,
+        default=None,
+        help="Versioned product/supplier catalogue paired with --task-dir.",
+    )
     parser.add_argument("--temperature", required=True, type=float)
     parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P)
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--K", type=int, default=DEFAULT_K)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    parser.add_argument("--split", choices=["train", "valid"], default="valid")
+    parser.add_argument("--split", choices=["train", "valid", "dev", "test"], default="valid")
     parser.add_argument("--max-tasks", type=int, default=None)
+    parser.add_argument("--max-model-turns", type=int, default=MAX_MODEL_TURNS)
+    parser.add_argument("--max-env-steps", type=int, default=MAX_MODEL_TURNS)
+    parser.add_argument("--max-output-failures", type=int, default=MAX_OUTPUT_FAILURES)
+    parser.add_argument(
+        "--study-id",
+        default="m2_3_mini",
+        help="Artifact namespace; M4 uses m4_rlvr_v1 rather than the historical default.",
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
 
@@ -667,14 +687,21 @@ def main() -> None:
         raise ValueError("top-k must be non-negative")
     if args.max_tasks is not None and args.max_tasks <= 0:
         raise ValueError("max-tasks must be positive")
+    if args.max_model_turns <= 0 or args.max_env_steps <= 0:
+        raise ValueError("max-model-turns and max-env-steps must be positive")
+    if args.max_output_failures <= 0:
+        raise ValueError("max-output-failures must be positive")
 
     task_dir = args.task_dir.expanduser().resolve()
+    seed_dir = args.seed_dir.expanduser().resolve() if args.seed_dir else None
     adapter_dir = args.adapter.expanduser().resolve()
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     tasks, task_source_hash = _load_tasks(task_dir, args.split)
     if args.max_tasks is not None:
         tasks = tasks[: args.max_tasks]
+    if seed_dir is not None and not seed_dir.is_dir():
+        raise FileNotFoundError(f"Seed directory not found: {seed_dir}")
 
     policy = _resolve_policy_label(args.policy, args.policy_label)
     adapter_hash = _directory_sha256(adapter_dir)
@@ -726,6 +753,10 @@ def main() -> None:
                     args.top_k,
                     task_dir,
                     agent,
+                    seed_dir=seed_dir,
+                    max_model_turns=args.max_model_turns,
+                    max_environment_steps=args.max_env_steps,
+                    max_output_failures=args.max_output_failures,
                 )
                 records.append(record)
                 task_records.append(record)
@@ -754,6 +785,7 @@ def main() -> None:
                 output_dir / f"incremental_{args.policy}_{distribution_tag}.json",
                 {
                     "schema_version": "3.3",
+                    "study_id": args.study_id,
                     "complete": False,
                     "git_sha": git_sha,
                     "policy": policy,
@@ -769,6 +801,7 @@ def main() -> None:
                     "K": args.K,
                     "seed": args.seed,
                     "task_source_sha256": task_source_hash,
+                    "seed_dir": str(seed_dir) if seed_dir else None,
                     "adapter_sha256": adapter_hash,
                     "groups": groups,
                     "records": [record.to_dict() for record in records],
@@ -777,7 +810,8 @@ def main() -> None:
 
         result = {
             "schema_version": "3.3",
-            "phase": "m2_3_mini_rollout_collection",
+            "phase": f"{args.study_id}_rollout_collection",
+            "study_id": args.study_id,
             "complete": True,
             "git_sha": git_sha,
             "policy": policy,
@@ -789,6 +823,7 @@ def main() -> None:
             "chat_template_sha256": backend.get_chat_template_hash(),
             "task_dir": str(task_dir),
             "task_source_sha256": task_source_hash,
+            "seed_dir": str(seed_dir) if seed_dir else None,
             "split": args.split,
             "temperature": args.temperature,
             "top_p": args.top_p,
@@ -801,8 +836,9 @@ def main() -> None:
             "strict_logprob_match_tolerance": STRICT_LOGPROB_MATCH_TOLERANCE,
             "K": args.K,
             "seed": args.seed,
-            "max_model_turns": MAX_MODEL_TURNS,
-            "max_output_failures": MAX_OUTPUT_FAILURES,
+            "max_model_turns": args.max_model_turns,
+            "max_environment_steps": args.max_env_steps,
+            "max_output_failures": args.max_output_failures,
             "logprob_contract": {
                 "token_logprobs": "raw model-policy log probabilities",
                 "sampling_logprobs": "post generation-processor behavior probabilities",

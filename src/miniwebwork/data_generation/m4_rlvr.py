@@ -71,7 +71,9 @@ def _world_id(index: int) -> str:
 
 
 def _world_category(world_id: str) -> str:
-    return f"M4 Procurement Segment {world_id}"
+    """Choose only categories exposed by the real browser filter UI."""
+    index = int(world_id[1:])
+    return ("GPU", "服务器", "存储", "网络")[(index - 1) % 4]
 
 
 def build_m4_seed() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -263,11 +265,12 @@ def _task_spec(split: str, world_id: str, task_type: str) -> dict[str, Any]:
         constraints = {"category": category, "keyword": f"M4-{world_id}-EXACT"}
         instruction = (
             f"For M4 procurement world {world_id}, locate the device with model "
-            f"identifier M4-{world_id}-EXACT in segment {category}. Submit that exact device."
+            f"identifier M4-{world_id}-EXACT in the {category} catalogue. Submit that exact device."
         )
     elif task_type == "cheapest_feasible":
         constraints = {
             "category": category,
+            "keyword": f"M4-{world_id}",
             "min_memory_gb": 32,
             "max_delivery_days": 8,
             "certified_only": True,
@@ -275,7 +278,8 @@ def _task_spec(split: str, world_id: str, task_type: str) -> dict[str, Any]:
             "min_warranty_months": 24,
         }
         instruction = (
-            f"For M4 procurement world {world_id}, inspect segment {category}. Choose an "
+            f"For M4 procurement world {world_id}, search the {category} catalogue for "
+            f"keyword M4-{world_id}. Choose an "
             "in-stock device from a certified supplier with at least 32GB memory, delivery "
             "within 8 days, and at least 24 months warranty. Among feasible devices, submit "
             "the lowest-price option."
@@ -283,6 +287,7 @@ def _task_spec(split: str, world_id: str, task_type: str) -> dict[str, Any]:
     elif task_type == "highest_rating_supplier":
         constraints = {
             "category": category,
+            "keyword": f"M4-{world_id}",
             "min_memory_gb": 32,
             "max_delivery_days": 15,
             "certified_only": True,
@@ -290,7 +295,8 @@ def _task_spec(split: str, world_id: str, task_type: str) -> dict[str, Any]:
             "min_warranty_months": 24,
         }
         instruction = (
-            f"For M4 procurement world {world_id}, inspect segment {category}. Choose an "
+            f"For M4 procurement world {world_id}, search the {category} catalogue for "
+            f"keyword M4-{world_id}. Choose an "
             "in-stock certified device with at least 32GB memory, delivery within 15 days, "
             "and at least 24 months warranty. Among feasible options, submit the one whose "
             "supplier has the highest rating."
@@ -298,13 +304,15 @@ def _task_spec(split: str, world_id: str, task_type: str) -> dict[str, Any]:
     elif task_type == "no_feasible_product":
         constraints = {
             "category": category,
+            "keyword": f"M4-{world_id}",
             "min_memory_gb": 256,
             "max_delivery_days": 7,
             "certified_only": True,
             "in_stock_only": True,
         }
         instruction = (
-            f"For M4 procurement world {world_id}, inspect segment {category}. Find an "
+            f"For M4 procurement world {world_id}, search the {category} catalogue for "
+            f"keyword M4-{world_id}. Find an "
             "in-stock certified device with at least 256GB memory and delivery within 7 days. "
             "If none satisfies every requirement, submit no_solution rather than guessing."
         )

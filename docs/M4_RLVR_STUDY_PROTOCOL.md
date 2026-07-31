@@ -34,6 +34,9 @@ Every world owns four products and yields exactly one task from each family:
 constraint signatures, selected-product answers and public instructions.  The
 builder emits hashes for every public/oracle file; `validate_m4_rlvr_dataset`
 recomputes every oracle against the M4 seed and audits all cross-split sets.
+Every world keyword is unique, while categories remain one of the four values
+exposed by the actual browser filter UI; this prevents a database-only task
+contract that an agent could not execute through the site.
 
 An official M4 runner must call `assert_m4_split_purpose` before loading a
 source.  `test` permits only `final_evaluation`, never data creation, model

@@ -105,9 +105,14 @@ class M4RunConfig:
             if (self.temperature, self.top_p, self.top_k) != (1.0, 1.0, 0):
                 raise ValueError("online M4 collection requires temperature=1, top_p=1, top_k=0")
         if self.phase == "train":
-            # Offline SFT/RSFT and online updates both use only the train
-            # source.  Non-train phases are evaluation/model-selection only.
-            purpose = "online_training"
+            # Both regimes use only train, but the split manifest keeps their
+            # data lineage distinct so an offline control cannot be mistaken
+            # for an online policy update.
+            purpose = (
+                "online_training"
+                if self.algorithm.regime == "online"
+                else "offline_training"
+            )
         else:
             purpose = _purpose_for_phase(self.phase)
         task_dir = Path(task_root).expanduser().resolve() / self.split

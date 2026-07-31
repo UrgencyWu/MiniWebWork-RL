@@ -24,6 +24,8 @@ def test_primary_matrix_configs_are_preflightable_without_test_leakage():
             assert manifest["config"]["seed"] == seed
             assert manifest["resolved_split"] == "train"
             assert manifest["hashes"]["train_public.jsonl"]
+            if algorithm in {"sft", "rsft"}:
+                assert "offline_training" in manifest["split_manifest"]["allowed_purposes"]
 
 
 def test_protocol_rejects_unregistered_seed_and_wrong_online_collection_contract():

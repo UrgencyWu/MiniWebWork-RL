@@ -1,6 +1,6 @@
 [
   {
-    "category": "M4 Procurement Segment W001",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W001. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -13,7 +13,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W001",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W001. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -26,7 +26,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W001",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W001. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -39,7 +39,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W001",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W001. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -52,7 +52,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W002",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W002. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -65,7 +65,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W002",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W002. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -78,7 +78,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W002",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W002. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -91,7 +91,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W002",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W002. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -104,7 +104,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W003",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W003. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -117,7 +117,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W003",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W003. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -130,7 +130,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W003",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W003. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -143,7 +143,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W003",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W003. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -156,7 +156,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W004",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W004. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -169,7 +169,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W004",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W004. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -182,7 +182,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W004",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W004. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -195,7 +195,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W004",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W004. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -208,7 +208,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W005",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W005. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -221,7 +221,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W005",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W005. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -234,7 +234,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W005",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W005. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -247,7 +247,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W005",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W005. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -260,7 +260,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W006",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W006. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -273,7 +273,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W006",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W006. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -286,7 +286,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W006",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W006. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -299,7 +299,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W006",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W006. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -312,7 +312,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W007",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W007. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -325,7 +325,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W007",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W007. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -338,7 +338,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W007",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W007. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -351,7 +351,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W007",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W007. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -364,7 +364,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W008",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W008. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -377,7 +377,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W008",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W008. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -390,7 +390,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W008",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W008. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -403,7 +403,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W008",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W008. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -416,7 +416,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W009",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W009. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -429,7 +429,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W009",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W009. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -442,7 +442,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W009",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W009. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -455,7 +455,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W009",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W009. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -468,7 +468,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W010",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W010. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -481,7 +481,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W010",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W010. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -494,7 +494,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W010",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W010. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -507,7 +507,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W010",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W010. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -520,7 +520,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W011",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W011. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -533,7 +533,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W011",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W011. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -546,7 +546,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W011",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W011. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -559,7 +559,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W011",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W011. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -572,7 +572,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W012",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W012. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -585,7 +585,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W012",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W012. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -598,7 +598,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W012",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W012. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -611,7 +611,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W012",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W012. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -624,7 +624,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W013",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W013. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -637,7 +637,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W013",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W013. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -650,7 +650,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W013",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W013. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -663,7 +663,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W013",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W013. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -676,7 +676,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W014",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W014. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -689,7 +689,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W014",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W014. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -702,7 +702,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W014",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W014. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -715,7 +715,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W014",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W014. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -728,7 +728,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W015",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W015. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -741,7 +741,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W015",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W015. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -754,7 +754,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W015",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W015. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -767,7 +767,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W015",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W015. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -780,7 +780,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W016",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W016. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -793,7 +793,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W016",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W016. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -806,7 +806,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W016",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W016. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -819,7 +819,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W016",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W016. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -832,7 +832,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W017",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W017. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -845,7 +845,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W017",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W017. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -858,7 +858,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W017",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W017. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -871,7 +871,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W017",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W017. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -884,7 +884,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W018",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W018. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -897,7 +897,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W018",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W018. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -910,7 +910,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W018",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W018. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -923,7 +923,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W018",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W018. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -936,7 +936,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W019",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W019. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -949,7 +949,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W019",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W019. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -962,7 +962,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W019",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W019. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -975,7 +975,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W019",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W019. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -988,7 +988,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W020",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W020. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1001,7 +1001,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W020",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W020. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1014,7 +1014,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W020",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W020. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1027,7 +1027,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W020",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W020. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1040,7 +1040,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W021",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W021. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1053,7 +1053,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W021",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W021. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1066,7 +1066,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W021",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W021. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1079,7 +1079,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W021",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W021. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1092,7 +1092,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W022",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W022. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1105,7 +1105,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W022",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W022. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1118,7 +1118,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W022",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W022. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1131,7 +1131,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W022",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W022. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1144,7 +1144,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W023",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W023. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1157,7 +1157,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W023",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W023. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1170,7 +1170,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W023",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W023. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1183,7 +1183,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W023",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W023. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1196,7 +1196,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W024",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W024. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1209,7 +1209,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W024",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W024. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1222,7 +1222,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W024",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W024. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1235,7 +1235,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W024",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W024. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1248,7 +1248,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W025",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W025. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1261,7 +1261,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W025",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W025. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1274,7 +1274,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W025",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W025. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1287,7 +1287,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W025",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W025. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1300,7 +1300,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W026",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W026. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1313,7 +1313,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W026",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W026. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1326,7 +1326,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W026",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W026. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1339,7 +1339,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W026",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W026. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1352,7 +1352,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W027",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W027. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1365,7 +1365,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W027",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W027. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1378,7 +1378,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W027",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W027. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1391,7 +1391,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W027",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W027. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1404,7 +1404,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W028",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W028. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1417,7 +1417,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W028",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W028. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1430,7 +1430,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W028",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W028. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1443,7 +1443,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W028",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W028. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1456,7 +1456,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W029",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W029. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1469,7 +1469,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W029",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W029. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1482,7 +1482,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W029",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W029. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1495,7 +1495,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W029",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W029. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1508,7 +1508,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W030",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W030. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1521,7 +1521,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W030",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W030. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1534,7 +1534,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W030",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W030. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1547,7 +1547,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W030",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W030. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1560,7 +1560,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W031",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W031. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1573,7 +1573,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W031",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W031. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1586,7 +1586,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W031",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W031. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1599,7 +1599,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W031",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W031. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1612,7 +1612,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W032",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W032. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1625,7 +1625,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W032",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W032. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1638,7 +1638,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W032",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W032. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1651,7 +1651,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W032",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W032. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1664,7 +1664,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W033",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W033. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1677,7 +1677,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W033",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W033. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1690,7 +1690,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W033",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W033. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1703,7 +1703,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W033",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W033. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1716,7 +1716,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W034",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W034. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1729,7 +1729,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W034",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W034. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1742,7 +1742,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W034",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W034. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1755,7 +1755,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W034",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W034. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1768,7 +1768,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W035",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W035. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1781,7 +1781,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W035",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W035. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1794,7 +1794,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W035",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W035. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1807,7 +1807,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W035",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W035. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1820,7 +1820,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W036",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W036. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1833,7 +1833,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W036",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W036. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1846,7 +1846,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W036",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W036. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1859,7 +1859,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W036",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W036. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1872,7 +1872,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W037",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W037. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1885,7 +1885,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W037",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W037. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1898,7 +1898,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W037",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W037. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1911,7 +1911,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W037",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W037. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1924,7 +1924,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W038",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W038. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1937,7 +1937,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W038",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W038. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -1950,7 +1950,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W038",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W038. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -1963,7 +1963,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W038",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W038. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -1976,7 +1976,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W039",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W039. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -1989,7 +1989,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W039",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W039. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2002,7 +2002,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W039",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W039. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2015,7 +2015,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W039",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W039. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2028,7 +2028,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W040",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W040. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2041,7 +2041,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W040",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W040. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2054,7 +2054,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W040",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W040. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2067,7 +2067,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W040",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W040. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2080,7 +2080,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W041",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W041. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2093,7 +2093,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W041",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W041. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2106,7 +2106,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W041",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W041. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2119,7 +2119,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W041",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W041. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2132,7 +2132,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W042",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W042. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2145,7 +2145,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W042",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W042. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2158,7 +2158,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W042",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W042. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2171,7 +2171,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W042",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W042. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2184,7 +2184,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W043",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W043. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2197,7 +2197,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W043",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W043. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2210,7 +2210,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W043",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W043. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2223,7 +2223,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W043",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W043. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2236,7 +2236,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W044",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W044. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2249,7 +2249,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W044",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W044. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2262,7 +2262,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W044",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W044. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2275,7 +2275,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W044",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W044. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2288,7 +2288,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W045",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W045. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2301,7 +2301,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W045",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W045. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2314,7 +2314,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W045",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W045. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2327,7 +2327,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W045",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W045. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2340,7 +2340,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W046",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W046. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2353,7 +2353,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W046",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W046. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2366,7 +2366,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W046",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W046. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2379,7 +2379,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W046",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W046. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2392,7 +2392,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W047",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W047. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2405,7 +2405,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W047",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W047. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2418,7 +2418,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W047",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W047. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2431,7 +2431,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W047",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W047. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2444,7 +2444,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W048",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W048. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2457,7 +2457,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W048",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W048. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2470,7 +2470,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W048",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W048. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2483,7 +2483,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W048",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W048. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2496,7 +2496,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W049",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W049. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2509,7 +2509,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W049",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W049. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2522,7 +2522,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W049",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W049. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2535,7 +2535,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W049",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W049. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2548,7 +2548,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W050",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W050. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2561,7 +2561,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W050",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W050. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2574,7 +2574,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W050",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W050. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2587,7 +2587,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W050",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W050. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2600,7 +2600,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W051",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W051. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2613,7 +2613,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W051",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W051. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2626,7 +2626,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W051",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W051. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2639,7 +2639,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W051",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W051. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2652,7 +2652,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W052",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W052. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2665,7 +2665,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W052",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W052. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2678,7 +2678,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W052",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W052. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2691,7 +2691,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W052",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W052. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2704,7 +2704,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W053",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W053. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2717,7 +2717,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W053",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W053. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2730,7 +2730,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W053",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W053. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2743,7 +2743,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W053",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W053. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2756,7 +2756,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W054",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W054. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2769,7 +2769,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W054",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W054. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2782,7 +2782,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W054",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W054. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2795,7 +2795,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W054",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W054. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2808,7 +2808,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W055",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W055. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2821,7 +2821,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W055",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W055. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2834,7 +2834,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W055",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W055. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2847,7 +2847,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W055",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W055. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2860,7 +2860,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W056",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W056. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2873,7 +2873,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W056",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W056. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2886,7 +2886,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W056",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W056. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2899,7 +2899,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W056",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W056. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2912,7 +2912,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W057",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W057. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2925,7 +2925,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W057",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W057. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2938,7 +2938,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W057",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W057. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -2951,7 +2951,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W057",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W057. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -2964,7 +2964,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W058",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W058. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -2977,7 +2977,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W058",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W058. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -2990,7 +2990,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W058",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W058. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3003,7 +3003,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W058",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W058. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3016,7 +3016,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W059",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W059. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3029,7 +3029,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W059",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W059. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3042,7 +3042,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W059",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W059. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3055,7 +3055,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W059",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W059. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3068,7 +3068,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W060",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W060. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3081,7 +3081,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W060",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W060. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3094,7 +3094,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W060",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W060. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3107,7 +3107,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W060",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W060. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3120,7 +3120,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W061",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W061. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3133,7 +3133,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W061",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W061. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3146,7 +3146,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W061",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W061. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3159,7 +3159,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W061",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W061. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3172,7 +3172,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W062",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W062. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3185,7 +3185,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W062",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W062. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3198,7 +3198,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W062",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W062. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3211,7 +3211,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W062",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W062. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3224,7 +3224,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W063",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W063. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3237,7 +3237,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W063",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W063. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3250,7 +3250,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W063",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W063. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3263,7 +3263,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W063",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W063. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3276,7 +3276,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W064",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W064. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3289,7 +3289,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W064",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W064. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3302,7 +3302,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W064",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W064. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3315,7 +3315,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W064",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W064. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3328,7 +3328,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W065",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W065. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3341,7 +3341,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W065",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W065. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3354,7 +3354,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W065",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W065. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3367,7 +3367,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W065",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W065. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3380,7 +3380,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W066",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W066. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3393,7 +3393,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W066",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W066. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3406,7 +3406,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W066",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W066. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3419,7 +3419,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W066",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W066. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3432,7 +3432,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W067",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W067. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3445,7 +3445,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W067",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W067. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3458,7 +3458,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W067",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W067. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3471,7 +3471,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W067",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W067. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3484,7 +3484,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W068",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W068. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3497,7 +3497,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W068",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W068. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3510,7 +3510,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W068",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W068. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3523,7 +3523,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W068",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W068. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3536,7 +3536,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W069",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W069. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3549,7 +3549,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W069",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W069. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3562,7 +3562,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W069",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W069. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3575,7 +3575,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W069",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W069. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3588,7 +3588,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W070",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W070. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3601,7 +3601,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W070",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W070. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3614,7 +3614,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W070",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W070. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3627,7 +3627,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W070",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W070. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3640,7 +3640,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W071",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W071. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3653,7 +3653,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W071",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W071. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3666,7 +3666,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W071",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W071. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3679,7 +3679,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W071",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W071. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3692,7 +3692,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W072",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W072. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3705,7 +3705,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W072",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W072. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3718,7 +3718,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W072",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W072. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3731,7 +3731,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W072",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W072. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3744,7 +3744,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W073",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W073. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3757,7 +3757,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W073",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W073. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3770,7 +3770,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W073",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W073. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3783,7 +3783,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W073",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W073. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3796,7 +3796,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W074",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W074. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3809,7 +3809,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W074",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W074. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3822,7 +3822,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W074",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W074. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3835,7 +3835,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W074",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W074. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3848,7 +3848,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W075",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W075. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3861,7 +3861,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W075",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W075. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3874,7 +3874,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W075",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W075. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3887,7 +3887,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W075",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W075. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3900,7 +3900,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W076",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W076. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3913,7 +3913,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W076",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W076. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3926,7 +3926,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W076",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W076. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3939,7 +3939,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W076",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W076. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -3952,7 +3952,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W077",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W077. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -3965,7 +3965,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W077",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W077. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -3978,7 +3978,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W077",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W077. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -3991,7 +3991,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W077",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W077. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4004,7 +4004,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W078",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W078. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4017,7 +4017,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W078",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W078. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4030,7 +4030,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W078",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W078. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4043,7 +4043,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W078",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W078. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4056,7 +4056,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W079",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W079. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4069,7 +4069,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W079",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W079. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4082,7 +4082,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W079",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W079. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4095,7 +4095,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W079",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W079. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4108,7 +4108,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W080",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W080. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4121,7 +4121,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W080",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W080. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4134,7 +4134,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W080",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W080. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4147,7 +4147,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W080",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W080. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4160,7 +4160,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W081",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W081. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4173,7 +4173,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W081",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W081. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4186,7 +4186,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W081",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W081. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4199,7 +4199,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W081",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W081. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4212,7 +4212,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W082",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W082. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4225,7 +4225,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W082",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W082. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4238,7 +4238,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W082",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W082. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4251,7 +4251,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W082",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W082. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4264,7 +4264,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W083",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W083. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4277,7 +4277,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W083",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W083. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4290,7 +4290,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W083",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W083. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4303,7 +4303,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W083",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W083. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4316,7 +4316,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W084",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W084. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4329,7 +4329,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W084",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W084. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4342,7 +4342,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W084",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W084. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4355,7 +4355,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W084",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W084. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4368,7 +4368,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W085",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W085. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4381,7 +4381,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W085",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W085. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4394,7 +4394,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W085",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W085. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4407,7 +4407,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W085",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W085. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4420,7 +4420,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W086",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W086. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4433,7 +4433,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W086",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W086. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4446,7 +4446,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W086",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W086. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4459,7 +4459,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W086",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W086. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4472,7 +4472,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W087",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W087. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4485,7 +4485,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W087",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W087. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4498,7 +4498,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W087",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W087. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4511,7 +4511,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W087",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W087. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4524,7 +4524,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W088",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W088. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4537,7 +4537,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W088",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W088. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4550,7 +4550,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W088",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W088. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4563,7 +4563,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W088",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W088. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4576,7 +4576,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W089",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W089. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4589,7 +4589,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W089",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W089. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4602,7 +4602,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W089",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W089. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4615,7 +4615,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W089",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W089. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4628,7 +4628,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W090",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W090. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4641,7 +4641,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W090",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W090. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4654,7 +4654,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W090",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W090. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4667,7 +4667,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W090",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W090. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4680,7 +4680,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W091",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W091. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4693,7 +4693,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W091",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W091. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4706,7 +4706,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W091",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W091. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4719,7 +4719,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W091",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W091. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4732,7 +4732,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W092",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W092. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4745,7 +4745,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W092",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W092. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4758,7 +4758,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W092",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W092. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4771,7 +4771,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W092",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W092. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4784,7 +4784,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W093",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W093. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4797,7 +4797,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W093",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W093. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4810,7 +4810,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W093",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W093. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4823,7 +4823,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W093",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W093. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4836,7 +4836,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W094",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W094. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4849,7 +4849,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W094",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W094. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4862,7 +4862,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W094",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W094. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4875,7 +4875,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W094",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W094. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4888,7 +4888,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W095",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W095. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4901,7 +4901,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W095",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W095. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4914,7 +4914,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W095",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W095. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4927,7 +4927,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W095",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W095. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4940,7 +4940,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W096",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W096. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -4953,7 +4953,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W096",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W096. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -4966,7 +4966,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W096",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W096. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -4979,7 +4979,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W096",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W096. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -4992,7 +4992,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W097",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W097. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5005,7 +5005,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W097",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W097. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5018,7 +5018,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W097",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W097. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5031,7 +5031,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W097",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W097. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5044,7 +5044,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W098",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W098. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5057,7 +5057,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W098",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W098. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5070,7 +5070,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W098",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W098. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5083,7 +5083,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W098",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W098. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5096,7 +5096,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W099",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W099. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5109,7 +5109,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W099",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W099. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5122,7 +5122,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W099",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W099. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5135,7 +5135,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W099",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W099. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5148,7 +5148,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W100",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W100. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5161,7 +5161,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W100",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W100. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5174,7 +5174,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W100",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W100. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5187,7 +5187,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W100",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W100. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5200,7 +5200,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W101",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W101. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5213,7 +5213,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W101",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W101. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5226,7 +5226,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W101",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W101. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5239,7 +5239,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W101",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W101. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5252,7 +5252,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W102",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W102. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5265,7 +5265,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W102",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W102. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5278,7 +5278,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W102",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W102. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5291,7 +5291,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W102",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W102. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5304,7 +5304,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W103",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W103. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5317,7 +5317,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W103",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W103. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5330,7 +5330,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W103",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W103. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5343,7 +5343,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W103",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W103. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5356,7 +5356,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W104",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W104. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5369,7 +5369,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W104",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W104. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5382,7 +5382,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W104",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W104. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5395,7 +5395,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W104",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W104. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5408,7 +5408,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W105",
+    "category": "GPU",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W105. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5421,7 +5421,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W105",
+    "category": "GPU",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W105. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5434,7 +5434,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W105",
+    "category": "GPU",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W105. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5447,7 +5447,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W105",
+    "category": "GPU",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W105. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5460,7 +5460,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W106",
+    "category": "服务器",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W106. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5473,7 +5473,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W106",
+    "category": "服务器",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W106. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5486,7 +5486,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W106",
+    "category": "服务器",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W106. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5499,7 +5499,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W106",
+    "category": "服务器",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W106. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5512,7 +5512,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W107",
+    "category": "存储",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W107. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5525,7 +5525,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W107",
+    "category": "存储",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W107. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5538,7 +5538,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W107",
+    "category": "存储",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W107. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5551,7 +5551,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W107",
+    "category": "存储",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W107. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
@@ -5564,7 +5564,7 @@
     "warranty_months": 12
   },
   {
-    "category": "M4 Procurement Segment W108",
+    "category": "网络",
     "delivery_days": 5,
     "description": "Dedicated product for isolated M4 procurement world W108. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 64,
@@ -5577,7 +5577,7 @@
     "warranty_months": 36
   },
   {
-    "category": "M4 Procurement Segment W108",
+    "category": "网络",
     "delivery_days": 7,
     "description": "Dedicated product for isolated M4 procurement world W108. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 48,
@@ -5590,7 +5590,7 @@
     "warranty_months": 24
   },
   {
-    "category": "M4 Procurement Segment W108",
+    "category": "网络",
     "delivery_days": 12,
     "description": "Dedicated product for isolated M4 procurement world W108. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 96,
@@ -5603,7 +5603,7 @@
     "warranty_months": 48
   },
   {
-    "category": "M4 Procurement Segment W108",
+    "category": "网络",
     "delivery_days": 20,
     "description": "Dedicated product for isolated M4 procurement world W108. Inspect product and supplier details before submitting a decision.",
     "memory_gb": 24,
