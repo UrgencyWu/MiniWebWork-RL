@@ -72,6 +72,7 @@ class ReplayGroup:
     policy: str
     temperature: float
     top_p: float
+    top_k: int
     trajectories: tuple[TrajectoryReplay, ...]
 
     @property
@@ -89,7 +90,7 @@ def build_replay_group(
 ) -> ReplayGroup:
     """Validate a rollout group and attach group-relative advantages.
 
-    Diagnostic top-p groups must pass
+    Diagnostic truncated groups must pass
     ``update_distribution_compatible=False`` and are rejected here even when
     they contain mixed rewards. This prevents a readiness artifact from being
     silently reused as an optimizer batch.
@@ -139,6 +140,7 @@ def build_replay_group(
         policy=summary.policy,
         temperature=summary.temperature,
         top_p=summary.top_p,
+        top_k=summary.top_k,
         trajectories=tuple(trajectories),
     )
 
