@@ -66,6 +66,9 @@ def build_m4_oracle_sft_dataset(
     seed_dir: Path = DEFAULT_SEED_DIR,
     max_steps: int = 20,
     task_limit: int | None = None,
+    purpose: str = "offline_training",
+    sample_split: str = "train",
+    output_filename: str = "train.jsonl",
 ) -> dict[str, Any]:
     """Replay all requested train oracle trajectories and emit SFT JSONL.
 
@@ -80,7 +83,9 @@ def build_m4_oracle_sft_dataset(
         raise ValueError("max_steps must be positive")
     if task_limit is not None and task_limit <= 0:
         raise ValueError("task_limit must be positive")
-    split_manifest = assert_m4_split_purpose(task_dir, "offline_training")
+    if output_filename != Path(output_filename).name or not output_filename.endswith(".jsonl"):
+        raise ValueError("output_filename must be a bare .jsonl filename")
+    split_manifest = assert_m4_split_purpose(task_dir, purpose)
     tasks = sorted(load_public_tasks(task_dir), key=lambda task: task["task_id"])
     if task_limit is not None:
         tasks = tasks[:task_limit]
@@ -116,7 +121,7 @@ def build_m4_oracle_sft_dataset(
                     {
                         "sample_id": f"{task_id}:turn:{turn_index}",
                         "dataset_id": DATASET_ID,
-                        "split": "train",
+                        "split": sample_split,
                         "task_id": task_id,
                         "task_type": task.get("task_type", "unknown"),
                         "source": "m4_oracle_browser_replay",
@@ -146,16 +151,71 @@ def build_m4_oracle_sft_dataset(
         "dataset_id": DATASET_ID,
         "task_source_dataset_id": split_manifest["dataset_id"],
         "task_split": split_manifest["split"],
+        "purpose": purpose,
+        "sample_split": sample_split,
         "task_count": len(tasks),
         "sample_count": len(records),
         "max_steps": max_steps,
         "prompt_contract": getattr(prompt_builder, "PROMPT_VERSION", "unknown"),
         "task_split_manifest_sha256": _sha256(task_dir / "m4_split_manifest.json"),
         "seed_manifest_sha256": _sha256(seed_dir / "manifest.json"),
-        "train_sha256": hashlib.sha256(train_text.encode("utf-8")).hexdigest(),
+        "output_filename": output_filename,
+        "records_sha256": hashlib.sha256(train_text.encode("utf-8")).hexdigest(),
         "task_summaries": task_summaries,
     }
-    _atomic_write(output_dir / "train.jsonl", train_text)
+    _atomic_write(output_dir / output_filename, train_text)
+    _atomic_write(
+        output_dir / "manifest.json",
+        json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+    )
+    return manifest
+
+
+def build_m4_oracle_sft_corpus(
+    output_dir: Path = DEFAULT_OUTPUT_DIR,
+    *,
+    train_task_dir: Path = DEFAULT_TASK_DIR,
+    dev_task_dir: Path = PROJECT_ROOT / "data" / "tasks" / "m4_rlvr_v1" / "dev",
+    seed_dir: Path = DEFAULT_SEED_DIR,
+    max_steps: int = 20,
+    train_task_limit: int | None = None,
+    dev_task_limit: int | None = None,
+) -> dict[str, Any]:
+    """Build train-only supervision plus a dev-only model-selection corpus."""
+    output_dir = output_dir.expanduser().resolve()
+    if train_task_limit is not None and train_task_limit <= 0:
+        raise ValueError("train_task_limit must be positive")
+    if dev_task_limit is not None and dev_task_limit <= 0:
+        raise ValueError("dev_task_limit must be positive")
+    train = build_m4_oracle_sft_dataset(
+        output_dir,
+        task_dir=train_task_dir,
+        seed_dir=seed_dir,
+        max_steps=max_steps,
+        task_limit=train_task_limit,
+        purpose="offline_training",
+        sample_split="train",
+        output_filename="train.jsonl",
+    )
+    dev = build_m4_oracle_sft_dataset(
+        output_dir,
+        task_dir=dev_task_dir,
+        seed_dir=seed_dir,
+        max_steps=max_steps,
+        task_limit=dev_task_limit,
+        purpose="model_selection",
+        sample_split="dev",
+        output_filename="valid.jsonl",
+    )
+    manifest = {
+        "schema_version": "1.0",
+        "dataset_id": DATASET_ID,
+        "train": train,
+        "dev": dev,
+        "train_sha256": _sha256(output_dir / "train.jsonl"),
+        "valid_sha256": _sha256(output_dir / "valid.jsonl"),
+        "selection_boundary": "dev examples are evaluation/model-selection only, never optimizer samples",
+    }
     _atomic_write(
         output_dir / "manifest.json",
         json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",

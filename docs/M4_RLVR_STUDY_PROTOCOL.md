@@ -80,7 +80,11 @@ training examples.
 RSFT samples and verifies candidates only in the train split.  It records the
 candidate count, successes, selected trajectory IDs and discarded failures; a
 seed with no usable RSFT examples is reported as a protocol outcome rather than
-silently substituted with oracle data.
+silently substituted with oracle data.  Its two collection passes use separate,
+deterministically derived collection seeds while retaining the common study
+seed and one fixed initial-adapter hash in every artifact.  The corpus builder
+rejects a missing pass, a duplicated pass index, a changed initial adapter, or
+any non-train trajectory.
 
 For online methods `K=4` trajectories are collected for each same-task group.
 RLOO uses `r_i - mean(r_-i)`.  GRPO uses the population-standard-deviation
@@ -103,9 +107,13 @@ at that cap is recorded and applied to every online method.  The deterministic
 task order is a seed-specific permutation fixed before collection.
 
 SFT and RSFT use the same two-pass train-world roster and a completion-token
-budget no larger than 250,000.  Their model-forward tokens, optimizer steps,
-wall time and peak GPU memory are still logged separately because offline NLL
-and browser rollouts do not have identical hardware costs.
+budget no larger than 250,000.  Formal offline runs require the complete
+240-task train corpus and 72-task dev-only validation corpus; they reject
+partial smoke corpora and token rows outside their declared split.  The LoRA
+initialization and sampler both receive the study seed before model creation.
+Their model-forward tokens, optimizer steps, wall time and peak GPU memory are
+still logged separately because offline NLL and browser rollouts do not have
+identical hardware costs.
 
 The required primary matrix contains 15 runs:
 

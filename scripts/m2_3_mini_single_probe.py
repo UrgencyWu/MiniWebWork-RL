@@ -664,6 +664,18 @@ def main() -> None:
     parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--K", type=int, default=DEFAULT_K)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--study-seed",
+        type=int,
+        default=None,
+        help="Optional experiment-level seed retained when --seed is pass-specific.",
+    )
+    parser.add_argument(
+        "--collection-pass-index",
+        type=int,
+        default=None,
+        help="Optional one-based pass index retained in the artifact provenance.",
+    )
     parser.add_argument("--split", choices=["train", "valid", "dev", "test"], default="valid")
     parser.add_argument("--max-tasks", type=int, default=None)
     parser.add_argument("--max-model-turns", type=int, default=MAX_MODEL_TURNS)
@@ -691,6 +703,8 @@ def main() -> None:
         raise ValueError("max-model-turns and max-env-steps must be positive")
     if args.max_output_failures <= 0:
         raise ValueError("max-output-failures must be positive")
+    if args.collection_pass_index is not None and args.collection_pass_index <= 0:
+        raise ValueError("collection-pass-index must be positive")
 
     task_dir = args.task_dir.expanduser().resolve()
     seed_dir = args.seed_dir.expanduser().resolve() if args.seed_dir else None
@@ -800,6 +814,8 @@ def main() -> None:
                     "strict_logprob_match_tolerance": STRICT_LOGPROB_MATCH_TOLERANCE,
                     "K": args.K,
                     "seed": args.seed,
+                    "study_seed": args.study_seed if args.study_seed is not None else args.seed,
+                    "collection_pass_index": args.collection_pass_index,
                     "task_source_sha256": task_source_hash,
                     "seed_dir": str(seed_dir) if seed_dir else None,
                     "adapter_sha256": adapter_hash,
@@ -836,6 +852,8 @@ def main() -> None:
             "strict_logprob_match_tolerance": STRICT_LOGPROB_MATCH_TOLERANCE,
             "K": args.K,
             "seed": args.seed,
+            "study_seed": args.study_seed if args.study_seed is not None else args.seed,
+            "collection_pass_index": args.collection_pass_index,
             "max_model_turns": args.max_model_turns,
             "max_environment_steps": args.max_env_steps,
             "max_output_failures": args.max_output_failures,

@@ -24,6 +24,7 @@ from transformers import (
     DataCollatorWithPadding,
     Trainer,
     TrainingArguments,
+    set_seed,
 )
 
 
@@ -117,6 +118,26 @@ def tokenize_with_completion_mask(example: dict, tokenizer, max_length: int) -> 
 
 def prepare_dataset(ds, tokenizer, max_length: int, num_proc: int = 1) -> "datasets.Dataset":
     """Pre-tokenize dataset with completion-only labels."""
+    required_token_columns = {"input_ids", "attention_mask", "labels"}
+    if required_token_columns <= set(ds.column_names):
+        # RSFT rows originate from strict rollout evidence, so reapplying a
+        # chat template could change their prompt/token boundary. Preserve the
+        # recorded IDs and discard provenance columns only after validating the
+        # completion-only mask contract.
+        tokenized = ds.remove_columns(
+            [column for column in ds.column_names if column not in required_token_columns]
+        )
+        for example in tokenized:
+            if not (
+                len(example["input_ids"])
+                == len(example["attention_mask"])
+                == len(example["labels"])
+            ):
+                raise ValueError("pre-tokenized SFT row has inconsistent sequence lengths")
+            if not any(label != -100 for label in example["labels"]):
+                raise ValueError("pre-tokenized SFT row has no completion labels")
+        print(f"  Using {len(tokenized)} pre-tokenized completion-only rows")
+        return tokenized
     print(f"  Tokenizing (max_length={max_length})...")
 
     def tokenize_fn(example):
@@ -137,6 +158,14 @@ def prepare_dataset(ds, tokenizer, max_length: int, num_proc: int = 1) -> "datas
     print(f"  Sample: {total_tokens - completion_tokens} prompt + {completion_tokens} completion tokens")
 
     return tokenized
+
+
+def completion_label_token_count(dataset) -> int:
+    """Count the exact supervised action-token labels in a prepared dataset."""
+    return sum(
+        sum(label != -100 for label in example["labels"])
+        for example in dataset
+    )
 
 
 def find_latest_checkpoint(seed_dir: Path) -> str | None:
@@ -215,6 +244,7 @@ def train_single_seed(
     batch_size: int,
     grad_accum: int,
     resume_from_checkpoint: str = None,
+    max_supervised_completion_tokens: int | None = None,
 ) -> dict:
     """Train a single seed. Supports checkpoint resumption."""
     print(f"\n{'='*60}")
@@ -223,6 +253,9 @@ def train_single_seed(
 
     seed_dir = output_dir / f"seed_{seed}"
     seed_dir.mkdir(parents=True, exist_ok=True)
+    # This has to happen before LoRA construction, not only inside Trainer,
+    # because LoRA parameter initialization itself is randomized.
+    set_seed(seed)
 
     # Load tokenizer
     print("Loading tokenizer...")
@@ -237,6 +270,18 @@ def train_single_seed(
     train_dataset = prepare_dataset(train_dataset, tokenizer, max_length, num_proc=1)
     eval_dataset_raw = eval_dataset  # Keep raw for action metrics
     eval_dataset = prepare_dataset(eval_dataset, tokenizer, max_length, num_proc=1)
+    completion_tokens_per_epoch = completion_label_token_count(train_dataset)
+    if completion_tokens_per_epoch <= 0:
+        raise ValueError("SFT train dataset has no completion tokens")
+    planned_supervised_completion_tokens = completion_tokens_per_epoch * num_epochs
+    if (
+        max_supervised_completion_tokens is not None
+        and planned_supervised_completion_tokens > max_supervised_completion_tokens
+    ):
+        raise ValueError(
+            "planned supervised completion tokens exceed cap: "
+            f"{planned_supervised_completion_tokens} > {max_supervised_completion_tokens}"
+        )
 
     # Find checkpoint to resume from
     checkpoint = resume_from_checkpoint
@@ -308,6 +353,8 @@ def train_single_seed(
         remove_unused_columns=True,
         dataloader_num_workers=0,
         dataloader_persistent_workers=False,
+        seed=seed,
+        data_seed=seed,
     )
     print(f"  Effective batch size: {batch_size * grad_accum}")
     print(f"  Max length: {max_length}")
@@ -379,6 +426,9 @@ def train_single_seed(
         "lora_r": LORA_R,
         "max_length": max_length,
         "effective_batch_size": batch_size * grad_accum,
+        "completion_tokens_per_epoch": completion_tokens_per_epoch,
+        "planned_supervised_completion_tokens": planned_supervised_completion_tokens,
+        "max_supervised_completion_tokens": max_supervised_completion_tokens,
     }
     metrics_path = seed_dir / "metrics.json"
     metrics_path.write_text(json.dumps(all_metrics, indent=2, ensure_ascii=False))
@@ -392,6 +442,12 @@ def main():
     parser = argparse.ArgumentParser(description="M2.2 LoRA SFT Trainer")
     parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
     parser.add_argument("--data-dir", type=Path, default=Path("data/sft/m2_2"))
+    parser.add_argument(
+        "--valid-data-dir",
+        type=Path,
+        default=None,
+        help="Optional directory containing valid.jsonl (for tokenized RSFT train data).",
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/m2_2"))
     parser.add_argument("--seeds", type=int, nargs="+", default=DEFAULT_SEEDS)
     parser.add_argument("--max-length", type=int, default=DEFAULT_MAX_LENGTH)
@@ -400,6 +456,7 @@ def main():
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument("--grad-accum", type=int, default=DEFAULT_GRAD_ACCUM)
     parser.add_argument("--resume-from-checkpoint", type=str, default=None)
+    parser.add_argument("--max-supervised-completion-tokens", type=int, default=None)
     args = parser.parse_args()
 
     print("=== M2.2 LoRA SFT Trainer ===")
@@ -413,7 +470,7 @@ def main():
     # Load raw conversational datasets
     print("\nLoading datasets...")
     train_ds = load_raw_dataset(args.data_dir, "train")
-    valid_ds = load_raw_dataset(args.data_dir, "valid")
+    valid_ds = load_raw_dataset(args.valid_data_dir or args.data_dir, "valid")
 
     # Train each seed
     all_metrics = []
@@ -430,6 +487,7 @@ def main():
             batch_size=args.batch_size,
             grad_accum=args.grad_accum,
             resume_from_checkpoint=args.resume_from_checkpoint,
+            max_supervised_completion_tokens=args.max_supervised_completion_tokens,
         )
         all_metrics.append(metrics)
 
@@ -447,6 +505,7 @@ def main():
             "lora_r": LORA_R,
             "lora_alpha": LORA_ALPHA,
             "seeds": args.seeds,
+            "max_supervised_completion_tokens": args.max_supervised_completion_tokens,
         },
         "seeds": all_metrics,
     }

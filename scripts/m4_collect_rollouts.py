@@ -10,6 +10,7 @@ the already audited M3 implementation.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -28,6 +29,14 @@ from miniwebwork.m4_protocol import (
 )
 
 
+def _collection_seed(study_seed: int, pass_index: int | None) -> int:
+    """Derive reproducible but distinct RNG streams for ordered M4 passes."""
+    if pass_index is None:
+        return study_seed
+    digest = hashlib.sha256(f"m4_rlvr_v1:{study_seed}:pass:{pass_index}".encode("ascii")).digest()
+    return int.from_bytes(digest[:4], "big", signed=False)
+
+
 def _collector_command(
     config: M4RunConfig,
     *,
@@ -36,7 +45,13 @@ def _collector_command(
     task_root: Path,
     seed_dir: Path,
     max_tasks: int | None,
+    train_pass_index: int | None,
 ) -> list[str]:
+    if config.phase == "train":
+        if train_pass_index not in range(1, config.online_passes + 1):
+            raise ValueError(f"train_pass_index must be in [1, {config.online_passes}]")
+    elif train_pass_index is not None:
+        raise ValueError("train_pass_index is only valid for M4 train collection")
     split = config.split
     k = config.group_size if config.phase == "train" else config.eval_rollouts_per_task
     command = [
@@ -59,6 +74,8 @@ def _collector_command(
         "--K",
         str(k),
         "--seed",
+        str(_collection_seed(config.seed, train_pass_index)),
+        "--study-seed",
         str(config.seed),
         "--temperature",
         str(config.temperature),
@@ -75,6 +92,8 @@ def _collector_command(
         "--study-id",
         "m4_rlvr_v1",
     ]
+    if train_pass_index is not None:
+        command.extend(["--collection-pass-index", str(train_pass_index)])
     if max_tasks is not None:
         command.extend(["--max-tasks", str(max_tasks)])
     return command
@@ -90,6 +109,7 @@ def main() -> int:
     parser.add_argument("--task-root", type=Path, default=DEFAULT_TASK_ROOT)
     parser.add_argument("--seed-dir", type=Path, default=DEFAULT_SEED_DIR)
     parser.add_argument("--max-tasks", type=int, default=None)
+    parser.add_argument("--train-pass-index", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.max_tasks is not None and args.max_tasks <= 0:
@@ -109,7 +129,13 @@ def main() -> int:
         task_root=task_root,
         seed_dir=seed_dir,
         max_tasks=args.max_tasks,
+        train_pass_index=args.train_pass_index,
     )
+    manifest["collection"] = {
+        "study_seed": config.seed,
+        "collection_seed": _collection_seed(config.seed, args.train_pass_index),
+        "train_pass_index": args.train_pass_index,
+    }
     print(json.dumps({"run_manifest": manifest, "collector_command": command}, indent=2))
     if args.dry_run:
         return 0
