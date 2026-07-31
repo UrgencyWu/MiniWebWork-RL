@@ -6,7 +6,7 @@
 
 MiniWebWork-RL 是一个面向采购调研流程的轻量浏览器 Agent 算法项目。模型读取文本化浏览器状态，通过固定 JSON 动作空间操作本地确定性网站，并由非 LLM Verifier 计算终态奖励。
 
-项目目标不是复现通用 WebArena，也不是构建第三方 Agent 编排框架。目标是形成一条可解释、可训练、可审计的最小 Agentic RL 链路：
+项目目标不是复现通用 WebArena，也不是构建第三方 Agent 编排框架。目标是形成一条可解释、可训练、可审计的最小多轮 Agentic RL 链路：
 
 ```text
 Task
@@ -14,7 +14,7 @@ Task
 → Qwen Policy
 → Multi-turn Rollout
 → Deterministic Verifier Reward
-→ SFT / GRPO Policy Update
+→ SFT / GRPO-style Policy Update
 → Frozen Evaluation
 ```
 
@@ -30,9 +30,10 @@ Task
 | M2.2 | 首轮 LoRA SFT；发现训练—推理合同漂移 | SUPERSEDED |
 | M2.2R | Canonical Contract v2、三 seed SFT、Frozen E2E | PASS |
 | M3.0A | Rollout readiness audit；no-solution 奖励方差不足 | PASS / Route B |
-| M2.3-mini | no-solution + recovery 数据补丁、继续训练 | TRAINING PASS |
-| M2.3-mini Probe | 唯一权威 Probe 已重构；GPU 全量重跑待执行 | PENDING |
-| M3.0B | Outcome-only GRPO single-batch pilot | NOT STARTED |
+| M2.3-mini | no-solution + recovery 数据补丁、继续训练 | PASS |
+| M2.3-mini Readiness Probe | `T=0.2, top_p=0.9` canonical GPU probe | PASS |
+| M3.0B-0 | 严格更新分布采集与 A/B 策略选择 | IN PROGRESS |
+| M3.0B-1 | 单 batch LoRA gradient/checkpoint smoke | NOT STARTED |
 
 正式状态：
 
@@ -40,9 +41,10 @@ Task
 M2_3_MINI_DATA_PASS=true
 M2_3_MINI_TRAINING_PASS=true
 M2_3_MINI_ADAPTER_LOAD_CONTRACT_PASS=true
-CANONICAL_ROLLOUT_PIPELINE_IMPLEMENTED=true
-CANONICAL_ROLLOUT_GPU_RERUN_PENDING=true
-READY_FOR_GRPO=false
+M2_3_MINI_CANONICAL_PROBE_PASS=true
+NO_SOLUTION_ROLLOUT_CAPABILITY_CONFIRMED=true
+READY_FOR_STRICT_ON_POLICY_COLLECTION=true
+READY_FOR_GRPO_UPDATE=false
 ```
 
 ## 3. 已冻结结果
@@ -79,7 +81,7 @@ Frozen Test 得分不得用于 checkpoint 选择。
 - stochastic rollout probe：`seed_1234` 与 `seed_20260726` 合计 0/16 success，组内 reward variance 为 0；
 - 路由：不直接执行 outcome-only GRPO，先做 M2.3-mini 数据补丁。
 
-### 3.4 M2.3-mini
+### 3.4 M2.3-mini 数据与训练
 
 - 新专家任务：28 train + 10 valid，Expert 100% 成功；
 - Recovery states：300；
@@ -88,11 +90,30 @@ Frozen Test 得分不得用于 checkpoint 选择。
 - Patch Valid：Exact Match 100%，Schema Valid 100%；
 - Adapter：CPU/CUDA forward 和 generation 审计通过。
 
-这些指标证明数据和训练管道成立，不代表闭环 rollout 已通过。正式结论必须等待修复后的 canonical probe 重跑。
+### 3.5 M2.3-mini Canonical Readiness Probe
 
-## 4. 2026-07-31 合同收敛
+修复 `PlaywrightThreadManager.start(headless=...)` monkey-patch 签名后，canonical GPU probe 完整通过。根据集群正式产物汇总：
 
-代码和文档已统一到以下合同：
+```text
+complete = true
+infrastructure_errors = 0
+raw_policy_logprob_coverage = 1.0
+sampling_logprob_coverage = 1.0
+no_solution_successes: A_M2.2R = 58
+no_solution_successes: B_M2.3-mini = 43
+valid_for_grpo_update = false
+```
+
+最后一项是预期结果：该 readiness probe 使用 `temperature=0.2, top_p=0.9`，只证明闭环探索能力、完整 token/logprob 证据和 mixed-reward 学习信号，不是首个严格策略更新分布。
+
+当前结论边界：
+
+- A、B 均具备 no-solution 闭环能力；
+- M2.3-mini 已解决原先全零奖励、无法启动 RL 的问题；
+- 单次汇总中 B 的成功数低于 A，不能在缺少配对分析和多 seed 复验时宣称补丁优于 A，也不能直接归因于采样方差；
+- 当前 no-solution-only 开发集不能评估 feasible-task 退化或 false no-solution。
+
+## 4. 已冻结运行合同
 
 - Action Schema v1.1：`submit` 可作用于 button；
 - Prompt Contract v2：Base、SFT、E2E 和 rollout 共用；
@@ -101,53 +122,75 @@ Frozen Test 得分不得用于 checkpoint 选择。
 - Web：episode 与 task 绑定，页面导航保持上下文；
 - Verifier：检查 episode/task、单一 submission、约束和目标最优性；
 - Failure：策略失败 reward 0，基础设施失败 reward null；
-- Rollout：保存 prompt/completion tokens、原始策略 log-prob 和可选采样分布 log-prob；
+- Rollout：保存 prompt/completion tokens、原始策略 log-prob 和采样分布 log-prob；
+- Distribution identity：每条 trajectory 和 group 显式保存 `temperature + top_p`；
 - Metrics：Schema、环境动作和任务成功使用明确且互不混淆的分母；
 - Slurm：禁止全局 `pkill`，禁止 Python 在 CUDA 初始化后改写设备可见性。
 
-已删除：旧 M2.3 Probe/Comparison、browser-agent-v1 SFT builder、主机专用环境转储和重复 Sync Observation 实现。
-
-## 5. 当前唯一权威执行路径
+## 5. 当前权威入口
 
 ```text
 scripts/m2_3_mini_single_probe.py
 scripts/slurm/m2_3_mini_single_probe.sbatch
+scripts/analyze_probe_ab.py
 ```
 
-旧脚本包含硬编码路径、错误 reward 归因或 Schema-invalid fallback，不得从历史提交恢复为正式入口。
+Slurm 参数：
 
-单任务 smoke：
-
-```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 1 1
+```text
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P]
 ```
 
-正式 A/B：
+Readiness probe：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9
+```
+
+严格更新分布采集：
+
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0
+```
+
+A/B 配对分析：
+
+```bash
+python scripts/analyze_probe_ab.py \
+  --a outputs/m2_3_mini/<A_ARTIFACT>.json \
+  --b outputs/m2_3_mini/<B_ARTIFACT>.json \
+  --output outputs/m2_3_mini/paired_ab.json
 ```
 
 ## 6. M3.0B 准入条件
 
-只有同时满足以下条件，才能启动策略梯度更新：
+### 6.1 已满足：诊断 readiness
 
-1. 基础设施错误不进入 reward，正式 rollout 中基础设施错误率接近 0；
-2. 至少一个任务组同时包含 reward 0 和 reward 1；
-3. 至少一个 no-solution rollout 成功；
-4. 每个模型 turn 保存准确的 prompt token IDs、completion token IDs、原始 old-policy log-probabilities；
-5. stochastic rollout 同时保留采样分布 log-probabilities，用于诊断或采样—训练分布校正；
-6. M2.3-mini 不显著提高 false no-solution；
-7. 通用任务能力相对 M2.2R 不明显退化；
-8. Frozen Test 未用于采样温度、checkpoint 或超参数选择。
+1. 基础设施失败不进入 reward；
+2. canonical probe infrastructure error 为 0；
+3. raw/sampling logprob coverage 为 1.0；
+4. 至少一个 no-solution rollout 成功；
+5. readiness 分布存在可学习的 mixed-reward group。
 
-## 7. 尚未完成
+### 6.2 尚未满足：正式策略更新
 
-- M2.3-mini canonical A/B GPU rollout；
-- 独立 `rollout_dev` 上的温度选择；
-- 新 `final_test_v2` 冻结集；
-- GRPO 单 batch loss/gradient/checkpoint smoke；
-- 多 seed RL 稳定性验证。
+1. 在 `temperature=1.0, top_p=1.0` 下采集至少一个 `valid_for_grpo_update=true` group；
+2. 使用配对、多 seed 结果完成 A/B 初始策略选择；
+3. 在 feasible development slice 上确认 false no-solution 和通用任务能力未明显退化；
+4. 执行更新前 old/current logprob 一致性审计；
+5. 完成一次 LoRA-only single-batch gradient/checkpoint/reload smoke；
+6. Frozen Test 不参与 checkpoint、采样或 optimizer 超参数选择。
 
-在这些工作完成前，不得写入 `READY_FOR_GRPO=true`。
+## 7. 下一阶段
+
+```text
+M3.0B-0A  冻结 readiness 证据与配对分析
+M3.0B-0B  增加 feasible rollout_dev slice 并完成策略选择
+M3.0B-0C  T=1.0, top_p=1.0 严格更新分布采集
+M3.0B-1   单 batch LoRA gradient/checkpoint smoke
+M3.0B-2   5–10 update 小规模 pilot
+```
+
+在 M3.0B-1 完成前，不得写入 `READY_FOR_GRPO_UPDATE=true`。
