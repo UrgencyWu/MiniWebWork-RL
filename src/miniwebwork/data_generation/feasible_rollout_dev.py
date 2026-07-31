@@ -22,6 +22,12 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _git_blob_sha(path: Path) -> str:
+    content = path.read_bytes()
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content).hexdigest()
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     values: list[dict[str, Any]] = []
     for line_number, line in enumerate(
@@ -142,7 +148,7 @@ def build_feasible_rollout_dev(
                 "expected_product_id": expected_product_id,
                 "feasible_count": int(answer["feasible_count"]),
                 "explanation": (
-                    f"Deterministically generated from feasible spec; "
+                    "Deterministically generated from feasible spec; "
                     f"expected product {expected_product_id}."
                 ),
             }
@@ -161,13 +167,13 @@ def build_feasible_rollout_dev(
         "role": "policy_selection_and_regression_gate",
         "may_update_model": False,
         "valid_task_count": len(public_records),
-        "task_type_counts": dict(sorted(Counter(
-            record["task_type"] for record in public_records
-        ).items())),
+        "task_type_counts": dict(
+            sorted(Counter(record["task_type"] for record in public_records).items())
+        ),
         "expected_decision_type_counts": {"select_product": len(public_records)},
         "spec_sha256": _sha256(spec_path),
-        "products_sha256": _sha256(products_path),
-        "suppliers_sha256": _sha256(suppliers_path),
+        "products_git_blob_sha": _git_blob_sha(products_path),
+        "suppliers_git_blob_sha": _git_blob_sha(suppliers_path),
         "valid_public_sha256": hashlib.sha256(public_text.encode("utf-8")).hexdigest(),
         "valid_oracle_sha256": hashlib.sha256(oracle_text.encode("utf-8")).hexdigest(),
     }
