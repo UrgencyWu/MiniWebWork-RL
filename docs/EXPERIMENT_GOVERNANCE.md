@@ -11,11 +11,13 @@ This document prevents prompt drift, task leakage, test-set model selection, met
 | SFT train | expert and recovery supervision | yes | no |
 | SFT valid | loss/action quality and checkpoint selection | no | yes |
 | no-solution rollout dev | rollout diagnostics and RL development | yes, after versioned collection | yes |
-| feasible rollout dev | false-no-solution and general-capability checks | yes, after versioned collection | yes |
+| feasible rollout dev | false-no-solution and general-capability gate | no | yes |
 | legacy frozen test v1 | historical continuity only | no | no |
 | final test v2 | final Base/SFT/RL evaluation | no | no |
 
 The historical 15-task set has been observed repeatedly during debugging. It remains useful for continuity, but it is not a pristine final test.
+
+The frozen `rollout_dev_feasible_v1` slice is a policy-selection and regression gate. It is never included in a gradient batch.
 
 ## 3. Checkpoint and Starting-policy Selection
 
@@ -145,7 +147,7 @@ and only when:
 - raw-policy and sampling-distribution log-probabilities are complete and finite;
 - their maximum absolute difference is within the predeclared artifact tolerance.
 
-A caller cannot override these conditions by setting a boolean flag. Future scaled or truncated behavior distributions require a separate versioned probability contract.
+A caller cannot override these conditions by setting a boolean flag. The replay layer recomputes compatibility from the records. Future scaled or truncated behavior distributions require a separate versioned probability contract.
 
 ### GRPO-valid group
 
@@ -168,6 +170,8 @@ Formal comparison reports:
 
 - both-success, A-only, B-only, both-fail counts;
 - comparable and infrastructure-invalid pairs;
+- feasible-task success and false no-solution;
+- no-solution success and missed no-solution;
 - per-task success counts and differences;
 - exact McNemar result;
 - task-level bootstrap interval;
