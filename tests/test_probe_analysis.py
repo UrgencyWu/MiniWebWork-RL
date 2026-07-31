@@ -23,6 +23,7 @@ def _artifact(policy: str, successes: list[bool]) -> dict:
         "split": "valid",
         "temperature": 0.2,
         "top_p": 0.9,
+        "top_k": 0,
         "K": len(successes),
         "seed": 7,
         "prompt_contract": "browser_agent_v2",
@@ -54,7 +55,7 @@ def test_paired_analysis_counts_discordant_outcomes():
 def test_paired_analysis_rejects_mismatched_distribution():
     artifact_a = _artifact("A", [False, True])
     artifact_b = _artifact("B", [False, True])
-    artifact_b["top_p"] = 1.0
+    artifact_b["top_k"] = 50
 
     with pytest.raises(ValueError, match="experiment identity"):
         analyze_probe_pair(artifact_a, artifact_b)
