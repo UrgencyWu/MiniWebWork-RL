@@ -1,0 +1,236 @@
+{
+  "schema_version": "1.2",
+  "experiment_identity": {
+    "task_source_sha256": "c25370c31441f1c7fd24afaf5388e4829caae0339dd0f140c1ea6e35c7dd0e95",
+    "split": "valid",
+    "base_model": "/data/share/model/Qwen3.5-4B",
+    "prompt_contract": "browser_agent_v2",
+    "prompt_builder_sha256": "257d1fe0b019aeb69940ac660840bd83500fb01cc20d691262d742b626302be8",
+    "chat_template_sha256": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715",
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "top_k": 0,
+    "K": 8,
+    "seed": 20260731,
+    "max_model_turns": 25,
+    "max_output_failures": 3
+  },
+  "policy_a": "M2_2R",
+  "policy_b": "M3_one_batch",
+  "policy_a_metrics": {
+    "total_trajectories": 96,
+    "valid_trajectories": 96,
+    "infrastructure_errors": 0,
+    "overall_successes": 14,
+    "overall_success_rate": 0.14583333333333334,
+    "feasible_trajectories": 22,
+    "feasible_successes": 14,
+    "feasible_success_rate": 0.6363636363636364,
+    "no_solution_trajectories": 0,
+    "no_solution_successes": 0,
+    "no_solution_success_rate": null,
+    "actual_no_solution_count": 0,
+    "false_no_solution_count": 0,
+    "false_no_solution_rate_on_feasible": 0.0,
+    "missed_no_solution_count": 0,
+    "termination_reasons": {
+      "model_output_failure_limit": 74,
+      "verified_submission": 22
+    }
+  },
+  "policy_b_metrics": {
+    "total_trajectories": 96,
+    "valid_trajectories": 96,
+    "infrastructure_errors": 0,
+    "overall_successes": 14,
+    "overall_success_rate": 0.14583333333333334,
+    "feasible_trajectories": 22,
+    "feasible_successes": 14,
+    "feasible_success_rate": 0.6363636363636364,
+    "no_solution_trajectories": 0,
+    "no_solution_successes": 0,
+    "no_solution_success_rate": null,
+    "actual_no_solution_count": 0,
+    "false_no_solution_count": 0,
+    "false_no_solution_rate_on_feasible": 0.0,
+    "missed_no_solution_count": 0,
+    "termination_reasons": {
+      "model_output_failure_limit": 74,
+      "verified_submission": 22
+    }
+  },
+  "total_pairs": 96,
+  "comparable_pairs": 96,
+  "a_infrastructure": 0,
+  "b_infrastructure": 0,
+  "a_successes": 14,
+  "b_successes": 14,
+  "a_success_rate": 0.14583333333333334,
+  "b_success_rate": 0.14583333333333334,
+  "paired_success_rate_delta_b_minus_a": 0.0,
+  "paired_table": {
+    "both_success": 12,
+    "a_only": 2,
+    "b_only": 2,
+    "both_fail": 80
+  },
+  "exact_mcnemar_pvalue": 1.0,
+  "task_bootstrap_95ci_delta_b_minus_a": [
+    -0.03125,
+    0.03125
+  ],
+  "termination_reason_a": {
+    "model_output_failure_limit": 74,
+    "verified_submission": 22
+  },
+  "termination_reason_b": {
+    "model_output_failure_limit": 74,
+    "verified_submission": 22
+  },
+  "per_task": [
+    {
+      "task_id": "M3_FV201",
+      "task_type": "exact_product",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 7,
+      "b_successes": 8,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV202",
+      "task_type": "exact_product",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 1,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV203",
+      "task_type": "exact_product",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 6,
+      "b_successes": 6,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV204",
+      "task_type": "cheapest_feasible",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV205",
+      "task_type": "cheapest_feasible",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV206",
+      "task_type": "cheapest_feasible",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV207",
+      "task_type": "cheapest_feasible",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV208",
+      "task_type": "cheapest_feasible",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV209",
+      "task_type": "highest_rating_supplier",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV210",
+      "task_type": "highest_rating_supplier",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV211",
+      "task_type": "highest_rating_supplier",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    },
+    {
+      "task_id": "M3_FV212",
+      "task_type": "highest_rating_supplier",
+      "total_pairs": 8,
+      "comparable_pairs": 8,
+      "a_successes": 0,
+      "b_successes": 0,
+      "a_false_no_solution": 0,
+      "b_false_no_solution": 0,
+      "a_infrastructure": 0,
+      "b_infrastructure": 0
+    }
+  ]
+}

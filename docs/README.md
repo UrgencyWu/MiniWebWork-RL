@@ -7,6 +7,8 @@
 3. [`EXPERIMENT_GOVERNANCE.md`](EXPERIMENT_GOVERNANCE.md) — split, metric, seed, failure, and artifact governance.
 4. [`M3_0_AGENTIC_RL_PLAN.md`](M3_0_AGENTIC_RL_PLAN.md) — approved Agentic RL path.
 5. [`PROJECT_JOURNAL.md`](PROJECT_JOURNAL.md) — chronological decisions and lessons.
+6. [`../reports/M3_0_DELIVERY_REPORT.md`](../reports/M3_0_DELIVERY_REPORT.md) — formal-update provenance and paired frozen-regression result.
+7. [`INTERNSHIP_PROJECT_SUMMARY.md`](INTERNSHIP_PROJECT_SUMMARY.md) — mentor/recruiter-facing project summary and demo path.
 
 When historical reports conflict with these files, the authoritative current documents take precedence.
 

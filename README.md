@@ -14,9 +14,11 @@ M2.2R      Canonical SFT and Frozen E2E         PASS
 M3.0A      Rollout readiness audit              PASS → Route B
 M2.3-mini  No-solution/recovery SFT patch       PASS
 M2.3 Probe Historical readiness GPU evidence   PASS
-M3.0B-0A   Paired A/B + feasible v2 gate        IMPLEMENTED / RUN PENDING
-M3.0B-0C   Strict update collection             RUN PENDING
-M3.0B-1    Single-batch optimizer smoke         IMPLEMENTED / GPU RUN PENDING
+M3.0B-0A   Frozen feasible-v2 regression gate   COMPLETE / neutral result
+M3.0B-0C   Strict update collection             PASS
+M3.0B-1    One-batch optimizer smoke            PASS
+M3.0B-2    Formal one-batch GRPO update         PASS
+M3.0C      Frozen paired comparison             COMPLETE / no improvement supported
 ```
 
 正式状态见 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md)：
@@ -25,8 +27,27 @@ M3.0B-1    Single-batch optimizer smoke         IMPLEMENTED / GPU RUN PENDING
 M2_3_MINI_CANONICAL_PROBE_PASS=true
 ROLLOUT_DEV_FEASIBLE_V2_FROZEN=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
-READY_FOR_GRPO_UPDATE=false
+READY_FOR_GRPO_UPDATE=true
+M3_0_FORMAL_GRPO_UPDATE_PASS=true
+M3_0_FROZEN_REGRESSION_COMPLETE=true
+M3_0_DELIVERY_REPORT_COMPLETE=true
 ```
+
+## M3.0 交付结果
+
+严格采集、正式单 batch GRPO 更新和冻结回归评测均已完成。正式更新使用
+8/8 有效且具有奖励方差的 no-solution 轨迹；raw policy 与采样 logprob
+最大差异为 `0.006612`，低于固定阈值 `0.05`。更新后 checkpoint 已保存、
+重载并审计。
+
+在不进入梯度的 `rollout_dev_feasible_v2` 冻结回归集上，M2.2R 与更新
+策略均为 **14/96（14.58%）** 成功、0 基础设施错误。成对差异为 **0.00%**，
+task-bootstrap 95% CI 为 **[-3.13%, +3.13%]**，exact McNemar `p=1.0`。
+因此本项目明确报告“没有证据支持提升”，而不选择性地声明效果改进。
+
+完整证据见 [`reports/M3_0_DELIVERY_REPORT.md`](reports/M3_0_DELIVERY_REPORT.md)；
+面向导师或招聘方的摘要见
+[`docs/INTERNSHIP_PROJECT_SUMMARY.md`](docs/INTERNSHIP_PROJECT_SUMMARY.md)。
 
 ## 架构
 
@@ -56,6 +77,8 @@ Expert SFT / Grouped Multi-turn Rollout / GRPO-style Update
 - [M3.0 多轮 Agentic RL 计划](docs/M3_0_AGENTIC_RL_PLAN.md)
 - [可复现运行手册](docs/REPRODUCIBILITY_RUNBOOK.md)
 - [十分钟项目演示](docs/DEMO_GUIDE.md)
+- [M3.0 正式交付报告](reports/M3_0_DELIVERY_REPORT.md)
+- [实习项目摘要](docs/INTERNSHIP_PROJECT_SUMMARY.md)
 - [Slurm 入口](scripts/slurm/README.md)
 
 历史 `docs/M1_*`、`docs/M2_*` 只作为阶段证据；发生冲突时，以上权威文档优先。

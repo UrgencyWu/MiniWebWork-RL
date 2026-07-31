@@ -18,7 +18,8 @@ contract, Python code and tests.  The Oracle is not present in agent prompts.
 
 ## 1. Run the deterministic browser loop (three minutes)
 
-Use two tasks that exercise both decision types:
+Use two deterministic tasks to show both acceptance and rejection by the
+same verifier contract:
 
 ```bash
 python -m miniwebwork.baseline_runner \
@@ -38,8 +39,10 @@ Explain the two terminal outcomes:
 
 - `TASK-001` selects a valid product and is verified against the private
   constraint/optimality oracle;
-- `TASK-004` proves that the no-solution action is a real, independently
-  verified decision rather than a shortcut reward.
+- `TASK-004` reaches a verified submission with reward zero, demonstrating
+  that an environment-valid action is still rejected when the private
+  constraint/optimality oracle disagrees.  It is a negative guardrail example,
+  not a claimed successful no-solution rollout.
 
 ## 2. Show the Agent contract (two minutes)
 
@@ -85,12 +88,12 @@ State the non-negotiable rule: a trajectory with an infrastructure failure has
 `reward=null` and never contributes a gradient.  A group needs complete token
 evidence, mixed rewards and raw/sampling agreement before it is eligible.
 
-## 4. Show the update audit and conclusion (two minutes)
+## 4. Show the formal update audit and conclusion (two minutes)
 
-For a completed single-batch smoke, open:
+For a completed formal one-batch update, open:
 
 ```text
-outputs/m3_0b1_smoke/<POLICY>_<JOB_ID>/single_batch_smoke_report.json
+outputs/m3_0_updates/<POLICY>_<JOB_ID>/single_batch_smoke_report.json
 ```
 
 Walk through these fields:
@@ -100,8 +103,14 @@ Walk through these fields:
 3. finite, non-zero LoRA gradient and parameter delta;
 4. saved adapter hash and successful reload forward.
 
+Then open `reports/M3_0_DELIVERY_REPORT.md`.  It binds that update to the
+paired frozen-regression artifacts and shows success rate, failure taxonomy,
+infrastructure-error counts, a task-bootstrap confidence interval, and an
+exact McNemar p-value.
+
 Finish with the evaluation boundary: M2.2R is the fixed baseline,
-`rollout_dev_feasible_v2` is a no-gradient regression gate, and the final
-held-out evaluation is run only after policy and hyperparameters are frozen.
-Any negative result is reported with the same artifacts and failure taxonomy;
-the project is designed to make conclusions trustworthy, not merely positive.
+`rollout_dev_feasible_v2` is a no-gradient frozen regression gate, and a
+future final held-out evaluation is run only after policy and hyperparameters
+are frozen.  Any neutral or negative result is reported with the same
+artifacts and failure taxonomy; the project is designed to make conclusions
+trustworthy, not merely positive.

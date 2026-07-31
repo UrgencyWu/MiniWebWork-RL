@@ -1,6 +1,6 @@
 # MiniWebWork-RL 当前实现状态
 
-> 权威状态页。最后更新：2026-07-31。
+> 权威状态页。最后更新：2026-08-01。
 
 ## 项目定位
 
@@ -22,9 +22,11 @@ Task → Browser Environment → Qwen Policy → Multi-turn Rollout
 | M3.0A Rollout readiness audit | PASS / Route B |
 | M2.3-mini no-solution + recovery patch | PASS |
 | M2.3 historical readiness GPU probe | PASS |
-| M3.0B-0A schema-v3.3 / paired A-B / feasible v2 | IMPLEMENTED / RUN PENDING |
-| M3.0B-0C strict update collection | RUN PENDING |
-| M3.0B-1 one-batch LoRA smoke | IMPLEMENTED / GPU RUN PENDING |
+| M3.0B-0A schema-v3.3 / feasible-v2 regression gate | COMPLETE / neutral result |
+| M3.0B-0C strict update collection | PASS |
+| M3.0B-1 one-batch LoRA smoke | PASS |
+| M3.0B-2 formal one-batch GRPO update | PASS |
+| M3.0C frozen paired comparison | COMPLETE / no improvement supported |
 
 ```text
 M2_3_MINI_CANONICAL_PROBE_PASS=true
@@ -33,8 +35,62 @@ PAIRED_AB_ANALYSIS_IMPLEMENTED=true
 ROLLOUT_DEV_FEASIBLE_V2_FROZEN=true
 M3_0B1_SINGLE_BATCH_SMOKE_IMPLEMENTED=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
-READY_FOR_GRPO_UPDATE=false
+READY_FOR_GRPO_UPDATE=true
+M3_0_STRICT_COLLECTION_PASS=true
+M3_0_FORMAL_GRPO_UPDATE_PASS=true
+M3_0_FROZEN_REGRESSION_COMPLETE=true
+M3_0_DELIVERY_REPORT_COMPLETE=true
 ```
+
+## M3.0 正式更新证据
+
+严格训练来源为 job 1080 的完成版 no-solution artifact：
+
+```text
+Git SHA                              aa8cfb9073969deb42ba8c57199910aa7e7aba7a
+selected group                       M2_3_V0001
+valid trajectories / infra errors    8 / 0
+reward sequence                      [1, 1, 0, 1, 1, 0, 1, 0]
+max raw-vs-sampling logprob diff     0.006612047553062439 <= 0.05
+strict runtime                       use_cache=false; T=1; top_p=1; top_k=0
+```
+
+正式 GRPO job 1081 在隔离目录 `outputs/m3_0_updates/A_1081/` 产生更新
+checkpoint；其报告为 `complete=true`、`passed=true`、`formal_update=true`。
+更新前 old/current replay 最大差异为 `0.0`，8 条轨迹包含 1,146 个 action
+token、54 个 turn；256/256 个 LoRA 张量获得非零梯度并发生变化，最大参数
+绝对变化为 `1.000240445137024e-06`。保存的 adapter SHA-256 为：
+
+```text
+df66dab40a54abdbcb25d4b87ff195755b842868c608394dfb6e4451eb27cfec
+```
+
+更新后重载 forward 为有限值。基础设施异常轨迹没有进入奖励、advantage 或
+梯度；冻结 feasible-v2 从未进入该 batch。
+
+## M3.0 冻结回归对照（完成）
+
+比较的是独立于 no-solution 梯度来源的、冻结且 `may_update_model=false` 的
+`rollout_dev_feasible_v2`。它是 no-gradient regression gate，而不是事后
+声称的 newly-opened final hold-out。基线 job 1082 与更新策略 job 1083 串行
+运行，二者完全匹配：相同 evaluation Git SHA `bf62c94`、任务源 SHA-256、
+temperature `0.2`、top-p `0.9`、top-k `0`、K `8` 和 seed `20260731`；
+唯一变化是 adapter。
+
+| 指标 | M2.2R | 更新策略 |
+|---|---:|---:|
+| 完成 / 有效轨迹 | 96 / 96 | 96 / 96 |
+| 基础设施错误 | 0 | 0 |
+| 成功 | 14/96 (14.58%) | 14/96 (14.58%) |
+| feasible 成功 | 14/22 (63.64%) | 14/22 (63.64%) |
+| false no-solution | 0 | 0 |
+| `model_output_failure_limit` | 74 | 74 |
+
+成对表为 both-success=12、M2.2R-only=2、updated-only=2、both-fail=80，
+updated minus baseline success delta = `0.0`；task-bootstrap 95% CI 为
+`[-0.03125, 0.03125]`，exact McNemar `p=1.0`。该结果是可复现的中性/负
+结果：**没有证据支持本次单 batch 更新提升该冻结回归门禁**。完整报告：
+[`../reports/M3_0_DELIVERY_REPORT.md`](../reports/M3_0_DELIVERY_REPORT.md)。
 
 ## 冻结结果
 
@@ -155,16 +211,11 @@ sbatch scripts/slurm/m3_0_single_batch_smoke.sbatch \
 
 该 smoke 使用 `AdamW(weight_decay=0.0)`，执行一次 LoRA-only 更新，并验证 old/current log-prob、梯度、参数变化、保存和重载。
 
-## 下一门禁
+## 后续研究（不改变本次结论）
 
-1. no-solution A/B 多 seed 配对复验；
-2. feasible v2 上 false no-solution 与通用能力回归；
-3. 冻结起始策略；
-4. 产生至少一个 `valid_for_grpo_update=true` strict group；
-5. single-batch GPU smoke 通过。
-
-在第 5 项完成前：
-
-```text
-READY_FOR_GRPO_UPDATE=false
-```
+1. 在新的、版本化的开发训练源上预注册多 batch / 多 seed 方案，重点诊断
+   `model_output_failure_limit` 主导的失败；不得回用 feasible-v2 做梯度或调参。
+2. 在训练/采样设置冻结后打开 `final_test_v2`，作为一次性最终 hold-out；其
+   结果不得反向改变已报告的训练决策。
+3. 保留本次中性报告和全部 hash、Slurm job、artifact 路径，作为下一轮比较的
+   基线，而不是删除或重写不利结果。

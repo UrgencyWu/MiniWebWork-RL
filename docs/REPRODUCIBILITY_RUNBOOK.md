@@ -81,7 +81,7 @@ The report must show:
   configured strict path; and
 - a recorded model generation configuration and source prompt identity.
 
-## 4. Strict collection and optimizer smoke
+## 4. Strict collection, optimizer smoke, and formal update
 
 First submit a one-task smoke to confirm the environment, GPU and probability
 contracts.  The argument order is `POLICY TEMPERATURE SEED K MAX_TASKS TOP_P
@@ -116,7 +116,61 @@ The resulting `single_batch_smoke_report.json` must prove old/current
 pre-update agreement, finite non-zero LoRA gradients, a non-zero parameter
 delta, adapter hash, saved checkpoint, reload and finite forward pass.
 
-## 5. Experiment ledger
+The smoke is an engineering gate, not a project result.  After it passes and
+the strict artifact is bound to the current Git SHA, submit the formal,
+separately-namespaced update:
+
+```bash
+sbatch scripts/slurm/m3_0_single_batch_update.sbatch \
+  outputs/m2_3_mini/runs/<STRICT_RUN>/<ARTIFACT>.json A
+```
+
+Read `outputs/m3_0_updates/A_<JOB_ID>/single_batch_smoke_report.json` after
+the job exits.  It must have `complete=true`, `passed=true`,
+`formal_update=true`, the expected source artifact/adapter hashes, non-zero
+LoRA parameter deltas, and a finite reload forward pass.  The script refuses
+an artifact whose recorded Git SHA does not exactly equal the submitted code.
+
+## 5. Frozen no-gradient regression comparison
+
+`rollout_dev_feasible_v2` is frozen and may never enter a gradient batch.  It
+is an independent regression gate from the no-solution update data, not a
+claim of a newly opened final hold-out.  Run baseline and updated adapters
+**serially** with identical settings so they do not contend for a GPU:
+
+```bash
+sbatch scripts/slurm/m3_0_policy_eval.sbatch \
+  M2_2R outputs/m2_2r/seed_1234/final_adapter feasible 0.2 0.9 0 20260731 8
+
+# Wait for the baseline job to finish, then use the formal checkpoint path.
+sbatch scripts/slurm/m3_0_policy_eval.sbatch \
+  M3_one_batch outputs/m3_0_updates/A_<JOB_ID>/updated_adapter \
+  feasible 0.2 0.9 0 20260731 8
+```
+
+Use only each run's completed `single_probe_*.json`; never analyze an
+`incremental_*.json` or `heartbeat_*.json` progress file.  Pair the two
+completed artifacts and generate the delivery report:
+
+```bash
+python scripts/analyze_probe_ab.py \
+  --a outputs/m3_0_evaluations/<BASELINE_RUN>/single_probe_*.json \
+  --b outputs/m3_0_evaluations/<UPDATED_RUN>/single_probe_*.json \
+  --output reports/m3_0_paired_frozen_eval.json
+
+python scripts/m3_0_generate_report.py \
+  --formal-update outputs/m3_0_updates/A_<JOB_ID>/single_batch_smoke_report.json \
+  --paired-evaluation reports/m3_0_paired_frozen_eval.json \
+  --output-json reports/m3_0_delivery_report.json \
+  --output-markdown reports/M3_0_DELIVERY_REPORT.md
+```
+
+The analysis preserves the successful, model-failed, and
+infrastructure-invalid counts; it reports a task-bootstrap confidence interval
+and exact McNemar p-value.  A neutral or negative update result is a valid
+deliverable and must not be replaced by post-hoc training or selective runs.
+
+## 6. Experiment ledger
 
 For each submitted job, retain the artifact and record:
 
@@ -132,7 +186,7 @@ For each submitted job, retain the artifact and record:
 Never train on an incomplete artifact, an artifact with `reward=null`, or an
 artifact whose identities do not match the selected policy.
 
-## 6. Stop and diagnose
+## 7. Stop and diagnose
 
 Stop the run rather than relaxing a gate when any of the following occurs:
 
