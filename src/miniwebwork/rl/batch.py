@@ -28,9 +28,7 @@ class TurnReplay:
             raise ValueError(f"turn {step.turn} contains no prompt token evidence")
         if len(step.token_logprobs) != len(step.generated_token_ids):
             raise ValueError(f"turn {step.turn} raw policy log-probabilities are incomplete")
-        if step.sampling_logprobs and len(step.sampling_logprobs) != len(
-            step.generated_token_ids
-        ):
+        if len(step.sampling_logprobs) != len(step.generated_token_ids):
             raise ValueError(f"turn {step.turn} sampling log-probabilities are incomplete")
         return cls(
             prompt_token_ids=tuple(step.prompt_token_ids),
@@ -92,8 +90,8 @@ def build_replay_group(
 
     Diagnostic truncated groups must pass
     ``update_distribution_compatible=False`` and are rejected here even when
-    they contain mixed rewards. This prevents a readiness artifact from being
-    silently reused as an optimizer batch.
+    they contain mixed rewards. Every generated turn in an update batch must
+    retain both raw-policy and actual sampling-distribution probabilities.
     """
     summary = summarize_group(
         records,
