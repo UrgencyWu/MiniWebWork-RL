@@ -18,13 +18,14 @@ mkdir -p logs outputs/m2_3_mini
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate miniwebwork
 
-# Arguments: POLICY TEMPERATURE SEED K [MAX_TASKS] [TOP_P]
+# Arguments: POLICY TEMPERATURE SEED K [MAX_TASKS] [TOP_P] [TOP_K]
 POLICY="${1:-A}"
 TEMP="${2:-0.2}"
 SEED="${3:-20260731}"
 K="${4:-8}"
 MAX_TASKS="${5:-}"
 TOP_P="${6:-0.9}"
+TOP_K="${7:-0}"
 
 case "$POLICY" in
     A) ADAPTER="$PROJECT_ROOT/outputs/m2_2r/seed_1234/final_adapter" ;;
@@ -43,7 +44,7 @@ export CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}"
 float_tag() {
     awk -v value="$1" 'BEGIN {printf "%.8g", value}' | tr '.-' 'pm'
 }
-DIST_TAG="t$(float_tag "$TEMP")_p$(float_tag "$TOP_P")"
+DIST_TAG="t$(float_tag "$TEMP")_p$(float_tag "$TOP_P")_k${TOP_K}"
 HEARTBEAT_FILE="$PROJECT_ROOT/outputs/m2_3_mini/heartbeat_${POLICY}_${DIST_TAG}.json"
 GPU_MEM_LOG="$PROJECT_ROOT/logs/gpu_mem_${SLURM_JOB_ID:-$$}.log"
 
@@ -100,6 +101,7 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
 echo "Policy: $POLICY"
 echo "Temperature: $TEMP"
 echo "Top-p: $TOP_P"
+echo "Top-k: $TOP_K"
 echo "Seed: $SEED"
 echo "K: $K"
 echo "Max tasks: ${MAX_TASKS:-all}"
@@ -112,6 +114,7 @@ ARGS=(
     --adapter "$ADAPTER"
     --temperature "$TEMP"
     --top-p "$TOP_P"
+    --top-k "$TOP_K"
     --seed "$SEED"
     --K "$K"
     --split valid
