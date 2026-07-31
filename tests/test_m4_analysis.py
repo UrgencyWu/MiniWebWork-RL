@@ -88,3 +88,30 @@ def test_m4_evaluation_rejects_duplicate_task_rollout_identity():
     records.append(records[0].copy())
     with pytest.raises(ValueError, match="duplicate"):
         summarize_m4_evaluation(records, expected_task_count=2, expected_rollouts_per_task=2)
+
+
+def test_m4_analysis_reads_strict_rollout_steps_for_cost_and_failure_taxonomy():
+    records = _records()
+    records[1]["success"] = False
+    records[1]["reward"] = 0.0
+    records[1]["turns"] = []
+    records[1]["steps"] = [
+        {
+            "strict_json_success": False,
+            "schema_valid": False,
+            "schema_errors": ["malformed_json"],
+            "generated_token_ids": [1, 2, 3, 4],
+            "env_action_success": None,
+        }
+    ]
+    summary = summarize_m4_evaluation(
+        records,
+        expected_task_count=2,
+        expected_rollouts_per_task=2,
+        bootstrap_samples=100,
+        reported_wall_seconds=9.5,
+    )
+
+    assert summary["cost"]["action_tokens"] == 13
+    assert summary["cost"]["reported_wall_seconds"] == 9.5
+    assert summary["failure_taxonomy"]["primary_failure_counts"]["output_format_failure"] == 1

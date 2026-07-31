@@ -68,13 +68,18 @@ def classify_failures(task_results: list[dict]) -> dict:
             )
             continue
 
-        turns = result.get("turns", [])
+        # Strict rollout artifacts use ``steps`` while historical evaluation
+        # records use ``turns``.  Keep both contracts visible in one taxonomy.
+        turns = result.get("turns") or result.get("steps", [])
         termination = result.get("termination_reason", "")
-        verifier_failures = result.get("failure_reasons", [])
+        verification = result.get("verification", {})
+        verifier_failures = result.get("failure_reasons") or (
+            verification.get("failure_reasons", []) if isinstance(verification, dict) else []
+        )
         tags: set[str] = set()
 
         for turn in turns:
-            errors = set(turn.get("errors", []))
+            errors = set(turn.get("errors") or turn.get("schema_errors", []))
             if not turn.get("strict_json_success"):
                 tags.add("non_json_output")
             if not turn.get("schema_valid"):
@@ -82,6 +87,11 @@ def classify_failures(task_results: list[dict]) -> dict:
             tags.update(error for error in errors if error in OUTPUT_CODES)
 
             action_result = turn.get("action_result")
+            if action_result is None and turn.get("env_action_success") is not None:
+                action_result = {
+                    "success": bool(turn.get("env_action_success")),
+                    "error_code": turn.get("env_error_code", ""),
+                }
             if isinstance(action_result, dict) and not action_result.get("success", False):
                 error_code = action_result.get("error_code", "")
                 if error_code in ACTION_CODES:

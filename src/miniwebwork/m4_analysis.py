@@ -47,7 +47,7 @@ def task_cluster_bootstrap_ci(
 
 def _action_token_count(record: dict[str, Any]) -> int:
     total = 0
-    for turn in record.get("turns", []):
+    for turn in record.get("turns") or record.get("steps", []):
         if isinstance(turn, dict):
             value = turn.get("output_tokens")
             if isinstance(value, int) and value >= 0:
@@ -65,6 +65,7 @@ def summarize_m4_evaluation(
     expected_rollouts_per_task: int = 4,
     bootstrap_samples: int = 10_000,
     bootstrap_seed: int = 20260801,
+    reported_wall_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Summarize one M4 checkpoint on its frozen evaluation rollout records.
 
@@ -159,9 +160,11 @@ def summarize_m4_evaluation(
             "action_tokens": sum(row["action_tokens"] for row in per_task),
             "model_turns": sum(row["model_turns"] for row in per_task),
             "environment_steps": sum(row["environment_steps"] for row in per_task),
-            "reported_wall_seconds": sum(
-                float(record.get("elapsed_s", 0.0)) for record in records
-            ),
+        "reported_wall_seconds": (
+            float(reported_wall_seconds)
+            if reported_wall_seconds is not None
+            else sum(float(record.get("elapsed_s", 0.0)) for record in records)
+        ),
         },
         "incomplete_task_ids": sorted(set(incomplete_task_ids)),
         "per_task": per_task,
