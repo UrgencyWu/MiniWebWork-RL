@@ -6,27 +6,27 @@
 m2_3_mini_single_probe.sbatch
 ```
 
-This is the only formal M2.3/M3.0 rollout job. It runs one policy under one explicit sampling distribution and emits schema-v3.2 rollout evidence.
+This is the only formal M2.3/M3.0 rollout job. It runs one policy under one explicit sampling distribution and emits schema-v3.3 rollout evidence.
 
 Arguments:
 
 ```text
-POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P]
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K]
 ```
 
-Diagnostic readiness example:
+Explicit diagnostic example:
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9 0
 ```
 
 Strict first-update collection example:
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0 0
 ```
 
-The diagnostic distribution may produce `has_learning_signal=true` but remains `valid_for_grpo_update=false`. The first strict distribution uses `temperature=1.0, top_p=1.0`; a group becomes update-valid only when it also contains mixed rewards and complete rollout evidence.
+The first strict distribution requires `temperature=1.0, top_p=1.0, top_k=0`. The collector also checks that raw-policy and sampling-distribution token log-probabilities agree within the declared numerical tolerance. A group becomes update-valid only when it additionally contains mixed rewards and complete rollout evidence.
 
 ## Paired policy analysis
 
@@ -39,7 +39,7 @@ python scripts/analyze_probe_ab.py \
   --output outputs/m2_3_mini/paired_ab.json
 ```
 
-Artifacts must have the same task source, split, temperature, top-p, K, master seed, and prompt contract. The analysis pairs `(task_id, rollout_index)` and excludes infrastructure-invalid pairs.
+Artifacts must have the same task source, split, temperature, top-p, top-k, K, master seed, and prompt contract. The analysis pairs `(task_id, rollout_index)` and excludes infrastructure-invalid pairs.
 
 ## Supported historical continuity jobs
 
@@ -59,6 +59,7 @@ Other `m1_*`, `m2_1_*`, `m2_2*`, and `m2_3_mini_*` jobs preserve stage-specific 
 - Prompt Contract v2 where a model prompt is involved;
 - adapter/base model path;
 - output manifest/hash;
+- complete sampling identity;
 - Slurm-owned GPU visibility;
 - scoped cleanup by owned PID/thread only.
 
