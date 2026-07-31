@@ -42,28 +42,44 @@ class RolloutStep:
     terminated: bool = False
     truncated: bool = False
 
-    def validate(self) -> None:
+    def validate(self, *, require_complete_evidence: bool = True) -> None:
         token_count = len(self.generated_token_ids)
-        if self.token_logprobs and len(self.token_logprobs) != token_count:
-            raise ValueError(
-                f"turn {self.turn}: {len(self.token_logprobs)} raw logprobs for "
-                f"{token_count} generated tokens"
-            )
-        if self.sampling_logprobs and len(self.sampling_logprobs) != token_count:
-            raise ValueError(
-                f"turn {self.turn}: {len(self.sampling_logprobs)} sampling logprobs for "
-                f"{token_count} generated tokens"
-            )
-        if any(not math.isfinite(value) for value in self.token_logprobs):
-            raise ValueError(f"turn {self.turn}: raw policy logprobs contain NaN or Inf")
-        if any(not math.isfinite(value) for value in self.sampling_logprobs):
-            raise ValueError(f"turn {self.turn}: sampling logprobs contain NaN or Inf")
+        if require_complete_evidence:
+            if self.token_logprobs and len(self.token_logprobs) != token_count:
+                raise ValueError(
+                    f"turn {self.turn}: {len(self.token_logprobs)} raw logprobs for "
+                    f"{token_count} generated tokens"
+                )
+            if self.sampling_logprobs and len(self.sampling_logprobs) != token_count:
+                raise ValueError(
+                    f"turn {self.turn}: {len(self.sampling_logprobs)} sampling logprobs for "
+                    f"{token_count} generated tokens"
+                )
+            if any(not math.isfinite(value) for value in self.token_logprobs):
+                raise ValueError(f"turn {self.turn}: raw policy logprobs contain NaN or Inf")
+            if any(not math.isfinite(value) for value in self.sampling_logprobs):
+                raise ValueError(f"turn {self.turn}: sampling logprobs contain NaN or Inf")
         if self.schema_valid and self.parsed_action is None:
             raise ValueError(f"turn {self.turn}: schema-valid step has no parsed action")
         if self.skipped and self.env_action_success is not None:
             raise ValueError(f"turn {self.turn}: skipped step cannot have environment result")
         if self.fallback_used and self.strict_json_success:
             raise ValueError(f"turn {self.turn}: strict JSON and fallback cannot both be true")
+
+    def diagnostic_dict(self) -> dict[str, Any]:
+        """Return JSON-safe evidence for an infrastructure-invalid rollout."""
+        value = asdict(self)
+        token_count = len(self.generated_token_ids)
+        for field_name in ("token_logprobs", "sampling_logprobs"):
+            values = value[field_name]
+            if len(values) != token_count or any(
+                not math.isfinite(item) for item in values
+            ):
+                value[field_name] = []
+                marker = f"invalid_{field_name}_evidence"
+                if marker not in value["schema_errors"]:
+                    value["schema_errors"].append(marker)
+        return value
 
 
 @dataclass
@@ -118,11 +134,14 @@ class RolloutRecord:
         if len(self.steps) != self.model_turns:
             raise ValueError(f"Expected {self.model_turns} step events, got {len(self.steps)}")
         for step in self.steps:
-            step.validate()
+            step.validate(require_complete_evidence=self.rollout_valid)
 
     def to_dict(self) -> dict[str, Any]:
         self.validate()
-        return asdict(self)
+        value = asdict(self)
+        if not self.rollout_valid:
+            value["steps"] = [step.diagnostic_dict() for step in self.steps]
+        return value
 
 
 @dataclass
