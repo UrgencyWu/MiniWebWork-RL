@@ -12,18 +12,21 @@ M2.0       Canonical Base Agent                 PASS
 M2.1F      Expert trajectories and SFT data     PASS
 M2.2R      Canonical SFT and Frozen E2E         PASS
 M3.0A      Rollout readiness audit              PASS → Route B
-M2.3-mini  No-solution/recovery SFT patch       TRAINING PASS
-M2.3 Probe Canonical GPU rerun                  PENDING
-M3.0B      Multi-turn GRPO-style pilot          NOT STARTED
+M2.3-mini  No-solution/recovery SFT patch       PASS
+M2.3 Probe Canonical readiness GPU rerun        PASS
+M3.0B-0    Strict collection and policy choice IN PROGRESS
+M3.0B-1    Single-batch gradient smoke          NOT STARTED
 ```
 
 正式状态见 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md)：
 
 ```text
-READY_FOR_GRPO=false
+M2_3_MINI_CANONICAL_PROBE_PASS=true
+READY_FOR_STRICT_ON_POLICY_COLLECTION=true
+READY_FOR_GRPO_UPDATE=false
 ```
 
-M2.2R 历史 15-task E2E：Canonical Base 0/15；三个 SFT seed 分别为 9/15、10/15、12/15。该任务集已多次用于调试，仅用于阶段连续性比较，不作为最终泛化测试。
+Readiness probe 已确认基础设施错误为 0、raw/sampling logprob coverage 均为 1.0，并产生 no-solution 成功轨迹。该 probe 使用 `temperature=0.2, top_p=0.9`，用于诊断探索与奖励方差，不直接作为首个策略更新 batch。
 
 ## Architecture
 
@@ -43,7 +46,7 @@ Deterministic Verifier
 Expert SFT / Grouped Multi-turn Rollout / GRPO-style Update
 ```
 
-项目已经实现自研 Agent Runtime。尚未完成的是严格 on-policy rollout collection、逐 turn 策略重放和 LoRA 优化循环。由于每个浏览器 turn 都会重新构造 Prompt，正式 M3.0 使用自定义多轮 GRPO-style 目标，而不是把整条浏览器轨迹伪装成单次 completion。
+项目已经实现自研 Agent Runtime。由于每个浏览器 turn 都会重新构造 Prompt，正式 M3.0 使用自定义多轮 GRPO-style 目标，而不是把整条浏览器轨迹伪装成单次 completion。
 
 ## Authoritative Documents
 
@@ -85,8 +88,6 @@ pip install -e ".[test,training]"
 python -m playwright install chromium
 ```
 
-原主机专用 `requirements.final.txt` 和 `environment.*.yml` 已删除，避免绝对路径、无关包和错误 CUDA wheel 污染环境。
-
 ## Quality Gate
 
 ```bash
@@ -105,57 +106,65 @@ python -m pytest -q
 
 GitHub Actions 负责 CPU 语法、数据合同、浏览器依赖和测试；GPU/model/Slurm 验证仍需在集群执行。
 
-## Local Site
+## Canonical Rollout Collection
 
-```bash
-python -m miniwebwork.cli init-db
-python -m miniwebwork.webapp
-```
-
-默认地址：`http://127.0.0.1:18080`。
-
-## Canonical Rollout Probe
-
-正式 rollout 入口只有：
+正式入口：
 
 ```text
 scripts/m2_3_mini_single_probe.py
 scripts/slurm/m2_3_mini_single_probe.sbatch
+scripts/analyze_probe_ab.py
 ```
 
-旧 temperature-sweep、comparison 和 browser-agent-v1 SFT 入口已删除。
+Slurm 参数：
+
+```text
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P]
+```
 
 单任务 Patch Policy smoke：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 1 1
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 1 1 0.9
 ```
 
 受控 A/B readiness probe：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9
 ```
 
-参数：
+严格更新分布：
 
-```text
-POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS]
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0
 ```
+
+只有 `temperature=1.0, top_p=1.0` 的首版严格分布会自动标记为 `update_distribution_compatible=true`。该分布仍必须包含 mixed reward，组才会得到 `valid_for_grpo_update=true`。
+
+A/B 配对分析：
+
+```bash
+python scripts/analyze_probe_ab.py \
+  --a outputs/m2_3_mini/<A_ARTIFACT>.json \
+  --b outputs/m2_3_mini/<B_ARTIFACT>.json \
+  --output outputs/m2_3_mini/paired_ab.json
+```
+
+分析使用相同 `(task_id, rollout_index)` 配对，报告 A-only/B-only 成功、精确 McNemar 检验、task-level bootstrap 区间和逐任务差异。不能再仅凭一次总成功数宣称补丁增益或将差异归因于采样方差。
 
 Rollout 合同：
 
 - Slurm 管理 `CUDA_VISIBLE_DEVICES`；
 - Adapter、任务和 Prompt 合同缺失时 fail-fast；
 - 基础设施失败使用 `reward=null`；
+- 每条 trajectory 和 group 保存 `temperature + top_p`；
 - Strict JSON、Schema Valid、环境动作成功和任务成功使用独立分母；
-- 每条 rollout 使用稳定派生 seed；
-- 保存 prompt token IDs、completion token IDs、raw policy log-probabilities 和 sampling-distribution log-probabilities；
+- 保存 prompt/completion token IDs、raw policy log-probabilities 和 sampling-distribution log-probabilities；
 - Adapter、Prompt 和任务源使用内容 SHA-256；
 - 结果按任务原子化增量保存。
-
-Readiness probe 的 `top_p=0.9` 只判断探索和奖励方差。它产生的 mixed-reward group 具有学习信号，但不会自动标记为可直接更新。
 
 ## Data Governance
 
@@ -163,7 +172,8 @@ Readiness probe 的 `top_p=0.9` 只判断探索和奖励方差。它产生的 mi
 |---|---|
 | `data/tasks/tasks_public.jsonl` | historical public tasks |
 | `data/tasks/tasks_oracle.jsonl` | private deterministic Oracle |
-| `data/tasks/rollout_dev_no_solution_v1/` | rollout/RL development tasks |
+| `data/tasks/rollout_dev_no_solution_v1/` | no-solution rollout/RL development tasks |
+| future feasible rollout_dev slice | false-no-solution and general capability development checks |
 | future `final_test_v2` | final one-time evaluation |
 
 一个进程只读取一个任务源。开发集与默认任务不合并，重复 task ID fail-fast。Checkpoint 仅由 Canonical Valid 指标选择；Frozen Test 不参与 checkpoint、temperature 或 optimizer 选择。
@@ -182,12 +192,12 @@ same-task K multi-turn trajectories
 → LoRA-only update
 ```
 
-诊断 sampling 与正式 training sampling 分离。首个严格更新优先采用 `temperature=1.0, top_p=1.0`，确保 behavior distribution 与 raw policy log-probability 合同一致。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
-
-核心目标代码：
+核心实现：
 
 ```text
+src/miniwebwork/rollout.py
+src/miniwebwork/rl/batch.py
 src/miniwebwork/rl/objective.py
 ```
 
-M3.0B 只能在 canonical rerun 证明 no-solution 成功、mixed reward、完整 token/logprob 证据和接近零基础设施错误后开始。
+下一门禁是：严格分布产生至少一个 `valid_for_grpo_update=true` group，完成 A/B 初始策略选择，并执行一次 LoRA-only gradient/checkpoint/reload smoke。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
