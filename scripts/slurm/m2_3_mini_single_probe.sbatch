@@ -41,7 +41,7 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:T
 export CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}"
 
 float_tag() {
-    printf '%s' "$1" | tr '.-' 'pm'
+    awk -v value="$1" 'BEGIN {printf "%.8g", value}' | tr '.-' 'pm'
 }
 DIST_TAG="t$(float_tag "$TEMP")_p$(float_tag "$TOP_P")"
 HEARTBEAT_FILE="$PROJECT_ROOT/outputs/m2_3_mini/heartbeat_${POLICY}_${DIST_TAG}.json"
