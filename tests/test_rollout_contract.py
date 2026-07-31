@@ -7,11 +7,19 @@ from miniwebwork.rollout import (
     RolloutRecord,
     RolloutStep,
     derive_rollout_seed,
+    strict_raw_policy_distribution,
     summarize_group,
 )
 
 
-def _record(index: int, reward: float, success: bool) -> RolloutRecord:
+def _record(
+    index: int,
+    reward: float,
+    success: bool,
+    *,
+    temperature: float = 0.4,
+    top_p: float = 0.9,
+) -> RolloutRecord:
     return RolloutRecord(
         task_id="TASK",
         task_type="no_feasible_product",
@@ -19,7 +27,8 @@ def _record(index: int, reward: float, success: bool) -> RolloutRecord:
         rollout_index=index,
         rollout_seed=derive_rollout_seed(7, "TASK", index),
         policy="policy",
-        temperature=0.4,
+        temperature=temperature,
+        top_p=top_p,
         success=success,
         reward=reward,
         rollout_valid=True,
@@ -52,6 +61,8 @@ def test_mixed_reward_diagnostic_group_has_learning_signal_only():
     )
 
     assert summary.reward_sequence == [0.0, 1.0]
+    assert summary.temperature == 0.4
+    assert summary.top_p == 0.9
     assert summary.has_reward_variance is True
     assert summary.has_learning_signal is True
     assert summary.update_distribution_compatible is False
@@ -59,13 +70,18 @@ def test_mixed_reward_diagnostic_group_has_learning_signal_only():
 
 
 def test_update_compatible_mixed_group_is_valid_for_grpo():
+    records = [
+        _record(0, 0.0, False, temperature=1.0, top_p=1.0),
+        _record(1, 1.0, True, temperature=1.0, top_p=1.0),
+    ]
     summary = summarize_group(
-        [_record(0, 0.0, False), _record(1, 1.0, True)],
+        records,
         requested_k=2,
         update_distribution_compatible=True,
     )
 
     assert summary.has_learning_signal is True
+    assert summary.update_distribution_compatible is True
     assert summary.valid_for_grpo_update is True
 
 
@@ -78,6 +94,23 @@ def test_zero_variance_group_has_no_learning_signal():
 
     assert summary.has_learning_signal is False
     assert summary.valid_for_grpo_update is False
+
+
+def test_group_rejects_mixed_top_p_values():
+    with pytest.raises(ValueError, match="top_p"):
+        summarize_group(
+            [
+                _record(0, 0.0, False, top_p=0.9),
+                _record(1, 1.0, True, top_p=1.0),
+            ],
+            requested_k=2,
+        )
+
+
+def test_strict_raw_policy_distribution_requires_unscaled_untruncated_sampling():
+    assert strict_raw_policy_distribution(1.0, 1.0) is True
+    assert strict_raw_policy_distribution(0.4, 1.0) is False
+    assert strict_raw_policy_distribution(1.0, 0.9) is False
 
 
 def test_infrastructure_failure_requires_null_reward():
