@@ -32,7 +32,8 @@ Task
 | M3.0A | Rollout readiness audit；no-solution 奖励方差不足 | PASS / Route B |
 | M2.3-mini | no-solution + recovery 数据补丁、继续训练 | PASS |
 | M2.3-mini Readiness Probe | historical GPU readiness evidence | PASS |
-| M3.0B-0 | schema-v3.3 严格分布采集与 A/B 策略选择 | IN PROGRESS |
+| M3.0B-0A | schema-v3.3 rollout、paired A/B、feasible gate | IMPLEMENTED / RUN PENDING |
+| M3.0B-0C | strict update-compatible collection | RUN PENDING |
 | M3.0B-1 | 单 batch LoRA gradient/checkpoint smoke | NOT STARTED |
 
 正式状态：
@@ -43,6 +44,9 @@ M2_3_MINI_TRAINING_PASS=true
 M2_3_MINI_ADAPTER_LOAD_CONTRACT_PASS=true
 M2_3_MINI_CANONICAL_PROBE_PASS=true
 NO_SOLUTION_ROLLOUT_CAPABILITY_CONFIRMED=true
+SCHEMA_V3_3_ROLLOUT_IMPLEMENTED=true
+PAIRED_AB_ANALYSIS_IMPLEMENTED=true
+FEASIBLE_ROLLOUT_DEV_IMPLEMENTED=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
 READY_FOR_GRPO_UPDATE=false
 ```
@@ -64,7 +68,7 @@ READY_FOR_GRPO_UPDATE=false
 
 ### 3.2 Checkpoint 选择
 
-M3.0A/M2.3-mini 的正式主策略为 `seed_1234`，依据是预先冻结的最低 Canonical Valid Loss：
+M3.0A/M2.3-mini 的正式主 checkpoint 为 `seed_1234`，依据是预先冻结的最低 Canonical Valid Loss：
 
 ```text
 seed_1234      4.46e-05
@@ -92,7 +96,7 @@ Frozen Test 得分不得用于 checkpoint 选择。
 
 ### 3.5 M2.3-mini Readiness Probe
 
-修复 `PlaywrightThreadManager.start(headless=...)` monkey-patch 签名后，GPU readiness probe 完整通过。根据集群正式产物汇总：
+修复 `PlaywrightThreadManager.start(headless=...)` monkey-patch 签名后，GPU readiness probe 完整通过。根据集群产物汇总：
 
 ```text
 complete = true
@@ -110,10 +114,36 @@ valid_for_grpo_update = false
 
 - A、B 均具备 no-solution 闭环能力；
 - M2.3-mini 已解决原先全零奖励、无法启动 RL 的问题；
-- 单次汇总中 B 的成功数低于 A，不能在缺少配对分析和多 seed 复验时宣称补丁优于 A，也不能直接归因于采样方差；
-- 当前 no-solution-only 开发集不能评估 feasible-task 退化或 false no-solution。
+- 单次汇总中 B 的成功数低于 A，不能在缺少配对分析和多 seed 复验时宣称补丁优于 A，也不能直接归因于采样方差。
 
-## 4. 已冻结运行合同
+## 4. M3.0B 开发集
+
+### no-solution development
+
+```text
+data/tasks/rollout_dev_no_solution_v1
+```
+
+用于 no-solution 学习信号、严格 group 收集和小规模 RL 开发。
+
+### feasible policy-selection gate
+
+```text
+data/tasks/rollout_dev_feasible_v1
+```
+
+冻结内容：12 个 `select_product` 任务，包括 3 个 exact、5 个 cheapest、4 个 highest-rating。Oracle 已由统一 constraint contract 重新计算；manifest 冻结文件与 seed-data SHA-256。
+
+该集合：
+
+```text
+role = policy_selection_and_regression_gate
+may_update_model = false
+```
+
+用于 feasible success、false no-solution 和一般任务退化检查，不进入梯度 batch。
+
+## 5. 已冻结运行合同
 
 - Action Schema v1.1：`submit` 可作用于 button；
 - Prompt Contract v2：Base、SFT、E2E 和 rollout 共用；
@@ -125,10 +155,12 @@ valid_for_grpo_update = false
 - Rollout：保存 prompt/completion tokens、原始策略 log-prob 和采样分布 log-prob；
 - Distribution identity：每条 trajectory 和 group 显式保存 `temperature + top_p + top_k`；
 - Strict distribution：`T=1, top_p=1, top_k=0`，且 raw/sampling token log-prob 在数值容差内一致；
-- Metrics：Schema、环境动作和任务成功使用明确且互不混淆的分母；
-- Slurm：禁止全局 `pkill`，禁止 Python 在 CUDA 初始化后改写设备可见性。
+- Replay：独立重算分布兼容性，调用方不能用布尔参数提升诊断 artifact；
+- Metrics：Schema、环境动作、任务成功、false no-solution 使用明确且互不混淆的分母；
+- Slurm：禁止全局 `pkill`，禁止 Python 在 CUDA 初始化后改写设备可见性；
+- Output：不同 task source、seed、distribution、K 和 job 使用独立 run 目录。
 
-## 5. 当前权威入口
+## 6. 当前权威入口
 
 ```text
 scripts/m2_3_mini_single_probe.py
@@ -139,35 +171,48 @@ scripts/analyze_probe_ab.py
 Slurm 参数：
 
 ```text
-POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K]
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K] [TASK_SOURCE]
 ```
 
-显式诊断分布：
+显式 no-solution 诊断：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9 0
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  A 0.2 20260731 8 "" 0.9 0 no_solution
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 0.2 20260731 8 "" 0.9 0 no_solution
+```
+
+Feasible regression gate：
+
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  A 0.2 20260731 8 "" 0.9 0 feasible
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 0.2 20260731 8 "" 0.9 0 feasible
 ```
 
 严格更新分布采集：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0 0
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  A 1.0 20260731 8 "" 1.0 0 no_solution
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 1.0 20260731 8 "" 1.0 0 no_solution
 ```
 
 A/B 配对分析：
 
 ```bash
 python scripts/analyze_probe_ab.py \
-  --a outputs/m2_3_mini/<A_ARTIFACT>.json \
-  --b outputs/m2_3_mini/<B_ARTIFACT>.json \
+  --a outputs/m2_3_mini/runs/<A_RUN>/<A_ARTIFACT>.json \
+  --b outputs/m2_3_mini/runs/<B_RUN>/<B_ARTIFACT>.json \
   --output outputs/m2_3_mini/paired_ab.json
 ```
 
-## 6. M3.0B 准入条件
+## 7. M3.0B 准入条件
 
-### 6.1 已满足：诊断 readiness
+### 7.1 已满足：诊断 readiness
 
 1. 基础设施失败不进入 reward；
 2. historical readiness probe infrastructure error 为 0；
@@ -175,22 +220,22 @@ python scripts/analyze_probe_ab.py \
 4. 至少一个 no-solution rollout 成功；
 5. readiness 分布存在可学习的 mixed-reward group。
 
-### 6.2 尚未满足：正式策略更新
+### 7.2 尚未满足：正式策略更新
 
-1. 使用 schema-v3.3 显式记录 `temperature/top_p/top_k`；
-2. 在 `temperature=1.0, top_p=1.0, top_k=0` 下采集至少一个 `valid_for_grpo_update=true` group；
-3. strict group 的 raw/sampling log-prob 最大绝对差不超过预声明容差；
-4. 使用配对、多 seed 结果完成 A/B 初始策略选择；
-5. 在 feasible development slice 上确认 false no-solution 和通用任务能力未明显退化；
+1. 完成 schema-v3.3 A/B no-solution 多 seed 配对复验；
+2. 在 feasible gate 上确认 false no-solution 和 feasible success 未明显退化；
+3. 依据预声明规则选择 A 或 B 作为 M3.0 起始策略；
+4. 在 `temperature=1.0, top_p=1.0, top_k=0` 下采集至少一个 `valid_for_grpo_update=true` group；
+5. strict group 的 raw/sampling log-prob 最大绝对差不超过预声明容差；
 6. 执行更新前 old/current logprob 一致性审计；
 7. 完成一次 LoRA-only single-batch gradient/checkpoint/reload smoke；
 8. Frozen Test 不参与 checkpoint、采样或 optimizer 超参数选择。
 
-## 7. 下一阶段
+## 8. 下一阶段
 
 ```text
-M3.0B-0A  schema-v3.3 显式诊断分布复验与配对分析
-M3.0B-0B  增加 feasible rollout_dev slice 并完成策略选择
+M3.0B-0A  运行 schema-v3.3 no-solution/feasible A/B，多 seed 配对分析
+M3.0B-0B  冻结起始策略选择结论
 M3.0B-0C  T=1, top_p=1, top_k=0 严格更新分布采集
 M3.0B-1   单 batch LoRA gradient/checkpoint smoke
 M3.0B-2   5–10 update 小规模 pilot
