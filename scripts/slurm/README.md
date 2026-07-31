@@ -11,19 +11,39 @@ This is the only formal M2.3/M3.0 rollout job. It runs one policy under one expl
 Arguments:
 
 ```text
-POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K]
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K] [TASK_SOURCE]
 ```
 
-Explicit diagnostic example:
+`TASK_SOURCE` accepts:
 
-```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9 0
+```text
+no_solution
+feasible
+absolute task-directory path
+repository-relative task-directory path
 ```
 
-Strict first-update collection example:
+Every Slurm job writes into an isolated directory containing policy, task source, sampling distribution, master seed, K, and job ID. Concurrent seeds or task slices cannot overwrite each other's heartbeat or incremental artifacts.
+
+Explicit no-solution diagnostic:
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 0.2 20260731 8 "" 0.9 0 no_solution
+```
+
+Feasible regression gate:
+
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 0.2 20260731 8 "" 0.9 0 feasible
+```
+
+Strict first-update collection:
+
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 1.0 20260731 8 "" 1.0 0 no_solution
 ```
 
 The first strict distribution requires `temperature=1.0, top_p=1.0, top_k=0`. The collector also checks that raw-policy and sampling-distribution token log-probabilities agree within the declared numerical tolerance. A group becomes update-valid only when it additionally contains mixed rewards and complete rollout evidence.
@@ -34,12 +54,25 @@ Use:
 
 ```bash
 python scripts/analyze_probe_ab.py \
-  --a outputs/m2_3_mini/<A_ARTIFACT>.json \
-  --b outputs/m2_3_mini/<B_ARTIFACT>.json \
+  --a outputs/m2_3_mini/runs/<A_RUN>/<A_ARTIFACT>.json \
+  --b outputs/m2_3_mini/runs/<B_RUN>/<B_ARTIFACT>.json \
   --output outputs/m2_3_mini/paired_ab.json
 ```
 
-Artifacts must have the same task source, split, temperature, top-p, top-k, K, master seed, and prompt contract. The analysis pairs `(task_id, rollout_index)` and excludes infrastructure-invalid pairs.
+Artifacts must have the same task source, split, base model, Prompt/Chat Template identity, temperature, top-p, top-k, K, master seed, and turn limits. The analysis pairs `(task_id, rollout_index)`, excludes infrastructure-invalid pairs, and reports feasible success, false no-solution, no-solution success, discordant outcomes, exact McNemar results, task bootstrap intervals, and termination modes.
+
+## Development task sources
+
+```text
+data/tasks/rollout_dev_no_solution_v1
+    RL development and no-solution learning-signal collection
+
+data/tasks/rollout_dev_feasible_v1
+    policy-selection and false-no-solution regression gate
+    may_update_model = false
+```
+
+The feasible slice is not an optimizer task source.
 
 ## Supported historical continuity jobs
 
