@@ -13,8 +13,8 @@ M2.1F      Expert trajectories and SFT data     PASS
 M2.2R      Canonical SFT and Frozen E2E         PASS
 M3.0A      Rollout readiness audit              PASS → Route B
 M2.3-mini  No-solution/recovery SFT patch       PASS
-M2.3 Probe Canonical readiness GPU rerun        PASS
-M3.0B-0    Strict collection and policy choice IN PROGRESS
+M2.3 Probe Historical readiness GPU evidence   PASS
+M3.0B-0    Schema-v3.3 strict collection       IN PROGRESS
 M3.0B-1    Single-batch gradient smoke          NOT STARTED
 ```
 
@@ -26,7 +26,7 @@ READY_FOR_STRICT_ON_POLICY_COLLECTION=true
 READY_FOR_GRPO_UPDATE=false
 ```
 
-Readiness probe 已确认基础设施错误为 0、raw/sampling logprob coverage 均为 1.0，并产生 no-solution 成功轨迹。该 probe 使用 `temperature=0.2, top_p=0.9`，用于诊断探索与奖励方差，不直接作为首个策略更新 batch。
+Historical readiness probe 已确认基础设施错误为 0、raw/sampling logprob coverage 均为 1.0，并产生 no-solution 成功轨迹。该历史产物未显式冻结 `top_k`，因此只作为能力和基础设施证据，不作为 optimizer batch。新 schema-v3.3 artifact 显式记录 `temperature/top_p/top_k`。
 
 ## Architecture
 
@@ -119,30 +119,38 @@ scripts/analyze_probe_ab.py
 Slurm 参数：
 
 ```text
-POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P]
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K]
 ```
 
 单任务 Patch Policy smoke：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 1 1 0.9
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 1 1 0.9 0
 ```
 
-受控 A/B readiness probe：
+显式 A/B readiness 分布：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9 0
 ```
 
 严格更新分布：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0 0
 ```
 
-只有 `temperature=1.0, top_p=1.0` 的首版严格分布会自动标记为 `update_distribution_compatible=true`。该分布仍必须包含 mixed reward，组才会得到 `valid_for_grpo_update=true`。
+首版严格分布要求：
+
+```text
+temperature = 1.0
+top_p = 1.0
+top_k = 0
+```
+
+此外，raw policy 与 sampling-distribution token log-probabilities 的最大绝对差必须不超过 artifact 中声明的数值容差。只有参数和概率证据均兼容且组内存在 mixed reward 时，group 才会标记为 `valid_for_grpo_update=true`。
 
 A/B 配对分析：
 
@@ -153,14 +161,14 @@ python scripts/analyze_probe_ab.py \
   --output outputs/m2_3_mini/paired_ab.json
 ```
 
-分析使用相同 `(task_id, rollout_index)` 配对，报告 A-only/B-only 成功、精确 McNemar 检验、task-level bootstrap 区间和逐任务差异。不能再仅凭一次总成功数宣称补丁增益或将差异归因于采样方差。
+分析使用相同 `(task_id, rollout_index)` 配对，报告 A-only/B-only 成功、精确 McNemar 检验、task-level bootstrap 区间和逐任务差异。不能仅凭一次总成功数宣称补丁增益或将差异归因于采样方差。
 
 Rollout 合同：
 
 - Slurm 管理 `CUDA_VISIBLE_DEVICES`；
 - Adapter、任务和 Prompt 合同缺失时 fail-fast；
 - 基础设施失败使用 `reward=null`；
-- 每条 trajectory 和 group 保存 `temperature + top_p`；
+- 每条 trajectory 和 group 保存 `temperature/top_p/top_k`；
 - Strict JSON、Schema Valid、环境动作成功和任务成功使用独立分母；
 - 保存 prompt/completion token IDs、raw policy log-probabilities 和 sampling-distribution log-probabilities；
 - Adapter、Prompt 和任务源使用内容 SHA-256；
@@ -173,10 +181,10 @@ Rollout 合同：
 | `data/tasks/tasks_public.jsonl` | historical public tasks |
 | `data/tasks/tasks_oracle.jsonl` | private deterministic Oracle |
 | `data/tasks/rollout_dev_no_solution_v1/` | no-solution rollout/RL development tasks |
-| future feasible rollout_dev slice | false-no-solution and general capability development checks |
+| future feasible rollout_dev slice | false-no-solution and general capability checks |
 | future `final_test_v2` | final one-time evaluation |
 
-一个进程只读取一个任务源。开发集与默认任务不合并，重复 task ID fail-fast。Checkpoint 仅由 Canonical Valid 指标选择；Frozen Test 不参与 checkpoint、temperature 或 optimizer 选择。
+一个进程只读取一个任务源。开发集与默认任务不合并，重复 task ID fail-fast。Checkpoint 仅由 Canonical Valid 指标选择；Frozen Test 不参与 checkpoint、sampling 或 optimizer 选择。
 
 ## M3.0 Boundary
 
@@ -200,4 +208,4 @@ src/miniwebwork/rl/batch.py
 src/miniwebwork/rl/objective.py
 ```
 
-下一门禁是：严格分布产生至少一个 `valid_for_grpo_update=true` group，完成 A/B 初始策略选择，并执行一次 LoRA-only gradient/checkpoint/reload smoke。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
+下一门禁是：schema-v3.3 严格分布产生至少一个 `valid_for_grpo_update=true` group，完成 A/B 初始策略选择，并执行一次 LoRA-only gradient/checkpoint/reload smoke。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
