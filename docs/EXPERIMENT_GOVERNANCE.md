@@ -2,25 +2,26 @@
 
 ## 1. Purpose
 
-This document prevents prompt drift, task leakage, test-set model selection, metric ambiguity, and infrastructure failures being mislabelled as policy failures.
+This document prevents prompt drift, task leakage, test-set model selection, metric ambiguity, incomplete sampling identity, and infrastructure failures being mislabelled as policy failures.
 
 ## 2. Dataset Roles
 
-| Dataset | Purpose | May update model? | May tune temperature/checkpoint? |
+| Dataset | Purpose | May update model? | May tune sampling/checkpoint? |
 |---|---|---:|---:|
 | SFT train | expert and recovery supervision | yes | no |
 | SFT valid | loss/action quality and checkpoint selection | no | yes |
-| rollout dev | stochastic rollout diagnostics and RL development | yes, after versioned collection | yes |
+| no-solution rollout dev | rollout diagnostics and RL development | yes, after versioned collection | yes |
+| feasible rollout dev | false-no-solution and general-capability checks | yes, after versioned collection | yes |
 | legacy frozen test v1 | historical continuity only | no | no |
 | final test v2 | final Base/SFT/RL evaluation | no | no |
 
 The historical 15-task set has been observed repeatedly during debugging. It remains useful for continuity, but it is not a pristine final test.
 
-## 3. Checkpoint Selection
+## 3. Checkpoint and Starting-policy Selection
 
 Checkpoint selection is frozen before reading Frozen Test results.
 
-Current rule:
+Canonical SFT checkpoint rule:
 
 ```text
 primary SFT checkpoint = lowest Canonical Valid Loss
@@ -28,7 +29,14 @@ primary SFT checkpoint = lowest Canonical Valid Loss
 
 This selects `seed_1234`. Frozen E2E success must not be combined with Valid Loss into a weighted checkpoint score.
 
-A different policy may replace the primary checkpoint only when selected on a separately versioned development set with a written rule established before evaluation.
+The M3.0 starting policy is chosen between versioned SFT candidates only on rollout development data using a rule declared before comparison:
+
+1. false no-solution must not materially worsen;
+2. feasible-task success must not materially regress;
+3. after those gates, compare paired no-solution success;
+4. when the difference remains unclear, keep the simpler earlier SFT policy.
+
+A single aggregate success count cannot establish superiority or be dismissed as sampling variance.
 
 ## 4. Prompt and Observation Governance
 
@@ -41,12 +49,12 @@ A result is comparable only when the following are identical:
 - Observation serializer and truncation rules;
 - action schema and parser;
 - maximum model/environment turns;
-- generation settings;
-- task source and verifier version.
+- task source and verifier version;
+- full sampling identity.
 
 A changed prompt contract creates a new experiment family. Base and trained policies must both be rerun.
 
-## 5. Randomness
+## 5. Sampling Identity and Randomness
 
 Each rollout seed is deterministically derived from:
 
@@ -54,7 +62,19 @@ Each rollout seed is deterministically derived from:
 master_seed + task_id + rollout_index
 ```
 
-A/B policies use the same master seed, task order, `K`, temperature, and top-p. The exact per-rollout seed is stored in the artifact.
+Every formal rollout artifact stores:
+
+```text
+temperature
+top_p
+top_k
+master seed
+per-rollout derived seed
+```
+
+A/B policies use the same master seed, task order, `K`, temperature, top-p, and top-k. Artifacts with different identities are not paired.
+
+Historical readiness artifacts that did not explicitly record top-k may support infrastructure and capability conclusions, but they are not optimizer inputs.
 
 Training runs report at least:
 
@@ -63,14 +83,15 @@ Training runs report at least:
 - train/valid manifest hashes;
 - optimizer and learning rate;
 - epochs/steps;
-- final and best checkpoint criteria.
+- final and best checkpoint criteria;
+- source rollout artifact hashes and policy version.
 
 ## 6. Metric Definitions
 
 ### Task success
 
 ```text
-number of verifier-success trajectories / valid policy trajectories
+verifier-success trajectories / valid policy trajectories
 ```
 
 ### Strict JSON rate
@@ -95,18 +116,67 @@ Schema-invalid turns do not call `env.step` and are not in this denominator.
 
 ### Reward variance
 
-Computed only from valid policy rollouts in one `(task, policy, temperature)` group. Infrastructure records with `reward=null` are excluded.
+Computed only from valid policy rollouts in one:
+
+```text
+(task, policy, temperature, top_p, top_k)
+```
+
+group. Infrastructure records with `reward=null` are excluded.
+
+### Learning-signal group
+
+A group has learning signal when at least two valid policy trajectories exist and valid rewards have non-zero variance.
+
+### Update-compatible group
+
+The first implementation permits update compatibility only for:
+
+```text
+temperature = 1.0
+top_p = 1.0
+top_k = 0
+```
+
+and only when:
+
+- prompt/model/task/distribution identities are consistent;
+- every generated turn has aligned prompt/completion tokens;
+- raw-policy and sampling-distribution log-probabilities are complete and finite;
+- their maximum absolute difference is within the predeclared artifact tolerance.
+
+A caller cannot override these conditions by setting a boolean flag. Future scaled or truncated behavior distributions require a separate versioned probability contract.
 
 ### GRPO-valid group
 
-A group is valid for update only when:
+A group is valid for update only when it has both:
 
-- at least two valid policy trajectories exist;
-- reward variance is greater than zero;
-- prompt/model/task identities are consistent;
-- every completion has aligned old-policy token log-probabilities.
+```text
+has_learning_signal = true
+update_distribution_compatible = true
+```
 
-## 7. Failure Taxonomy
+## 7. Paired Policy Comparison
+
+A/B artifacts are paired by:
+
+```text
+(task_id, rollout_index)
+```
+
+Formal comparison reports:
+
+- both-success, A-only, B-only, both-fail counts;
+- comparable and infrastructure-invalid pairs;
+- per-task success counts and differences;
+- exact McNemar result;
+- task-level bootstrap interval;
+- termination-reason breakdown;
+- results across multiple master seeds.
+
+Infrastructure-invalid pairs are excluded from policy success comparison and reported separately.
+
+## 8. Failure Taxonomy
 
 ### Policy failures
 
@@ -126,12 +196,12 @@ These receive reward 0.
 - model or adapter load failure;
 - Playwright/browser/service/database exception;
 - task/Oracle source mismatch;
-- malformed artifact or missing log-prob evidence;
+- malformed artifact or missing/non-finite log-prob evidence;
 - cleanup/lifecycle failure that invalidates the rollout.
 
 These receive `reward=null` and never enter an RL update.
 
-## 8. No-Solution Evaluation
+## 9. No-Solution Evaluation
 
 Report separately:
 
@@ -145,7 +215,7 @@ Report separately:
 
 An increase in no-solution success is not acceptable if false no-solution on feasible tasks also increases materially.
 
-## 9. Reward Governance
+## 10. Reward Governance
 
 The first Agentic RL experiment uses only deterministic terminal outcome reward:
 
@@ -157,20 +227,33 @@ infrastructure failure = null
 
 Do not initially reward legal clicks, no-solution declarations, page transitions, or form completion. Such shaping can optimize proxy behavior rather than task completion. Process rewards are allowed only as a documented ablation after the outcome-only baseline.
 
-## 10. Artifact Requirements
+## 11. Artifact Requirements
 
-Every formal result must contain:
+Every formal result contains:
 
-- schema version;
+- schema version and `complete` flag;
 - Git commit SHA;
 - policy/adapter/base model identity and content hashes;
 - task source and split hashes;
 - prompt and tokenizer identity;
-- generation parameters;
+- temperature, top-p, top-k, K, and seeds;
 - requested and valid rollout counts;
-- per-turn prompt/completion tokens and old log-probabilities;
-- failure origin;
-- verifier output;
-- aggregate metrics.
+- per-turn prompt/completion tokens;
+- raw-policy and sampling-distribution log-probabilities;
+- strict-distribution probability-match diagnostics;
+- failure origin and termination reason;
+- Verifier output;
+- aggregate and per-task metrics.
 
-Partial/incremental artifacts are marked `complete=false` and cannot be presented as final results.
+Partial/incremental artifacts are marked `complete=false` and cannot be presented as final results or used for optimization.
+
+## 12. Test-set Governance
+
+`legacy_frozen_test_v1` is used only for historical continuity. `final_test_v2` is evaluated once after:
+
+- starting policy is selected;
+- sampling and optimizer hyperparameters are frozen;
+- training stopping rules are frozen;
+- the final checkpoint-selection rule is frozen.
+
+No final-test result may alter training, sampling, checkpoint, or stopping decisions.
