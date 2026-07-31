@@ -3,11 +3,11 @@
 The backend exposes two distinct probability concepts:
 
 * ``logprobs``: raw policy log-probabilities from a teacher-forced forward
-  pass over ``prompt + generated completion``.  These are the values that a
+  pass over ``prompt + generated completion``. These are the values that a
   later GRPO/PPO update must recompute under the old/current policy.
 * ``sampling_logprobs``: optional log-probabilities from Transformers'
-  generation scores after sampling processors/warpers.  They are diagnostic
-  only and must not be mixed with raw policy log-probabilities.
+  generation scores after sampling processors/warpers. They are diagnostic
+  evidence and must not be mixed with raw policy log-probabilities.
 """
 
 from __future__ import annotations
@@ -31,6 +31,10 @@ class ModelConfig:
     do_sample: bool = False
     temperature: float = 0.0
     top_p: float = 1.0
+    # Transformers/model generation configs may carry a non-zero default
+    # top-k. Keep it explicit so rollout artifacts identify the real behavior
+    # distribution. top_k=0 disables truncation.
+    top_k: int = 0
     use_cache: bool = True
     local_files_only: bool = True
     enable_thinking: bool = False
@@ -45,13 +49,9 @@ class GenerationResult:
     input_tokens: int = 0
     latency_ms: float = 0.0
     error: str = ""
-    # Exact tokenized prompt used by the policy.  This is required to
-    # reconstruct each browser turn during an RL policy update.
     prompt_token_ids: list[int] = field(default_factory=list)
     generated_token_ids: list[int] = field(default_factory=list)
-    # Raw model policy log-probabilities, one per generated token.
     logprobs: list[float] = field(default_factory=list)
-    # Optional post-processor/warper sampling log-probabilities.
     sampling_logprobs: list[float] = field(default_factory=list)
 
 
@@ -62,9 +62,9 @@ def extract_generated_token_logprobs(
 ) -> torch.Tensor:
     """Return raw model log-probabilities assigned to generated tokens.
 
-    ``logits[:, t, :]`` predicts token ``t + 1``.  Therefore the first
+    ``logits[:, t, :]`` predicts token ``t + 1``. Therefore the first
     generated token is predicted by the final prompt position
-    ``prompt_length - 1``.  The returned tensor has exactly one value per
+    ``prompt_length - 1``. The returned tensor has exactly one value per
     generated token.
     """
     if logits.ndim != 3 or logits.shape[0] != 1:
@@ -229,8 +229,13 @@ class QwenTransformersBackend:
             if self.config.do_sample:
                 if self.config.temperature <= 0:
                     raise ValueError("temperature must be > 0 when do_sample=True")
+                if not 0 < self.config.top_p <= 1:
+                    raise ValueError("top_p must be in (0, 1] when do_sample=True")
+                if self.config.top_k < 0:
+                    raise ValueError("top_k must be non-negative when do_sample=True")
                 generation_kwargs["temperature"] = self.config.temperature
                 generation_kwargs["top_p"] = self.config.top_p
+                generation_kwargs["top_k"] = self.config.top_k
             if self._tokenizer.pad_token_id is not None:
                 generation_kwargs["pad_token_id"] = self._tokenizer.pad_token_id
             if self._tokenizer.eos_token_id is not None:
@@ -305,6 +310,7 @@ class QwenTransformersBackend:
                 "do_sample": self.config.do_sample,
                 "temperature": self.config.temperature,
                 "top_p": self.config.top_p,
+                "top_k": self.config.top_k,
                 "use_cache": self.config.use_cache,
                 "collect_policy_logprobs": self.config.collect_policy_logprobs,
                 "collect_sampling_logprobs": self.config.collect_sampling_logprobs,
