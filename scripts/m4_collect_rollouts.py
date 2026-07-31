@@ -114,7 +114,12 @@ def _collector_command(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--algorithm", choices=sorted(ONLINE_ALGORITHMS), required=True)
+    parser.add_argument(
+        "--algorithm",
+        choices=sorted(ONLINE_ALGORITHMS | {"rsft"}),
+        required=True,
+        help="RSFT reuses strict train collection but never calls an online update.",
+    )
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--phase", choices=("train", "dev", "final_test"), required=True)
     parser.add_argument("--adapter", type=Path, required=True)
