@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Canonical M2.3-mini rollout probe.
+"""Canonical M2.3-mini rollout collector.
 
-One process evaluates one policy at one temperature.  The artifact preserves
-exact prompt/completion tokens, raw model-policy log-probabilities, actual
-sampling-distribution log-probabilities, environment evidence, and terminal
-Verifier results.  Infrastructure failures never enter the reward stream.
+One process evaluates one policy under one explicit sampling distribution. The
+artifact preserves exact prompt/completion tokens, raw model-policy
+log-probabilities, actual sampling-distribution log-probabilities, environment
+evidence, and terminal Verifier results. Infrastructure failures never enter
+the reward stream.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import argparse
 import gc
 import hashlib
 import json
+import math
 import random
 import subprocess
 import sys
@@ -39,6 +41,7 @@ from miniwebwork.rollout import (
     RolloutRecord,
     RolloutStep,
     derive_rollout_seed,
+    strict_raw_policy_distribution,
     summarize_group,
 )
 import miniwebwork.model_agent.prompt_builder as prompt_builder
@@ -48,8 +51,8 @@ DEFAULT_TASK_DIR = PROJECT_ROOT / "data" / "tasks" / "rollout_dev_no_solution_v1
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "m2_3_mini"
 DEFAULT_K = 8
 DEFAULT_SEED = 20260731
+DEFAULT_TOP_P = 0.9
 PROMPT_CONTRACT = "browser_agent_v2"
-TOP_P = 0.9
 MAX_MODEL_TURNS = 25
 MAX_OUTPUT_FAILURES = 3
 
@@ -57,11 +60,19 @@ MAX_OUTPUT_FAILURES = 3
 class Heartbeat:
     """Atomic progress record for Slurm timeout and signal diagnostics."""
 
-    def __init__(self, path: Path, policy: str, temperature: float, total_tasks: int):
+    def __init__(
+        self,
+        path: Path,
+        policy: str,
+        temperature: float,
+        top_p: float,
+        total_tasks: int,
+    ):
         self.path = path
         self.payload = {
             "policy": policy,
             "temperature": temperature,
+            "top_p": top_p,
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "tasks_done": 0,
             "total_tasks": total_tasks,
@@ -128,6 +139,10 @@ def _git_sha() -> str:
         return "unknown"
 
 
+def _float_tag(value: float) -> str:
+    return format(value, ".8g").replace(".", "p").replace("-", "m")
+
+
 def _load_tasks(task_dir: Path, split: str) -> tuple[list[dict], str]:
     public_path = task_dir / f"{split}_public.jsonl"
     oracle_path = task_dir / f"{split}_oracle.jsonl"
@@ -181,7 +196,12 @@ def _disable_allocator_warmup() -> None:
         modeling_utils.caching_allocator_warmup = lambda *args, **kwargs: None
 
 
-def load_policy(base_model_path: str, adapter_dir: Path, temperature: float):
+def load_policy(
+    base_model_path: str,
+    adapter_dir: Path,
+    temperature: float,
+    top_p: float,
+):
     import torch
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -227,7 +247,7 @@ def load_policy(base_model_path: str, adapter_dir: Path, temperature: float):
             max_new_tokens=128,
             do_sample=True,
             temperature=temperature,
-            top_p=TOP_P,
+            top_p=top_p,
             dtype="bfloat16",
             device="cuda:0",
             enable_thinking=False,
@@ -268,6 +288,7 @@ def _infrastructure_record(
     rollout_seed: int,
     policy: str,
     temperature: float,
+    top_p: float,
     episode_id: str,
     reason: str,
     steps: list[RolloutStep],
@@ -281,6 +302,7 @@ def _infrastructure_record(
         rollout_seed=rollout_seed,
         policy=policy,
         temperature=temperature,
+        top_p=top_p,
         success=False,
         reward=None,
         rollout_valid=False,
@@ -313,6 +335,7 @@ def run_rollout(
     master_seed: int,
     policy: str,
     temperature: float,
+    top_p: float,
     task_dir: Path,
     agent: QwenBrowserAgent,
 ) -> RolloutRecord:
@@ -358,6 +381,7 @@ def run_rollout(
                     rollout_seed=rollout_seed,
                     policy=policy,
                     temperature=temperature,
+                    top_p=top_p,
                     episode_id=episode_id,
                     reason=(
                         "model_backend_error"
@@ -388,6 +412,7 @@ def run_rollout(
                     rollout_seed=rollout_seed,
                     policy=policy,
                     temperature=temperature,
+                    top_p=top_p,
                     episode_id=episode_id,
                     reason="environment_step_error",
                     steps=steps,
@@ -433,6 +458,7 @@ def run_rollout(
                 rollout_seed=rollout_seed,
                 policy=policy,
                 temperature=temperature,
+                top_p=top_p,
                 success=success,
                 reward=1.0 if success else 0.0,
                 rollout_valid=True,
@@ -454,6 +480,7 @@ def run_rollout(
             rollout_seed=rollout_seed,
             policy=policy,
             temperature=temperature,
+            top_p=top_p,
             episode_id=episode_id,
             reason=f"rollout_exception:{type(exc).__name__}:{exc}",
             steps=steps,
@@ -470,6 +497,7 @@ def run_rollout(
                     rollout_seed=rollout_seed,
                     policy=policy,
                     temperature=temperature,
+                    top_p=top_p,
                     episode_id=episode_id,
                     reason=f"environment_cleanup_error:{type(exc).__name__}:{exc}",
                     steps=steps,
@@ -493,6 +521,7 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
     no_solution = [
         record for record in valid if record.task_type == "no_feasible_product"
     ]
+    completion_steps = [step for step in steps if step.generated_token_ids]
     return {
         "total_trajectories": len(records),
         "valid_trajectories": len(valid),
@@ -510,16 +539,14 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
         / max(len(executed), 1),
         "raw_policy_logprob_coverage": sum(
             len(step.token_logprobs) == len(step.generated_token_ids)
-            for step in steps
-            if step.generated_token_ids
+            for step in completion_steps
         )
-        / max(sum(bool(step.generated_token_ids) for step in steps), 1),
+        / max(len(completion_steps), 1),
         "sampling_logprob_coverage": sum(
             len(step.sampling_logprobs) == len(step.generated_token_ids)
-            for step in steps
-            if step.generated_token_ids
+            for step in completion_steps
         )
-        / max(sum(bool(step.generated_token_ids) for step in steps), 1),
+        / max(len(completion_steps), 1),
         "premature_finish": sum(
             record.termination_reason == "premature_finish" for record in valid
         ),
@@ -528,6 +555,12 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
         "groups_with_reward_variance": sum(
             group["has_reward_variance"] for group in groups
         ),
+        "groups_with_learning_signal": sum(
+            group["has_learning_signal"] for group in groups
+        ),
+        "groups_update_distribution_compatible": sum(
+            group["update_distribution_compatible"] for group in groups
+        ),
         "groups_valid_for_grpo": sum(
             group["valid_for_grpo_update"] for group in groups
         ),
@@ -535,12 +568,13 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Canonical M2.3-mini rollout probe")
+    parser = argparse.ArgumentParser(description="Canonical M2.3-mini rollout collector")
     parser.add_argument("--policy", required=True, choices=["A", "B"])
     parser.add_argument("--adapter", required=True, type=Path)
     parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
     parser.add_argument("--task-dir", type=Path, default=DEFAULT_TASK_DIR)
     parser.add_argument("--temperature", required=True, type=float)
+    parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P)
     parser.add_argument("--K", type=int, default=DEFAULT_K)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--split", choices=["train", "valid"], default="valid")
@@ -550,8 +584,10 @@ def main() -> None:
 
     if args.K <= 0:
         raise ValueError("K must be positive")
-    if args.temperature <= 0:
-        raise ValueError("temperature must be positive")
+    if not math.isfinite(args.temperature) or args.temperature <= 0:
+        raise ValueError("temperature must be finite and positive")
+    if not math.isfinite(args.top_p) or not 0 < args.top_p <= 1:
+        raise ValueError("top-p must be finite and in (0, 1]")
     if args.max_tasks is not None and args.max_tasks <= 0:
         raise ValueError("max-tasks must be positive")
 
@@ -567,14 +603,25 @@ def main() -> None:
     adapter_hash = _directory_sha256(adapter_dir)
     prompt_hash = _file_sha256(Path(prompt_builder.__file__).resolve())
     git_sha = _git_sha()
+    distribution_compatible = strict_raw_policy_distribution(
+        args.temperature,
+        args.top_p,
+    )
+    distribution_tag = f"t{_float_tag(args.temperature)}_p{_float_tag(args.top_p)}"
     heartbeat = Heartbeat(
-        output_dir / f"heartbeat_{args.policy}_t{args.temperature}.json",
+        output_dir / f"heartbeat_{args.policy}_{distribution_tag}.json",
         policy,
         args.temperature,
+        args.top_p,
         len(tasks),
     )
 
-    backend, agent = load_policy(args.base_model, adapter_dir, args.temperature)
+    backend, agent = load_policy(
+        args.base_model,
+        adapter_dir,
+        args.temperature,
+        args.top_p,
+    )
     records: list[RolloutRecord] = []
     groups: list[dict] = []
     started = time.time()
@@ -593,6 +640,7 @@ def main() -> None:
                     args.seed,
                     policy,
                     args.temperature,
+                    args.top_p,
                     task_dir,
                     agent,
                 )
@@ -606,17 +654,24 @@ def main() -> None:
                     flush=True,
                 )
 
-            groups.append(summarize_group(task_records, args.K).to_dict())
+            groups.append(
+                summarize_group(
+                    task_records,
+                    args.K,
+                    update_distribution_compatible=distribution_compatible,
+                ).to_dict()
+            )
             heartbeat.finish_task()
             _atomic_json_write(
-                output_dir / f"incremental_{args.policy}_t{args.temperature}.json",
+                output_dir / f"incremental_{args.policy}_{distribution_tag}.json",
                 {
-                    "schema_version": "3.1",
+                    "schema_version": "3.2",
                     "complete": False,
                     "git_sha": git_sha,
                     "policy": policy,
                     "temperature": args.temperature,
-                    "top_p": TOP_P,
+                    "top_p": args.top_p,
+                    "update_distribution_compatible": distribution_compatible,
                     "K": args.K,
                     "seed": args.seed,
                     "task_source_sha256": task_source_hash,
@@ -627,8 +682,8 @@ def main() -> None:
             )
 
         result = {
-            "schema_version": "3.1",
-            "phase": "m2_3_mini_rollout_probe",
+            "schema_version": "3.2",
+            "phase": "m2_3_mini_rollout_collection",
             "complete": True,
             "git_sha": git_sha,
             "policy": policy,
@@ -642,7 +697,8 @@ def main() -> None:
             "task_source_sha256": task_source_hash,
             "split": args.split,
             "temperature": args.temperature,
-            "top_p": TOP_P,
+            "top_p": args.top_p,
+            "update_distribution_compatible": distribution_compatible,
             "K": args.K,
             "seed": args.seed,
             "max_model_turns": MAX_MODEL_TURNS,
@@ -657,7 +713,7 @@ def main() -> None:
             "elapsed_s": round(time.time() - started, 1),
         }
         output_path = output_dir / (
-            f"single_probe_{args.policy}_t{args.temperature}_"
+            f"single_probe_{args.policy}_{distribution_tag}_"
             f"{time.strftime('%Y%m%d_%H%M%S')}.json"
         )
         _atomic_json_write(output_path, result)
