@@ -52,9 +52,11 @@ DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "m2_3_mini"
 DEFAULT_K = 8
 DEFAULT_SEED = 20260731
 DEFAULT_TOP_P = 0.9
+DEFAULT_TOP_K = 0
 PROMPT_CONTRACT = "browser_agent_v2"
 MAX_MODEL_TURNS = 25
 MAX_OUTPUT_FAILURES = 3
+STRICT_LOGPROB_MATCH_TOLERANCE = 5e-2
 
 
 class Heartbeat:
@@ -66,6 +68,7 @@ class Heartbeat:
         policy: str,
         temperature: float,
         top_p: float,
+        top_k: int,
         total_tasks: int,
     ):
         self.path = path
@@ -73,6 +76,7 @@ class Heartbeat:
             "policy": policy,
             "temperature": temperature,
             "top_p": top_p,
+            "top_k": top_k,
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "tasks_done": 0,
             "total_tasks": total_tasks,
@@ -201,6 +205,7 @@ def load_policy(
     adapter_dir: Path,
     temperature: float,
     top_p: float,
+    top_k: int,
 ):
     import torch
     from peft import PeftModel
@@ -248,6 +253,7 @@ def load_policy(
             do_sample=True,
             temperature=temperature,
             top_p=top_p,
+            top_k=top_k,
             dtype="bfloat16",
             device="cuda:0",
             enable_thinking=False,
@@ -289,6 +295,7 @@ def _infrastructure_record(
     policy: str,
     temperature: float,
     top_p: float,
+    top_k: int,
     episode_id: str,
     reason: str,
     steps: list[RolloutStep],
@@ -303,6 +310,7 @@ def _infrastructure_record(
         policy=policy,
         temperature=temperature,
         top_p=top_p,
+        top_k=top_k,
         success=False,
         reward=None,
         rollout_valid=False,
@@ -329,6 +337,37 @@ def _evidence_complete(attempt) -> bool:
     )
 
 
+def _max_raw_sampling_difference(records: list[RolloutRecord]) -> float | None:
+    differences: list[float] = []
+    for record in records:
+        if not record.rollout_valid:
+            continue
+        for step in record.steps:
+            if not step.generated_token_ids:
+                continue
+            if len(step.token_logprobs) != len(step.sampling_logprobs):
+                return None
+            differences.extend(
+                abs(raw - sampled)
+                for raw, sampled in zip(step.token_logprobs, step.sampling_logprobs)
+            )
+    return max(differences) if differences else None
+
+
+def _strict_group_distribution_compatible(
+    records: list[RolloutRecord],
+    *,
+    parameter_compatible: bool,
+) -> tuple[bool, float | None]:
+    difference = _max_raw_sampling_difference(records)
+    compatible = (
+        parameter_compatible
+        and difference is not None
+        and difference <= STRICT_LOGPROB_MATCH_TOLERANCE
+    )
+    return compatible, difference
+
+
 def run_rollout(
     task: dict,
     rollout_index: int,
@@ -336,6 +375,7 @@ def run_rollout(
     policy: str,
     temperature: float,
     top_p: float,
+    top_k: int,
     task_dir: Path,
     agent: QwenBrowserAgent,
 ) -> RolloutRecord:
@@ -382,6 +422,7 @@ def run_rollout(
                     policy=policy,
                     temperature=temperature,
                     top_p=top_p,
+                    top_k=top_k,
                     episode_id=episode_id,
                     reason=(
                         "model_backend_error"
@@ -413,6 +454,7 @@ def run_rollout(
                     policy=policy,
                     temperature=temperature,
                     top_p=top_p,
+                    top_k=top_k,
                     episode_id=episode_id,
                     reason="environment_step_error",
                     steps=steps,
@@ -459,6 +501,7 @@ def run_rollout(
                 policy=policy,
                 temperature=temperature,
                 top_p=top_p,
+                top_k=top_k,
                 success=success,
                 reward=1.0 if success else 0.0,
                 rollout_valid=True,
@@ -481,6 +524,7 @@ def run_rollout(
             policy=policy,
             temperature=temperature,
             top_p=top_p,
+            top_k=top_k,
             episode_id=episode_id,
             reason=f"rollout_exception:{type(exc).__name__}:{exc}",
             steps=steps,
@@ -498,6 +542,7 @@ def run_rollout(
                     policy=policy,
                     temperature=temperature,
                     top_p=top_p,
+                    top_k=top_k,
                     episode_id=episode_id,
                     reason=f"environment_cleanup_error:{type(exc).__name__}:{exc}",
                     steps=steps,
@@ -522,6 +567,7 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
         record for record in valid if record.task_type == "no_feasible_product"
     ]
     completion_steps = [step for step in steps if step.generated_token_ids]
+    max_difference = _max_raw_sampling_difference(valid)
     return {
         "total_trajectories": len(records),
         "valid_trajectories": len(valid),
@@ -547,6 +593,7 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
             for step in completion_steps
         )
         / max(len(completion_steps), 1),
+        "max_raw_sampling_logprob_abs_diff": max_difference,
         "premature_finish": sum(
             record.termination_reason == "premature_finish" for record in valid
         ),
@@ -575,6 +622,7 @@ def main() -> None:
     parser.add_argument("--task-dir", type=Path, default=DEFAULT_TASK_DIR)
     parser.add_argument("--temperature", required=True, type=float)
     parser.add_argument("--top-p", type=float, default=DEFAULT_TOP_P)
+    parser.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     parser.add_argument("--K", type=int, default=DEFAULT_K)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--split", choices=["train", "valid"], default="valid")
@@ -588,6 +636,8 @@ def main() -> None:
         raise ValueError("temperature must be finite and positive")
     if not math.isfinite(args.top_p) or not 0 < args.top_p <= 1:
         raise ValueError("top-p must be finite and in (0, 1]")
+    if args.top_k < 0:
+        raise ValueError("top-k must be non-negative")
     if args.max_tasks is not None and args.max_tasks <= 0:
         raise ValueError("max-tasks must be positive")
 
@@ -603,16 +653,20 @@ def main() -> None:
     adapter_hash = _directory_sha256(adapter_dir)
     prompt_hash = _file_sha256(Path(prompt_builder.__file__).resolve())
     git_sha = _git_sha()
-    distribution_compatible = strict_raw_policy_distribution(
+    parameter_distribution_compatible = strict_raw_policy_distribution(
         args.temperature,
         args.top_p,
+        args.top_k,
     )
-    distribution_tag = f"t{_float_tag(args.temperature)}_p{_float_tag(args.top_p)}"
+    distribution_tag = (
+        f"t{_float_tag(args.temperature)}_p{_float_tag(args.top_p)}_k{args.top_k}"
+    )
     heartbeat = Heartbeat(
         output_dir / f"heartbeat_{args.policy}_{distribution_tag}.json",
         policy,
         args.temperature,
         args.top_p,
+        args.top_k,
         len(tasks),
     )
 
@@ -621,6 +675,7 @@ def main() -> None:
         adapter_dir,
         args.temperature,
         args.top_p,
+        args.top_k,
     )
     records: list[RolloutRecord] = []
     groups: list[dict] = []
@@ -641,6 +696,7 @@ def main() -> None:
                     policy,
                     args.temperature,
                     args.top_p,
+                    args.top_k,
                     task_dir,
                     agent,
                 )
@@ -654,24 +710,31 @@ def main() -> None:
                     flush=True,
                 )
 
-            groups.append(
-                summarize_group(
-                    task_records,
-                    args.K,
-                    update_distribution_compatible=distribution_compatible,
-                ).to_dict()
+            group_compatible, max_difference = _strict_group_distribution_compatible(
+                task_records,
+                parameter_compatible=parameter_distribution_compatible,
             )
+            group = summarize_group(
+                task_records,
+                args.K,
+                update_distribution_compatible=group_compatible,
+            ).to_dict()
+            group["max_raw_sampling_logprob_abs_diff"] = max_difference
+            group["strict_logprob_match_tolerance"] = STRICT_LOGPROB_MATCH_TOLERANCE
+            groups.append(group)
             heartbeat.finish_task()
             _atomic_json_write(
                 output_dir / f"incremental_{args.policy}_{distribution_tag}.json",
                 {
-                    "schema_version": "3.2",
+                    "schema_version": "3.3",
                     "complete": False,
                     "git_sha": git_sha,
                     "policy": policy,
                     "temperature": args.temperature,
                     "top_p": args.top_p,
-                    "update_distribution_compatible": distribution_compatible,
+                    "top_k": args.top_k,
+                    "parameter_distribution_compatible": parameter_distribution_compatible,
+                    "strict_logprob_match_tolerance": STRICT_LOGPROB_MATCH_TOLERANCE,
                     "K": args.K,
                     "seed": args.seed,
                     "task_source_sha256": task_source_hash,
@@ -682,7 +745,7 @@ def main() -> None:
             )
 
         result = {
-            "schema_version": "3.2",
+            "schema_version": "3.3",
             "phase": "m2_3_mini_rollout_collection",
             "complete": True,
             "git_sha": git_sha,
@@ -698,7 +761,9 @@ def main() -> None:
             "split": args.split,
             "temperature": args.temperature,
             "top_p": args.top_p,
-            "update_distribution_compatible": distribution_compatible,
+            "top_k": args.top_k,
+            "parameter_distribution_compatible": parameter_distribution_compatible,
+            "strict_logprob_match_tolerance": STRICT_LOGPROB_MATCH_TOLERANCE,
             "K": args.K,
             "seed": args.seed,
             "max_model_turns": MAX_MODEL_TURNS,
