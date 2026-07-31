@@ -20,7 +20,7 @@ def _record(index: int, success: bool, token_counts=(2,)) -> RolloutRecord:
                 prompt_token_ids=[10, 11, turn],
                 generated_token_ids=ids,
                 token_logprobs=[-0.1 * turn] * token_count,
-                sampling_logprobs=[-0.2 * turn] * token_count,
+                sampling_logprobs=[-0.1 * turn] * token_count,
                 strict_json_success=True,
                 schema_valid=True,
                 parsed_action={"action": "click", "target": "x"},
@@ -35,6 +35,8 @@ def _record(index: int, success: bool, token_counts=(2,)) -> RolloutRecord:
         rollout_seed=index,
         policy="policy",
         temperature=1.0,
+        top_p=1.0,
+        top_k=0,
         success=success,
         reward=1.0 if success else 0.0,
         rollout_valid=True,
@@ -55,6 +57,9 @@ def test_build_replay_group_preserves_turn_boundaries_and_advantages():
     )
 
     assert group.task_id == "TASK"
+    assert group.temperature == 1.0
+    assert group.top_p == 1.0
+    assert group.top_k == 0
     assert len(group.trajectories) == 2
     assert len(group.trajectories[0].turns) == 2
     assert group.trajectories[0].action_token_count == 3
