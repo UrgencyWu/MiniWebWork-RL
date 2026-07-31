@@ -71,6 +71,7 @@ class ReplayGroup:
     task_id: str
     policy: str
     temperature: float
+    top_p: float
     trajectories: tuple[TrajectoryReplay, ...]
 
     @property
@@ -90,7 +91,7 @@ def build_replay_group(
 
     Diagnostic top-p groups must pass
     ``update_distribution_compatible=False`` and are rejected here even when
-    they contain mixed rewards.  This prevents a readiness artifact from being
+    they contain mixed rewards. This prevents a readiness artifact from being
     silently reused as an optimizer batch.
     """
     summary = summarize_group(
@@ -137,6 +138,7 @@ def build_replay_group(
         task_id=summary.task_id,
         policy=summary.policy,
         temperature=summary.temperature,
+        top_p=summary.top_p,
         trajectories=tuple(trajectories),
     )
 
