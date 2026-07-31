@@ -39,24 +39,26 @@ The project may use Accelerate/TRL utilities for model loading, distributed exec
 
 ## 3. Initial and Reference Policies
 
-Initial policy:
+Initial policy candidates:
 
 ```text
-Qwen3.5-4B + M2.3-mini seed_1234 LoRA
+A: Qwen3.5-4B + M2.2R seed_1234 LoRA
+B: Qwen3.5-4B + M2.3-mini seed_1234 LoRA
 ```
 
-Selection rule: lowest Canonical Valid Loss. Historical Frozen Test performance is not used for checkpoint selection.
+The final M3.0 starting policy is selected on versioned development tasks using a predeclared paired rule. Historical Frozen Test performance is not used for checkpoint selection.
 
 Reference policy:
 
 ```text
-frozen copy of the same starting M2.3-mini policy
+frozen copy of the selected M3.0 starting policy
 ```
 
 Development tasks:
 
 ```text
-versioned rollout_dev task source
+versioned no-solution rollout_dev
++ versioned feasible rollout_dev slice
 ```
 
 `legacy_frozen_test_v1` is excluded from optimization and hyperparameter selection. A new `final_test_v2` is opened only after the model and hyperparameters are frozen.
@@ -83,6 +85,7 @@ Every trajectory stores:
 task_id / task_type
 policy and adapter identity
 rollout seed
+temperature / top_p / top_k
 ordered turn records
 terminal reward
 termination reason
@@ -102,6 +105,7 @@ has_reward_variance
 has_learning_signal
 update_distribution_compatible
 valid_for_grpo_update
+max raw-vs-sampling logprob difference
 ```
 
 Infrastructure failure:
@@ -119,9 +123,9 @@ It is excluded before reward normalization and gradient construction.
 First formal reward:
 
 ```text
-Verifier success       = 1.0
-Valid policy failure   = 0.0
-Infrastructure failure = null
+Verifier success        = 1.0
+Valid policy failure    = 0.0
+Infrastructure failure  = null
 ```
 
 Do not initially reward:
@@ -140,17 +144,20 @@ These remain diagnostics. Process or progress rewards require a later explicit a
 
 ### 6.1 Readiness Probe
 
-M2.3 diagnostic probes may use:
+New schema-v3.3 diagnostic probes use a fully explicit distribution, for example:
 
 ```text
 K ∈ {4, 8}
 temperature ∈ {0.2, 0.4}
 top_p = 0.9
+top_k = 0
 ```
 
 Their purpose is to test exploration, no-solution success, and reward variance. A mixed-reward diagnostic group has `has_learning_signal=true`.
 
-It does **not** automatically have `valid_for_grpo_update=true`, because top-p truncation changes the actual behavior distribution.
+It does **not** automatically have `valid_for_grpo_update=true`, because temperature/top-p changes the actual behavior distribution.
+
+Historical readiness artifacts that omitted explicit `top_k` remain valid as infrastructure and capability evidence, but are not optimizer inputs.
 
 ### 6.2 First Formal Update Distribution
 
@@ -159,20 +166,22 @@ Preferred strict pilot:
 ```text
 temperature = 1.0
 top_p = 1.0
+top_k = 0
 ```
 
-Then the sampled behavior distribution equals the raw model categorical policy and old/current raw policy log-probabilities are directly comparable.
+These parameters disable the intended sampling warpers. The collector must additionally verify that raw-policy and sampling-distribution token log-probabilities agree within a predeclared numerical tolerance. Parameter identity alone is not sufficient.
 
 Fallback, only when the unrestricted policy cannot produce usable groups:
 
 ```text
 fixed temperature T ∈ [0.7, 1.0]
 top_p = 1.0
+top_k = 0
 ```
 
-In that case, both old and current log-probabilities must be computed under the same temperature-scaled categorical distribution.
+In that case, both old and current log-probabilities must be computed under the same temperature-scaled categorical distribution before any update is permitted.
 
-`top_p < 1.0` is not permitted in the first optimizer batch unless the implementation explicitly recomputes and differentiates the same truncated behavior distribution. Raw model log-probabilities and post-top-p sampling log-probabilities must never be mixed in one importance ratio.
+`top_p < 1.0` or `top_k > 0` is not permitted in the first optimizer batch unless the implementation explicitly recomputes and differentiates that same truncated behavior distribution. Raw model log-probabilities and post-processor sampling log-probabilities must never be mixed in one importance ratio.
 
 ## 7. Group-relative Advantage
 
@@ -188,7 +197,7 @@ Requirements:
 - finite rewards;
 - non-zero population standard deviation;
 - no infrastructure records;
-- one task and one policy/distribution per group.
+- one task, policy, and sampling distribution per group.
 
 Every action completion in trajectory `i` initially receives `A_i`. This is trajectory-level credit assignment broadcast across turns. It is not a process reward and does not identify which earlier action caused success or failure.
 
@@ -265,28 +274,24 @@ First pilot configuration:
 
 ## 10. Stage Sequence
 
-### M3.0B-0 — Canonical Rollout Qualification
+### M3.0B-0A — Diagnostic Evidence and Policy Comparison
 
-Pass conditions:
+1. rerun schema-v3.3 A/B diagnostics with explicit `temperature/top_p/top_k`;
+2. pair by `(task_id, rollout_index)`;
+3. report A-only/B-only successes, per-task deltas, exact McNemar result, and task bootstrap interval;
+4. repeat on additional master seeds;
+5. add feasible tasks to detect false no-solution and general-task regression.
 
-1. infrastructure error rate is near zero;
-2. prompt/completion/raw/sampling log-prob evidence has 100% coverage on valid turns;
-3. at least one no-solution trajectory succeeds;
-4. at least one same-task group has mixed reward;
-5. false no-solution does not materially increase;
-6. M2.3-mini does not materially regress general tasks.
+### M3.0B-0B — Strict On-policy Collection Smoke
 
-The current top-p readiness probe can pass the learning-signal gate but not the update-distribution gate.
-
-### M3.0B-1 — Strict On-policy Collection Smoke
-
-1. switch to the approved update distribution, preferably `temperature=1`, `top_p=1`;
+1. use `temperature=1.0, top_p=1.0, top_k=0`;
 2. collect a small same-task grouped batch;
 3. require mixed rewards and complete evidence;
-4. mark groups `update_distribution_compatible=true` only after old log-probabilities are verified under that exact distribution;
-5. save without updating the model.
+4. require raw/sampling log-probability agreement within the artifact tolerance;
+5. mark groups `update_distribution_compatible=true` only after all distribution checks pass;
+6. save without updating the model.
 
-### M3.0B-2 — Single-batch Gradient Smoke
+### M3.0B-1 — Single-batch Gradient Smoke
 
 1. load one compatible rollout batch;
 2. recompute current log-probabilities turn by turn;
@@ -302,14 +307,14 @@ The current top-p readiness probe can pass the learning-signal gate but not the 
 
 This stage proves optimizer correctness, not capability improvement.
 
-### M3.0B-3 — Small Online Pilot
+### M3.0B-2 — Small Online Pilot
 
 Initial budget:
 
 ```text
 8–16 development tasks per update
 K = 4
-5–20 optimizer updates
+5–10 optimizer updates
 1 primary training seed
 ```
 
@@ -340,11 +345,11 @@ Report:
 
 M3.0 is complete only when:
 
-- all training artifacts are reproducible from hashes, seeds, and policy versions;
+- all training artifacts are reproducible from hashes, seeds, policy versions, and complete sampling identity;
 - old/current token log-probabilities use the same declared distribution;
 - each browser turn is replayed under its actual prompt;
 - no infrastructure failure contributes reward or gradient;
-- RL improves a predeclared development metric over M2.3-mini;
+- RL improves a predeclared development metric over the selected SFT starting policy;
 - action validity and false no-solution remain within predeclared tolerances;
 - `final_test_v2` is evaluated once after model/hyperparameter freeze;
 - at least two RL seeds support any strong performance claim.
@@ -355,13 +360,14 @@ Stop and diagnose when:
 
 - all groups have zero reward variance;
 - a diagnostic group is incorrectly marked update-compatible;
+- raw and sampling log-probabilities disagree under the strict distribution;
 - old/current log-probabilities differ before the first update;
-- raw and sampling-distribution log-probabilities are mixed;
+- raw and sampling-distribution log-probabilities are mixed in one ratio;
 - NaN/Inf appears in loss or gradients;
 - Schema Valid collapses;
 - no-solution is overproduced;
 - browser/database/CUDA failure enters reward data;
-- Frozen Test influences checkpoint, temperature, or optimizer selection.
+- Frozen Test influences checkpoint, sampling, or optimizer selection.
 
 ## 13. Deferred Work
 
