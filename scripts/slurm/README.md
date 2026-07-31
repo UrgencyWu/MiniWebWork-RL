@@ -1,6 +1,6 @@
 # Slurm Entry Points
 
-## Current formal entrypoint
+## Canonical rollout collection
 
 ```text
 m2_3_mini_single_probe.sbatch
@@ -60,6 +60,41 @@ python scripts/analyze_probe_ab.py \
 ```
 
 Artifacts must have the same task source, split, base model, Prompt/Chat Template identity, temperature, top-p, top-k, K, master seed, and turn limits. The analysis pairs `(task_id, rollout_index)`, excludes infrastructure-invalid pairs, and reports feasible success, false no-solution, no-solution success, discordant outcomes, exact McNemar results, task bootstrap intervals, and termination modes.
+
+## M3.0B-1 optimizer smoke
+
+```text
+m3_0_single_batch_smoke.sbatch
+```
+
+Arguments:
+
+```text
+STRICT_ARTIFACT POLICY [TASK_ID] [LEARNING_RATE]
+```
+
+Example:
+
+```bash
+sbatch scripts/slurm/m3_0_single_batch_smoke.sbatch \
+  outputs/m2_3_mini/runs/<STRICT_RUN>/<STRICT_ARTIFACT>.json \
+  B
+```
+
+The strict artifact must belong to the selected adapter and contain at least one `valid_for_grpo_update=true` group. The smoke independently verifies:
+
+- schema-v3.3 and `complete=true`;
+- artifact/adapter SHA-256 binding;
+- strict `temperature=1, top_p=1, top_k=0` records;
+- complete finite raw and sampling log-probabilities;
+- raw/sampling probability-match tolerance;
+- old/current log-probability equality before update;
+- LoRA-only trainable parameters;
+- finite non-zero gradients;
+- exactly one optimizer step and non-zero Adapter delta;
+- Adapter save, reload, and finite forward.
+
+The implementation replays one browser turn at a time and accumulates equal-trajectory gradients, limiting the 4B model memory peak. A passing smoke proves optimizer wiring only; it is not an RL performance result.
 
 ## Development task sources
 
