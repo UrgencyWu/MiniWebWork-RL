@@ -146,7 +146,7 @@ def test_strict_raw_policy_distribution_requires_no_sampling_warpers():
     assert strict_raw_policy_distribution(1.0, 1.0, 50) is False
 
 
-def test_nonfinite_policy_logprob_is_rejected():
+def test_nonfinite_policy_logprob_is_rejected_for_valid_rollout():
     record = _strict_record(0, 0.0, False)
     record.steps[0].token_logprobs = [math.nan]
 
@@ -154,12 +154,29 @@ def test_nonfinite_policy_logprob_is_rejected():
         record.validate()
 
 
-def test_nonfinite_sampling_logprob_is_rejected():
+def test_nonfinite_sampling_logprob_is_rejected_for_valid_rollout():
     record = _strict_record(0, 0.0, False)
     record.steps[0].sampling_logprobs = [math.inf]
 
     with pytest.raises(ValueError, match="NaN or Inf"):
         record.validate()
+
+
+def test_malformed_evidence_remains_json_safe_for_infrastructure_record():
+    record = _strict_record(0, 0.0, False)
+    record.rollout_valid = False
+    record.failure_origin = INFRASTRUCTURE_FAILURE
+    record.reward = None
+    record.steps[0].token_logprobs = [math.nan]
+    record.steps[0].sampling_logprobs = [-0.1, -0.2]
+
+    value = record.to_dict()
+
+    assert value["reward"] is None
+    assert value["steps"][0]["token_logprobs"] == []
+    assert value["steps"][0]["sampling_logprobs"] == []
+    assert "invalid_token_logprobs_evidence" in value["steps"][0]["schema_errors"]
+    assert "invalid_sampling_logprobs_evidence" in value["steps"][0]["schema_errors"]
 
 
 def test_infrastructure_failure_requires_null_reward():
