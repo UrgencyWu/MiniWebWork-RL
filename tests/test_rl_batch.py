@@ -98,6 +98,17 @@ def test_missing_prompt_evidence_is_rejected():
         )
 
 
+def test_missing_sampling_evidence_is_rejected():
+    failed = _record(0, False)
+    failed.steps[0].sampling_logprobs = []
+
+    with pytest.raises(ValueError, match="sampling log-probabilities are incomplete"):
+        build_replay_group(
+            [failed, _record(1, True)],
+            update_distribution_compatible=True,
+        )
+
+
 def test_pad_trajectory_logprobs_preserves_lengths():
     padded, mask = pad_trajectory_logprobs(
         [torch.tensor([-0.1]), torch.tensor([-0.2, -0.3, -0.4])]
