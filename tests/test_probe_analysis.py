@@ -1,6 +1,6 @@
 import pytest
 
-from miniwebwork.probe_analysis import analyze_probe_pair
+from miniwebwork.probe_analysis import analyze_probe_pair, summarize_policy_artifact
 
 
 def _artifact(policy: str, successes: list[bool]) -> dict:
@@ -14,6 +14,11 @@ def _artifact(policy: str, successes: list[bool]) -> dict:
                 "rollout_valid": True,
                 "success": success,
                 "termination_reason": "verified_submission" if success else "premature_finish",
+                "verification": {
+                    "expected_decision_type": "no_solution",
+                    "decision_type": "no_solution" if success else "",
+                    "failure_reasons": [],
+                },
             }
         )
     return {
@@ -21,12 +26,17 @@ def _artifact(policy: str, successes: list[bool]) -> dict:
         "policy": policy,
         "task_source_sha256": "tasks",
         "split": "valid",
+        "base_model": "base",
+        "prompt_contract": "browser_agent_v2",
+        "prompt_builder_sha256": "prompt",
+        "chat_template_sha256": "template",
         "temperature": 0.2,
         "top_p": 0.9,
         "top_k": 0,
         "K": len(successes),
         "seed": 7,
-        "prompt_contract": "browser_agent_v2",
+        "max_model_turns": 25,
+        "max_output_failures": 3,
         "records": records,
     }
 
@@ -50,6 +60,8 @@ def test_paired_analysis_counts_discordant_outcomes():
     }
     assert result["paired_success_rate_delta_b_minus_a"] == 0.0
     assert result["exact_mcnemar_pvalue"] == 1.0
+    assert result["policy_a_metrics"]["no_solution_trajectories"] == 4
+    assert result["policy_a_metrics"]["no_solution_successes"] == 2
 
 
 def test_paired_analysis_rejects_mismatched_distribution():
@@ -77,3 +89,33 @@ def test_paired_analysis_excludes_infrastructure_pairs():
     assert result["a_infrastructure"] == 1
     assert result["a_successes"] == 1
     assert result["b_successes"] == 1
+
+
+def test_policy_summary_counts_false_no_solution_on_feasible_tasks():
+    artifact = _artifact("B", [False, True])
+    artifact["records"][0].update(
+        task_type="cheapest_feasible",
+        success=False,
+        verification={
+            "expected_decision_type": "select_product",
+            "decision_type": "no_solution",
+            "failure_reasons": ["wrong_decision_type", "false_no_solution"],
+        },
+    )
+    artifact["records"][1].update(
+        task_type="cheapest_feasible",
+        success=True,
+        verification={
+            "expected_decision_type": "select_product",
+            "decision_type": "select_product",
+            "failure_reasons": [],
+        },
+    )
+
+    summary = summarize_policy_artifact(artifact)
+
+    assert summary["feasible_trajectories"] == 2
+    assert summary["feasible_successes"] == 1
+    assert summary["false_no_solution_count"] == 1
+    assert summary["false_no_solution_rate_on_feasible"] == 0.5
+    assert summary["no_solution_trajectories"] == 0
