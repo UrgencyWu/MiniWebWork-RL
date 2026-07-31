@@ -54,6 +54,10 @@ class RolloutStep:
                 f"turn {self.turn}: {len(self.sampling_logprobs)} sampling logprobs for "
                 f"{token_count} generated tokens"
             )
+        if any(not math.isfinite(value) for value in self.token_logprobs):
+            raise ValueError(f"turn {self.turn}: raw policy logprobs contain NaN or Inf")
+        if any(not math.isfinite(value) for value in self.sampling_logprobs):
+            raise ValueError(f"turn {self.turn}: sampling logprobs contain NaN or Inf")
         if self.schema_valid and self.parsed_action is None:
             raise ValueError(f"turn {self.turn}: schema-valid step has no parsed action")
         if self.skipped and self.env_action_success is not None:
@@ -171,8 +175,9 @@ def summarize_group(
     """Summarize one same-task, same-policy, same-distribution group.
 
     A diagnostic group can have a useful mixed reward signal without being
-    eligible for a policy update. The caller must explicitly attest that the
-    rollout and replay probability conventions match.
+    eligible for a policy update. In the first implementation a caller cannot
+    mark a warped distribution as update-compatible; future scaled/truncated
+    distributions require a separate versioned probability contract.
     """
     records = list(records)
     if not records:
@@ -194,8 +199,19 @@ def summarize_group(
     for record in records:
         record.validate()
 
+    if update_distribution_compatible and not strict_raw_policy_distribution(
+        first.temperature,
+        first.top_p,
+        first.top_k,
+    ):
+        raise ValueError(
+            "update_distribution_compatible requires temperature=1, top_p=1, top_k=0"
+        )
+
     valid = [record for record in records if record.rollout_valid]
     rewards = [float(record.reward) for record in valid if record.reward is not None]
+    if any(not math.isfinite(reward) for reward in rewards):
+        raise ValueError("rollout rewards contain NaN or Inf")
     mean = sum(rewards) / len(rewards) if rewards else 0.0
     variance = sum((reward - mean) ** 2 for reward in rewards) / len(rewards) if rewards else 0.0
     std = variance**0.5
