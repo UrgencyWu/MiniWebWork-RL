@@ -7,22 +7,101 @@ import random
 from collections import Counter, defaultdict
 from typing import Any
 
+NO_SOLUTION = "no_solution"
+FALSE_NO_SOLUTION = "false_no_solution"
+
 
 def _identity(artifact: dict[str, Any]) -> dict[str, Any]:
     return {
         "task_source_sha256": artifact.get("task_source_sha256"),
         "split": artifact.get("split"),
+        "base_model": artifact.get("base_model"),
+        "prompt_contract": artifact.get("prompt_contract"),
+        "prompt_builder_sha256": artifact.get("prompt_builder_sha256"),
+        "chat_template_sha256": artifact.get("chat_template_sha256"),
         "temperature": artifact.get("temperature"),
         "top_p": artifact.get("top_p"),
         "top_k": artifact.get("top_k"),
         "K": artifact.get("K"),
         "seed": artifact.get("seed"),
-        "prompt_contract": artifact.get("prompt_contract"),
+        "max_model_turns": artifact.get("max_model_turns"),
+        "max_output_failures": artifact.get("max_output_failures"),
     }
 
 
 def _record_key(record: dict[str, Any]) -> tuple[str, int]:
     return str(record["task_id"]), int(record["rollout_index"])
+
+
+def _verification(record: dict[str, Any]) -> dict[str, Any]:
+    value = record.get("verification")
+    return value if isinstance(value, dict) else {}
+
+
+def summarize_policy_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
+    """Return policy-level task and decision slices from one artifact."""
+    records = artifact.get("records", [])
+    valid = [record for record in records if bool(record.get("rollout_valid"))]
+    feasible = []
+    no_solution = []
+    false_no_solution = 0
+    missed_no_solution = 0
+    actual_no_solution = 0
+
+    for record in valid:
+        verification = _verification(record)
+        expected = verification.get("expected_decision_type", "")
+        actual = verification.get("decision_type", "")
+        reasons = set(verification.get("failure_reasons") or [])
+
+        if actual == NO_SOLUTION:
+            actual_no_solution += 1
+        if expected == NO_SOLUTION:
+            no_solution.append(record)
+            if actual and actual != NO_SOLUTION:
+                missed_no_solution += 1
+        elif expected:
+            feasible.append(record)
+            if actual == NO_SOLUTION or FALSE_NO_SOLUTION in reasons:
+                false_no_solution += 1
+
+    return {
+        "total_trajectories": len(records),
+        "valid_trajectories": len(valid),
+        "infrastructure_errors": len(records) - len(valid),
+        "overall_successes": sum(bool(record.get("success")) for record in valid),
+        "overall_success_rate": (
+            sum(bool(record.get("success")) for record in valid) / len(valid)
+            if valid
+            else 0.0
+        ),
+        "feasible_trajectories": len(feasible),
+        "feasible_successes": sum(bool(record.get("success")) for record in feasible),
+        "feasible_success_rate": (
+            sum(bool(record.get("success")) for record in feasible) / len(feasible)
+            if feasible
+            else None
+        ),
+        "no_solution_trajectories": len(no_solution),
+        "no_solution_successes": sum(
+            bool(record.get("success")) for record in no_solution
+        ),
+        "no_solution_success_rate": (
+            sum(bool(record.get("success")) for record in no_solution)
+            / len(no_solution)
+            if no_solution
+            else None
+        ),
+        "actual_no_solution_count": actual_no_solution,
+        "false_no_solution_count": false_no_solution,
+        "false_no_solution_rate_on_feasible": (
+            false_no_solution / len(feasible) if feasible else None
+        ),
+        "missed_no_solution_count": missed_no_solution,
+        "termination_reasons": dict(
+            sorted(Counter(str(record.get("termination_reason", "")) for record in valid).items())
+        ),
+    }
 
 
 def _exact_mcnemar_pvalue(a_only: int, b_only: int) -> float:
@@ -118,6 +197,8 @@ def analyze_probe_pair(
             "comparable_pairs": 0,
             "a_successes": 0,
             "b_successes": 0,
+            "a_false_no_solution": 0,
+            "b_false_no_solution": 0,
             "a_infrastructure": 0,
             "b_infrastructure": 0,
         }
@@ -154,6 +235,26 @@ def analyze_probe_pair(
         success_b = bool(record_b.get("success"))
         row["a_successes"] += int(success_a)
         row["b_successes"] += int(success_b)
+
+        verification_a = _verification(record_a)
+        verification_b = _verification(record_b)
+        if (
+            verification_a.get("expected_decision_type") not in ("", NO_SOLUTION)
+            and (
+                verification_a.get("decision_type") == NO_SOLUTION
+                or FALSE_NO_SOLUTION in set(verification_a.get("failure_reasons") or [])
+            )
+        ):
+            row["a_false_no_solution"] += 1
+        if (
+            verification_b.get("expected_decision_type") not in ("", NO_SOLUTION)
+            and (
+                verification_b.get("decision_type") == NO_SOLUTION
+                or FALSE_NO_SOLUTION in set(verification_b.get("failure_reasons") or [])
+            )
+        ):
+            row["b_false_no_solution"] += 1
+
         termination_a[str(record_a.get("termination_reason", ""))] += 1
         termination_b[str(record_b.get("termination_reason", ""))] += 1
 
@@ -176,10 +277,12 @@ def analyze_probe_pair(
     )
 
     return {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "experiment_identity": identity_a,
         "policy_a": artifact_a.get("policy"),
         "policy_b": artifact_b.get("policy"),
+        "policy_a_metrics": summarize_policy_artifact(artifact_a),
+        "policy_b_metrics": summarize_policy_artifact(artifact_b),
         "total_pairs": len(records_a),
         "comparable_pairs": comparable_pairs,
         "a_infrastructure": a_infrastructure,
