@@ -16,6 +16,7 @@ DEFAULT_SPEC_PATH = (
 )
 DEFAULT_PRODUCTS_PATH = PROJECT_ROOT / "data" / "seed" / "products.json"
 DEFAULT_SUPPLIERS_PATH = PROJECT_ROOT / "data" / "seed" / "suppliers.json"
+MANIFEST_FILENAME = "dataset_manifest.json"
 
 
 def _sha256(path: Path) -> str:
@@ -114,12 +115,7 @@ def build_feasible_rollout_dev(
         if not isinstance(objective, str) or not objective:
             raise ValueError(f"Task {task_id} requires objective")
 
-        answer = compute_unique_answer(
-            products,
-            suppliers,
-            constraints,
-            objective,
-        )
+        answer = compute_unique_answer(products, suppliers, constraints, objective)
         if answer is None:
             raise ValueError(
                 f"Task {task_id} is not a deterministic feasible task under the current seeds"
@@ -156,10 +152,8 @@ def build_feasible_rollout_dev(
 
     public_text = _jsonl_text(public_records)
     oracle_text = _jsonl_text(oracle_records)
-    public_path = output_dir / "valid_public.jsonl"
-    oracle_path = output_dir / "valid_oracle.jsonl"
-    _atomic_write(public_path, public_text)
-    _atomic_write(oracle_path, oracle_text)
+    _atomic_write(output_dir / "valid_public.jsonl", public_text)
+    _atomic_write(output_dir / "valid_oracle.jsonl", oracle_text)
 
     manifest = {
         "schema_version": "2.0",
@@ -178,7 +172,7 @@ def build_feasible_rollout_dev(
         "valid_oracle_sha256": hashlib.sha256(oracle_text.encode("utf-8")).hexdigest(),
     }
     _atomic_write(
-        output_dir / "manifest.json",
+        output_dir / MANIFEST_FILENAME,
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
     )
     return manifest

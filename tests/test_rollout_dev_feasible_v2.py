@@ -3,10 +3,14 @@ import json
 from pathlib import Path
 
 from miniwebwork.data_generation.constraint_contract import compute_unique_answer
+from miniwebwork.data_generation.feasible_rollout_dev import (
+    MANIFEST_FILENAME,
+    build_feasible_rollout_dev,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DATASET_DIR = ROOT / "data" / "tasks" / "rollout_dev_feasible_v1"
+DATASET_DIR = ROOT / "data" / "tasks" / "rollout_dev_feasible_v2"
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -27,32 +31,65 @@ def _git_blob_sha(path: Path) -> str:
     return hashlib.sha1(header + content).hexdigest()
 
 
-def test_feasible_manifest_hashes_and_roles():
-    manifest = json.loads((DATASET_DIR / "manifest.json").read_text(encoding="utf-8"))
-    public_path = DATASET_DIR / "valid_public.jsonl"
-    oracle_path = DATASET_DIR / "valid_oracle.jsonl"
+def test_checked_dataset_matches_deterministic_builder(tmp_path: Path):
+    generated_dir = tmp_path / "rollout_dev_feasible_v2"
+    generated_manifest = build_feasible_rollout_dev(generated_dir)
+
+    for filename in (
+        "valid_public.jsonl",
+        "valid_oracle.jsonl",
+        MANIFEST_FILENAME,
+    ):
+        assert (generated_dir / filename).read_bytes() == (
+            DATASET_DIR / filename
+        ).read_bytes()
+
+    checked_manifest = json.loads(
+        (DATASET_DIR / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
+    assert generated_manifest == checked_manifest
+
+
+def test_feasible_manifest_contract_and_hashes():
+    manifest = json.loads(
+        (DATASET_DIR / MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
     products_path = ROOT / "data" / "seed" / "products.json"
     suppliers_path = ROOT / "data" / "seed" / "suppliers.json"
 
-    assert manifest["dataset_id"] == "rollout_dev_feasible_v1"
+    assert manifest["schema_version"] == "2.0"
+    assert manifest["dataset_id"] == "rollout_dev_feasible_v2"
     assert manifest["role"] == "policy_selection_and_regression_gate"
     assert manifest["may_update_model"] is False
     assert manifest["valid_task_count"] == 12
-    assert manifest["valid_public_sha256"] == _sha256(public_path)
-    assert manifest["valid_oracle_sha256"] == _sha256(oracle_path)
-    assert manifest["source_products_git_blob_sha"] == _git_blob_sha(products_path)
-    assert manifest["source_suppliers_git_blob_sha"] == _git_blob_sha(suppliers_path)
-    assert manifest["expected_decision_type_counts"] == {
-        "select_product": 12,
-        "no_solution": 0,
+    assert manifest["task_type_counts"] == {
+        "cheapest_feasible": 5,
+        "exact_product": 3,
+        "highest_rating_supplier": 4,
     }
+    assert manifest["expected_decision_type_counts"] == {
+        "select_product": 12
+    }
+    assert manifest["spec_sha256"] == _sha256(DATASET_DIR / "spec.jsonl")
+    assert manifest["products_git_blob_sha"] == _git_blob_sha(products_path)
+    assert manifest["suppliers_git_blob_sha"] == _git_blob_sha(suppliers_path)
+    assert manifest["valid_public_sha256"] == _sha256(
+        DATASET_DIR / "valid_public.jsonl"
+    )
+    assert manifest["valid_oracle_sha256"] == _sha256(
+        DATASET_DIR / "valid_oracle.jsonl"
+    )
 
 
 def test_feasible_oracles_recompute_from_seed_data():
     public = _jsonl(DATASET_DIR / "valid_public.jsonl")
     oracle = _jsonl(DATASET_DIR / "valid_oracle.jsonl")
-    products = json.loads((ROOT / "data" / "seed" / "products.json").read_text(encoding="utf-8"))
-    suppliers = json.loads((ROOT / "data" / "seed" / "suppliers.json").read_text(encoding="utf-8"))
+    products = json.loads(
+        (ROOT / "data" / "seed" / "products.json").read_text(encoding="utf-8")
+    )
+    suppliers = json.loads(
+        (ROOT / "data" / "seed" / "suppliers.json").read_text(encoding="utf-8")
+    )
 
     public_by_id = {task["task_id"]: task for task in public}
     oracle_by_id = {task["task_id"]: task for task in oracle}
@@ -74,10 +111,12 @@ def test_feasible_oracles_recompute_from_seed_data():
         assert public_by_id[task_id]["task_type"] == expected["task_type"]
 
 
-def test_feasible_public_ids_and_instructions_do_not_overlap_other_public_sources():
+def test_feasible_public_does_not_overlap_other_public_sources():
     current = _jsonl(DATASET_DIR / "valid_public.jsonl")
     current_ids = {task["task_id"] for task in current}
-    current_instructions = {task["instruction"].strip().casefold() for task in current}
+    current_instructions = {
+        task["instruction"].strip().casefold() for task in current
+    }
     assert len(current_ids) == len(current)
     assert len(current_instructions) == len(current)
 

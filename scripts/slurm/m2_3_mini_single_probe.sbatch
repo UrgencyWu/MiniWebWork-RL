@@ -41,7 +41,7 @@ case "$TASK_SOURCE" in
         TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_no_solution_v1"
         ;;
     feasible)
-        TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_feasible_v1"
+        TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_feasible_v2"
         ;;
     /*)
         TASK_DIR="$TASK_SOURCE"

@@ -84,7 +84,11 @@ def _record_from_dict(value: dict[str, Any]) -> RolloutRecord:
         RolloutStep(**{key: item[key] for key in step_fields if key in item})
         for item in value.get("steps", [])
     ]
-    payload = {key: value[key] for key in record_fields if key in value and key != "steps"}
+    payload = {
+        key: value[key]
+        for key in record_fields
+        if key in value and key != "steps"
+    }
     payload["steps"] = steps
     record = RolloutRecord(**payload)
     record.validate()
@@ -111,7 +115,9 @@ def _select_group(
         raise ValueError(f"artifact contains no valid_for_grpo_update group{requested}")
     selected = sorted(candidates, key=lambda group: str(group.get("task_id")))[0]
     if int(selected.get("infrastructure_errors", 0)) != 0:
-        raise ValueError("single-batch smoke requires a group with zero infrastructure errors")
+        raise ValueError(
+            "single-batch smoke requires a group with zero infrastructure errors"
+        )
 
     selected_records = [
         _record_from_dict(record)
@@ -147,7 +153,11 @@ def _load_trainable_policy(base_model_path: str, adapter_dir: Path):
     model.eval()
     torch.cuda.synchronize()
 
-    trainable = [(name, parameter) for name, parameter in model.named_parameters() if parameter.requires_grad]
+    trainable = [
+        (name, parameter)
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad
+    ]
     if not trainable:
         raise RuntimeError("PEFT model contains no trainable parameters")
     unexpected = [name for name, _ in trainable if "lora_" not in name]
@@ -159,7 +169,11 @@ def _load_trainable_policy(base_model_path: str, adapter_dir: Path):
     return model, trainable
 
 
-def _turn_logprobs(model, prompt_ids: tuple[int, ...], completion_ids: tuple[int, ...]) -> torch.Tensor:
+def _turn_logprobs(
+    model,
+    prompt_ids: tuple[int, ...],
+    completion_ids: tuple[int, ...],
+) -> torch.Tensor:
     if not prompt_ids or not completion_ids:
         raise ValueError("prompt and completion token IDs must be non-empty")
     prompt = torch.tensor(prompt_ids, dtype=torch.long, device="cuda:0")
@@ -224,7 +238,11 @@ def _train_one_batch(
     gradient_clip: float,
 ) -> dict[str, Any]:
     parameters = [parameter for _, parameter in trainable]
-    optimizer = torch.optim.AdamW(parameters, lr=learning_rate)
+    optimizer = torch.optim.AdamW(
+        parameters,
+        lr=learning_rate,
+        weight_decay=0.0,
+    )
     optimizer.zero_grad(set_to_none=True)
     before = {
         name: parameter.detach().float().cpu().clone()
@@ -264,14 +282,21 @@ def _train_one_batch(
             (segment.loss * batch_weight).backward()
 
             weighted_loss += float(segment.loss.detach().cpu()) * batch_weight
-            weighted_clip_fraction += float(segment.clip_fraction.detach().cpu()) * batch_weight
-            weighted_approximate_kl += float(segment.approximate_kl.detach().cpu()) * batch_weight
-            weighted_mean_ratio += float(segment.mean_ratio.detach().cpu()) * batch_weight
+            weighted_clip_fraction += (
+                float(segment.clip_fraction.detach().cpu()) * batch_weight
+            )
+            weighted_approximate_kl += (
+                float(segment.approximate_kl.detach().cpu()) * batch_weight
+            )
+            weighted_mean_ratio += (
+                float(segment.mean_ratio.detach().cpu()) * batch_weight
+            )
             total_tokens += segment.token_count
             del current, old, segment
 
     nonzero_gradient_parameters = sum(
-        parameter.grad is not None and bool(torch.count_nonzero(parameter.grad).item())
+        parameter.grad is not None
+        and bool(torch.count_nonzero(parameter.grad).item())
         for parameter in parameters
     )
     if nonzero_gradient_parameters == 0:
@@ -400,7 +425,8 @@ def main() -> None:
     output_dir = (
         args.output_dir.expanduser().resolve()
         if args.output_dir is not None
-        else DEFAULT_OUTPUT_ROOT / (
+        else DEFAULT_OUTPUT_ROOT
+        / (
             f"{artifact.get('policy', 'policy')}_{replay_group.task_id}_"
             f"{time.strftime('%Y%m%d_%H%M%S')}"
         )
@@ -437,6 +463,7 @@ def main() -> None:
             "old_current_tolerance": args.old_current_tolerance,
             "optimizer_updates": 1,
             "kl_beta": 0.0,
+            "weight_decay": 0.0,
         },
         "selected_group": selected_group,
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
