@@ -31,8 +31,8 @@ Task
 | M2.2R | Canonical Contract v2、三 seed SFT、Frozen E2E | PASS |
 | M3.0A | Rollout readiness audit；no-solution 奖励方差不足 | PASS / Route B |
 | M2.3-mini | no-solution + recovery 数据补丁、继续训练 | PASS |
-| M2.3-mini Readiness Probe | `T=0.2, top_p=0.9` canonical GPU probe | PASS |
-| M3.0B-0 | 严格更新分布采集与 A/B 策略选择 | IN PROGRESS |
+| M2.3-mini Readiness Probe | historical GPU readiness evidence | PASS |
+| M3.0B-0 | schema-v3.3 严格分布采集与 A/B 策略选择 | IN PROGRESS |
 | M3.0B-1 | 单 batch LoRA gradient/checkpoint smoke | NOT STARTED |
 
 正式状态：
@@ -90,9 +90,9 @@ Frozen Test 得分不得用于 checkpoint 选择。
 - Patch Valid：Exact Match 100%，Schema Valid 100%；
 - Adapter：CPU/CUDA forward 和 generation 审计通过。
 
-### 3.5 M2.3-mini Canonical Readiness Probe
+### 3.5 M2.3-mini Readiness Probe
 
-修复 `PlaywrightThreadManager.start(headless=...)` monkey-patch 签名后，canonical GPU probe 完整通过。根据集群正式产物汇总：
+修复 `PlaywrightThreadManager.start(headless=...)` monkey-patch 签名后，GPU readiness probe 完整通过。根据集群正式产物汇总：
 
 ```text
 complete = true
@@ -104,7 +104,7 @@ no_solution_successes: B_M2.3-mini = 43
 valid_for_grpo_update = false
 ```
 
-最后一项是预期结果：该 readiness probe 使用 `temperature=0.2, top_p=0.9`，只证明闭环探索能力、完整 token/logprob 证据和 mixed-reward 学习信号，不是首个严格策略更新分布。
+该历史产物记录了 `temperature=0.2, top_p=0.9`，但没有显式冻结 `top_k`。因此它足以支持基础设施、闭环能力和 logprob coverage 结论，但不是完整标识的行为分布，不能作为 optimizer batch。
 
 当前结论边界：
 
@@ -123,7 +123,8 @@ valid_for_grpo_update = false
 - Verifier：检查 episode/task、单一 submission、约束和目标最优性；
 - Failure：策略失败 reward 0，基础设施失败 reward null；
 - Rollout：保存 prompt/completion tokens、原始策略 log-prob 和采样分布 log-prob；
-- Distribution identity：每条 trajectory 和 group 显式保存 `temperature + top_p`；
+- Distribution identity：每条 trajectory 和 group 显式保存 `temperature + top_p + top_k`；
+- Strict distribution：`T=1, top_p=1, top_k=0`，且 raw/sampling token log-prob 在数值容差内一致；
 - Metrics：Schema、环境动作和任务成功使用明确且互不混淆的分母；
 - Slurm：禁止全局 `pkill`，禁止 Python 在 CUDA 初始化后改写设备可见性。
 
@@ -138,21 +139,21 @@ scripts/analyze_probe_ab.py
 Slurm 参数：
 
 ```text
-POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P]
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K]
 ```
 
-Readiness probe：
+显式诊断分布：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9 0
 ```
 
 严格更新分布采集：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0 0
 ```
 
 A/B 配对分析：
@@ -169,26 +170,28 @@ python scripts/analyze_probe_ab.py \
 ### 6.1 已满足：诊断 readiness
 
 1. 基础设施失败不进入 reward；
-2. canonical probe infrastructure error 为 0；
+2. historical readiness probe infrastructure error 为 0；
 3. raw/sampling logprob coverage 为 1.0；
 4. 至少一个 no-solution rollout 成功；
 5. readiness 分布存在可学习的 mixed-reward group。
 
 ### 6.2 尚未满足：正式策略更新
 
-1. 在 `temperature=1.0, top_p=1.0` 下采集至少一个 `valid_for_grpo_update=true` group；
-2. 使用配对、多 seed 结果完成 A/B 初始策略选择；
-3. 在 feasible development slice 上确认 false no-solution 和通用任务能力未明显退化；
-4. 执行更新前 old/current logprob 一致性审计；
-5. 完成一次 LoRA-only single-batch gradient/checkpoint/reload smoke；
-6. Frozen Test 不参与 checkpoint、采样或 optimizer 超参数选择。
+1. 使用 schema-v3.3 显式记录 `temperature/top_p/top_k`；
+2. 在 `temperature=1.0, top_p=1.0, top_k=0` 下采集至少一个 `valid_for_grpo_update=true` group；
+3. strict group 的 raw/sampling log-prob 最大绝对差不超过预声明容差；
+4. 使用配对、多 seed 结果完成 A/B 初始策略选择；
+5. 在 feasible development slice 上确认 false no-solution 和通用任务能力未明显退化；
+6. 执行更新前 old/current logprob 一致性审计；
+7. 完成一次 LoRA-only single-batch gradient/checkpoint/reload smoke；
+8. Frozen Test 不参与 checkpoint、采样或 optimizer 超参数选择。
 
 ## 7. 下一阶段
 
 ```text
-M3.0B-0A  冻结 readiness 证据与配对分析
+M3.0B-0A  schema-v3.3 显式诊断分布复验与配对分析
 M3.0B-0B  增加 feasible rollout_dev slice 并完成策略选择
-M3.0B-0C  T=1.0, top_p=1.0 严格更新分布采集
+M3.0B-0C  T=1, top_p=1, top_k=0 严格更新分布采集
 M3.0B-1   单 batch LoRA gradient/checkpoint smoke
 M3.0B-2   5–10 update 小规模 pilot
 ```
