@@ -52,14 +52,15 @@ def _record(index: int, success: bool, token_counts=(2,)) -> RolloutRecord:
 
 def test_build_replay_group_preserves_turn_boundaries_and_advantages():
     group = build_replay_group(
-        [_record(0, False, (1, 2)), _record(1, True, (3,))],
-        update_distribution_compatible=True,
+        [_record(0, False, (1, 2)), _record(1, True, (3,))]
     )
 
     assert group.task_id == "TASK"
     assert group.temperature == 1.0
     assert group.top_p == 1.0
     assert group.top_k == 0
+    assert group.max_raw_sampling_logprob_abs_diff == 0.0
+    assert group.logprob_match_tolerance == 5e-2
     assert len(group.trajectories) == 2
     assert len(group.trajectories[0].turns) == 2
     assert group.trajectories[0].action_token_count == 3
@@ -71,20 +72,28 @@ def test_build_replay_group_preserves_turn_boundaries_and_advantages():
     assert mask.tolist() == [[True, True, True], [True, True, True]]
 
 
-def test_diagnostic_group_cannot_enter_update_batch():
-    with pytest.raises(ValueError, match="not compatible"):
-        build_replay_group(
-            [_record(0, False), _record(1, True)],
-            update_distribution_compatible=False,
-        )
+def test_warped_distribution_cannot_enter_update_batch():
+    first = _record(0, False)
+    second = _record(1, True)
+    first.temperature = second.temperature = 0.4
+
+    with pytest.raises(ValueError, match="temperature=1"):
+        build_replay_group([first, second])
+
+
+def test_logprob_mismatch_cannot_be_promoted_by_caller():
+    failed = _record(0, False)
+    failed.steps[0].sampling_logprobs = [-1.0] * len(
+        failed.steps[0].generated_token_ids
+    )
+
+    with pytest.raises(ValueError, match="exceeds tolerance"):
+        build_replay_group([failed, _record(1, True)])
 
 
 def test_zero_variance_group_is_rejected():
     with pytest.raises(ValueError, match="no mixed-reward"):
-        build_replay_group(
-            [_record(0, False), _record(1, False)],
-            update_distribution_compatible=True,
-        )
+        build_replay_group([_record(0, False), _record(1, False)])
 
 
 def test_missing_prompt_evidence_is_rejected():
@@ -92,10 +101,7 @@ def test_missing_prompt_evidence_is_rejected():
     failed.steps[0].prompt_token_ids = []
 
     with pytest.raises(ValueError, match="no prompt token evidence"):
-        build_replay_group(
-            [failed, _record(1, True)],
-            update_distribution_compatible=True,
-        )
+        build_replay_group([failed, _record(1, True)])
 
 
 def test_missing_sampling_evidence_is_rejected():
@@ -103,10 +109,7 @@ def test_missing_sampling_evidence_is_rejected():
     failed.steps[0].sampling_logprobs = []
 
     with pytest.raises(ValueError, match="sampling log-probabilities are incomplete"):
-        build_replay_group(
-            [failed, _record(1, True)],
-            update_distribution_compatible=True,
-        )
+        build_replay_group([failed, _record(1, True)])
 
 
 def test_pad_trajectory_logprobs_preserves_lengths():
