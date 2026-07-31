@@ -1,0 +1,22 @@
+{
+  "allowed_purposes": [
+    "final_evaluation"
+  ],
+  "dataset_id": "m4_rlvr_v1",
+  "may_update_model": false,
+  "oracle_sha256": "e91e0159a9b83928c8d6f90e2c55c49da9345f5b823c161105614e73371d502b",
+  "public_sha256": "7e7559ca28581688b979581bad6bbc0375100133f599e25bbff2c3e1b3adc075",
+  "role": "frozen_final_evaluation",
+  "schema_version": "1.0",
+  "seed_products_sha256": "036a9cefc0941ccf3809ea4a97e5f748af2229fc063f521bd32ca2aaa298863f",
+  "seed_suppliers_sha256": "39134e8bf84ae8c756fc63e37a6a98e171f619e5e39dda90848bb29bc151c5b8",
+  "split": "test",
+  "task_count": 120,
+  "task_type_counts": {
+    "cheapest_feasible": 30,
+    "exact_product": 30,
+    "highest_rating_supplier": 30,
+    "no_feasible_product": 30
+  },
+  "world_count": 30
+}

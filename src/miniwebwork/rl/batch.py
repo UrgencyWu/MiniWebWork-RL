@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import torch
 
 from ..rollout import RolloutRecord, RolloutStep, summarize_group
-from .objective import group_relative_advantages
+from .methods import online_advantages
 
 DEFAULT_LOGPROB_MATCH_TOLERANCE = 5e-2
 
@@ -80,10 +80,16 @@ class ReplayGroup:
 
     @property
     def advantages(self) -> torch.Tensor:
-        return torch.tensor(
-            [trajectory.advantage for trajectory in self.trajectories],
+        """Backwards-compatible GRPO advantages for existing M3 callers."""
+        return self.advantages_for("grpo")
+
+    def advantages_for(self, algorithm_id: str) -> torch.Tensor:
+        """Return the declared online method's advantage estimator."""
+        rewards = torch.tensor(
+            [trajectory.reward for trajectory in self.trajectories],
             dtype=torch.float32,
         )
+        return online_advantages(algorithm_id, rewards)
 
 
 def _raw_sampling_max_difference(records: list[RolloutRecord]) -> float:
@@ -142,7 +148,7 @@ def build_replay_group(
         [float(record.reward) for record in valid_records],
         dtype=torch.float32,
     )
-    advantages = group_relative_advantages(rewards)
+    advantages = online_advantages("grpo", rewards)
 
     trajectories: list[TrajectoryReplay] = []
     for record, advantage in zip(valid_records, advantages.tolist()):

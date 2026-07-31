@@ -1,0 +1,110 @@
+[
+  {
+    "certified": 1,
+    "delivery_reliability": 0.98,
+    "description": "High-reliability certified supplier for M4 benchmark worlds.",
+    "name": "M4 Apex Verified Systems",
+    "rating": 4.95,
+    "region": "North",
+    "supplier_id": "M4-SUP-01"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.92,
+    "description": "Certified general-purpose supplier for M4 benchmark worlds.",
+    "name": "M4 Standard Compute",
+    "rating": 4.6,
+    "region": "East",
+    "supplier_id": "M4-SUP-02"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Certified value supplier for M4 benchmark worlds.",
+    "name": "M4 Value Fabric",
+    "rating": 4.1,
+    "region": "South",
+    "supplier_id": "M4-SUP-03"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.73,
+    "description": "Uncertified distractor supplier for M4 benchmark worlds.",
+    "name": "M4 Clearance Exchange",
+    "rating": 3.7,
+    "region": "West",
+    "supplier_id": "M4-SUP-04"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.94,
+    "description": "Certified regional supplier for M4 benchmark worlds.",
+    "name": "M4 Meridian Systems",
+    "rating": 4.72,
+    "region": "Central",
+    "supplier_id": "M4-SUP-05"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.86,
+    "description": "Certified value supplier for M4 benchmark worlds.",
+    "name": "M4 Budget Infrastructure",
+    "rating": 4.18,
+    "region": "North",
+    "supplier_id": "M4-SUP-06"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.84,
+    "description": "Certified value supplier for M4 benchmark worlds.",
+    "name": "M4 Harbor Compute",
+    "rating": 4.05,
+    "region": "East",
+    "supplier_id": "M4-SUP-07"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.82,
+    "description": "Certified value supplier for M4 benchmark worlds.",
+    "name": "M4 Southern Components",
+    "rating": 3.98,
+    "region": "South",
+    "supplier_id": "M4-SUP-08"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.78,
+    "description": "Certified value supplier for M4 benchmark worlds.",
+    "name": "M4 Frontier Logistics",
+    "rating": 3.88,
+    "region": "West",
+    "supplier_id": "M4-SUP-09"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.72,
+    "description": "Uncertified distractor supplier for M4 benchmark worlds.",
+    "name": "M4 Outlet One",
+    "rating": 3.65,
+    "region": "Central",
+    "supplier_id": "M4-SUP-10"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.69,
+    "description": "Uncertified distractor supplier for M4 benchmark worlds.",
+    "name": "M4 Outlet Two",
+    "rating": 3.55,
+    "region": "North",
+    "supplier_id": "M4-SUP-11"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.66,
+    "description": "Uncertified distractor supplier for M4 benchmark worlds.",
+    "name": "M4 Outlet Three",
+    "rating": 3.45,
+    "region": "South",
+    "supplier_id": "M4-SUP-12"
+  }
+]

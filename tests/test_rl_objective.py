@@ -5,6 +5,8 @@ from miniwebwork.rl.objective import (
     NoRewardVarianceError,
     clipped_trajectory_policy_loss,
     group_relative_advantages,
+    leave_one_out_advantages,
+    sequence_clipped_trajectory_policy_loss,
 )
 
 
@@ -18,6 +20,16 @@ def test_group_relative_advantages_for_binary_rewards():
 def test_group_relative_advantages_reject_zero_variance():
     with pytest.raises(NoRewardVarianceError, match="zero reward variance"):
         group_relative_advantages(torch.tensor([0.0, 0.0, 0.0]))
+
+
+def test_rloo_advantages_use_the_other_rollouts_as_baseline():
+    advantages = leave_one_out_advantages(torch.tensor([0.0, 1.0, 1.0]))
+
+    assert torch.allclose(advantages, torch.tensor([-1.0, 0.5, 0.5]))
+    assert torch.equal(
+        leave_one_out_advantages(torch.tensor([0.0, 0.0])),
+        torch.tensor([0.0, 0.0]),
+    )
 
 
 def test_on_policy_balanced_group_has_zero_initial_policy_loss():
@@ -77,6 +89,34 @@ def test_positive_advantage_ratio_is_clipped():
     # (1.2 - 1.0) / 2 and loss is -0.1.
     assert torch.allclose(result.policy_loss.detach(), torch.tensor(-0.1), atol=1e-6)
     assert result.clip_fraction > 0
+
+
+def test_gspo_uses_sequence_ratio_not_tokenwise_ratio():
+    old = torch.zeros((2, 2))
+    current = torch.tensor(
+        [
+            [torch.log(torch.tensor(1.1)), torch.log(torch.tensor(1.1))],
+            [0.0, 0.0],
+        ],
+        requires_grad=True,
+    )
+    advantages = torch.tensor([1.0, -1.0])
+    mask = torch.ones((2, 2), dtype=torch.bool)
+
+    token_result = clipped_trajectory_policy_loss(
+        current, old, advantages, mask, clip_epsilon=0.2
+    )
+    sequence_result = sequence_clipped_trajectory_policy_loss(
+        current, old, advantages, mask, clip_epsilon=0.2
+    )
+
+    # 1.1 * 1.1 = 1.21: GSPO clips the first trajectory at 1.2, whereas
+    # the tokenwise objective sees 1.1 at each token.
+    assert torch.allclose(sequence_result.policy_loss.detach(), torch.tensor(-0.1), atol=1e-6)
+    assert torch.allclose(token_result.policy_loss.detach(), torch.tensor(-0.05), atol=1e-6)
+    sequence_result.loss.backward()
+    assert current.grad is not None
+    assert torch.isfinite(current.grad).all()
 
 
 def test_trajectory_normalization_prevents_long_trace_domination():

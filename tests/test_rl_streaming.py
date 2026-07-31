@@ -1,8 +1,14 @@
 import pytest
 import torch
 
-from miniwebwork.rl.objective import clipped_trajectory_policy_loss
-from miniwebwork.rl.streaming import clipped_single_trajectory_loss
+from miniwebwork.rl.objective import (
+    clipped_trajectory_policy_loss,
+    sequence_clipped_trajectory_policy_loss,
+)
+from miniwebwork.rl.streaming import (
+    clipped_single_trajectory_loss,
+    sequence_single_trajectory_loss,
+)
 
 
 def test_streaming_losses_equal_batched_equal_trajectory_objective():
@@ -73,6 +79,25 @@ def test_streaming_loss_supports_gradient_accumulation():
     assert current_b.grad is not None
     assert torch.isfinite(current_a.grad).all()
     assert torch.isfinite(current_b.grad).all()
+
+
+def test_sequence_streaming_losses_equal_batched_gspo_objective():
+    current = torch.tensor(
+        [[-0.10, -0.30, 0.0], [-0.20, -0.40, -0.60]],
+        dtype=torch.float32,
+    )
+    old = torch.tensor(
+        [[-0.12, -0.25, 0.0], [-0.22, -0.35, -0.55]],
+        dtype=torch.float32,
+    )
+    mask = torch.tensor([[True, True, False], [True, True, True]])
+    advantages = torch.tensor([-1.0, 1.0])
+
+    batched = sequence_clipped_trajectory_policy_loss(current, old, advantages, mask)
+    first = sequence_single_trajectory_loss(current[0, mask[0]], old[0, mask[0]], advantages[0])
+    second = sequence_single_trajectory_loss(current[1, mask[1]], old[1, mask[1]], advantages[1])
+
+    assert torch.allclose((first.loss + second.loss) / 2, batched.policy_loss, atol=1e-7)
 
 
 def test_streaming_loss_rejects_shape_mismatch():

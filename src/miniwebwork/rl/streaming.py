@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 import torch
 
+from .objective import SEQUENCE_LOG_RATIO_LIMIT
+
 
 @dataclass
 class StreamingTrajectoryLoss:
@@ -14,6 +16,67 @@ class StreamingTrajectoryLoss:
     approximate_kl: torch.Tensor
     mean_ratio: torch.Tensor
     token_count: int
+
+
+def sequence_single_trajectory_loss(
+    current_logprobs: torch.Tensor,
+    old_logprobs: torch.Tensor,
+    advantage: torch.Tensor | float,
+    *,
+    clip_epsilon: float = 0.2,
+) -> StreamingTrajectoryLoss:
+    """Memory-bounded GSPO loss for one complete multi-turn trajectory.
+
+    Callers concatenate only action-token log-probabilities from the real
+    per-turn forwards for one trajectory, backpropagate this scalar, release
+    its graph, and then proceed to the next trajectory.  This is exactly the
+    equal-trajectory mean of the batched sequence-ratio objective.
+    """
+    if current_logprobs.ndim != 1 or old_logprobs.ndim != 1:
+        raise ValueError("trajectory logprobs must be rank 1")
+    if current_logprobs.shape != old_logprobs.shape:
+        raise ValueError("current and old trajectory logprobs must have equal shape")
+    if current_logprobs.numel() == 0:
+        raise ValueError("trajectory must contain at least one action token")
+    if not 0 < clip_epsilon < 1:
+        raise ValueError("clip_epsilon must be in (0, 1)")
+    if not torch.isfinite(current_logprobs).all() or not torch.isfinite(old_logprobs).all():
+        raise ValueError("trajectory logprobs contain NaN or Inf")
+    advantage_tensor = torch.as_tensor(
+        advantage,
+        dtype=current_logprobs.dtype,
+        device=current_logprobs.device,
+    )
+    if advantage_tensor.ndim != 0 or not torch.isfinite(advantage_tensor):
+        raise ValueError("advantage must be one finite scalar")
+
+    sequence_log_ratio = (current_logprobs - old_logprobs.detach()).sum()
+    safe_log_ratio = sequence_log_ratio.clamp(
+        min=-SEQUENCE_LOG_RATIO_LIMIT,
+        max=SEQUENCE_LOG_RATIO_LIMIT,
+    )
+    ratio = torch.exp(safe_log_ratio)
+    clipped_ratio = ratio.clamp(1.0 - clip_epsilon, 1.0 + clip_epsilon)
+    loss = -torch.minimum(
+        ratio * advantage_tensor.detach(),
+        clipped_ratio * advantage_tensor.detach(),
+    )
+    clipped = (ratio < 1.0 - clip_epsilon) | (ratio > 1.0 + clip_epsilon)
+    approximate_kl = (ratio - 1.0) - safe_log_ratio
+    for name, value in (
+        ("loss", loss),
+        ("approximate_kl", approximate_kl),
+        ("mean_ratio", ratio),
+    ):
+        if not torch.isfinite(value):
+            raise FloatingPointError(f"{name} is NaN or Inf")
+    return StreamingTrajectoryLoss(
+        loss=loss,
+        clip_fraction=clipped.to(dtype=current_logprobs.dtype),
+        approximate_kl=approximate_kl,
+        mean_ratio=ratio,
+        token_count=int(current_logprobs.numel()),
+    )
 
 
 def clipped_single_trajectory_loss(

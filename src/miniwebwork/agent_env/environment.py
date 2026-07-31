@@ -26,7 +26,7 @@ from typing import Any, Callable, Optional
 from playwright.async_api import async_playwright
 
 from miniwebwork.db import create_episode, get_connection, init_schema
-from miniwebwork.seed import seed_database
+from miniwebwork.seed import SEED_DIR_ENV, seed_database
 from miniwebwork.tasks import get_public_task
 from miniwebwork.verifier import verify_episode
 
@@ -546,6 +546,7 @@ class ProcurementBrowserEnv:
         headless: bool = True,
         keep_db: bool = True,
         task_dir: Optional[Path] = None,
+        seed_dir: Optional[Path] = None,
     ):
         if max_steps <= 0:
             raise ValueError("max_steps must be positive")
@@ -556,8 +557,13 @@ class ProcurementBrowserEnv:
         self._task_dir = (
             Path(task_dir).expanduser().resolve() if task_dir is not None else None
         )
+        self._seed_dir = (
+            Path(seed_dir).expanduser().resolve() if seed_dir is not None else None
+        )
         if self._task_dir is not None and not self._task_dir.is_dir():
             raise FileNotFoundError(f"Task directory not found: {self._task_dir}")
+        if self._seed_dir is not None and not self._seed_dir.is_dir():
+            raise FileNotFoundError(f"Seed directory not found: {self._seed_dir}")
 
         self._pw = PlaywrightThreadManager()
         self._web_process: Optional[subprocess.Popen] = None
@@ -824,7 +830,7 @@ class ProcurementBrowserEnv:
         self._db_path = str(runtime_dir / f"{self.run_id}.db")
         with closing(get_connection(self._db_path)) as connection:
             init_schema(connection)
-            seed_database(connection)
+            seed_database(connection, seed_dir=self._seed_dir)
 
     def _child_environment(self) -> dict[str, str]:
         child_environment = os.environ.copy()
@@ -833,6 +839,10 @@ class ProcurementBrowserEnv:
             child_environment.pop("MINIWEBWORK_TASK_DIR", None)
         else:
             child_environment["MINIWEBWORK_TASK_DIR"] = str(self._task_dir)
+        if self._seed_dir is None:
+            child_environment.pop(SEED_DIR_ENV, None)
+        else:
+            child_environment[SEED_DIR_ENV] = str(self._seed_dir)
         return child_environment
 
     def _start_web_service(self) -> None:

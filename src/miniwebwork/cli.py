@@ -34,7 +34,7 @@ def cmd_init_db(args) -> int:
     _ensure_parent(path)
     with closing(get_connection(str(path))) as connection:
         init_schema(connection)
-        seed_database(connection)
+        seed_database(connection, seed_dir=args.seed_dir)
         counts = get_row_counts(connection)
     _print({"database": str(path), "counts": counts, "status": "initialized"})
     return 0
@@ -52,14 +52,14 @@ def cmd_reset_db(args) -> int:
         init_schema(connection)
         before = get_row_counts(connection)
         reset_db(connection)
-        seed_database(connection)
+        seed_database(connection, seed_dir=args.seed_dir)
         after = get_row_counts(connection)
     _print({"database": str(path), "before": before, "after": after, "status": "reset"})
     return 0
 
 
 def cmd_validate_seed(args) -> int:
-    result = validate_seed()
+    result = validate_seed(args.seed_dir)
     _print(result)
     return 0 if result["valid"] else 1
 
@@ -69,7 +69,7 @@ def cmd_validate_tasks(args) -> int:
     _ensure_parent(path)
     with closing(get_connection(str(path))) as connection:
         init_schema(connection)
-        seed_database(connection)
+        seed_database(connection, seed_dir=args.seed_dir)
         result = validate_tasks(connection, task_dir=args.task_dir)
     _print(result)
     return 0 if result["valid"] else 1
@@ -129,24 +129,37 @@ def _add_task_dir_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_seed_dir_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--seed-dir",
+        type=Path,
+        default=None,
+        help="Versioned supplier/product catalogue; defaults to MINIWEBWORK_SEED_DIR/default seed.",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="MiniWebWork-RL management CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser("init-db", help="Initialize and seed the runtime DB")
     _add_db_argument(init_parser)
+    _add_seed_dir_argument(init_parser)
     init_parser.set_defaults(handler=cmd_init_db)
 
     reset_parser = subparsers.add_parser("reset-db", help="Reset a project runtime DB")
     _add_db_argument(reset_parser)
+    _add_seed_dir_argument(reset_parser)
     reset_parser.set_defaults(handler=cmd_reset_db)
 
     seed_parser = subparsers.add_parser("validate-seed", help="Validate seed manifests/data")
+    _add_seed_dir_argument(seed_parser)
     seed_parser.set_defaults(handler=cmd_validate_seed)
 
     task_parser = subparsers.add_parser("validate-tasks", help="Validate public/Oracle tasks")
     _add_db_argument(task_parser)
     _add_task_dir_argument(task_parser)
+    _add_seed_dir_argument(task_parser)
     task_parser.set_defaults(handler=cmd_validate_tasks)
 
     verify_parser = subparsers.add_parser("verify", help="Verify one persisted episode")

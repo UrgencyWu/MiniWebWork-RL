@@ -7,29 +7,49 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
-SEED_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "seed"
+DEFAULT_SEED_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "seed"
+"""The historical M1.1 seed catalogue kept for backwards compatibility."""
+
+SEED_DIR_ENV = "MINIWEBWORK_SEED_DIR"
 
 
-def _load_json(filename: str) -> list:
-    path = SEED_DIR / filename
+def get_seed_dir(seed_dir: str | Path | None = None) -> Path:
+    """Resolve one explicit, versioned procurement-world catalogue.
+
+    A task source and a product/supplier catalogue are separate provenance
+    objects.  Earlier MiniWebWork experiments isolated the former only, which
+    made it possible to evaluate a new task on the same products seen during
+    training.  M4 passes ``seed_dir`` explicitly (or uses the environment
+    override) so an episode always has auditable task *and* world lineage.
+    """
+    if seed_dir is not None:
+        return Path(seed_dir).expanduser().resolve()
+    configured = os.environ.get(SEED_DIR_ENV, "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return DEFAULT_SEED_DIR
+
+
+def _load_json(filename: str, seed_dir: str | Path | None = None) -> list:
+    path = get_seed_dir(seed_dir) / filename
     if not path.exists():
         raise FileNotFoundError(f"Seed file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def load_suppliers() -> list:
-    return _load_json("suppliers.json")
+def load_suppliers(seed_dir: str | Path | None = None) -> list:
+    return _load_json("suppliers.json", seed_dir)
 
 
-def load_products() -> list:
-    return _load_json("products.json")
+def load_products(seed_dir: str | Path | None = None) -> list:
+    return _load_json("products.json", seed_dir)
 
 
-def seed_database(conn: sqlite3.Connection):
+def seed_database(conn: sqlite3.Connection, seed_dir: str | Path | None = None):
     """Insert seed data into database."""
-    suppliers = load_suppliers()
-    products = load_products()
+    suppliers = load_suppliers(seed_dir)
+    products = load_products(seed_dir)
 
     # Insert suppliers
     for s in suppliers:
@@ -82,10 +102,11 @@ def compute_file_sha256(filepath: Path) -> str:
     return sha.hexdigest()
 
 
-def update_manifest():
+def update_manifest(seed_dir: str | Path | None = None):
     """Update manifest.json with computed hashes and counts."""
-    suppliers = load_suppliers()
-    products = load_products()
+    resolved_seed_dir = get_seed_dir(seed_dir)
+    suppliers = load_suppliers(resolved_seed_dir)
+    products = load_products(resolved_seed_dir)
 
     manifest = {
         "schema_version": "1.0.0",
@@ -95,28 +116,29 @@ def update_manifest():
         "product_count": len(products),
         "files": {
             "suppliers.json": {
-                "sha256": compute_file_sha256(SEED_DIR / "suppliers.json"),
+                "sha256": compute_file_sha256(resolved_seed_dir / "suppliers.json"),
             },
             "products.json": {
-                "sha256": compute_file_sha256(SEED_DIR / "products.json"),
+                "sha256": compute_file_sha256(resolved_seed_dir / "products.json"),
             },
         },
     }
 
-    manifest_path = SEED_DIR / "manifest.json"
+    manifest_path = resolved_seed_dir / "manifest.json"
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
     return manifest
 
 
-def validate_seed() -> dict:
+def validate_seed(seed_dir: str | Path | None = None) -> dict:
     """Validate seed data integrity. Returns dict with validation results."""
     errors = []
-    suppliers = load_suppliers()
-    products = load_products()
+    resolved_seed_dir = get_seed_dir(seed_dir)
+    suppliers = load_suppliers(resolved_seed_dir)
+    products = load_products(resolved_seed_dir)
     manifest_data = {}
-    manifest_path = SEED_DIR / "manifest.json"
+    manifest_path = resolved_seed_dir / "manifest.json"
 
     # Check supplier count
     if len(suppliers) < 6:
@@ -172,7 +194,7 @@ def validate_seed() -> dict:
         for fname in ["suppliers.json", "products.json"]:
             expected_hash = manifest_data.get("files", {}).get(fname, {}).get("sha256")
             if expected_hash:
-                actual_hash = compute_file_sha256(SEED_DIR / fname)
+                actual_hash = compute_file_sha256(resolved_seed_dir / fname)
                 if actual_hash != expected_hash:
                     errors.append(f"{fname}: hash mismatch (manifest={expected_hash[:16]}..., actual={actual_hash[:16]}...)")
 
@@ -181,5 +203,6 @@ def validate_seed() -> dict:
         "errors": errors,
         "supplier_count": len(suppliers),
         "product_count": len(products),
+        "seed_dir": str(resolved_seed_dir),
         "manifest": manifest_data,
     }

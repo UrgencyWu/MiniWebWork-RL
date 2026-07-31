@@ -18,6 +18,10 @@ class NoRewardVarianceError(ValueError):
     """Raised when a GRPO group contains no relative learning signal."""
 
 
+SEQUENCE_LOG_RATIO_LIMIT = 30.0
+"""Finite guard for GSPO sequence likelihood ratios (exp(30) is representable)."""
+
+
 @dataclass
 class PolicyLossResult:
     loss: torch.Tensor
@@ -62,6 +66,25 @@ def group_relative_advantages(
     if require_variance and standard_deviation <= epsilon:
         raise NoRewardVarianceError("rollout group has zero reward variance")
     return (rewards - rewards.mean()) / (standard_deviation + epsilon)
+
+
+def leave_one_out_advantages(rewards: torch.Tensor) -> torch.Tensor:
+    """Compute the RLOO baseline for one same-task rollout group.
+
+    The return for trajectory ``i`` is ``r_i - mean(r_j, j != i)``.  Unlike
+    GRPO normalization, RLOO intentionally retains the reward scale.  A
+    zero-variance group is valid but returns exactly zero advantages and the
+    caller should record it as a no-signal update skip rather than fabricate a
+    gradient.
+    """
+    if rewards.ndim != 1:
+        raise ValueError(f"rewards must be rank 1, got {tuple(rewards.shape)}")
+    if rewards.numel() < 2:
+        raise ValueError("RLOO requires at least two valid trajectories per group")
+    if not torch.isfinite(rewards).all():
+        raise ValueError("rewards contain NaN or Inf")
+    rewards = rewards.float()
+    return rewards - (rewards.sum() - rewards) / (rewards.numel() - 1)
 
 
 def _validate_policy_tensors(
@@ -195,5 +218,91 @@ def clipped_trajectory_policy_loss(
         approximate_kl=approximate_kl,
         mean_ratio=mean_ratio,
         valid_token_count=valid_token_count,
+        trajectory_count=current_logprobs.shape[0],
+    )
+
+
+def sequence_clipped_trajectory_policy_loss(
+    current_logprobs: torch.Tensor,
+    old_logprobs: torch.Tensor,
+    advantages: torch.Tensor,
+    token_mask: torch.Tensor,
+    *,
+    clip_epsilon: float = 0.2,
+    reference_logprobs: torch.Tensor | None = None,
+    kl_beta: float = 0.0,
+) -> PolicyLossResult:
+    """Compute a GSPO-style sequence-ratio loss for browser trajectories.
+
+    Every row is one complete browser trajectory, while each column still
+    represents a real action token from one recorded turn.  We sum the
+    token-level log-probability differences before exponentiating, so the
+    importance ratio is the conditional likelihood ratio of the entire action
+    sequence.  Turn boundaries and action-only masks therefore remain intact;
+    a browser trajectory is not converted into one synthetic completion.
+
+    A fixed clamp prevents numerical overflow for long trajectories.  It is
+    far outside the clipping boundary and is recorded by callers as an audit
+    statistic when it is ever reached.
+    """
+    if not 0 < clip_epsilon < 1:
+        raise ValueError("clip_epsilon must be in (0, 1)")
+    if kl_beta < 0:
+        raise ValueError("kl_beta must be non-negative")
+    _validate_policy_tensors(
+        current_logprobs,
+        old_logprobs,
+        advantages,
+        token_mask,
+        reference_logprobs,
+    )
+
+    mask = token_mask.to(dtype=current_logprobs.dtype)
+    detached_advantages = advantages.detach()
+    sequence_log_ratio = (
+        (current_logprobs - old_logprobs.detach()) * mask
+    ).sum(dim=1)
+    safe_sequence_log_ratio = sequence_log_ratio.clamp(
+        min=-SEQUENCE_LOG_RATIO_LIMIT,
+        max=SEQUENCE_LOG_RATIO_LIMIT,
+    )
+    ratio = torch.exp(safe_sequence_log_ratio)
+    clipped_ratio = ratio.clamp(1.0 - clip_epsilon, 1.0 + clip_epsilon)
+    policy_loss = -torch.minimum(
+        ratio * detached_advantages,
+        clipped_ratio * detached_advantages,
+    ).mean()
+
+    tokens_per_trajectory = mask.sum(dim=1)
+    if reference_logprobs is not None and kl_beta > 0:
+        reference_log_ratio = reference_logprobs.detach() - current_logprobs
+        token_kl = torch.exp(reference_log_ratio) - reference_log_ratio - 1.0
+        reference_kl = ((token_kl * mask).sum(dim=1) / tokens_per_trajectory).mean()
+    else:
+        reference_kl = current_logprobs.new_zeros(())
+
+    loss = policy_loss + kl_beta * reference_kl
+    clipped = (ratio < 1.0 - clip_epsilon) | (ratio > 1.0 + clip_epsilon)
+    approximate_kl = ((ratio - 1.0) - safe_sequence_log_ratio).mean()
+    mean_ratio = ratio.mean()
+    for name, value in (
+        ("loss", loss),
+        ("policy_loss", policy_loss),
+        ("reference_kl", reference_kl),
+        ("clip_fraction", clipped.float().mean()),
+        ("approximate_kl", approximate_kl),
+        ("mean_ratio", mean_ratio),
+    ):
+        if not torch.isfinite(value):
+            raise FloatingPointError(f"{name} is NaN or Inf")
+
+    return PolicyLossResult(
+        loss=loss,
+        policy_loss=policy_loss,
+        reference_kl=reference_kl,
+        clip_fraction=clipped.float().mean(),
+        approximate_kl=approximate_kl,
+        mean_ratio=mean_ratio,
+        valid_token_count=int(token_mask.sum().item()),
         trajectory_count=current_logprobs.shape[0],
     )

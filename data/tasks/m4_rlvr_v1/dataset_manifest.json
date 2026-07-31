@@ -1,0 +1,73 @@
+{
+  "dataset_id": "m4_rlvr_v1",
+  "isolation_contract": {
+    "constraint_signatures_disjoint_across_splits": true,
+    "public_instructions_disjoint_across_splits": true,
+    "selected_product_answers_disjoint_across_splits": true,
+    "test_role": "frozen_final_evaluation",
+    "worlds_disjoint_across_splits": true
+  },
+  "schema_version": "1.0",
+  "seed_manifest_sha256": "dc5f0b6d524ae38865cbb831f9fd58ed68159596aae7f3da70c90be9b0ef86c5",
+  "spec_sha256": "be38210581a4856eb587fb27263a1d25573de0001a17e83b567a67d4c0a28f4d",
+  "split_files": {
+    "dev": {
+      "oracle_sha256": "4ba30b9b373e2223b93426221c313ad20e20d15f35131c1962cffea799ef6f60",
+      "public_sha256": "e3f23b4ed0b9d67eda5dff732ba44dfb2f52ea340409cfaad3a8768739aa0bbb",
+      "split_manifest_sha256": "02e9d42b34212ff9a2098e2afc9ef8dd8d4079e0a67fb1a5fb04b809044a200a"
+    },
+    "test": {
+      "oracle_sha256": "e91e0159a9b83928c8d6f90e2c55c49da9345f5b823c161105614e73371d502b",
+      "public_sha256": "7e7559ca28581688b979581bad6bbc0375100133f599e25bbff2c3e1b3adc075",
+      "split_manifest_sha256": "599ee2f7cf9ebc717b00c27f214e2259aa3a3f3e18da61e2d1921b62bc1c93c4"
+    },
+    "train": {
+      "oracle_sha256": "b6a15fc1a822798f3f76d31c548eb432fe0f49fa920393fbb7e94939cb737dc3",
+      "public_sha256": "5d677456d6adc5c0d643650d0a9d06a868040d3f43b29f97c5869ce6588b0007",
+      "split_manifest_sha256": "d706f18175b4ee16f4ab7ee25265d5e3ebf5aec83eef9b7290298ca4aa920487"
+    }
+  },
+  "split_roles": {
+    "dev": "model_selection_only",
+    "test": "frozen_final_evaluation",
+    "train": "optimizer_source"
+  },
+  "split_task_counts": {
+    "dev": 72,
+    "test": 120,
+    "train": 240
+  },
+  "split_world_counts": {
+    "dev": 18,
+    "test": 30,
+    "train": 60
+  },
+  "task_count": 432,
+  "task_type_counts_per_split": {
+    "dev": {
+      "cheapest_feasible": 18,
+      "exact_product": 18,
+      "highest_rating_supplier": 18,
+      "no_feasible_product": 18
+    },
+    "test": {
+      "cheapest_feasible": 30,
+      "exact_product": 30,
+      "highest_rating_supplier": 30,
+      "no_feasible_product": 30
+    },
+    "train": {
+      "cheapest_feasible": 60,
+      "exact_product": 60,
+      "highest_rating_supplier": 60,
+      "no_feasible_product": 60
+    }
+  },
+  "task_types": [
+    "exact_product",
+    "cheapest_feasible",
+    "highest_rating_supplier",
+    "no_feasible_product"
+  ],
+  "world_count": 108
+}
