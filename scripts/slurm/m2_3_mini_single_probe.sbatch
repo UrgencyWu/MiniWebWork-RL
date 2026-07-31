@@ -13,12 +13,14 @@ set -euo pipefail
 
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 cd "$PROJECT_ROOT"
-mkdir -p logs outputs/m2_3_mini
+mkdir -p logs outputs/m2_3_mini/runs
 
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate miniwebwork
 
-# Arguments: POLICY TEMPERATURE SEED K [MAX_TASKS] [TOP_P] [TOP_K]
+# Arguments:
+# POLICY TEMPERATURE SEED K [MAX_TASKS] [TOP_P] [TOP_K] [TASK_SOURCE]
+# TASK_SOURCE: no_solution | feasible | absolute/relative task directory
 POLICY="${1:-A}"
 TEMP="${2:-0.2}"
 SEED="${3:-20260731}"
@@ -26,6 +28,7 @@ K="${4:-8}"
 MAX_TASKS="${5:-}"
 TOP_P="${6:-0.9}"
 TOP_K="${7:-0}"
+TASK_SOURCE="${8:-no_solution}"
 
 case "$POLICY" in
     A) ADAPTER="$PROJECT_ROOT/outputs/m2_2r/seed_1234/final_adapter" ;;
@@ -33,7 +36,23 @@ case "$POLICY" in
     *) echo "ERROR: policy must be A or B, got '$POLICY'" >&2; exit 2 ;;
 esac
 
-TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_no_solution_v1"
+case "$TASK_SOURCE" in
+    no_solution)
+        TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_no_solution_v1"
+        ;;
+    feasible)
+        TASK_DIR="$PROJECT_ROOT/data/tasks/rollout_dev_feasible_v1"
+        ;;
+    /*)
+        TASK_DIR="$TASK_SOURCE"
+        ;;
+    *)
+        TASK_DIR="$PROJECT_ROOT/$TASK_SOURCE"
+        ;;
+esac
+TASK_DIR="$(cd "$TASK_DIR" && pwd)"
+TASK_TAG="$(basename "$TASK_DIR")"
+
 export MINIWEBWORK_TASK_DIR="$TASK_DIR"
 export TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
@@ -45,7 +64,10 @@ float_tag() {
     awk -v value="$1" 'BEGIN {printf "%.8g", value}' | tr '.-' 'pm'
 }
 DIST_TAG="t$(float_tag "$TEMP")_p$(float_tag "$TOP_P")_k${TOP_K}"
-HEARTBEAT_FILE="$PROJECT_ROOT/outputs/m2_3_mini/heartbeat_${POLICY}_${DIST_TAG}.json"
+RUN_TAG="${POLICY}_${TASK_TAG}_${DIST_TAG}_s${SEED}_k${K}_j${SLURM_JOB_ID:-manual}"
+RUN_OUTPUT_DIR="$PROJECT_ROOT/outputs/m2_3_mini/runs/$RUN_TAG"
+mkdir -p "$RUN_OUTPUT_DIR"
+HEARTBEAT_FILE="$RUN_OUTPUT_DIR/heartbeat_${POLICY}_${DIST_TAG}.json"
 GPU_MEM_LOG="$PROJECT_ROOT/logs/gpu_mem_${SLURM_JOB_ID:-$$}.log"
 
 cleanup() {
@@ -92,8 +114,9 @@ print("Dependency preflight: PASS")
 PY
 
 GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-echo "=== M2.3-mini Canonical Rollout Collection ==="
+echo "=== M2.3/M3.0 Canonical Rollout Collection ==="
 echo "Job: ${SLURM_JOB_ID:-none}"
+echo "Run tag: $RUN_TAG"
 echo "Git SHA: $GIT_SHA"
 echo "Started: $(date -Is)"
 echo "Host: $(hostname)"
@@ -107,6 +130,7 @@ echo "K: $K"
 echo "Max tasks: ${MAX_TASKS:-all}"
 echo "Adapter: $ADAPTER"
 echo "Task dir: $TASK_DIR"
+echo "Output dir: $RUN_OUTPUT_DIR"
 nvidia-smi --query-gpu=index,name,memory.total,memory.used --format=csv,noheader || true
 
 ARGS=(
@@ -119,6 +143,7 @@ ARGS=(
     --K "$K"
     --split valid
     --task-dir "$TASK_DIR"
+    --output-dir "$RUN_OUTPUT_DIR"
 )
 if [[ -n "$MAX_TASKS" ]]; then
     ARGS+=(--max-tasks "$MAX_TASKS")
