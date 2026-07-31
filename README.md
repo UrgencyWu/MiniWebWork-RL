@@ -14,7 +14,8 @@ M2.2R      Canonical SFT and Frozen E2E         PASS
 M3.0A      Rollout readiness audit              PASS → Route B
 M2.3-mini  No-solution/recovery SFT patch       PASS
 M2.3 Probe Historical readiness GPU evidence   PASS
-M3.0B-0    Schema-v3.3 strict collection       IN PROGRESS
+M3.0B-0A   Paired A/B + feasible gate           IMPLEMENTED / RUN PENDING
+M3.0B-0C   Strict collection                    RUN PENDING
 M3.0B-1    Single-batch gradient smoke          NOT STARTED
 ```
 
@@ -22,6 +23,9 @@ M3.0B-1    Single-batch gradient smoke          NOT STARTED
 
 ```text
 M2_3_MINI_CANONICAL_PROBE_PASS=true
+SCHEMA_V3_3_ROLLOUT_IMPLEMENTED=true
+PAIRED_AB_ANALYSIS_IMPLEMENTED=true
+FEASIBLE_ROLLOUT_DEV_IMPLEMENTED=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
 READY_FOR_GRPO_UPDATE=false
 ```
@@ -119,27 +123,43 @@ scripts/analyze_probe_ab.py
 Slurm 参数：
 
 ```text
-POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K]
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K] [TASK_SOURCE]
 ```
+
+`TASK_SOURCE` 支持 `no_solution`、`feasible`、绝对路径或仓库相对路径。每个 Slurm job 使用独立 run 目录，任务源、seed、distribution、K 和 job ID 不会互相覆盖。
 
 单任务 Patch Policy smoke：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 1 1 0.9 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 0.2 20260731 1 1 0.9 0 no_solution
 ```
 
-显式 A/B readiness 分布：
+显式 no-solution A/B 诊断：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 0.2 20260731 8 "" 0.9 0
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  A 0.2 20260731 8 "" 0.9 0 no_solution
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 0.2 20260731 8 "" 0.9 0 no_solution
+```
+
+Feasible regression gate：
+
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  A 0.2 20260731 8 "" 0.9 0 feasible
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 0.2 20260731 8 "" 0.9 0 feasible
 ```
 
 严格更新分布：
 
 ```bash
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch A 1.0 20260731 8 "" 1.0 0
-sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0 0
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  A 1.0 20260731 8 "" 1.0 0 no_solution
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch \
+  B 1.0 20260731 8 "" 1.0 0 no_solution
 ```
 
 首版严格分布要求：
@@ -150,41 +170,30 @@ top_p = 1.0
 top_k = 0
 ```
 
-此外，raw policy 与 sampling-distribution token log-probabilities 的最大绝对差必须不超过 artifact 中声明的数值容差。只有参数和概率证据均兼容且组内存在 mixed reward 时，group 才会标记为 `valid_for_grpo_update=true`。
+此外，raw policy 与 sampling-distribution token log-probabilities 的最大绝对差必须不超过 artifact 中声明的数值容差。Replay 层会根据 records 独立重算兼容性，调用方不能提升诊断 artifact。
 
 A/B 配对分析：
 
 ```bash
 python scripts/analyze_probe_ab.py \
-  --a outputs/m2_3_mini/<A_ARTIFACT>.json \
-  --b outputs/m2_3_mini/<B_ARTIFACT>.json \
+  --a outputs/m2_3_mini/runs/<A_RUN>/<A_ARTIFACT>.json \
+  --b outputs/m2_3_mini/runs/<B_RUN>/<B_ARTIFACT>.json \
   --output outputs/m2_3_mini/paired_ab.json
 ```
 
-分析使用相同 `(task_id, rollout_index)` 配对，报告 A-only/B-only 成功、精确 McNemar 检验、task-level bootstrap 区间和逐任务差异。不能仅凭一次总成功数宣称补丁增益或将差异归因于采样方差。
-
-Rollout 合同：
-
-- Slurm 管理 `CUDA_VISIBLE_DEVICES`；
-- Adapter、任务和 Prompt 合同缺失时 fail-fast；
-- 基础设施失败使用 `reward=null`；
-- 每条 trajectory 和 group 保存 `temperature/top_p/top_k`；
-- Strict JSON、Schema Valid、环境动作成功和任务成功使用独立分母；
-- 保存 prompt/completion token IDs、raw policy log-probabilities 和 sampling-distribution log-probabilities；
-- Adapter、Prompt 和任务源使用内容 SHA-256；
-- 结果按任务原子化增量保存。
+分析使用相同 `(task_id, rollout_index)` 配对，报告 A-only/B-only 成功、精确 McNemar 检验、task-level bootstrap 区间、feasible success、false no-solution、no-solution success 和终止原因。不能仅凭一次总成功数宣称补丁增益或将差异归因于采样方差。
 
 ## Data Governance
 
-| Source | Role |
-|---|---|
-| `data/tasks/tasks_public.jsonl` | historical public tasks |
-| `data/tasks/tasks_oracle.jsonl` | private deterministic Oracle |
-| `data/tasks/rollout_dev_no_solution_v1/` | no-solution rollout/RL development tasks |
-| future feasible rollout_dev slice | false-no-solution and general capability checks |
-| future `final_test_v2` | final one-time evaluation |
+| Source | Role | Gradient allowed? |
+|---|---|---:|
+| `data/tasks/tasks_public.jsonl` | historical public tasks | no |
+| `data/tasks/tasks_oracle.jsonl` | private deterministic Oracle | no |
+| `data/tasks/rollout_dev_no_solution_v1/` | no-solution rollout/RL development | yes, after versioned collection |
+| `data/tasks/rollout_dev_feasible_v1/` | policy-selection and false-no-solution gate | no |
+| future `final_test_v2` | final one-time evaluation | no |
 
-一个进程只读取一个任务源。开发集与默认任务不合并，重复 task ID fail-fast。Checkpoint 仅由 Canonical Valid 指标选择；Frozen Test 不参与 checkpoint、sampling 或 optimizer 选择。
+`rollout_dev_feasible_v1` 包含 12 个全新 select-product 任务，manifest 冻结 Public/Oracle 与 seed-data SHA-256。一个进程只读取一个任务源。开发集与默认任务不合并，重复 task ID fail-fast。Frozen Test 不参与 checkpoint、sampling 或 optimizer 选择。
 
 ## M3.0 Boundary
 
@@ -208,4 +217,4 @@ src/miniwebwork/rl/batch.py
 src/miniwebwork/rl/objective.py
 ```
 
-下一门禁是：schema-v3.3 严格分布产生至少一个 `valid_for_grpo_update=true` group，完成 A/B 初始策略选择，并执行一次 LoRA-only gradient/checkpoint/reload smoke。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
+下一门禁是：完成 no-solution/feasible 多 seed 配对策略选择，schema-v3.3 严格分布产生至少一个 `valid_for_grpo_update=true` group，并执行一次 LoRA-only gradient/checkpoint/reload smoke。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
