@@ -16,8 +16,8 @@ from .environment import PlaywrightThreadManager
 _original_start = PlaywrightThreadManager.start
 
 
-def _checked_start(self: PlaywrightThreadManager):
-    _original_start(self)
+def _checked_start(self: PlaywrightThreadManager, headless: bool = True):
+    _original_start(self, headless=headless)
     if self._playwright is not None and self._browser is not None:
         return
 
