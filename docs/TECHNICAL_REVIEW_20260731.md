@@ -2,18 +2,7 @@
 
 ## 1. Review Scope
 
-This review covered:
-
-- project positioning and stage claims;
-- Agent runtime versus Agentic RL boundary;
-- task/public/Oracle isolation;
-- Prompt, Observation, Action, and history contracts;
-- browser/thread/process/database lifecycle;
-- deterministic verification and reward attribution;
-- rollout evidence and probability semantics;
-- multi-turn GRPO-style optimization;
-- Slurm shared-node safety;
-- dependency, CI, test, and documentation governance.
+This review covered project positioning, Agent runtime and Agentic RL boundaries, task/Oracle isolation, Prompt/Observation/Action contracts, browser and database lifecycle, deterministic verification, rollout probability semantics, multi-turn policy optimization, Slurm safety, test coverage, and documentation governance.
 
 ## 2. Final Technical Position
 
@@ -33,11 +22,11 @@ It is not a general public-Web benchmark, visual browser Agent, Agent-framework 
 
 ## 3. Corrected Technical Paths
 
-### 3.1 The repository already has an Agent runtime
+### 3.1 Existing Agent runtime
 
-The repository contains a typed browser environment, Observation/Action contracts, Qwen policy runtime, bounded history, lifecycle management, trajectory capture, and deterministic Verifier. The missing layer is online policy optimization.
+The repository already contains a typed browser environment, Qwen policy runtime, bounded action history, lifecycle management, trajectory capture, and deterministic Verifier. The missing capability is the online policy-improvement loop, not an Agent framework.
 
-### 3.2 Outcome-only reward is the first baseline
+### 3.2 First reward and optimization baseline
 
 ```text
 success = 1
@@ -45,41 +34,13 @@ valid policy failure = 0
 infrastructure failure = null
 ```
 
-JSON, clicks, empty-result detection, no-solution declarations, form completion, and trajectory length remain diagnostics rather than rewards.
+JSON validity, clicks, empty-result recognition, no-solution declarations, form completion, and trajectory length remain diagnostics. The first optimizer does not require a value model, GAE, replay buffer, PPO critic, or handcrafted process reward.
 
-### 3.3 Value models and replay are not prerequisites
+### 3.3 Multi-turn rather than one-shot optimization
 
-The first GRPO-style implementation is on-policy and group-relative. It does not require a replay buffer, critic/value network, GAE, or PPO value loss.
+Every browser turn receives a new Observation and freshly rendered Prompt. A trajectory is therefore replayed as ordered per-turn Prompt/action segments. One terminal group-relative advantage is broadcast to all action tokens; token means are computed within each trajectory, and trajectories are averaged equally.
 
-### 3.4 Expert-state accuracy is not closed-loop capability
-
-Near-perfect next-action validation measures expert-state imitation. Autonomous multi-turn rollout remains the capability test.
-
-### 3.5 Prompt Contract is part of the policy
-
-All active model paths use Canonical Prompt Contract v2. A Prompt change creates a new experiment family and requires Base/SFT re-baselining.
-
-### 3.6 M2.3-mini targeted state coverage
-
-The no-solution gap involved empty-result recognition, terminal submission, multi-constraint combinations, and off-expert recovery. M2.3-mini therefore added targeted expert and recovery states instead of duplicating ideal trajectories.
-
-### 3.7 Diagnostic and optimizer rollouts are distinct
-
-The system separates:
-
-```text
-has_learning_signal
-update_distribution_compatible
-valid_for_grpo_update
-```
-
-A diagnostic group can have mixed reward while remaining ineligible for update.
-
-### 3.8 A multi-turn episode is not one completion
-
-Each browser turn has a new Observation and freshly rendered Prompt. The optimizer replays each turn independently, aggregates action-token evidence at trajectory level, broadcasts one terminal advantage, averages within trajectory, then averages trajectories equally.
-
-### 3.9 Complete sampling identity is mandatory
+### 3.4 Complete behavior-distribution identity
 
 Every schema-v3.3 trajectory and group records:
 
@@ -97,83 +58,89 @@ top_p = 1.0
 top_k = 0
 ```
 
-A group is update-compatible only when raw and sampling token log-probabilities also agree within the predeclared numerical tolerance. Callers cannot bypass this parameter gate.
+Strict compatibility additionally requires finite, complete raw/sampling token probabilities whose maximum absolute difference remains within the declared numerical tolerance. The replay layer recomputes this condition from records; callers cannot promote a diagnostic artifact with a boolean flag.
 
-### 3.10 Aggregate A/B counts are insufficient
+### 3.5 Diagnostic versus optimizer evidence
 
-A single `58 vs 43` total cannot establish patch superiority or be dismissed as variance. Formal comparison pairs `(task_id, rollout_index)`, reports discordant outcomes, per-task differences, exact McNemar results, task bootstrap intervals, and multiple master seeds.
+The system distinguishes:
+
+```text
+has_learning_signal
+update_distribution_compatible
+valid_for_grpo_update
+```
+
+A mixed-reward readiness group can have learning signal while remaining ineligible for update.
+
+### 3.6 Policy comparison requires paired and feasible evidence
+
+A single `58 vs 43` aggregate cannot establish superiority or be dismissed as sampling variance. Formal comparison pairs `(task_id, rollout_index)`, reports discordant outcomes, exact McNemar results, task-level bootstrap intervals, per-task differences, feasible success, false no-solution, no-solution success, and multiple master seeds.
+
+The frozen `rollout_dev_feasible_v1` slice contains 12 select-product tasks and is a non-training policy-selection gate.
 
 ## 4. Corrected Engineering Contracts
 
-### Task and Oracle
+### Task, Web, and Verifier
 
 - one exclusive task source per process;
-- default and development datasets never merge;
-- duplicate task IDs fail fast;
+- Public/Oracle one-to-one binding and duplicate-ID rejection;
 - Oracle never enters prompts;
-- episode must belong to task.
+- episode/task context preserved through navigation and submission;
+- one active-episode submission, positive quantity, transactional persistence;
+- deterministic feasibility and objective recomputation;
+- policy failure reward 0, infrastructure failure reward null.
 
-### Browser and Environment
+### Browser lifecycle
 
 - one async Playwright worker thread;
-- browser objects never cross threads;
-- startup/shutdown errors propagate;
-- exact child process/thread cleanup only;
+- browser objects stay in that worker;
+- startup and shutdown errors propagate;
+- cleanup uses exact owned handles only;
 - no shared-node `pkill -f`;
 - Slurm owns GPU visibility;
-- temporary lifecycle monkey-patch preserves the original `headless` signature and has a regression test.
+- the temporary lifecycle guard preserves the original `headless` signature and has a regression test.
 
-### Web and Database
-
-- navigation preserves episode/task context;
-- numeric filter errors do not silently disappear;
-- one submission per episode;
-- positive quantity;
-- active-episode-only submission;
-- transaction rollback on failure.
-
-### Verifier and Reward
-
-- deterministic constraint and optimality recomputation;
-- deterministic tie-breaking;
-- structured failure reasons;
-- policy failure reward 0;
-- infrastructure failure reward null.
-
-### Rollout and Replay
+### Rollout, replay, and optimizer
 
 - exact prompt and completion token IDs;
 - finite raw-policy and sampling log-probabilities;
-- complete probability evidence required for replay;
-- same task/policy/distribution within each group;
-- warped distributions cannot be marked strict-update compatible;
-- infrastructure-invalid records never enter advantages or gradients.
+- malformed infrastructure evidence is serialized safely but never becomes replay input;
+- same task, policy, and complete distribution within each group;
+- concurrent task-source/seed/distribution jobs use isolated output directories;
+- replay independently verifies strict probability compatibility;
+- the optimizer smoke verifies artifact/adapter hash binding and old/current equality;
+- only LoRA parameters may be trainable;
+- per-turn streaming backward preserves equal-trajectory weighting while limiting 4B-model memory;
+- one update must produce finite non-zero gradients, non-zero Adapter delta, a reloadable checkpoint, and a finite reload forward.
 
 ## 5. Current Readiness Assessment
 
 | Capability | Status |
 |---|---|
-| deterministic environment | pass |
-| custom Agent runtime | pass |
+| deterministic environment and Agent runtime | pass |
 | Canonical Prompt/Action contracts | pass |
 | expert/recovery SFT | pass |
 | Adapter artifact validity | pass |
 | historical M2.3 readiness GPU probe | pass |
 | no-solution closed-loop capability | confirmed |
-| raw/sampling log-prob coverage | confirmed on readiness run |
-| schema-v3.3 complete sampling identity | implemented; cluster rerun pending |
-| paired A/B analysis | implemented; real artifacts pending |
-| typed strict replay batch | implemented and guarded |
-| multi-turn GRPO-style objective | implemented and unit-tested in repository |
+| schema-v3.3 complete sampling identity | implemented; cluster run pending |
+| paired A/B analysis | implemented; real multi-seed artifacts pending |
+| feasible policy-selection slice | implemented and frozen; cluster run pending |
+| strict replay batch | implemented and non-bypassable |
+| multi-turn clipped objective | implemented |
+| streaming equal-trajectory loss | implemented |
+| one-batch optimizer/checkpoint smoke | implemented; cluster run pending |
 | strict update-compatible group | not yet collected |
-| optimizer/checkpoint smoke | not started |
-| feasible rollout-dev slice | pending |
 | final_test_v2 | not created |
 
 Formal state:
 
 ```text
 M2_3_MINI_CANONICAL_PROBE_PASS=true
+SCHEMA_V3_3_ROLLOUT_IMPLEMENTED=true
+PAIRED_AB_ANALYSIS_IMPLEMENTED=true
+FEASIBLE_ROLLOUT_DEV_IMPLEMENTED=true
+M3_0B1_SINGLE_BATCH_SMOKE_IMPLEMENTED=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
 READY_FOR_GRPO_UPDATE=false
 ```
@@ -181,30 +148,28 @@ READY_FOR_GRPO_UPDATE=false
 ## 6. Immediate Execution Order
 
 1. run the CPU quality gate;
-2. collect schema-v3.3 A/B diagnostics with explicit `T=0.2, top_p=0.9, top_k=0`;
-3. perform paired A/B analysis across additional master seeds;
-4. add feasible development tasks and check false no-solution/general regression;
-5. select the M3.0 starting policy using the predeclared rule;
-6. collect `T=1, top_p=1, top_k=0` strict groups;
-7. require probability-match and at least one `valid_for_grpo_update=true` group;
-8. run one-batch LoRA gradient/checkpoint/reload smoke;
-9. only then begin a 5–10-update online pilot.
+2. collect schema-v3.3 no-solution A/B diagnostics for multiple master seeds;
+3. run the feasible A/B gate and inspect false no-solution/general-task success;
+4. perform paired analyses and freeze the M3.0 starting policy;
+5. collect `T=1, top_p=1, top_k=0` strict groups from the selected policy;
+6. require probability-match and at least one `valid_for_grpo_update=true` group;
+7. run `m3_0_single_batch_smoke.sbatch` on one strict group;
+8. only after the smoke passes, begin a 5–10-update online pilot.
 
-## 7. Main Residual Risks
+## 7. Residual Risks
 
 | Risk | Current treatment |
 |---|---|
 | historical Frozen Test is not pristine | create final_test_v2 before formal comparison |
 | trajectory-level credit is coarse | state explicitly; process reward deferred |
-| M2.3 may overproduce no-solution | add feasible dev slice and confusion metrics |
+| M2.3 may overproduce no-solution | feasible non-training gate and confusion metrics |
 | historical readiness artifact omitted top-k | capability evidence only; recollect schema-v3.3 |
 | hidden generation processors | explicit top-k plus raw/sampling probability-match gate |
-| caller could mislabel update compatibility | non-bypassable strict parameter validation |
-| GPU runtime cannot be validated by CPU CI | mandatory Slurm collection and optimizer smoke |
-| single RL seed may be unstable | require at least two seeds for strong claims |
+| GPU runtime cannot be validated by CPU CI | mandatory Slurm strict collection and optimizer smoke |
+| one RL seed may be unstable | at least two seeds for strong claims |
 
 ## 8. Overall Review
 
-The project now has an auditable path from deterministic environment through SFT, qualified multi-turn rollout, explicit behavior-distribution evidence, paired policy comparison, typed replay batches, and a bounded GRPO-style objective.
+The repository now contains an auditable implementation from deterministic environment through SFT, qualified multi-turn rollout, explicit behavior-distribution evidence, paired policy comparison, feasible regression gating, typed replay construction, trajectory-normalized objective, and a bounded one-batch LoRA optimizer smoke.
 
-The next meaningful result is experimental rather than architectural: collect a schema-v3.3 strict group, prove old/current replay consistency, and execute one LoRA optimizer step with a reloadable checkpoint.
+The next result is experimental: select the starting policy, collect a strict mixed-reward group, and demonstrate one finite reloadable optimizer update on the cluster.
