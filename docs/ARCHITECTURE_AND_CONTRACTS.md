@@ -251,9 +251,16 @@ The first strict update distribution is:
 temperature = 1.0
 top_p = 1.0
 top_k = 0
+use_cache = false
 ```
 
 Parameter identity alone is not sufficient. For every strict group, raw-policy and sampling-distribution token log-probabilities must agree within the declared numerical tolerance. A mismatch keeps `update_distribution_compatible=false` and exposes hidden generation processors or replay drift.
+
+Strict collection fails fast unless it can replay the optimizer's no-cache
+numerical path.  It requests both Transformers generation raw logits and
+post-processor scores, and rejects the action if those behavior probabilities
+differ.  This makes an implicit processor/warper an explicit infrastructure
+failure rather than silently changing the policy distribution.
 
 Any temperature-scaled fallback must recompute old/current log-probabilities under the same scaling. `top_p < 1` or `top_k > 0` is diagnostic-only until the exact truncated distribution is supported in training.
 

@@ -54,6 +54,8 @@ Expert SFT / Grouped Multi-turn Rollout / GRPO-style Update
 - [架构与运行合同](docs/ARCHITECTURE_AND_CONTRACTS.md)
 - [实验与数据治理](docs/EXPERIMENT_GOVERNANCE.md)
 - [M3.0 多轮 Agentic RL 计划](docs/M3_0_AGENTIC_RL_PLAN.md)
+- [可复现运行手册](docs/REPRODUCIBILITY_RUNBOOK.md)
+- [十分钟项目演示](docs/DEMO_GUIDE.md)
 - [Slurm 入口](scripts/slurm/README.md)
 
 历史 `docs/M1_*`、`docs/M2_*` 只作为阶段证据；发生冲突时，以上权威文档优先。
@@ -170,6 +172,18 @@ top_k = 0
 ```
 
 只有 raw-policy 与 sampling-distribution token log-prob 对齐、组内存在 mixed reward、且基础设施错误为 0 的 group，才能标记为 `valid_for_grpo_update=true`。
+
+在升级 Transformers、修改生成实现或排查严格门禁时，先运行保存 prompt
+证据的 logprob 审计：
+
+```bash
+sbatch scripts/slurm/m3_0b_logprob_audit.sbatch \
+  outputs/m2_3_mini/runs/<STRICT_RUN>/<ARTIFACT>.json A 16
+```
+
+严格模式明确使用 `use_cache=false`，并验证 generation raw logits 与
+post-processor sampling scores 没有行为分布差异；不能通过放宽 `0.05`
+阈值来绕过不一致。
 
 A/B 配对分析：
 

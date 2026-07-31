@@ -17,6 +17,7 @@ import hashlib
 import json
 import math
 import shutil
+import subprocess
 import sys
 import time
 from dataclasses import fields
@@ -39,6 +40,7 @@ from miniwebwork.rollout import RolloutRecord, RolloutStep
 
 DEFAULT_BASE_MODEL = "/data/share/model/Qwen3.5-4B"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "m3_0b1_smoke"
+FORMAL_OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "m3_0_updates"
 
 
 def _atomic_json_write(path: Path, value: Any) -> None:
@@ -68,6 +70,17 @@ def _directory_sha256(path: Path) -> str:
         digest.update(str(file.relative_to(path)).encode("utf-8"))
         digest.update(_file_sha256(file).encode("ascii"))
     return digest.hexdigest()
+
+
+def _git_sha() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=PROJECT_ROOT,
+            text=True,
+        ).strip()
+    except Exception:
+        return "unknown"
 
 
 def _disable_allocator_warmup() -> None:
@@ -149,7 +162,8 @@ def _load_trainable_policy(base_model_path: str, adapter_dir: Path):
     model.enable_adapter_layers()
     model.config.use_cache = False
     model = model.to("cuda:0")
-    # Evaluation mode disables dropout while preserving gradients for LoRA.
+    # Start in evaluation mode so the old/current audit is deterministic.  We
+    # switch to checkpointed train mode only after that audit succeeds.
     model.eval()
     torch.cuda.synchronize()
 
@@ -167,6 +181,56 @@ def _load_trainable_policy(base_model_path: str, adapter_dir: Path):
             f"parameters: {unexpected[:10]}"
         )
     return model, trainable
+
+
+def _enable_memory_efficient_training(model) -> dict[str, int | bool | str]:
+    """Enable activation checkpointing without reintroducing LoRA dropout.
+
+    Qwen3.5 activates its layer checkpoint wrapper only while ``training`` is
+    true.  The source adapter has non-zero LoRA dropout, so simply calling
+    ``train()`` would make the pre-update policy stochastic.  Keep the model
+    in train mode for checkpointing, but put every Dropout leaf in eval mode;
+    this preserves deterministic policy log-probabilities while freeing the
+    activation memory required by long browser prompts.
+    """
+    if not hasattr(model, "gradient_checkpointing_enable"):
+        raise RuntimeError("model does not support gradient checkpointing")
+    try:
+        model.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False}
+        )
+        checkpoint_api = "non_reentrant"
+    except TypeError:
+        # Older Transformers accepts no kwargs.  Its input-grad hook remains
+        # necessary for LoRA-only checkpointed backward.
+        model.gradient_checkpointing_enable()
+        checkpoint_api = "default"
+    if hasattr(model, "enable_input_require_grads"):
+        model.enable_input_require_grads()
+    else:
+        raise RuntimeError("model cannot require gradients on input embeddings")
+
+    model.config.use_cache = False
+    model.train()
+    dropout_count = 0
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.eval()
+            dropout_count += 1
+    checkpointed_layers = sum(
+        bool(getattr(module, "gradient_checkpointing", False))
+        for module in model.modules()
+    )
+    if checkpointed_layers == 0:
+        raise RuntimeError("gradient checkpointing did not activate any model layer")
+    return {
+        "gradient_checkpointing": True,
+        "checkpoint_api": checkpoint_api,
+        "checkpointed_layers": checkpointed_layers,
+        "dropout_modules_forced_eval": dropout_count,
+        "model_training": bool(model.training),
+        "use_cache": bool(model.config.use_cache),
+    }
 
 
 def _turn_logprobs(
@@ -386,6 +450,11 @@ def main() -> None:
     parser.add_argument("--clip-epsilon", type=float, default=0.2)
     parser.add_argument("--gradient-clip", type=float, default=1.0)
     parser.add_argument("--old-current-tolerance", type=float, default=5e-2)
+    parser.add_argument(
+        "--formal",
+        action="store_true",
+        help="Produce an auditable formal one-batch GRPO update, not a disposable smoke.",
+    )
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
@@ -416,6 +485,19 @@ def main() -> None:
     actual_adapter_hash = _directory_sha256(adapter_dir)
     if artifact.get("adapter_sha256") != actual_adapter_hash:
         raise ValueError("artifact adapter hash does not match --adapter")
+    code_git_sha = _git_sha()
+    if args.formal:
+        if artifact.get("git_sha") != code_git_sha:
+            raise ValueError(
+                "formal update requires artifact git_sha to match current code: "
+                f"artifact={artifact.get('git_sha')}, current={code_git_sha}"
+            )
+        runtime = artifact.get("generation_runtime")
+        if runtime != {"use_cache": False, "strict_on_policy": True}:
+            raise ValueError(
+                "formal update requires a no-cache strict_on_policy artifact runtime, "
+                f"got {runtime!r}"
+            )
 
     selected_group, selected_records = _select_group(artifact, args.task_id)
     replay_group = build_replay_group(
@@ -425,7 +507,7 @@ def main() -> None:
     output_dir = (
         args.output_dir.expanduser().resolve()
         if args.output_dir is not None
-        else DEFAULT_OUTPUT_ROOT
+        else (FORMAL_OUTPUT_ROOT if args.formal else DEFAULT_OUTPUT_ROOT)
         / (
             f"{artifact.get('policy', 'policy')}_{replay_group.task_id}_"
             f"{time.strftime('%Y%m%d_%H%M%S')}"
@@ -441,9 +523,15 @@ def main() -> None:
 
     report: dict[str, Any] = {
         "schema_version": "1.0",
-        "phase": "m3_0b1_single_batch_smoke",
+        "phase": (
+            "m3_0_single_batch_grpo_update"
+            if args.formal
+            else "m3_0b1_single_batch_smoke"
+        ),
         "complete": False,
         "passed": False,
+        "formal_update": bool(args.formal),
+        "code_git_sha": code_git_sha,
         "source_artifact": str(artifact_path),
         "source_artifact_sha256": _file_sha256(artifact_path),
         "source_adapter": str(adapter_dir),
@@ -482,6 +570,8 @@ def main() -> None:
                 f"{audit['max_abs_difference']} > {args.old_current_tolerance}"
             )
 
+        report["training_runtime"] = _enable_memory_efficient_training(model)
+
         report["optimizer"] = _train_one_batch(
             model,
             trainable,
@@ -490,6 +580,7 @@ def main() -> None:
             clip_epsilon=args.clip_epsilon,
             gradient_clip=args.gradient_clip,
         )
+        model.eval()
         checkpoint_dir.mkdir(parents=True, exist_ok=False)
         model.save_pretrained(checkpoint_dir, safe_serialization=True)
         report["checkpoint_path"] = str(checkpoint_dir)
