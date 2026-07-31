@@ -21,10 +21,18 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _git_blob_sha(path: Path) -> str:
+    content = path.read_bytes()
+    header = f"blob {len(content)}\0".encode("ascii")
+    return hashlib.sha1(header + content).hexdigest()
+
+
 def test_feasible_manifest_hashes_and_roles():
     manifest = json.loads((DATASET_DIR / "manifest.json").read_text(encoding="utf-8"))
     public_path = DATASET_DIR / "valid_public.jsonl"
     oracle_path = DATASET_DIR / "valid_oracle.jsonl"
+    products_path = ROOT / "data" / "seed" / "products.json"
+    suppliers_path = ROOT / "data" / "seed" / "suppliers.json"
 
     assert manifest["dataset_id"] == "rollout_dev_feasible_v1"
     assert manifest["role"] == "policy_selection_and_regression_gate"
@@ -32,6 +40,8 @@ def test_feasible_manifest_hashes_and_roles():
     assert manifest["valid_task_count"] == 12
     assert manifest["valid_public_sha256"] == _sha256(public_path)
     assert manifest["valid_oracle_sha256"] == _sha256(oracle_path)
+    assert manifest["source_products_git_blob_sha"] == _git_blob_sha(products_path)
+    assert manifest["source_suppliers_git_blob_sha"] == _git_blob_sha(suppliers_path)
     assert manifest["expected_decision_type_counts"] == {
         "select_product": 12,
         "no_solution": 0,
