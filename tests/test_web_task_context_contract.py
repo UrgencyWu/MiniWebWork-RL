@@ -1,10 +1,27 @@
 from contextlib import closing
+from html.parser import HTMLParser
+from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
 from miniwebwork.db import get_connection, init_schema
 from miniwebwork.seed import seed_database
 from miniwebwork.webapp import app
+
+
+class _SupplierLinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.hrefs: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "a":
+            return
+        values = dict(attrs)
+        test_id = values.get("data-testid", "")
+        href = values.get("href")
+        if test_id.startswith("supplier-link-") and href:
+            self.hrefs.append(href)
 
 
 def _client(tmp_path, monkeypatch):
@@ -48,8 +65,13 @@ def test_supplier_links_preserve_episode_and_task(tmp_path, monkeypatch):
     )
 
     assert response.status_code == 200
-    assert f"episode_id={episode_id}&amp;task_id=TASK-001" in response.text
-    assert "/suppliers/" in response.text
+    parser = _SupplierLinkParser()
+    parser.feed(response.text)
+    assert parser.hrefs
+    for href in parser.hrefs:
+        query = parse_qs(urlparse(href).query)
+        assert query.get("episode_id") == [episode_id]
+        assert query.get("task_id") == ["TASK-001"]
 
 
 def test_invalid_numeric_filter_is_not_silently_ignored(tmp_path, monkeypatch):

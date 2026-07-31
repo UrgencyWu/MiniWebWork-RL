@@ -1,10 +1,12 @@
 import sqlite3
-from contextlib import closing
 
 import pytest
 
 from miniwebwork.db import create_episode, create_submission, get_connection, init_schema
 from miniwebwork.seed import seed_database
+
+
+EXISTING_PRODUCT_ID = "PRD-001"
 
 
 def _database(tmp_path):
@@ -25,7 +27,7 @@ def test_quantity_must_be_positive_integer(tmp_path):
             episode_id=episode,
             task_id="TASK-001",
             decision_type="select_product",
-            product_id="P001",
+            product_id=EXISTING_PRODUCT_ID,
             quantity=0,
         )
     connection.close()
@@ -39,7 +41,7 @@ def test_one_submission_per_episode_is_enforced(tmp_path):
         episode_id=episode,
         task_id="TASK-001",
         decision_type="select_product",
-        product_id="P001",
+        product_id=EXISTING_PRODUCT_ID,
     )
 
     with pytest.raises(ValueError, match="not active|already has"):
@@ -48,7 +50,7 @@ def test_one_submission_per_episode_is_enforced(tmp_path):
             episode_id=episode,
             task_id="TASK-001",
             decision_type="select_product",
-            product_id="P001",
+            product_id=EXISTING_PRODUCT_ID,
         )
     connection.close()
 
@@ -61,7 +63,7 @@ def test_unique_index_blocks_direct_duplicate_insert(tmp_path):
         episode_id=episode,
         task_id="TASK-001",
         decision_type="select_product",
-        product_id="P001",
+        product_id=EXISTING_PRODUCT_ID,
     )
     first = connection.execute(
         "SELECT * FROM procurement_submissions WHERE episode_id = ?",
@@ -79,7 +81,7 @@ def test_unique_index_blocks_direct_duplicate_insert(tmp_path):
                 episode,
                 "TASK-001",
                 "select_product",
-                "P001",
+                EXISTING_PRODUCT_ID,
                 1,
                 "",
                 first["submitted_at"],

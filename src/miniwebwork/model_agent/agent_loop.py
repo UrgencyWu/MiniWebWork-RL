@@ -21,7 +21,7 @@ def run_model_episode(
 ) -> dict:
     """Run one episode and return a structured evaluation trajectory.
 
-    Policy failures are valid outcomes with reward 0.  Model-backend,
+    Policy failures are valid outcomes with reward 0. Model-backend,
     environment, browser, service, and database exceptions invalidate the
     rollout and carry reward ``None``.
     """
@@ -92,7 +92,8 @@ def run_model_episode(
 
             if not attempt.schema_valid or attempt.action is None:
                 consecutive_output_failures += 1
-                agent.record_feedback(attempt, None, observation.page_type)
+                # Invalid model output is a model turn, but it is not an
+                # executed action and must not enter action-result history.
                 if consecutive_output_failures >= 3:
                     result["termination_reason"] = "model_output_failure_limit"
                     break
