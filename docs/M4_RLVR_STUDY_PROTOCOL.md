@@ -47,8 +47,12 @@ the exact git commit must be written before the first test job is submitted.
 
 All methods use the same locally cached `Qwen3.5-4B` base model, the same LoRA
 target modules and rank, prompt contract, max environment steps, browser image,
-task/seed manifest hashes and model-tokenizer revision.  The fixed study seeds
-are `20260801`, `20260802`, and `20260803`.
+task/seed manifest hashes and model-tokenizer revision.  Every primary run also
+loads one declared, immutable initial LoRA adapter; its directory hash is part
+of the run manifest and must match the collection artifact before any update.
+This prevents a fresh random adapter initialization from becoming an untracked
+method difference.  The fixed study seeds are `20260801`, `20260802`, and
+`20260803`.
 
 Online collection is strictly on-policy:
 

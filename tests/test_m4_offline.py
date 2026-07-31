@@ -88,6 +88,7 @@ def test_sft_offline_plan_binds_two_passes_and_cap_to_the_m4_manifest(tmp_path: 
     command = runner._trainer_command(
         plan,
         output_dir=tmp_path / "run",
+        initial_adapter=tmp_path / "adapter",
         base_model="model",
         max_length=8192,
         learning_rate=2e-4,
@@ -95,6 +96,7 @@ def test_sft_offline_plan_binds_two_passes_and_cap_to_the_m4_manifest(tmp_path: 
         grad_accum=16,
     )
     assert command[command.index("--epochs") + 1] == "2"
+    assert command[command.index("--initial-adapter") + 1].endswith("adapter")
     assert command[command.index("--max-supervised-completion-tokens") + 1] == "250000"
 
 

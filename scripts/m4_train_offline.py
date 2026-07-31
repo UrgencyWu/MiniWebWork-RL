@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -17,13 +18,25 @@ from miniwebwork.m4_offline import build_m4_offline_training_plan
 from miniwebwork.m4_protocol import DEFAULT_SEED_DIR, DEFAULT_TASK_ROOT, write_m4_run_manifest
 
 
-def _trainer_command(plan: dict, *, output_dir: Path, base_model: str, max_length: int, learning_rate: float, batch_size: int, grad_accum: int) -> list[str]:
+def _directory_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    files = sorted(file for file in path.rglob("*") if file.is_file())
+    if not files:
+        raise ValueError(f"Initial adapter has no files: {path}")
+    for file in files:
+        digest.update(str(file.relative_to(path)).encode("utf-8"))
+        digest.update(hashlib.sha256(file.read_bytes()).hexdigest().encode("ascii"))
+    return digest.hexdigest()
+
+
+def _trainer_command(plan: dict, *, output_dir: Path, initial_adapter: Path, base_model: str, max_length: int, learning_rate: float, batch_size: int, grad_accum: int) -> list[str]:
     if max_length <= 0 or batch_size <= 0 or grad_accum <= 0 or learning_rate <= 0:
         raise ValueError("M4 offline trainer settings must be positive")
     return [
         sys.executable,
         str(PROJECT_ROOT / "src" / "miniwebwork" / "sft" / "train_m2_2.py"),
         "--base-model", base_model,
+        "--initial-adapter", str(initial_adapter),
         "--data-dir", plan["train_data"]["data_dir"],
         "--valid-data-dir", plan["validation_data"]["data_dir"],
         "--output-dir", str(output_dir / "training"),
@@ -46,6 +59,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--task-root", type=Path, default=DEFAULT_TASK_ROOT)
     parser.add_argument("--seed-dir", type=Path, default=DEFAULT_SEED_DIR)
+    parser.add_argument("--initial-adapter", type=Path, required=True)
     parser.add_argument("--base-model", default="/data/share/model/Qwen3.5-4B")
     parser.add_argument("--max-length", type=int, default=8192)
     parser.add_argument("--lr", type=float, default=2e-4)
@@ -62,9 +76,15 @@ def main() -> int:
         seed_dir=args.seed_dir,
     )
     output_dir = args.output_dir.expanduser().resolve()
+    initial_adapter = args.initial_adapter.expanduser().resolve()
+    if not initial_adapter.is_dir():
+        raise FileNotFoundError(f"Initial adapter directory not found: {initial_adapter}")
+    plan["initial_adapter"] = str(initial_adapter)
+    plan["initial_adapter_sha256"] = _directory_sha256(initial_adapter)
     command = _trainer_command(
         plan,
         output_dir=output_dir,
+        initial_adapter=initial_adapter,
         base_model=args.base_model,
         max_length=args.max_length,
         learning_rate=args.lr,

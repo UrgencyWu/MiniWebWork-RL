@@ -6,6 +6,7 @@ Uses standard HuggingFace Trainer with pre-tokenized data:
 """
 
 import json
+import hashlib
 import os
 import sys
 import time
@@ -176,6 +177,18 @@ def find_latest_checkpoint(seed_dir: Path) -> str | None:
     return None
 
 
+def directory_sha256(path: Path) -> str:
+    """Hash an adapter directory for M4 initialization lineage."""
+    digest = hashlib.sha256()
+    files = sorted(file for file in path.rglob("*") if file.is_file())
+    if not files:
+        raise ValueError(f"Adapter directory contains no files: {path}")
+    for file in files:
+        digest.update(str(file.relative_to(path)).encode("utf-8"))
+        digest.update(hashlib.sha256(file.read_bytes()).hexdigest().encode("ascii"))
+    return digest.hexdigest()
+
+
 def compute_action_metrics(model, tokenizer, raw_dataset, max_length: int) -> dict:
     """Compute teacher-forced action accuracy on eval set."""
     model.eval()
@@ -245,6 +258,7 @@ def train_single_seed(
     grad_accum: int,
     resume_from_checkpoint: str = None,
     max_supervised_completion_tokens: int | None = None,
+    initial_adapter: Path | None = None,
 ) -> dict:
     """Train a single seed. Supports checkpoint resumption."""
     print(f"\n{'='*60}")
@@ -308,20 +322,36 @@ def train_single_seed(
     print(f"  Model loaded in {load_time:.1f}s")
     print(f"  GPU memory: {torch.cuda.memory_allocated()/(1024**3):.1f} GB")
 
-    # LoRA config
-    print(f"LoRA config: r={LORA_R}, alpha={LORA_ALPHA}, targets={TARGET_MODULES}")
-    lora_config = LoraConfig(
-        r=LORA_R,
-        lora_alpha=LORA_ALPHA,
-        lora_dropout=LORA_DROPOUT,
-        target_modules=TARGET_MODULES,
-        task_type="CAUSAL_LM",
-        bias="none",
-    )
+    initial_adapter_hash = None
+    if initial_adapter is not None:
+        from peft import PeftModel
 
-    # Apply PEFT
-    print("Applying LoRA...", flush=True)
-    model = get_peft_model(model, lora_config)
+        initial_adapter = Path(initial_adapter).expanduser().resolve()
+        if not initial_adapter.is_dir():
+            raise FileNotFoundError(f"Initial adapter not found: {initial_adapter}")
+        initial_adapter_hash = directory_sha256(initial_adapter)
+        print(f"Loading fixed initial adapter: {initial_adapter}", flush=True)
+        model = PeftModel.from_pretrained(
+            model,
+            str(initial_adapter),
+            is_trainable=True,
+            torch_dtype=torch.bfloat16,
+        )
+        model.enable_adapter_layers()
+    else:
+        # Historical runs may still request fresh LoRA initialization. M4 uses
+        # --initial-adapter so every method starts from an identical policy.
+        print(f"LoRA config: r={LORA_R}, alpha={LORA_ALPHA}, targets={TARGET_MODULES}")
+        lora_config = LoraConfig(
+            r=LORA_R,
+            lora_alpha=LORA_ALPHA,
+            lora_dropout=LORA_DROPOUT,
+            target_modules=TARGET_MODULES,
+            task_type="CAUSAL_LM",
+            bias="none",
+        )
+        print("Applying LoRA...", flush=True)
+        model = get_peft_model(model, lora_config)
     print("Enabling gradient checkpointing...", flush=True)
     model.gradient_checkpointing_enable()
     model.print_trainable_parameters()
@@ -429,6 +459,8 @@ def train_single_seed(
         "completion_tokens_per_epoch": completion_tokens_per_epoch,
         "planned_supervised_completion_tokens": planned_supervised_completion_tokens,
         "max_supervised_completion_tokens": max_supervised_completion_tokens,
+        "initial_adapter": str(initial_adapter) if initial_adapter is not None else None,
+        "initial_adapter_sha256": initial_adapter_hash,
     }
     metrics_path = seed_dir / "metrics.json"
     metrics_path.write_text(json.dumps(all_metrics, indent=2, ensure_ascii=False))
@@ -457,6 +489,12 @@ def main():
     parser.add_argument("--grad-accum", type=int, default=DEFAULT_GRAD_ACCUM)
     parser.add_argument("--resume-from-checkpoint", type=str, default=None)
     parser.add_argument("--max-supervised-completion-tokens", type=int, default=None)
+    parser.add_argument(
+        "--initial-adapter",
+        type=Path,
+        default=None,
+        help="Optional fixed LoRA initialization; required by the M4 wrapper.",
+    )
     args = parser.parse_args()
 
     print("=== M2.2 LoRA SFT Trainer ===")
@@ -488,6 +526,7 @@ def main():
             grad_accum=args.grad_accum,
             resume_from_checkpoint=args.resume_from_checkpoint,
             max_supervised_completion_tokens=args.max_supervised_completion_tokens,
+            initial_adapter=args.initial_adapter,
         )
         all_metrics.append(metrics)
 
@@ -506,6 +545,7 @@ def main():
             "lora_alpha": LORA_ALPHA,
             "seeds": args.seeds,
             "max_supervised_completion_tokens": args.max_supervised_completion_tokens,
+            "initial_adapter": str(args.initial_adapter) if args.initial_adapter else None,
         },
         "seeds": all_metrics,
     }
