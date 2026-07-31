@@ -35,3 +35,22 @@ def test_collector_exposes_versioned_seed_and_explicit_rollout_limits():
     parameters = inspect.signature(probe.run_rollout).parameters
 
     assert {"seed_dir", "max_model_turns", "max_environment_steps", "max_output_failures"} <= set(parameters)
+
+
+def test_collector_action_token_budget_reserves_whole_rollout_groups():
+    probe = _load_probe_module()
+
+    assert probe._can_start_complete_task_group(
+        100,
+        1_200,
+        trajectories=4,
+        max_model_turns=2,
+        max_new_tokens=128,
+    )
+    assert not probe._can_start_complete_task_group(
+        200,
+        1_200,
+        trajectories=4,
+        max_model_turns=2,
+        max_new_tokens=128,
+    )

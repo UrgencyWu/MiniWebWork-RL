@@ -24,6 +24,7 @@ from miniwebwork.m4_protocol import (
     DEFAULT_SEED_DIR,
     DEFAULT_TASK_ROOT,
     M4RunConfig,
+    ONLINE_PASS_ACTION_TOKEN_CAP,
     build_m4_run_manifest,
     write_m4_run_manifest,
 )
@@ -35,6 +36,11 @@ def _collection_seed(study_seed: int, pass_index: int | None) -> int:
         return study_seed
     digest = hashlib.sha256(f"m4_rlvr_v1:{study_seed}:pass:{pass_index}".encode("ascii")).digest()
     return int.from_bytes(digest[:4], "big", signed=False)
+
+
+def _action_token_budget(config: M4RunConfig) -> int | None:
+    """Split the fixed study-wide online budget evenly across two passes."""
+    return ONLINE_PASS_ACTION_TOKEN_CAP if config.phase == "train" else None
 
 
 def _collector_command(
@@ -71,6 +77,8 @@ def _collector_command(
         str(seed_dir),
         "--split",
         split,
+        "--task-order-seed",
+        str(config.seed),
         "--K",
         str(k),
         "--seed",
@@ -87,6 +95,8 @@ def _collector_command(
         str(config.max_model_turns),
         "--max-env-steps",
         str(config.max_environment_steps),
+        "--max-new-tokens",
+        "128",
         "--output-dir",
         str(output_dir / "collector"),
         "--study-id",
@@ -94,6 +104,9 @@ def _collector_command(
     ]
     if train_pass_index is not None:
         command.extend(["--collection-pass-index", str(train_pass_index)])
+    action_token_budget = _action_token_budget(config)
+    if action_token_budget is not None:
+        command.extend(["--max-collected-action-tokens", str(action_token_budget)])
     if max_tasks is not None:
         command.extend(["--max-tasks", str(max_tasks)])
     return command
@@ -135,6 +148,8 @@ def main() -> int:
         "study_seed": config.seed,
         "collection_seed": _collection_seed(config.seed, args.train_pass_index),
         "train_pass_index": args.train_pass_index,
+        "max_collected_action_tokens": _action_token_budget(config),
+        "task_order_seed": config.seed,
     }
     print(json.dumps({"run_manifest": manifest, "collector_command": command}, indent=2))
     if args.dry_run:

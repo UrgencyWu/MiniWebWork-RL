@@ -56,6 +56,7 @@ DEFAULT_TOP_K = 0
 PROMPT_CONTRACT = "browser_agent_v2"
 MAX_MODEL_TURNS = 25
 MAX_OUTPUT_FAILURES = 3
+DEFAULT_MAX_NEW_TOKENS = 128
 STRICT_LOGPROB_MATCH_TOLERANCE = 5e-2
 
 
@@ -206,6 +207,7 @@ def load_policy(
     temperature: float,
     top_p: float,
     top_k: int,
+    max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
 ):
     import torch
     from peft import PeftModel
@@ -250,7 +252,7 @@ def load_policy(
     backend = QwenTransformersBackend(
         ModelConfig(
             model_path=base_model_path,
-            max_new_tokens=128,
+            max_new_tokens=max_new_tokens,
             do_sample=True,
             temperature=temperature,
             top_p=top_p,
@@ -642,6 +644,26 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
     }
 
 
+def _can_start_complete_task_group(
+    collected_action_tokens: int,
+    token_cap: int | None,
+    *,
+    trajectories: int,
+    max_model_turns: int,
+    max_new_tokens: int,
+) -> bool:
+    """Reserve the worst case for a complete group before executing it.
+
+    An online estimator cannot train on a partial same-task group.  Reserving
+    ``K * turns * max_new_tokens`` before a task keeps the hard collected-token
+    cap truthful even if every generation reaches its configured limit.
+    """
+    if token_cap is None:
+        return True
+    worst_case = trajectories * max_model_turns * max_new_tokens
+    return collected_action_tokens + worst_case <= token_cap
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Canonical M2.3-mini rollout collector")
     parser.add_argument("--policy", required=True, choices=["A", "B", "custom"])
@@ -678,8 +700,21 @@ def main() -> None:
     )
     parser.add_argument("--split", choices=["train", "valid", "dev", "test"], default="valid")
     parser.add_argument("--max-tasks", type=int, default=None)
+    parser.add_argument(
+        "--task-order-seed",
+        type=int,
+        default=None,
+        help="Optional seed for an immutable deterministic task permutation.",
+    )
     parser.add_argument("--max-model-turns", type=int, default=MAX_MODEL_TURNS)
     parser.add_argument("--max-env-steps", type=int, default=MAX_MODEL_TURNS)
+    parser.add_argument("--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS)
+    parser.add_argument(
+        "--max-collected-action-tokens",
+        type=int,
+        default=None,
+        help="Hard cap on generated action tokens; only complete K-way groups start.",
+    )
     parser.add_argument("--max-output-failures", type=int, default=MAX_OUTPUT_FAILURES)
     parser.add_argument(
         "--study-id",
@@ -699,12 +734,21 @@ def main() -> None:
         raise ValueError("top-k must be non-negative")
     if args.max_tasks is not None and args.max_tasks <= 0:
         raise ValueError("max-tasks must be positive")
-    if args.max_model_turns <= 0 or args.max_env_steps <= 0:
-        raise ValueError("max-model-turns and max-env-steps must be positive")
+    if args.max_model_turns <= 0 or args.max_env_steps <= 0 or args.max_new_tokens <= 0:
+        raise ValueError("max-model-turns, max-env-steps and max-new-tokens must be positive")
     if args.max_output_failures <= 0:
         raise ValueError("max-output-failures must be positive")
     if args.collection_pass_index is not None and args.collection_pass_index <= 0:
         raise ValueError("collection-pass-index must be positive")
+    if args.max_collected_action_tokens is not None:
+        if args.max_collected_action_tokens <= 0:
+            raise ValueError("max-collected-action-tokens must be positive")
+        worst_case_group = args.K * args.max_model_turns * args.max_new_tokens
+        if args.max_collected_action_tokens < worst_case_group:
+            raise ValueError(
+                "max-collected-action-tokens is too small for one complete rollout group: "
+                f"{args.max_collected_action_tokens} < {worst_case_group}"
+            )
 
     task_dir = args.task_dir.expanduser().resolve()
     seed_dir = args.seed_dir.expanduser().resolve() if args.seed_dir else None
@@ -712,8 +756,13 @@ def main() -> None:
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     tasks, task_source_hash = _load_tasks(task_dir, args.split)
+    if args.task_order_seed is not None:
+        random.Random(args.task_order_seed).shuffle(tasks)
     if args.max_tasks is not None:
         tasks = tasks[: args.max_tasks]
+    task_order_sha256 = hashlib.sha256(
+        "\n".join(task["task_id"] for task in tasks).encode("utf-8")
+    ).hexdigest()
     if seed_dir is not None and not seed_dir.is_dir():
         raise FileNotFoundError(f"Seed directory not found: {seed_dir}")
 
@@ -725,6 +774,7 @@ def main() -> None:
         args.temperature,
         args.top_p,
         args.top_k,
+        args.max_new_tokens,
     )
     distribution_tag = (
         f"t{_float_tag(args.temperature)}_p{_float_tag(args.top_p)}_k{args.top_k}"
@@ -747,9 +797,25 @@ def main() -> None:
     )
     records: list[RolloutRecord] = []
     groups: list[dict] = []
+    collected_action_tokens = 0
+    stopped_for_action_token_budget = False
     started = time.time()
     try:
         for task_index, task in enumerate(tasks, start=1):
+            if not _can_start_complete_task_group(
+                collected_action_tokens,
+                args.max_collected_action_tokens,
+                trajectories=args.K,
+                max_model_turns=args.max_model_turns,
+                max_new_tokens=args.max_new_tokens,
+            ):
+                stopped_for_action_token_budget = True
+                print(
+                    f"Stopping before task {task_index}: reserving a complete K={args.K} group "
+                    "would exceed max-collected-action-tokens",
+                    flush=True,
+                )
+                break
             task_id = task["task_id"]
             heartbeat.update(current_task=task_id, current_rollout=0)
             task_records: list[RolloutRecord] = []
@@ -774,6 +840,9 @@ def main() -> None:
                 )
                 records.append(record)
                 task_records.append(record)
+                collected_action_tokens += sum(
+                    len(step.generated_token_ids) for step in record.steps
+                )
                 if not record.rollout_valid:
                     heartbeat.update(last_error=record.termination_reason)
                 print(
@@ -817,8 +886,16 @@ def main() -> None:
                     "study_seed": args.study_seed if args.study_seed is not None else args.seed,
                     "collection_pass_index": args.collection_pass_index,
                     "task_source_sha256": task_source_hash,
+                    "task_order_seed": args.task_order_seed,
+                    "task_order_sha256": task_order_sha256,
                     "seed_dir": str(seed_dir) if seed_dir else None,
                     "adapter_sha256": adapter_hash,
+                    "max_new_tokens": args.max_new_tokens,
+                    "max_collected_action_tokens": args.max_collected_action_tokens,
+                    "collected_action_tokens": collected_action_tokens,
+                    "requested_task_count": len(tasks),
+                    "completed_task_count": len(groups),
+                    "stopped_for_action_token_budget": stopped_for_action_token_budget,
                     "groups": groups,
                     "records": [record.to_dict() for record in records],
                 },
@@ -839,6 +916,8 @@ def main() -> None:
             "chat_template_sha256": backend.get_chat_template_hash(),
             "task_dir": str(task_dir),
             "task_source_sha256": task_source_hash,
+            "task_order_seed": args.task_order_seed,
+            "task_order_sha256": task_order_sha256,
             "seed_dir": str(seed_dir) if seed_dir else None,
             "split": args.split,
             "temperature": args.temperature,
@@ -857,6 +936,12 @@ def main() -> None:
             "max_model_turns": args.max_model_turns,
             "max_environment_steps": args.max_env_steps,
             "max_output_failures": args.max_output_failures,
+            "max_new_tokens": args.max_new_tokens,
+            "max_collected_action_tokens": args.max_collected_action_tokens,
+            "collected_action_tokens": collected_action_tokens,
+            "requested_task_count": len(tasks),
+            "completed_task_count": len(groups),
+            "stopped_for_action_token_budget": stopped_for_action_token_budget,
             "logprob_contract": {
                 "token_logprobs": "raw model-policy log probabilities",
                 "sampling_logprobs": "post generation-processor behavior probabilities",

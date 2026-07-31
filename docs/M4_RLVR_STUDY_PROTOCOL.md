@@ -106,6 +106,13 @@ The per-method cap is the same `250,000` collected action-token budget; stopping
 at that cap is recorded and applied to every online method.  The deterministic
 task order is a seed-specific permutation fixed before collection.
 
+The online cap is enforced as two equal, complete-group-safe pass budgets of
+`125,000` tokens.  Before a task starts, the collector reserves the worst-case
+K-way action generation allowance; it therefore never creates an incomplete
+same-task group merely to consume the remaining tokens.  The artifact records
+both the study seed and the pass-specific collection seed, the task-order hash,
+requested/completed task counts, and the exact collected-token total.
+
 SFT and RSFT use the same two-pass train-world roster and a completion-token
 budget no larger than 250,000.  Formal offline runs require the complete
 240-task train corpus and 72-task dev-only validation corpus; they reject
