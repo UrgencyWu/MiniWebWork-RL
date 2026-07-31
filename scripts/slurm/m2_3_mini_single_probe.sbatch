@@ -18,11 +18,13 @@ mkdir -p logs outputs/m2_3_mini
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate miniwebwork
 
+# Arguments: POLICY TEMPERATURE SEED K [MAX_TASKS] [TOP_P]
 POLICY="${1:-A}"
 TEMP="${2:-0.2}"
 SEED="${3:-20260731}"
 K="${4:-8}"
 MAX_TASKS="${5:-}"
+TOP_P="${6:-0.9}"
 
 case "$POLICY" in
     A) ADAPTER="$PROJECT_ROOT/outputs/m2_2r/seed_1234/final_adapter" ;;
@@ -38,7 +40,11 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:T
 # Set CUDA_LAUNCH_BLOCKING=1 only for a dedicated diagnostic run.
 export CUDA_LAUNCH_BLOCKING="${CUDA_LAUNCH_BLOCKING:-0}"
 
-HEARTBEAT_FILE="$PROJECT_ROOT/outputs/m2_3_mini/heartbeat_${POLICY}_t${TEMP}.json"
+float_tag() {
+    printf '%s' "$1" | tr '.-' 'pm'
+}
+DIST_TAG="t$(float_tag "$TEMP")_p$(float_tag "$TOP_P")"
+HEARTBEAT_FILE="$PROJECT_ROOT/outputs/m2_3_mini/heartbeat_${POLICY}_${DIST_TAG}.json"
 GPU_MEM_LOG="$PROJECT_ROOT/logs/gpu_mem_${SLURM_JOB_ID:-$$}.log"
 
 cleanup() {
@@ -85,7 +91,7 @@ print("Dependency preflight: PASS")
 PY
 
 GIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-echo "=== M2.3-mini Canonical Rollout Probe ==="
+echo "=== M2.3-mini Canonical Rollout Collection ==="
 echo "Job: ${SLURM_JOB_ID:-none}"
 echo "Git SHA: $GIT_SHA"
 echo "Started: $(date -Is)"
@@ -93,6 +99,7 @@ echo "Host: $(hostname)"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
 echo "Policy: $POLICY"
 echo "Temperature: $TEMP"
+echo "Top-p: $TOP_P"
 echo "Seed: $SEED"
 echo "K: $K"
 echo "Max tasks: ${MAX_TASKS:-all}"
@@ -104,6 +111,7 @@ ARGS=(
     --policy "$POLICY"
     --adapter "$ADAPTER"
     --temperature "$TEMP"
+    --top-p "$TOP_P"
     --seed "$SEED"
     --K "$K"
     --split valid
