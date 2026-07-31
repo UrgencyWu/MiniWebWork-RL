@@ -19,8 +19,8 @@ class RolloutStep:
 
     ``token_logprobs`` are raw model-policy log-probabilities. The optional
     ``sampling_logprobs`` are produced after generation processors such as
-    temperature and top-p. They answer different questions and must never be
-    silently interchanged.
+    temperature, top-p, and top-k. They answer different questions and must
+    never be silently interchanged.
     """
 
     turn: int
@@ -72,6 +72,7 @@ class RolloutRecord:
     policy: str
     temperature: float
     top_p: float = 1.0
+    top_k: int = 0
     success: bool = False
     reward: Optional[float] = 0.0
     rollout_valid: bool = True
@@ -89,6 +90,8 @@ class RolloutRecord:
             raise ValueError("temperature must be finite and positive")
         if not math.isfinite(self.top_p) or not 0 < self.top_p <= 1:
             raise ValueError("top_p must be finite and in (0, 1]")
+        if not isinstance(self.top_k, int) or self.top_k < 0:
+            raise ValueError("top_k must be a non-negative integer")
         if self.failure_origin not in {POLICY_FAILURE, INFRASTRUCTURE_FAILURE, NO_FAILURE}:
             raise ValueError(f"Unknown failure_origin: {self.failure_origin}")
         if not self.rollout_valid:
@@ -125,6 +128,7 @@ class RolloutGroupSummary:
     policy: str
     temperature: float
     top_p: float
+    top_k: int
     requested_k: int
     total_trajectories: int
     valid_trajectories: int
@@ -149,15 +153,12 @@ def derive_rollout_seed(master_seed: int, task_id: str, rollout_index: int) -> i
     return int.from_bytes(digest[:4], "big", signed=False)
 
 
-def strict_raw_policy_distribution(temperature: float, top_p: float) -> bool:
-    """Return whether sampling exactly matches the raw categorical policy.
-
-    The first optimizer smoke uses unscaled, untruncated categorical sampling.
-    Other distributions can be supported later only with a matching replay
-    probability contract.
-    """
-    return math.isclose(temperature, 1.0, rel_tol=0.0, abs_tol=1e-8) and math.isclose(
-        top_p, 1.0, rel_tol=0.0, abs_tol=1e-8
+def strict_raw_policy_distribution(temperature: float, top_p: float, top_k: int) -> bool:
+    """Return whether sampling parameters match the raw categorical policy."""
+    return (
+        math.isclose(temperature, 1.0, rel_tol=0.0, abs_tol=1e-8)
+        and math.isclose(top_p, 1.0, rel_tol=0.0, abs_tol=1e-8)
+        and top_k == 0
     )
 
 
@@ -187,6 +188,8 @@ def summarize_group(
         raise ValueError("A rollout group cannot mix temperatures")
     if any(record.top_p != first.top_p for record in records):
         raise ValueError("A rollout group cannot mix top_p values")
+    if any(record.top_k != first.top_k for record in records):
+        raise ValueError("A rollout group cannot mix top_k values")
 
     for record in records:
         record.validate()
@@ -206,6 +209,7 @@ def summarize_group(
         policy=first.policy,
         temperature=first.temperature,
         top_p=first.top_p,
+        top_k=first.top_k,
         requested_k=requested_k,
         total_trajectories=len(records),
         valid_trajectories=len(valid),
