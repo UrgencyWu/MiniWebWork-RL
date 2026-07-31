@@ -14,6 +14,7 @@ def _identity(artifact: dict[str, Any]) -> dict[str, Any]:
         "split": artifact.get("split"),
         "temperature": artifact.get("temperature"),
         "top_p": artifact.get("top_p"),
+        "top_k": artifact.get("top_k"),
         "K": artifact.get("K"),
         "seed": artifact.get("seed"),
         "prompt_contract": artifact.get("prompt_contract"),
@@ -175,7 +176,7 @@ def analyze_probe_pair(
     )
 
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "experiment_identity": identity_a,
         "policy_a": artifact_a.get("policy"),
         "policy_b": artifact_b.get("policy"),
