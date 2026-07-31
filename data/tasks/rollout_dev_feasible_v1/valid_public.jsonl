@@ -1,0 +1,12 @@
+{"task_id":"M3_FV001","instruction":"请查找型号 CC-A100X-80G 的产品，确认库存后提交采购。","start_path":"/products","task_type":"exact_product"}
+{"task_id":"M3_FV002","instruction":"需要采购型号 DF-S300-24G 的设备，请定位该产品并完成采购。","start_path":"/products","task_type":"exact_product"}
+{"task_id":"M3_FV003","instruction":"请在采购系统中找到型号 XY-W1-2GPU，并提交一份采购申请。","start_path":"/products","task_type":"exact_product"}
+{"task_id":"M3_FV004","instruction":"需要采购 GPU：显存至少24GB、仅限认证供应商且必须有库存。请选择价格最低的可行商品。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"M3_FV005","instruction":"采购 GPU，要求显存至少32GB、供应商位于华北且必须有库存。请选择价格最低的商品。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"M3_FV006","instruction":"需要采购服务器，价格不超过200000元、必须有库存且保修期至少24个月。请选择最便宜的可行商品。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"M3_FV007","instruction":"采购存储设备，仅限认证供应商、交付时间不超过35天且必须有库存。请选择价格最低的可行商品。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"M3_FV008","instruction":"需要采购 GPU，价格不超过30000元、显存至少16GB且必须有库存。请选择最便宜的可行商品。","start_path":"/products","task_type":"cheapest_feasible"}
+{"task_id":"M3_FV009","instruction":"采购 GPU，价格不超过60000元、显存至少32GB且必须有库存。优先选择供应商评分最高的，评分相同时选择价格更低的。","start_path":"/products","task_type":"highest_rating_supplier"}
+{"task_id":"M3_FV010","instruction":"需要采购服务器，交付时间不超过30天、保修期至少24个月且必须有库存。请选择供应商评分最高的商品。","start_path":"/products","task_type":"highest_rating_supplier"}
+{"task_id":"M3_FV011","instruction":"采购存储设备，必须有库存且保修期至少36个月。请选择供应商评分最高的商品。","start_path":"/products","task_type":"highest_rating_supplier"}
+{"task_id":"M3_FV012","instruction":"需要采购 GPU，供应商位于华南、显存至少16GB且必须有库存。优先选择供应商评分最高的，评分相同时选择价格更低的。","start_path":"/products","task_type":"highest_rating_supplier"}
