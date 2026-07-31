@@ -24,14 +24,17 @@ was replaced by `_checked_start(self)` in `agent_env/__init__.py`. Calling `star
 
 The guard now preserves and forwards the `headless` keyword. A regression test is included in `tests/test_agent_env_start_guard.py`.
 
-## Reported canonical readiness result
+## Reported readiness result
 
-Sampling distribution:
+Reported sampling parameters:
 
 ```text
 temperature = 0.2
 top_p = 0.9
+top_k = implicit model/Transformers generation default
 ```
+
+The legacy artifact did not explicitly freeze `top_k`. This does not invalidate the infrastructure, closed-loop capability, or logprob-coverage conclusions, but it means the artifact is not a fully identified behavior distribution and must not be used as an optimizer batch.
 
 Reported gates:
 
@@ -45,7 +48,7 @@ Reported gates:
 | B_M2.3-mini no-solution successes | 43 |
 | valid_for_grpo_update | false |
 
-`valid_for_grpo_update=false` is expected. A top-p readiness probe demonstrates closed-loop exploration and mixed reward but is not the strict first optimizer distribution.
+`valid_for_grpo_update=false` is expected. A truncated readiness distribution demonstrates closed-loop exploration and mixed reward but is not the strict first optimizer distribution.
 
 ## Accepted conclusions
 
@@ -70,13 +73,21 @@ Required analysis:
 4. repeat on additional master seeds;
 5. add feasible tasks to measure false no-solution and general-task regression.
 
-The repository provides `scripts/analyze_probe_ab.py` for paired artifact analysis.
+The repository provides `scripts/analyze_probe_ab.py` for paired artifact analysis. New schema-v3.3 collections explicitly identify `temperature`, `top_p`, and `top_k`.
 
 ## Next stage
 
 ### Diagnostic replication
 
-Repeat A/B with identical task source, K, sampling settings, and multiple master seeds.
+Repeat A/B with a fully explicit diagnostic distribution:
+
+```text
+temperature = 0.2
+top_p = 0.9
+top_k = 0
+```
+
+Use identical task source, K, sampling settings, and multiple master seeds.
 
 ### Strict collection
 
@@ -85,7 +96,10 @@ Collect the first update-compatible distribution with:
 ```text
 temperature = 1.0
 top_p = 1.0
+top_k = 0
 ```
+
+Strict eligibility additionally requires that raw-policy and sampling-distribution token log-probabilities agree within the declared numerical tolerance. This detects hidden or unexpected generation processors.
 
 A group is eligible only when it also contains non-zero reward variance and complete token/logprob evidence.
 
