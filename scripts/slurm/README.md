@@ -1,12 +1,45 @@
 # Slurm Entry Points
 
-## Current formal entrypoints
+## Current formal entrypoint
 
 ```text
 m2_3_mini_single_probe.sbatch
 ```
 
-This is the only formal M2.3/M3.0 rollout job. It runs one policy and one temperature per job and emits schema-v3 rollout evidence.
+This is the only formal M2.3/M3.0 rollout job. It runs one policy under one explicit sampling distribution and emits schema-v3.2 rollout evidence.
+
+Arguments:
+
+```text
+POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P]
+```
+
+Diagnostic readiness example:
+
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 0.2 20260731 8 "" 0.9
+```
+
+Strict first-update collection example:
+
+```bash
+sbatch scripts/slurm/m2_3_mini_single_probe.sbatch B 1.0 20260731 8 "" 1.0
+```
+
+The diagnostic distribution may produce `has_learning_signal=true` but remains `valid_for_grpo_update=false`. The first strict distribution uses `temperature=1.0, top_p=1.0`; a group becomes update-valid only when it also contains mixed rewards and complete rollout evidence.
+
+## Paired policy analysis
+
+Use:
+
+```bash
+python scripts/analyze_probe_ab.py \
+  --a outputs/m2_3_mini/<A_ARTIFACT>.json \
+  --b outputs/m2_3_mini/<B_ARTIFACT>.json \
+  --output outputs/m2_3_mini/paired_ab.json
+```
+
+Artifacts must have the same task source, split, temperature, top-p, K, master seed, and prompt contract. The analysis pairs `(task_id, rollout_index)` and excludes infrastructure-invalid pairs.
 
 ## Supported historical continuity jobs
 
