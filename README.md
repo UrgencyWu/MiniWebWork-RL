@@ -15,8 +15,8 @@ M3.0A      Rollout readiness audit              PASS → Route B
 M2.3-mini  No-solution/recovery SFT patch       PASS
 M2.3 Probe Historical readiness GPU evidence   PASS
 M3.0B-0A   Paired A/B + feasible gate           IMPLEMENTED / RUN PENDING
-M3.0B-0C   Strict collection                    RUN PENDING
-M3.0B-1    Single-batch gradient smoke          NOT STARTED
+M3.0B-0C   Strict collection                    IMPLEMENTED / RUN PENDING
+M3.0B-1    Single-batch gradient smoke          IMPLEMENTED / RUN PENDING
 ```
 
 正式状态见 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md)：
@@ -26,6 +26,7 @@ M2_3_MINI_CANONICAL_PROBE_PASS=true
 SCHEMA_V3_3_ROLLOUT_IMPLEMENTED=true
 PAIRED_AB_ANALYSIS_IMPLEMENTED=true
 FEASIBLE_ROLLOUT_DEV_IMPLEMENTED=true
+M3_0B1_SINGLE_BATCH_SMOKE_IMPLEMENTED=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
 READY_FOR_GRPO_UPDATE=false
 ```
@@ -118,9 +119,11 @@ GitHub Actions 负责 CPU 语法、数据合同、浏览器依赖和测试；GPU
 scripts/m2_3_mini_single_probe.py
 scripts/slurm/m2_3_mini_single_probe.sbatch
 scripts/analyze_probe_ab.py
+scripts/m3_0_single_batch_smoke.py
+scripts/slurm/m3_0_single_batch_smoke.sbatch
 ```
 
-Slurm 参数：
+Rollout Slurm 参数：
 
 ```text
 POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K] [TASK_SOURCE]
@@ -183,6 +186,16 @@ python scripts/analyze_probe_ab.py \
 
 分析使用相同 `(task_id, rollout_index)` 配对，报告 A-only/B-only 成功、精确 McNemar 检验、task-level bootstrap 区间、feasible success、false no-solution、no-solution success 和终止原因。不能仅凭一次总成功数宣称补丁增益或将差异归因于采样方差。
 
+单 batch optimizer smoke：
+
+```bash
+sbatch scripts/slurm/m3_0_single_batch_smoke.sbatch \
+  outputs/m2_3_mini/runs/<STRICT_RUN>/<STRICT_ARTIFACT>.json \
+  <A_OR_B> [TASK_ID] [LEARNING_RATE]
+```
+
+该入口先无梯度重放真实逐 turn Prompt，验证 stored old-policy 与 current-policy logprob 一致；随后按 trajectory/turn 流式执行一次 LoRA-only backward 和 optimizer step，并验证有限非零梯度、参数变化、Adapter 保存及重新加载 forward。它只证明优化器链路正确，不代表策略性能提升。
+
 ## Data Governance
 
 | Source | Role | Gradient allowed? |
@@ -193,7 +206,7 @@ python scripts/analyze_probe_ab.py \
 | `data/tasks/rollout_dev_feasible_v1/` | policy-selection and false-no-solution gate | no |
 | future `final_test_v2` | final one-time evaluation | no |
 
-`rollout_dev_feasible_v1` 包含 12 个全新 select-product 任务，manifest 冻结 Public/Oracle 与 seed-data SHA-256。一个进程只读取一个任务源。开发集与默认任务不合并，重复 task ID fail-fast。Frozen Test 不参与 checkpoint、sampling 或 optimizer 选择。
+`rollout_dev_feasible_v1` 包含 12 个全新 select-product 任务，manifest 冻结 Public/Oracle SHA-256 与 seed-source Git blob SHA。一个进程只读取一个任务源。开发集与默认任务不合并，重复 task ID fail-fast。Frozen Test 不参与 checkpoint、sampling 或 optimizer 选择。
 
 ## M3.0 Boundary
 
@@ -215,6 +228,7 @@ same-task K multi-turn trajectories
 src/miniwebwork/rollout.py
 src/miniwebwork/rl/batch.py
 src/miniwebwork/rl/objective.py
+src/miniwebwork/rl/streaming.py
 ```
 
-下一门禁是：完成 no-solution/feasible 多 seed 配对策略选择，schema-v3.3 严格分布产生至少一个 `valid_for_grpo_update=true` group，并执行一次 LoRA-only gradient/checkpoint/reload smoke。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
+下一门禁是：完成 no-solution/feasible 多 seed 配对策略选择，schema-v3.3 严格分布产生至少一个 `valid_for_grpo_update=true` group，并在集群运行一次 LoRA-only gradient/checkpoint/reload smoke。第一版不需要 value model、GAE、replay buffer 或手工 step reward。
