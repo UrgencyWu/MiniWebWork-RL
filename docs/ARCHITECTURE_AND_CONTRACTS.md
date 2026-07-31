@@ -196,9 +196,17 @@ Every model turn stores:
 - parsed action and environment action result;
 - termination/truncation flags.
 
-Raw policy and sampling-distribution log-probabilities are separate fields. A readiness probe using temperature/top-p proves exploration and reward variance; it does not automatically prove compatibility with the optimizer distribution.
+Raw policy and sampling-distribution log-probabilities are separate fields. Every trajectory and group explicitly identifies:
 
-Every trajectory stores:
+```text
+temperature
+top_p
+top_k
+```
+
+This prevents a model or Transformers generation default from silently changing the behavior distribution.
+
+Every trajectory also stores:
 
 - task/policy/adapter/prompt/task-source identity;
 - deterministic rollout seed;
@@ -215,7 +223,7 @@ update_distribution_compatible
 valid_for_grpo_update
 ```
 
-A mixed-reward top-p diagnostic group may have learning signal while remaining ineligible for direct policy update.
+A mixed-reward diagnostic group may have learning signal while remaining ineligible for direct policy update.
 
 ## 10. Multi-turn Agentic RL Boundary
 
@@ -229,20 +237,25 @@ Observation_t + bounded history_t
 
 The full trajectory is not represented as one artificial completion. M3.0 replays each turn under its actual prompt, concatenates action-token log-probability segments within the trajectory, applies one terminal group-relative advantage, averages tokens within each trajectory, then averages trajectories equally.
 
-Core objective implementation:
+Core implementations:
 
 ```text
+src/miniwebwork/rollout.py
+src/miniwebwork/rl/batch.py
 src/miniwebwork/rl/objective.py
 ```
 
-The first strict update prefers:
+The first strict update distribution is:
 
 ```text
 temperature = 1.0
 top_p = 1.0
+top_k = 0
 ```
 
-so the behavior distribution and raw policy distribution coincide. Any temperature-scaled fallback must recompute old/current log-probabilities under the same scaling. `top_p < 1` is diagnostic-only until the exact truncated distribution is supported in training.
+Parameter identity alone is not sufficient. For every strict group, raw-policy and sampling-distribution token log-probabilities must agree within the declared numerical tolerance. A mismatch keeps `update_distribution_compatible=false` and exposes hidden generation processors or replay drift.
+
+Any temperature-scaled fallback must recompute old/current log-probabilities under the same scaling. `top_p < 1` or `top_k > 0` is diagnostic-only until the exact truncated distribution is supported in training.
 
 The first implementation does not require:
 
