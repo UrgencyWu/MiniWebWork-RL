@@ -1,0 +1,20 @@
+{
+  "schema_version": "2.0",
+  "dataset_id": "rollout_dev_feasible_v2",
+  "role": "policy_selection_and_regression_gate",
+  "may_update_model": false,
+  "valid_task_count": 12,
+  "task_type_counts": {
+    "cheapest_feasible": 5,
+    "exact_product": 3,
+    "highest_rating_supplier": 4
+  },
+  "expected_decision_type_counts": {
+    "select_product": 12
+  },
+  "spec_sha256": "216a10a278a0a6eae56be5bb0a19596b1cee0c4e3d69f36596760c657aa0a049",
+  "products_git_blob_sha": "9411ab35185e5a1504ab342ae404a615fe23301e",
+  "suppliers_git_blob_sha": "3df9919edc174ee5db082bae6ec7d258b8ed27d8",
+  "valid_public_sha256": "41a98286c9278e7c5455a5449e15a239f24fa721a0582f57a8be98628486101e",
+  "valid_oracle_sha256": "c0d0dcfdd3fe9de7f518317538a81b55790ebc1d0d48cd2485828804d835e25f"
+}
