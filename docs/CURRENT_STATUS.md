@@ -33,8 +33,8 @@ Task
 | M2.3-mini | no-solution + recovery 数据补丁、继续训练 | PASS |
 | M2.3-mini Readiness Probe | historical GPU readiness evidence | PASS |
 | M3.0B-0A | schema-v3.3 rollout、paired A/B、feasible gate | IMPLEMENTED / RUN PENDING |
-| M3.0B-0C | strict update-compatible collection | RUN PENDING |
-| M3.0B-1 | 单 batch LoRA gradient/checkpoint smoke | NOT STARTED |
+| M3.0B-0C | strict update-compatible collection | IMPLEMENTED / RUN PENDING |
+| M3.0B-1 | 单 batch LoRA gradient/checkpoint/reload smoke | IMPLEMENTED / RUN PENDING |
 
 正式状态：
 
@@ -47,6 +47,7 @@ NO_SOLUTION_ROLLOUT_CAPABILITY_CONFIRMED=true
 SCHEMA_V3_3_ROLLOUT_IMPLEMENTED=true
 PAIRED_AB_ANALYSIS_IMPLEMENTED=true
 FEASIBLE_ROLLOUT_DEV_IMPLEMENTED=true
+M3_0B1_SINGLE_BATCH_SMOKE_IMPLEMENTED=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
 READY_FOR_GRPO_UPDATE=false
 ```
@@ -132,7 +133,7 @@ data/tasks/rollout_dev_no_solution_v1
 data/tasks/rollout_dev_feasible_v1
 ```
 
-冻结内容：12 个 `select_product` 任务，包括 3 个 exact、5 个 cheapest、4 个 highest-rating。Oracle 已由统一 constraint contract 重新计算；manifest 冻结文件与 seed-data SHA-256。
+冻结内容：12 个 `select_product` 任务，包括 3 个 exact、5 个 cheapest、4 个 highest-rating。Oracle 已由统一 constraint contract 重新计算；manifest 冻结 Public/Oracle SHA-256 与 seed-source Git blob SHA。
 
 该集合：
 
@@ -156,6 +157,7 @@ may_update_model = false
 - Distribution identity：每条 trajectory 和 group 显式保存 `temperature + top_p + top_k`；
 - Strict distribution：`T=1, top_p=1, top_k=0`，且 raw/sampling token log-prob 在数值容差内一致；
 - Replay：独立重算分布兼容性，调用方不能用布尔参数提升诊断 artifact；
+- Optimizer smoke：逐 trajectory/turn 流式 forward/backward，保持轨迹等权并限制 4B 模型显存峰值；
 - Metrics：Schema、环境动作、任务成功、false no-solution 使用明确且互不混淆的分母；
 - Slurm：禁止全局 `pkill`，禁止 Python 在 CUDA 初始化后改写设备可见性；
 - Output：不同 task source、seed、distribution、K 和 job 使用独立 run 目录。
@@ -166,9 +168,11 @@ may_update_model = false
 scripts/m2_3_mini_single_probe.py
 scripts/slurm/m2_3_mini_single_probe.sbatch
 scripts/analyze_probe_ab.py
+scripts/m3_0_single_batch_smoke.py
+scripts/slurm/m3_0_single_batch_smoke.sbatch
 ```
 
-Slurm 参数：
+Rollout Slurm 参数：
 
 ```text
 POLICY TEMPERATURE MASTER_SEED K [MAX_TASKS] [TOP_P] [TOP_K] [TASK_SOURCE]
@@ -210,6 +214,16 @@ python scripts/analyze_probe_ab.py \
   --output outputs/m2_3_mini/paired_ab.json
 ```
 
+单 batch optimizer smoke：
+
+```bash
+sbatch scripts/slurm/m3_0_single_batch_smoke.sbatch \
+  outputs/m2_3_mini/runs/<STRICT_RUN>/<STRICT_ARTIFACT>.json \
+  <A_OR_B> [TASK_ID] [LEARNING_RATE]
+```
+
+该 smoke 严格执行：artifact/adapter hash 绑定、old/current 预更新一致性、LoRA-only trainable 参数、有限且非零梯度、一次 optimizer step、Adapter 参数变化、保存和重载 forward。
+
 ## 7. M3.0B 准入条件
 
 ### 7.1 已满足：诊断 readiness
@@ -227,9 +241,8 @@ python scripts/analyze_probe_ab.py \
 3. 依据预声明规则选择 A 或 B 作为 M3.0 起始策略；
 4. 在 `temperature=1.0, top_p=1.0, top_k=0` 下采集至少一个 `valid_for_grpo_update=true` group；
 5. strict group 的 raw/sampling log-prob 最大绝对差不超过预声明容差；
-6. 执行更新前 old/current logprob 一致性审计；
-7. 完成一次 LoRA-only single-batch gradient/checkpoint/reload smoke；
-8. Frozen Test 不参与 checkpoint、采样或 optimizer 超参数选择。
+6. 在集群完成一次 LoRA-only single-batch gradient/checkpoint/reload smoke；
+7. Frozen Test 不参与 checkpoint、采样或 optimizer 超参数选择。
 
 ## 8. 下一阶段
 
@@ -237,8 +250,8 @@ python scripts/analyze_probe_ab.py \
 M3.0B-0A  运行 schema-v3.3 no-solution/feasible A/B，多 seed 配对分析
 M3.0B-0B  冻结起始策略选择结论
 M3.0B-0C  T=1, top_p=1, top_k=0 严格更新分布采集
-M3.0B-1   单 batch LoRA gradient/checkpoint smoke
+M3.0B-1   运行单 batch LoRA gradient/checkpoint smoke
 M3.0B-2   5–10 update 小规模 pilot
 ```
 
-在 M3.0B-1 完成前，不得写入 `READY_FOR_GRPO_UPDATE=true`。
+在 M3.0B-1 集群运行通过前，不得写入 `READY_FOR_GRPO_UPDATE=true`。
