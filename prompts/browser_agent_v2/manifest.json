@@ -1,0 +1,110 @@
+{
+  "contract_version": "v2",
+  "contract_name": "browser_agent_v2",
+  "created_at": "2026-07-27",
+  "description": "Canonical prompt contract for M2.2R SFT training and evaluation",
+  "system_prompt": {
+    "text": "You are a web browser procurement agent. You interact with a website by outputting exactly one JSON action per turn.\n\n## IMPORTANT RULES\n- Output ONLY a single JSON object. No markdown, no explanation, no thinking.\n- Only use element_id values that exist in the current observation's elements list.\n- Do NOT invent element IDs. If you don't see a suitable element, use finish.\n- Each turn you can perform exactly ONE action.\n- To complete a procurement task, you MUST navigate to a product, select it, fill the form, and submit.\n- The finish action does NOT submit a procurement -- it just ends the episode.\n- If you cannot find what you need, navigate differently or use finish.\n\n## SUPPORTED ACTIONS\nclick: {\"action\":\"click\",\"target\":\"<element_id>\"}\nfill: {\"action\":\"fill\",\"target\":\"<element_id>\",\"value\":\"<text>\"}\nselect: {\"action\":\"select\",\"target\":\"<element_id>\",\"value\":\"<option_value>\"}\ncheck: {\"action\":\"check\",\"target\":\"<element_id>\",\"checked\":true}\nback: {\"action\":\"back\"}\nsubmit: {\"action\":\"submit\",\"target\":\"<element_id>\"}\nfinish: {\"action\":\"finish\"}\n\n## PAGE TYPES\n- task: Start page with task description and start button\n- products: Product listing with search/filter form and product cards\n- product_detail: Single product with details and select button\n- supplier_detail: Supplier information\n- procurement_form: Form to finalize procurement (fill justification, submit)\n- procurement_result: Final submission result page",
+    "sha256": "167711e300efb89d2ec33bb1fc4d7cd2eae5ae02e55ee81584da2a53f3c8c228",
+    "length_chars": 1438
+  },
+  "action_schema": {
+    "type": "object",
+    "required": [
+      "action"
+    ],
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "click",
+          "fill",
+          "select",
+          "check",
+          "back",
+          "submit",
+          "finish"
+        ],
+        "description": "The action to perform"
+      },
+      "target": {
+        "type": "string",
+        "description": "element_id from the current observation's elements list"
+      },
+      "value": {
+        "type": "string",
+        "maxLength": 500,
+        "description": "Text value for fill/select actions"
+      },
+      "checked": {
+        "type": "boolean",
+        "description": "Boolean for check action"
+      }
+    },
+    "additionalProperties": false
+  },
+  "observation": {
+    "max_visible_text": 8000,
+    "max_elements": 100,
+    "history_window": 5,
+    "element_fields": [
+      "element_id",
+      "role",
+      "name",
+      "testid",
+      "disabled",
+      "value",
+      "options",
+      "text"
+    ],
+    "sections": [
+      "## Task",
+      "## Current Page",
+      "## Visible Text",
+      "## Interactive Elements",
+      "## Recent History",
+      "## Last Action Result",
+      "## Instruction"
+    ],
+    "section_order": [
+      "## Task",
+      "## Current Page",
+      "## Visible Text",
+      "## Interactive Elements",
+      "## Recent History",
+      "## Last Action Result",
+      "## Instruction"
+    ]
+  },
+  "chat_template": {
+    "kwargs": {
+      "enable_thinking": false
+    },
+    "add_generation_prompt": true,
+    "enable_thinking": false
+  },
+  "generation": {
+    "max_new_tokens": 128,
+    "do_sample": false,
+    "use_cache": true,
+    "num_beams": 1
+  },
+  "truncation_policy": {
+    "order": [
+      "visible_text",
+      "elements",
+      "history",
+      "total_tokens"
+    ],
+    "visible_text_chars": 8000,
+    "elements_max": 100,
+    "history_max_turns": 5,
+    "max_sequence_length": 8192
+  },
+  "paths": {
+    "prompt_file": "prompts/browser_agent_v2/system.txt",
+    "observation_schema": "prompts/browser_agent_v2/observation_schema.json",
+    "action_schema": "prompts/browser_agent_v2/action_schema.json",
+    "manifest": "prompts/browser_agent_v2/manifest.json"
+  }
+}

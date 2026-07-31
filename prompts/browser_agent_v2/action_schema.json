@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "required": [
+    "action"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "click",
+        "fill",
+        "select",
+        "check",
+        "back",
+        "submit",
+        "finish"
+      ],
+      "description": "The action to perform"
+    },
+    "target": {
+      "type": "string",
+      "description": "element_id from the current observation's elements list"
+    },
+    "value": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Text value for fill/select actions"
+    },
+    "checked": {
+      "type": "boolean",
+      "description": "Boolean for check action"
+    }
+  },
+  "additionalProperties": false
+}

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 
@@ -40,6 +41,11 @@ class ModelConfig:
     enable_thinking: bool = False
     collect_policy_logprobs: bool = True
     collect_sampling_logprobs: bool = False
+    # Strict on-policy collection deliberately uses full-prefix, no-cache
+    # decoding.  The optimizer independently replays the same completion with
+    # ``use_cache=False``; using a KV-cache during collection can otherwise
+    # introduce a numerically different behavior distribution for this model.
+    strict_on_policy: bool = False
 
 
 @dataclass
@@ -53,6 +59,61 @@ class GenerationResult:
     generated_token_ids: list[int] = field(default_factory=list)
     logprobs: list[float] = field(default_factory=list)
     sampling_logprobs: list[float] = field(default_factory=list)
+
+
+STRICT_GENERATION_SCORE_TOLERANCE = 1e-6
+
+
+def validate_strict_on_policy_config(config: ModelConfig) -> None:
+    """Reject any strict collection configuration that is not replayable.
+
+    This is intentionally a fail-fast contract rather than a best-effort
+    override.  A caller must make the behavior distribution explicit and use
+    the same no-cache numerical path that the update audit replays.
+    """
+    if not config.strict_on_policy:
+        return
+    if not config.do_sample:
+        raise ValueError("strict_on_policy requires do_sample=True")
+    if not math.isclose(config.temperature, 1.0, rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("strict_on_policy requires temperature=1.0")
+    if not math.isclose(config.top_p, 1.0, rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("strict_on_policy requires top_p=1.0")
+    if config.top_k != 0:
+        raise ValueError("strict_on_policy requires top_k=0")
+    if config.use_cache:
+        raise ValueError("strict_on_policy requires use_cache=False")
+    if not config.collect_policy_logprobs:
+        raise ValueError("strict_on_policy requires collect_policy_logprobs=True")
+
+
+def _strict_generation_scores_match_raw_logits(
+    scores: tuple[torch.Tensor, ...],
+    raw_logits: tuple[torch.Tensor, ...],
+    generated_ids: torch.Tensor,
+    *,
+    tolerance: float = STRICT_GENERATION_SCORE_TOLERANCE,
+) -> None:
+    """Ensure Transformers applied no behavior-changing generation processor.
+
+    ``scores`` is the post-processor behavior distribution and ``raw_logits``
+    is emitted by the model before those processors.  In strict raw-policy
+    mode their chosen-token log-probabilities must be numerically identical.
+    """
+    if len(raw_logits) != int(generated_ids.numel()):
+        raise RuntimeError(
+            "Strict generation did not return one raw-logit tensor per emitted token"
+        )
+    sampling = _sampling_logprobs(scores, generated_ids)
+    raw = _sampling_logprobs(raw_logits, generated_ids)
+    if len(sampling) != len(raw):
+        raise RuntimeError("Strict generation raw/behavior logprob length mismatch")
+    maximum = max((abs(left - right) for left, right in zip(sampling, raw)), default=0.0)
+    if not math.isfinite(maximum) or maximum > tolerance:
+        raise RuntimeError(
+            "Strict generation behavior distribution differs from raw model logits: "
+            f"max_abs_difference={maximum:.9g}, tolerance={tolerance:.9g}"
+        )
 
 
 def extract_generated_token_logprobs(
@@ -200,6 +261,7 @@ class QwenTransformersBackend:
         result = GenerationResult()
 
         try:
+            validate_strict_on_policy_config(self.config)
             rendered = self._tokenizer.apply_chat_template(
                 messages,
                 tokenize=False,
@@ -215,7 +277,9 @@ class QwenTransformersBackend:
             result.input_tokens = prompt_length
             result.prompt_token_ids = [int(value) for value in input_ids[0].detach().cpu().tolist()]
 
-            want_sampling_scores = self.config.do_sample and self.config.collect_sampling_logprobs
+            want_sampling_scores = self.config.do_sample and (
+                self.config.collect_sampling_logprobs or self.config.strict_on_policy
+            )
             generation_kwargs = {
                 "max_new_tokens": self.config.max_new_tokens,
                 "do_sample": self.config.do_sample,
@@ -224,6 +288,10 @@ class QwenTransformersBackend:
                 "return_dict_in_generate": True,
                 "output_scores": want_sampling_scores,
             }
+            if self.config.strict_on_policy:
+                # Request both representations so every generated action is
+                # checked against any implicit Transformers processor/warper.
+                generation_kwargs["output_logits"] = True
             if attention_mask is not None:
                 generation_kwargs["attention_mask"] = attention_mask
             if self.config.do_sample:
@@ -276,6 +344,12 @@ class QwenTransformersBackend:
 
             if want_sampling_scores and result.new_tokens:
                 result.sampling_logprobs = _sampling_logprobs(tuple(generated.scores or ()), new_ids)
+                if self.config.strict_on_policy:
+                    _strict_generation_scores_match_raw_logits(
+                        tuple(generated.scores or ()),
+                        tuple(getattr(generated, "logits", None) or ()),
+                        new_ids,
+                    )
 
             if len(result.prompt_token_ids) != result.input_tokens:
                 raise RuntimeError("Prompt token count does not match input_tokens")
@@ -314,6 +388,7 @@ class QwenTransformersBackend:
                 "use_cache": self.config.use_cache,
                 "collect_policy_logprobs": self.config.collect_policy_logprobs,
                 "collect_sampling_logprobs": self.config.collect_sampling_logprobs,
+                "strict_on_policy": self.config.strict_on_policy,
             },
             "load_time_s": self._load_time,
             "peak_memory_gb": self.peak_memory_gb,

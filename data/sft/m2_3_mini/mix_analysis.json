@@ -1,0 +1,11 @@
+{
+  "train_total": 900,
+  "train_original": 675,
+  "train_patch": 225,
+  "train_original_ratio": 0.75,
+  "train_patch_ratio": 0.25,
+  "valid_total": 249,
+  "valid_original": 174,
+  "valid_patch": 75,
+  "no_solution_samples": 225
+}

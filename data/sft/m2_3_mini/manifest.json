@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "dataset_version": "m2_3_mini_v1",
+  "phase": "m2_3_mini",
+  "created_at": "2026-07-30T14:09:02",
+  "contract_version": "browser_agent_v2",
+  "original_data_dir": "/home/wushaohua/data/MiniWebWork-RL/data/sft/m2_2r",
+  "expert_data_dir": "/home/wushaohua/data/MiniWebWork-RL/data/expert/m2_3_mini",
+  "train_samples": 900,
+  "valid_samples": 249,
+  "original_ratio": 0.75,
+  "patch_ratio": 0.25,
+  "source": "oracle_expert",
+  "format": "conversational",
+  "message_field": "messages",
+  "completion_field": "last message (assistant action JSON)",
+  "no_solution_aware": true
+}

@@ -2,8 +2,11 @@ import pytest
 import torch
 
 from miniwebwork.model_agent.model_backend import (
+    ModelConfig,
     _sampling_logprobs,
+    _strict_generation_scores_match_raw_logits,
     extract_generated_token_logprobs,
+    validate_strict_on_policy_config,
 )
 
 
@@ -65,3 +68,66 @@ def test_sampling_logprobs_reject_score_length_mismatch():
             (torch.zeros((1, 3)),),
             torch.tensor([1, 2]),
         )
+
+
+def test_strict_on_policy_config_requires_unwarped_no_cache_sampling():
+    config = ModelConfig(
+        do_sample=True,
+        temperature=1.0,
+        top_p=1.0,
+        top_k=0,
+        use_cache=False,
+        collect_policy_logprobs=True,
+        strict_on_policy=True,
+    )
+
+    validate_strict_on_policy_config(config)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("do_sample", False, "do_sample=True"),
+        ("use_cache", True, "use_cache=False"),
+        ("temperature", 0.9, "temperature=1.0"),
+        ("top_p", 0.9, "top_p=1.0"),
+        ("top_k", 1, "top_k=0"),
+        ("collect_policy_logprobs", False, "collect_policy_logprobs=True"),
+    ],
+)
+def test_strict_on_policy_config_rejects_nonreplayable_settings(field, value, match):
+    config = ModelConfig(
+        do_sample=True,
+        temperature=1.0,
+        top_p=1.0,
+        top_k=0,
+        use_cache=False,
+        collect_policy_logprobs=True,
+        strict_on_policy=True,
+    )
+    setattr(config, field, value)
+
+    with pytest.raises(ValueError, match=match):
+        validate_strict_on_policy_config(config)
+
+
+def test_strict_generation_scores_reject_hidden_behavior_processor():
+    scores = (torch.tensor([[0.0, 2.0, -1.0]]),)
+    raw_logits = (torch.tensor([[0.0, 1.0, -1.0]]),)
+
+    with pytest.raises(RuntimeError, match="behavior distribution differs"):
+        _strict_generation_scores_match_raw_logits(
+            scores,
+            raw_logits,
+            torch.tensor([1]),
+        )
+
+
+def test_strict_generation_scores_accept_identical_raw_logits():
+    scores = (torch.tensor([[0.0, 2.0, -1.0]]),)
+
+    _strict_generation_scores_match_raw_logits(
+        scores,
+        scores,
+        torch.tensor([1]),
+    )

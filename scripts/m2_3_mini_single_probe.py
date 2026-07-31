@@ -246,6 +246,7 @@ def load_policy(
     model.eval()
     torch.cuda.synchronize()
 
+    strict_on_policy = strict_raw_policy_distribution(temperature, top_p, top_k)
     backend = QwenTransformersBackend(
         ModelConfig(
             model_path=base_model_path,
@@ -259,6 +260,11 @@ def load_policy(
             enable_thinking=False,
             collect_policy_logprobs=True,
             collect_sampling_logprobs=True,
+            # The optimizer uses no-cache teacher forcing.  Only the strict
+            # raw-policy distribution must take that same numerical path;
+            # temperature/top-p diagnostics retain their normal cached path.
+            use_cache=not strict_on_policy,
+            strict_on_policy=strict_on_policy,
         )
     )
     backend._model = model
@@ -733,6 +739,10 @@ def main() -> None:
                     "temperature": args.temperature,
                     "top_p": args.top_p,
                     "top_k": args.top_k,
+                    "generation_runtime": {
+                        "use_cache": backend.config.use_cache,
+                        "strict_on_policy": backend.config.strict_on_policy,
+                    },
                     "parameter_distribution_compatible": parameter_distribution_compatible,
                     "strict_logprob_match_tolerance": STRICT_LOGPROB_MATCH_TOLERANCE,
                     "K": args.K,
@@ -762,6 +772,10 @@ def main() -> None:
             "temperature": args.temperature,
             "top_p": args.top_p,
             "top_k": args.top_k,
+            "generation_runtime": {
+                "use_cache": backend.config.use_cache,
+                "strict_on_policy": backend.config.strict_on_policy,
+            },
             "parameter_distribution_compatible": parameter_distribution_compatible,
             "strict_logprob_match_tolerance": STRICT_LOGPROB_MATCH_TOLERANCE,
             "K": args.K,

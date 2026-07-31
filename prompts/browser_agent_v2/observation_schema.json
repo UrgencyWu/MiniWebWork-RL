@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "instruction": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "page_type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "step_index": {
+      "type": "integer"
+    },
+    "visible_text": {
+      "type": "string",
+      "maxLength": 8000
+    },
+    "elements": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "testid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": "string"
+          },
+          "options": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "last_action_result": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "task_id",
+    "instruction",
+    "url",
+    "page_type",
+    "elements"
+  ]
+}

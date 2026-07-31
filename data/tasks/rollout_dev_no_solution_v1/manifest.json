@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "seed": 20260727,
+  "task_type": "no_feasible_product",
+  "train_task_count": 28,
+  "valid_task_count": 10,
+  "train_public_sha256": "394a6f1f9bfbc523475f4a54cf35d5dbd7a9b508396a0bcff3c2818309723cea",
+  "train_oracle_sha256": "5c7e5c52a2861a365146ba22218db8c3be30402612fd24301c7c04ea3637881c",
+  "valid_public_sha256": "7aed0b3d33ff5c7e0d563895f4844c8f6046934774706c9f6145554e3434948f",
+  "valid_oracle_sha256": "fa351f68973f776c327e6dc32b511923d9fa63c90c58a8f95ad93dd463e0d1c2",
+  "existing_task_ids_avoided": 120
+}
