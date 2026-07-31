@@ -374,6 +374,22 @@ def _strict_group_distribution_compatible(
     return compatible, difference
 
 
+def _resolve_policy_label(policy: str, override: str | None) -> str:
+    """Return an auditable artifact label without inferring adapter identity."""
+    if override is not None:
+        value = override.strip()
+        if not value:
+            raise ValueError("policy-label must not be blank")
+        return value
+    labels = {
+        "A": "A_M2.2R",
+        "B": "B_M2.3-mini",
+    }
+    if policy == "custom":
+        raise ValueError("custom policy requires --policy-label")
+    return labels[policy]
+
+
 def run_rollout(
     task: dict,
     rollout_index: int,
@@ -622,7 +638,12 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Canonical M2.3-mini rollout collector")
-    parser.add_argument("--policy", required=True, choices=["A", "B"])
+    parser.add_argument("--policy", required=True, choices=["A", "B", "custom"])
+    parser.add_argument(
+        "--policy-label",
+        default=None,
+        help="Auditable label for a custom adapter; adapter SHA-256 remains authoritative.",
+    )
     parser.add_argument("--adapter", required=True, type=Path)
     parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
     parser.add_argument("--task-dir", type=Path, default=DEFAULT_TASK_DIR)
@@ -655,7 +676,7 @@ def main() -> None:
     if args.max_tasks is not None:
         tasks = tasks[: args.max_tasks]
 
-    policy = "A_M2.2R" if args.policy == "A" else "B_M2.3-mini"
+    policy = _resolve_policy_label(args.policy, args.policy_label)
     adapter_hash = _directory_sha256(adapter_dir)
     prompt_hash = _file_sha256(Path(prompt_builder.__file__).resolve())
     git_sha = _git_sha()
