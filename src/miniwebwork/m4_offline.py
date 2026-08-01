@@ -240,6 +240,10 @@ def build_m4_offline_training_plan(
         "study_seed": seed,
         "supervision_passes": OFFLINE_SUPERVISION_PASSES,
         "max_supervised_completion_tokens": COLLECTED_ACTION_TOKEN_CAP,
+        "budget_semantics": (
+            "completion-only supervised label-token upper bound; realized labels and zero-label "
+            "truncation are audited separately from online generated action tokens"
+        ),
         "train_data": train_data,
         "validation_data": validation_data,
         "selection_boundary": "valid.jsonl is evaluation/model-selection only; it is never optimizer input",

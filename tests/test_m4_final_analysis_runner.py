@@ -166,3 +166,115 @@ def test_final_analysis_closes_offline_and_online_adapter_hash_lineage(tmp_path:
     online = module._expected_final_adapter_lineage("grpo", 20260801, training_root)
     assert online["initial_adapter_sha256"] == module._directory_sha256(initial)
     assert online["final_adapter_sha256"] == module._directory_sha256(second_next)
+
+
+def test_strict_online_lineage_requires_designated_start_and_completed_standard_updates(tmp_path: Path):
+    module = _load_module()
+    training_root = tmp_path / "runs"
+    run_dir = training_root / "grpo" / "seed_20260801"
+    initial = tmp_path / "designated_initial_adapter"
+    initial.mkdir()
+    (initial / "adapter.bin").write_bytes(b"initial")
+    canonical = {
+        "path": str(initial.resolve()),
+        "sha256": module._directory_sha256(initial),
+        "study_manifest_sha256": "study-manifest",
+    }
+    expected_train_manifest = {"frozen": "train-manifest"}
+    first_next = run_dir / "pass_1" / "update" / "updated_adapter"
+    second_next = run_dir / "pass_2" / "update" / "updated_adapter"
+    first_next.mkdir(parents=True)
+    second_next.mkdir(parents=True)
+    (first_next / "adapter.bin").write_bytes(b"pass-one")
+    (second_next / "adapter.bin").write_bytes(b"pass-two")
+    artifacts = []
+    for pass_index, adapter in ((1, initial), (2, first_next)):
+        artifact = run_dir / f"pass_{pass_index}" / "collection" / "collector" / f"single_probe_{pass_index}.json"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text(json.dumps({"adapter_sha256": module._directory_sha256(adapter)}))
+        artifacts.append(artifact)
+    reports = []
+    for pass_index, artifact, source, target in (
+        (1, artifacts[0], initial, first_next),
+        (2, artifacts[1], first_next, second_next),
+    ):
+        report = {
+            "complete": True,
+            "passed": True,
+            "algorithm_id": "grpo",
+            "study_seed": 20260801,
+            "pass_index": pass_index,
+            "run_manifest": expected_train_manifest,
+            "source_artifact": str(artifact),
+            "source_artifact_sha256": module._sha256(artifact),
+            "source_adapter": str(source),
+            "source_adapter_sha256": module._directory_sha256(source),
+            "next_adapter": str(target),
+            "next_adapter_sha256": module._directory_sha256(target),
+        }
+        report_path = run_dir / f"pass_{pass_index}" / "update" / "online_update_report.json"
+        report_path.write_text(json.dumps(report))
+        reports.append((report_path, report))
+    (run_dir / "online_run_summary.json").write_text(
+        json.dumps(
+            {
+                "algorithm": "grpo",
+                "seed": 20260801,
+                "initial_adapter": str(initial),
+                "initial_adapter_sha256": canonical["sha256"],
+                "canonical_initial_adapter": canonical,
+                "passes": [
+                    {"pass_index": 1, "artifact": str(artifacts[0]), "next_adapter": str(first_next)},
+                    {"pass_index": 2, "artifact": str(artifacts[1]), "next_adapter": str(second_next)},
+                ],
+            }
+        )
+    )
+
+    lineage = module._expected_final_adapter_lineage(
+        "grpo",
+        20260801,
+        training_root,
+        canonical_initial_adapter=canonical,
+        expected_train_manifest=expected_train_manifest,
+    )
+    assert lineage["initial_adapter_sha256"] == canonical["sha256"]
+
+    wrong_start = {**canonical, "sha256": "0" * 64}
+    with pytest.raises(ValueError, match="initial adapter hash"):
+        module._expected_final_adapter_lineage(
+            "grpo",
+            20260801,
+            training_root,
+            canonical_initial_adapter=wrong_start,
+            expected_train_manifest=expected_train_manifest,
+        )
+
+    reports[1][1]["complete"] = False
+    reports[1][0].write_text(json.dumps(reports[1][1]))
+    with pytest.raises(ValueError, match="incomplete or failed"):
+        module._expected_final_adapter_lineage(
+            "grpo",
+            20260801,
+            training_root,
+            canonical_initial_adapter=canonical,
+            expected_train_manifest=expected_train_manifest,
+        )
+
+
+def test_final_analysis_rejects_archived_or_nonstandard_final_artifact_paths(tmp_path: Path):
+    module = _load_module()
+    final_root = tmp_path / "m4_final_eval"
+    valid = final_root / "sft" / "seed_20260801" / "collector" / "single_probe_final.json"
+    valid.parent.mkdir(parents=True)
+    valid.write_text("{}")
+    assert module._require_standard_final_artifact_path(
+        valid, algorithm="sft", seed=20260801, final_eval_root=final_root
+    ) == valid.resolve()
+    archived = tmp_path / "m4_invalidated" / "sft" / "seed_20260801" / "collector" / "single_probe_final.json"
+    archived.parent.mkdir(parents=True)
+    archived.write_text("{}")
+    with pytest.raises(ValueError, match="outside the standard"):
+        module._require_standard_final_artifact_path(
+            archived, algorithm="sft", seed=20260801, final_eval_root=final_root
+        )

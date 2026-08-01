@@ -22,6 +22,8 @@ from .m4_algorithms import AlgorithmSpec, get_algorithm_spec
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL_VERSION = "m4_rlvr_study_v1"
+STUDY_MANIFEST_SCHEMA_VERSION = "m4_study_manifest_v1"
+STUDY_MANIFEST_PATH = PROJECT_ROOT / "data" / "m4_study_manifest_v1.json"
 STUDY_SEEDS = (20260801, 20260802, 20260803)
 ONLINE_GROUP_SIZE = 4
 ONLINE_PASSES = 2
@@ -47,6 +49,109 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def m4_adapter_directory_sha256(path: Path) -> str:
+    """Return the canonical content hash for an M4 LoRA adapter directory."""
+    path = Path(path).expanduser().resolve()
+    files = sorted(file for file in path.rglob("*") if file.is_file())
+    if not files:
+        raise ValueError(f"adapter directory has no files: {path}")
+    digest = hashlib.sha256()
+    for file in files:
+        digest.update(str(file.relative_to(path)).encode("utf-8"))
+        digest.update(_sha256(file).encode("ascii"))
+    return digest.hexdigest()
+
+
+def load_m4_study_manifest(task_root: Path = DEFAULT_TASK_ROOT) -> dict[str, Any]:
+    """Load immutable study metadata without requiring a GPU or model files.
+
+    The dataset manifest describes split isolation.  This companion manifest
+    additionally binds the primary method matrix to one designated, tracked
+    initial-adapter location and its content hash.  Keeping this information
+    alongside the frozen task data makes it available to every runner and to
+    final-analysis gates.
+    """
+    # Keep study-level provenance outside the generated task directory: the
+    # deterministic task builder intentionally owns every file below
+    # ``data/tasks/m4_rlvr_v1`` and tests its exact output roster.
+    manifest_path = STUDY_MANIFEST_PATH.resolve()
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"M4 study manifest not found: {manifest_path}")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("M4 study manifest must be a JSON object")
+    if payload.get("schema_version") != STUDY_MANIFEST_SCHEMA_VERSION:
+        raise ValueError("M4 study manifest schema version is not supported")
+    if payload.get("study_id") != DATASET_ID:
+        raise ValueError("M4 study manifest study_id does not match the frozen dataset")
+    declared = payload.get("canonical_initial_adapter")
+    if not isinstance(declared, dict):
+        raise ValueError("M4 study manifest lacks canonical_initial_adapter")
+    relative_path = declared.get("relative_path")
+    declared_hash = declared.get("directory_sha256")
+    if not isinstance(relative_path, str) or not relative_path:
+        raise ValueError("M4 canonical initial adapter relative_path is invalid")
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("M4 canonical initial adapter path must stay within the project root")
+    if (
+        not isinstance(declared_hash, str)
+        or len(declared_hash) != 64
+        or any(character not in "0123456789abcdef" for character in declared_hash)
+    ):
+        raise ValueError("M4 canonical initial adapter hash must be a lowercase SHA-256")
+    project_root = PROJECT_ROOT.resolve()
+    canonical_path = (project_root / relative).resolve()
+    try:
+        canonical_path.relative_to(project_root)
+    except ValueError as exc:
+        raise ValueError("M4 canonical initial adapter resolves outside the project root") from exc
+    return {
+        "manifest_path": str(manifest_path),
+        "manifest_sha256": _sha256(manifest_path),
+        "payload": payload,
+        "canonical_initial_adapter": {
+            "relative_path": relative_path,
+            "path": str(canonical_path),
+            "directory_sha256": declared_hash,
+        },
+    }
+
+
+def assert_m4_canonical_initial_adapter(
+    adapter: Path, *, task_root: Path = DEFAULT_TASK_ROOT
+) -> dict[str, str]:
+    """Require an exact path-and-content match to the study's common start.
+
+    Equality of hashes among submitted runs is not enough: a coordinated
+    matrix could still start from the wrong adapter.  This gate anchors each
+    individual training and frozen-evaluation run to the designated adapter.
+    """
+    study_manifest = load_m4_study_manifest(task_root)
+    canonical = study_manifest["canonical_initial_adapter"]
+    actual_path = Path(adapter).expanduser().resolve()
+    expected_path = Path(canonical["path"]).resolve()
+    if actual_path != expected_path:
+        raise ValueError(
+            "M4 initial adapter path does not match the designated canonical adapter: "
+            f"{actual_path} != {expected_path}"
+        )
+    if not actual_path.is_dir():
+        raise FileNotFoundError(f"M4 canonical initial adapter directory not found: {actual_path}")
+    actual_hash = m4_adapter_directory_sha256(actual_path)
+    if actual_hash != canonical["directory_sha256"]:
+        raise ValueError(
+            "M4 canonical initial adapter content hash mismatch: "
+            f"{actual_hash} != {canonical['directory_sha256']}"
+        )
+    return {
+        "relative_path": canonical["relative_path"],
+        "path": str(actual_path),
+        "sha256": actual_hash,
+        "study_manifest_sha256": study_manifest["manifest_sha256"],
+    }
 
 
 def m4_task_source_sha256(task_dir: Path, split: str) -> str:
@@ -211,6 +316,7 @@ def build_m4_run_manifest(
     """Produce the immutable provenance payload before a job may start."""
     task_root = Path(task_root).expanduser().resolve()
     seed_dir = Path(seed_dir).expanduser().resolve()
+    study_manifest = load_m4_study_manifest(task_root)
     split_manifest = config.validate(task_root=task_root)
     validation = validate_m4_rlvr_dataset(task_root, seed_dir=seed_dir)
     if not validation.get("valid"):
@@ -228,6 +334,15 @@ def build_m4_run_manifest(
         "resolved_split": config.split,
         "task_dir": str(task_dir),
         "seed_dir": str(seed_dir),
+        "study_manifest": {
+            "path": study_manifest["manifest_path"],
+            "sha256": study_manifest["manifest_sha256"],
+            "canonical_initial_adapter": {
+                "relative_path": study_manifest["canonical_initial_adapter"]["relative_path"],
+                "directory_sha256": study_manifest["canonical_initial_adapter"]["directory_sha256"],
+            },
+            "budget_contract": study_manifest["payload"].get("budget_contract"),
+        },
         "split_manifest": split_manifest,
         "hashes": {
             "dataset_manifest_sha256": _sha256(task_root / "dataset_manifest.json"),

@@ -23,11 +23,15 @@ from miniwebwork.m4_analysis import (
     summarize_m4_evaluation,
 )
 from miniwebwork.m4_protocol import (
+    COLLECTED_ACTION_TOKEN_CAP,
     DEFAULT_SEED_DIR,
     DEFAULT_TASK_ROOT,
     M4RunConfig,
     STUDY_SEEDS,
+    assert_m4_canonical_initial_adapter,
     build_m4_run_manifest,
+    load_m4_study_manifest,
+    m4_adapter_directory_sha256,
     m4_task_roster_sha256,
 )
 
@@ -37,16 +41,8 @@ def _sha256(path: Path) -> str:
 
 
 def _directory_sha256(path: Path) -> str:
-    """Match the adapter-directory hash algorithm used by the rollout probe."""
-    path = Path(path).expanduser().resolve()
-    files = sorted(file for file in path.rglob("*") if file.is_file())
-    if not files:
-        raise ValueError(f"adapter directory has no files: {path}")
-    digest = hashlib.sha256()
-    for file in files:
-        digest.update(str(file.relative_to(path)).encode("utf-8"))
-        digest.update(_sha256(file).encode("ascii"))
-    return digest.hexdigest()
+    """Match the adapter-directory hash algorithm used by all M4 runners."""
+    return m4_adapter_directory_sha256(path)
 
 
 def _load_json_object(path: Path, *, label: str) -> dict[str, Any]:
@@ -59,10 +55,146 @@ def _load_json_object(path: Path, *, label: str) -> dict[str, Any]:
     return value
 
 
-def _expected_final_adapter_lineage(
-    algorithm: str, seed: int, training_root: Path
+def _require_path(value: Any, expected: Path, *, label: str) -> Path:
+    if not isinstance(value, str):
+        raise ValueError(f"{label} is missing")
+    actual = Path(value).expanduser().resolve()
+    if actual != expected.resolve():
+        raise ValueError(f"{label} does not match the canonical M4 lineage path")
+    return actual
+
+
+def _require_canonical_initial_metadata(
+    value: dict[str, Any],
+    *,
+    canonical_initial_adapter: dict[str, str],
+    label: str,
+    require_nested_metadata: bool,
+) -> None:
+    if value.get("initial_adapter_sha256") != canonical_initial_adapter["sha256"]:
+        raise ValueError(f"{label} initial adapter hash does not match the designated canonical adapter")
+    _require_path(
+        value.get("initial_adapter"),
+        Path(canonical_initial_adapter["path"]),
+        label=f"{label} initial adapter path",
+    )
+    if not require_nested_metadata:
+        return
+    nested = value.get("canonical_initial_adapter")
+    if not isinstance(nested, dict):
+        raise ValueError(f"{label} lacks canonical initial-adapter metadata")
+    if nested.get("sha256") != canonical_initial_adapter["sha256"]:
+        raise ValueError(f"{label} canonical initial-adapter hash mismatch")
+    _require_path(
+        nested.get("path"),
+        Path(canonical_initial_adapter["path"]),
+        label=f"{label} canonical initial-adapter path",
+    )
+    if nested.get("study_manifest_sha256") != canonical_initial_adapter["study_manifest_sha256"]:
+        raise ValueError(f"{label} study-manifest hash mismatch")
+
+
+def _validate_offline_supervision_audit(
+    *,
+    algorithm: str,
+    run_manifest: dict[str, Any],
+    metrics: dict[str, Any],
+    adapter: Path,
+    canonical_initial_adapter: dict[str, str],
 ) -> dict[str, Any]:
-    """Close the training-to-frozen-evaluation adapter hash chain on disk."""
+    """Require realized label-token and truncation evidence for offline runs."""
+    if metrics.get("no_signal"):
+        if algorithm != "rsft":
+            raise ValueError("only RSFT may use the audited no-signal fallback")
+        if metrics.get("final_adapter_sha256") != canonical_initial_adapter["sha256"]:
+            raise ValueError("RSFT no-signal final adapter must equal the canonical initial adapter")
+        return {
+            "mode": "no_signal",
+            "reason": metrics.get("reason"),
+            "final_adapter_sha256": metrics.get("final_adapter_sha256"),
+        }
+
+    audit_path = adapter.parent / "supervision_audit.json"
+    audit = _load_json_object(audit_path, label="offline supervision audit")
+    if audit.get("schema_version") != "m4_sft_supervision_audit_v1":
+        raise ValueError("offline supervision audit schema is unsupported")
+    if audit.get("seed") != metrics.get("seed"):
+        raise ValueError("offline supervision audit seed does not match training metrics")
+    _require_canonical_initial_metadata(
+        audit,
+        canonical_initial_adapter=canonical_initial_adapter,
+        label="offline supervision audit",
+        require_nested_metadata=False,
+    )
+    if Path(metrics.get("supervision_audit", "")).expanduser().resolve() != audit_path.resolve():
+        raise ValueError("offline metrics do not point to the expected supervision audit")
+    if metrics.get("supervision_audit_sha256") != _sha256(audit_path):
+        raise ValueError("offline metrics supervision-audit hash mismatch")
+    if metrics.get("supervision_budget_semantics") != audit.get("budget_semantics"):
+        raise ValueError("offline metrics supervision-budget semantics mismatch")
+    statistics = audit.get("statistics")
+    if not isinstance(statistics, dict):
+        raise ValueError("offline supervision audit lacks label statistics")
+    labels_per_epoch = statistics.get("completion_tokens_per_epoch")
+    sample_count = statistics.get("sample_count")
+    zero_label_count = statistics.get("zero_completion_label_sample_count")
+    zero_label_at_limit = statistics.get("zero_completion_label_at_max_length_sample_count")
+    if (
+        not isinstance(labels_per_epoch, int)
+        or labels_per_epoch <= 0
+        or not isinstance(sample_count, int)
+        or sample_count <= 0
+        or not isinstance(zero_label_count, int)
+        or not 0 <= zero_label_count <= sample_count
+        or not isinstance(zero_label_at_limit, int)
+        or not 0 <= zero_label_at_limit <= zero_label_count
+    ):
+        raise ValueError("offline supervision statistics are invalid")
+    supervision_passes = run_manifest.get("supervision_passes")
+    cap = run_manifest.get("max_supervised_completion_tokens")
+    planned = audit.get("planned_supervised_completion_tokens")
+    if supervision_passes != 2 or cap != COLLECTED_ACTION_TOKEN_CAP:
+        raise ValueError("offline supervision plan does not use the preregistered two-pass upper cap")
+    if planned != labels_per_epoch * supervision_passes or planned > cap:
+        raise ValueError("offline realized supervised-label tokens violate the declared upper cap")
+    for key, expected in (
+        ("completion_tokens_per_epoch", labels_per_epoch),
+        ("planned_supervised_completion_tokens", planned),
+        ("max_supervised_completion_tokens", cap),
+    ):
+        if metrics.get(key) != expected:
+            raise ValueError(f"offline metrics {key} does not match the supervision audit")
+    return {
+        "mode": "supervised",
+        "audit_path": str(audit_path.resolve()),
+        "audit_sha256": _sha256(audit_path),
+        "completion_tokens_per_epoch": labels_per_epoch,
+        "planned_supervised_completion_tokens": planned,
+        "max_supervised_completion_tokens": cap,
+        "sample_count": sample_count,
+        "zero_completion_label_sample_count": zero_label_count,
+        "zero_completion_label_at_max_length_sample_count": zero_label_at_limit,
+        "budget_semantics": audit.get("budget_semantics"),
+    }
+
+
+def _expected_final_adapter_lineage(
+    algorithm: str,
+    seed: int,
+    training_root: Path,
+    *,
+    canonical_initial_adapter: dict[str, str] | None = None,
+    expected_train_manifest: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Close the training-to-frozen-evaluation adapter hash chain on disk.
+
+    In its strict mode (used by ``main``), this verifies the designated start,
+    update identity and path containment rather than accepting merely
+    hash-consistent artifacts supplied from arbitrary directories.
+    """
+    strict = canonical_initial_adapter is not None
+    if strict and expected_train_manifest is None:
+        raise ValueError("strict M4 lineage validation requires the frozen train manifest")
     run_dir = Path(training_root).expanduser().resolve() / algorithm / f"seed_{seed}"
     if algorithm not in ONLINE_ALGORITHMS:
         run_manifest = _load_json_object(
@@ -75,28 +207,80 @@ def _expected_final_adapter_lineage(
         metrics = _load_json_object(adapter.parent / "metrics.json", label="offline training metrics")
         if metrics.get("seed") != seed:
             raise ValueError("offline training metrics seed does not match final analysis request")
+        if strict:
+            assert canonical_initial_adapter is not None and expected_train_manifest is not None
+            _require_canonical_initial_metadata(
+                run_manifest,
+                canonical_initial_adapter=canonical_initial_adapter,
+                label="offline resolved run manifest",
+                require_nested_metadata=True,
+            )
+            _require_canonical_initial_metadata(
+                metrics,
+                canonical_initial_adapter=canonical_initial_adapter,
+                label="offline training metrics",
+                require_nested_metadata=False,
+            )
+            if run_manifest.get("no_signal"):
+                if any(run_manifest.get(key) != value for key, value in expected_train_manifest.items()):
+                    raise ValueError("RSFT no-signal manifest does not contain the frozen train manifest")
+            elif run_manifest.get("run_manifest") != expected_train_manifest:
+                raise ValueError("offline resolved run manifest does not contain the frozen train manifest")
+            supervision_audit = _validate_offline_supervision_audit(
+                algorithm=algorithm,
+                run_manifest=run_manifest,
+                metrics=metrics,
+                adapter=adapter,
+                canonical_initial_adapter=canonical_initial_adapter,
+            )
+        else:
+            supervision_audit = None
         final_hash = _directory_sha256(adapter)
         return {
             "verified": True,
             "regime": "offline",
+            "initial_adapter": run_manifest.get("initial_adapter"),
             "initial_adapter_sha256": initial_hash,
             "final_adapter": str(adapter.resolve()),
             "final_adapter_sha256": final_hash,
             "resolved_run_manifest_sha256": _sha256(run_dir / "resolved_run_manifest.json"),
+            "supervision_audit": supervision_audit,
         }
 
     summary = _load_json_object(run_dir / "online_run_summary.json", label="online run summary")
     if summary.get("algorithm") != algorithm or summary.get("seed") != seed:
         raise ValueError("online run summary algorithm/seed mismatch")
+    if strict:
+        assert canonical_initial_adapter is not None and expected_train_manifest is not None
+        _require_canonical_initial_metadata(
+            summary,
+            canonical_initial_adapter=canonical_initial_adapter,
+            label="online run summary",
+            require_nested_metadata=True,
+        )
     passes = summary.get("passes")
-    if not isinstance(passes, list) or [item.get("pass_index") for item in passes] != [1, 2]:
+    if not isinstance(passes, list) or [item.get("pass_index") for item in passes if isinstance(item, dict)] != [1, 2]:
         raise ValueError("online final lineage requires exactly ordered passes 1 and 2")
-    previous_hash: str | None = None
+    if any(not isinstance(item, dict) for item in passes):
+        raise ValueError("online run summary pass entry must be a mapping")
+    previous_hash: str | None = canonical_initial_adapter["sha256"] if strict else None
+    previous_adapter: Path | None = (
+        Path(canonical_initial_adapter["path"]).resolve() if strict else None
+    )
     checked_passes: list[dict[str, Any]] = []
     for pass_index, summary_item in enumerate(passes, start=1):
-        if not isinstance(summary_item, dict):
-            raise ValueError("online run summary pass entry must be a mapping")
-        artifact_path = Path(summary_item.get("artifact", "")).expanduser().resolve()
+        raw_artifact = summary_item.get("artifact")
+        if not isinstance(raw_artifact, str):
+            raise ValueError("online run summary collection artifact is missing")
+        artifact_path = Path(raw_artifact).expanduser().resolve()
+        if strict:
+            expected_artifact_dir = run_dir / f"pass_{pass_index}" / "collection" / "collector"
+            if (
+                artifact_path.parent != expected_artifact_dir.resolve()
+                or not artifact_path.name.startswith("single_probe_")
+                or artifact_path.suffix != ".json"
+            ):
+                raise ValueError("online collection artifact is outside the standard collector location")
         artifact = _load_json_object(artifact_path, label=f"online pass {pass_index} collection artifact")
         update_path = run_dir / f"pass_{pass_index}" / "update" / "online_update_report.json"
         update = _load_json_object(update_path, label=f"online pass {pass_index} update report")
@@ -105,15 +289,36 @@ def _expected_final_adapter_lineage(
             raise ValueError("online collection artifact lacks adapter_sha256")
         if previous_hash is not None and source_hash != previous_hash:
             raise ValueError("online pass adapter lineage does not continue from the previous update")
+        if strict:
+            assert expected_train_manifest is not None and previous_adapter is not None
+            if not update.get("complete") or not update.get("passed"):
+                raise ValueError("online update report is incomplete or failed")
+            if (
+                update.get("algorithm_id") != algorithm
+                or update.get("study_seed") != seed
+                or update.get("pass_index") != pass_index
+            ):
+                raise ValueError("online update report identity does not match final analysis request")
+            if update.get("run_manifest") != expected_train_manifest:
+                raise ValueError("online update report run manifest does not match the frozen train manifest")
+            _require_path(
+                update.get("source_artifact"), artifact_path, label="online update source artifact"
+            )
         if update.get("source_artifact_sha256") != _sha256(artifact_path):
             raise ValueError("online update report source artifact hash does not match collection artifact")
         if update.get("source_adapter_sha256") != source_hash:
             raise ValueError("online update source adapter hash does not match collection artifact")
         source_adapter = Path(update.get("source_adapter", "")).expanduser().resolve()
+        if strict:
+            assert previous_adapter is not None
+            _require_path(update.get("source_adapter"), previous_adapter, label="online update source adapter")
         if _directory_sha256(source_adapter) != source_hash:
             raise ValueError("online update source adapter contents do not match its declared hash")
         next_adapter = Path(update.get("next_adapter", "")).expanduser().resolve()
         next_hash = update.get("next_adapter_sha256")
+        if strict:
+            expected_next = source_adapter if update.get("no_signal") else update_path.parent / "updated_adapter"
+            _require_path(update.get("next_adapter"), expected_next, label="online update next adapter")
         if not isinstance(next_hash, str) or _directory_sha256(next_adapter) != next_hash:
             raise ValueError("online update next adapter contents do not match its declared hash")
         if Path(summary_item.get("next_adapter", "")).expanduser().resolve() != next_adapter:
@@ -127,14 +332,14 @@ def _expected_final_adapter_lineage(
             }
         )
         previous_hash = next_hash
-    assert previous_hash is not None
+        previous_adapter = next_adapter
+    assert previous_hash is not None and previous_adapter is not None
     return {
         "verified": True,
         "regime": "online",
+        "initial_adapter": summary.get("initial_adapter") if strict else None,
         "initial_adapter_sha256": checked_passes[0]["source_adapter_sha256"],
-        "final_adapter": str(
-            Path(passes[-1]["next_adapter"]).expanduser().resolve()
-        ),
+        "final_adapter": str(previous_adapter),
         "final_adapter_sha256": previous_hash,
         "passes": checked_passes,
     }
@@ -226,6 +431,26 @@ def _validate_frozen_record_roster(
     return m4_task_roster_sha256(ordered_task_ids)
 
 
+def _require_standard_final_artifact_path(
+    path: Path, *, algorithm: str, seed: int, final_eval_root: Path
+) -> Path:
+    """Accept exactly one artifact from the current standard final-eval tree."""
+    path = Path(path).expanduser().resolve()
+    collector_dir = (
+        Path(final_eval_root).expanduser().resolve() / algorithm / f"seed_{seed}" / "collector"
+    )
+    if (
+        path.parent != collector_dir
+        or not path.name.startswith("single_probe_")
+        or path.suffix != ".json"
+    ):
+        raise ValueError("final artifact is outside the standard frozen-evaluation collector path")
+    candidates = sorted(collector_dir.glob("single_probe_*.json"))
+    if candidates != [path]:
+        raise ValueError("final collector directory must contain exactly the supplied artifact")
+    return path
+
+
 def _parse_input_spec(value: str) -> tuple[str, int, Path]:
     try:
         algorithm, raw_seed, raw_path = value.split(":", 2)
@@ -289,12 +514,20 @@ def main() -> int:
     parser.add_argument("--task-root", type=Path, default=DEFAULT_TASK_ROOT)
     parser.add_argument("--seed-dir", type=Path, default=DEFAULT_SEED_DIR)
     parser.add_argument("--training-root", type=Path, default=Path("outputs/m4_runs"))
+    parser.add_argument("--final-eval-root", type=Path, default=Path("outputs/m4_final_eval"))
     parser.add_argument("--bootstrap-samples", type=int, default=10_000)
     parser.add_argument("--permutation-samples", type=int, default=20_000)
     args = parser.parse_args()
     if args.bootstrap_samples <= 0 or args.permutation_samples <= 0:
         raise ValueError("bootstrap and permutation sample counts must be positive")
     expected = {(algorithm, seed) for algorithm in ALL_ALGORITHMS for seed in STUDY_SEEDS}
+    task_root = args.task_root.expanduser().resolve()
+    seed_dir = args.seed_dir.expanduser().resolve()
+    study_manifest = load_m4_study_manifest(task_root)
+    canonical_initial_adapter = assert_m4_canonical_initial_adapter(
+        Path(study_manifest["canonical_initial_adapter"]["path"]), task_root=task_root
+    )
+    final_eval_root = args.final_eval_root.expanduser().resolve()
     supplied: dict[tuple[str, int], Path] = {}
     for algorithm, seed, path in args.input:
         key = (algorithm, seed)
@@ -302,7 +535,9 @@ def main() -> int:
             raise ValueError(f"duplicate final artifact input: {key}")
         if not path.is_file():
             raise FileNotFoundError(f"final artifact not found: {path}")
-        supplied[key] = path
+        supplied[key] = _require_standard_final_artifact_path(
+            path, algorithm=algorithm, seed=seed, final_eval_root=final_eval_root
+        )
     if set(supplied) != expected:
         missing = sorted(expected - set(supplied))
         extra = sorted(set(supplied) - expected)
@@ -315,10 +550,21 @@ def main() -> int:
         artifact = json.loads(path.read_text(encoding="utf-8"))
         run_manifest = build_m4_run_manifest(
             M4RunConfig(algorithm, seed, "final_test"),
-            task_root=args.task_root,
-            seed_dir=args.seed_dir,
+            task_root=task_root,
+            seed_dir=seed_dir,
         )
-        lineage = _expected_final_adapter_lineage(algorithm, seed, args.training_root)
+        expected_train_manifest = build_m4_run_manifest(
+            M4RunConfig(algorithm, seed, "train"),
+            task_root=task_root,
+            seed_dir=seed_dir,
+        )
+        lineage = _expected_final_adapter_lineage(
+            algorithm,
+            seed,
+            args.training_root,
+            canonical_initial_adapter=canonical_initial_adapter,
+            expected_train_manifest=expected_train_manifest,
+        )
         _validate_final_artifact(
             artifact,
             algorithm=algorithm,
@@ -374,8 +620,8 @@ def main() -> int:
         for by_seed in summaries.values()
         for summary in by_seed.values()
     }
-    if len(initial_adapter_hashes) != 1:
-        raise ValueError("final matrix does not share one common initial adapter hash")
+    if initial_adapter_hashes != {canonical_initial_adapter["sha256"]}:
+        raise ValueError("final matrix does not start from the designated canonical initial adapter hash")
     frozen_roster_hashes = {
         summary["frozen_task_roster_sha256"]
         for by_seed in summaries.values()
@@ -397,18 +643,25 @@ def main() -> int:
         }
 
     report = {
-        "schema_version": "m4_final_report_v2",
+        "schema_version": "m4_final_report_v3",
         "complete": True,
         "matrix": {algorithm: {str(seed): summaries[algorithm][seed] for seed in STUDY_SEEDS} for algorithm in sorted(ALL_ALGORITHMS)},
         "aggregates": aggregates,
         "pairwise_task_clustered_comparisons": comparisons,
         "audit": {
-            "common_initial_adapter_sha256": next(iter(initial_adapter_hashes)),
+            "common_initial_adapter_sha256": canonical_initial_adapter["sha256"],
+            "canonical_initial_adapter": canonical_initial_adapter,
             "frozen_task_roster_sha256": next(iter(frozen_roster_hashes)),
             "adapter_lineage_verified": True,
+            "designated_initial_adapter_verified": True,
+            "standard_final_artifact_path_verified": True,
             "frozen_record_roster_verified": True,
         },
-        "reporting_rule": "Task-level rollouts are clustered; incomplete test artifacts are rejected rather than zero-filled.",
+        "reporting_rule": (
+            "Task-level rollouts are clustered; incomplete test artifacts are rejected rather than "
+            "zero-filled. Online/RSFT generated action-token caps and SFT completion-label token "
+            "upper bounds are reported with their distinct realized-token semantics."
+        ),
     }
     output_dir = args.output_dir.expanduser().resolve()
     _write_json(output_dir / "m4_final_report.json", report)

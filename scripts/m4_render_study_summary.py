@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the audited M4 v2 final report as an evidence-only Markdown summary."""
+"""Render the audited M4 v3 final report as an evidence-only Markdown summary."""
 
 from __future__ import annotations
 
@@ -68,11 +68,18 @@ def _require_summary(summary: Any, *, algorithm: str, seed: int) -> dict[str, An
         "frozen_task_roster_sha256",
     )
     if any(key not in summary for key in required):
-        raise ValueError(f"missing v2 report field for {algorithm}/{seed}")
+        raise ValueError(f"missing v3 report field for {algorithm}/{seed}")
     if summary["adapter_lineage"].get("verified") is not True:
         raise ValueError(f"unverified adapter lineage for {algorithm}/{seed}")
     if not isinstance(summary["frozen_task_roster_sha256"], str):
         raise ValueError(f"missing frozen roster hash for {algorithm}/{seed}")
+    if algorithm in {"sft", "rsft"}:
+        supervision_audit = summary["adapter_lineage"].get("supervision_audit")
+        if not isinstance(supervision_audit, dict) or supervision_audit.get("mode") not in {
+            "supervised",
+            "no_signal",
+        }:
+            raise ValueError(f"missing offline supervision audit for {algorithm}/{seed}")
     trajectory = summary["trajectory_cost_task_macro"]
     if not isinstance(trajectory, dict) or set(trajectory) != {"environment_steps", "model_turns", "action_tokens"}:
         raise ValueError(f"invalid trajectory cost summary for {algorithm}/{seed}")
@@ -93,10 +100,20 @@ def _require_summary(summary: Any, *, algorithm: str, seed: int) -> dict[str, An
 
 
 def _require_report(report: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
-    if report.get("schema_version") != "m4_final_report_v2" or report.get("complete") is not True:
-        raise ValueError("input is not a complete M4 v2 final report")
+    if report.get("schema_version") != "m4_final_report_v3" or report.get("complete") is not True:
+        raise ValueError("input is not a complete M4 v3 final report")
     audit = report.get("audit")
-    if not isinstance(audit, dict) or audit.get("adapter_lineage_verified") is not True or audit.get("frozen_record_roster_verified") is not True:
+    canonical = audit.get("canonical_initial_adapter") if isinstance(audit, dict) else None
+    if (
+        not isinstance(audit, dict)
+        or audit.get("adapter_lineage_verified") is not True
+        or audit.get("designated_initial_adapter_verified") is not True
+        or audit.get("standard_final_artifact_path_verified") is not True
+        or audit.get("frozen_record_roster_verified") is not True
+        or not isinstance(canonical, dict)
+        or canonical.get("sha256") != audit.get("common_initial_adapter_sha256")
+        or not isinstance(canonical.get("path"), str)
+    ):
         raise ValueError("report-level adapter/roster audit is incomplete")
     matrix = report.get("matrix")
     if not isinstance(matrix, dict) or set(matrix) != set(ALGORITHMS):
@@ -127,6 +144,23 @@ def _aggregate_rate(summaries: list[dict[str, Any]], field: str) -> tuple[int, i
     return numerators, denominators, numerators / denominators if denominators else None
 
 
+def _render_supervision_audit(summary: dict[str, Any]) -> tuple[str, str, str, str]:
+    audit = summary["adapter_lineage"]["supervision_audit"]
+    mode = audit["mode"]
+    if mode == "no_signal":
+        return "no-signal", "n/a", "n/a", "n/a"
+    labels = audit.get("completion_tokens_per_epoch")
+    planned = audit.get("planned_supervised_completion_tokens")
+    zero_label = audit.get("zero_completion_label_sample_count")
+    sample_count = audit.get("sample_count")
+    zero_label_at_limit = audit.get("zero_completion_label_at_max_length_sample_count")
+    if not all(isinstance(value, int) for value in (labels, planned, zero_label, sample_count, zero_label_at_limit)):
+        raise ValueError("offline supervision audit has non-integer token or truncation fields")
+    if labels <= 0 or planned < labels or not 0 <= zero_label_at_limit <= zero_label <= sample_count:
+        raise ValueError("offline supervision audit token or truncation fields are invalid")
+    return "supervised", str(labels), str(planned), f"{zero_label}/{sample_count} ({zero_label_at_limit} at limit)"
+
+
 def _render(report: dict[str, Any]) -> str:
     matrix = _require_report(report)
     audit = report["audit"]
@@ -140,6 +174,7 @@ def _render(report: dict[str, Any]) -> str:
         "- 5 种算法 × 3 个随机种子均通过完整性门禁；不完整测试工件不会以零填充。",
         f"- 所有最终测试记录精确匹配同一冻结任务 roster：`{audit['frozen_task_roster_sha256']}`。",
         f"- 所有训练从同一初始 adapter 开始：`{audit['common_initial_adapter_sha256']}`。",
+        f"- 指定初始 adapter 路径：`{audit['canonical_initial_adapter']['path']}`。",
         "- 每个最终 adapter 都已与离线训练或两轮在线更新的 SHA-256 谱系闭合验证。",
         "",
         "## 三种子汇总",
@@ -160,6 +195,26 @@ def _render(report: dict[str, Any]) -> str:
             f"| {algorithm.upper()} | {_format_float(mean(successes))} | {_format_float(mean(raw_successes))} | {_format_float(std)} | "
             f"{int(tokens)} | {int(turns)} | {int(steps)} | {_format_float(wall, 1)} |"
         )
+
+    lines.extend(
+        [
+            "",
+            "## 离线监督 token 审计",
+            "",
+            "SFT 的 250,000 是 completion-only 标签 token 上限，而非与在线生成 action token 的逐 token 等价；表中同时给出实际有效标签与因上下文长度产生的零标签行。",
+            "",
+            "| 算法 | 种子 | 模式 | 有效标签/epoch | 计划标签（两 pass） | 零标签行（其中达长度上限） |",
+            "|---|---:|---|---:|---:|---:|",
+        ]
+    )
+    for algorithm in ("sft", "rsft"):
+        for seed in SEEDS:
+            mode, labels, planned, zero_rows = _render_supervision_audit(
+                matrix[algorithm][str(seed)]
+            )
+            lines.append(
+                f"| {algorithm.upper()} | {seed} | {mode} | {labels} | {planned} | {zero_rows} |"
+            )
 
     lines.extend(["", "## 每种子的成功率与 95% CI", "", "| 算法 | 种子 | 成功率 | 任务聚类 95% CI |", "|---|---:|---:|---:|"])
     for algorithm in ALGORITHMS:

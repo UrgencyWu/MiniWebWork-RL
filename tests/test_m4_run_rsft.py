@@ -37,6 +37,15 @@ def test_rsft_runner_uses_the_shared_offline_final_adapter_layout(monkeypatch, t
     monkeypatch.setattr(module.subprocess, "run", lambda command, check: commands.append(command))
     monkeypatch.setattr(
         module,
+        "assert_m4_canonical_initial_adapter",
+        lambda adapter, task_root: {
+            "path": str(Path(adapter).resolve()),
+            "sha256": "test-initial-hash",
+            "study_manifest_sha256": "test-study-manifest",
+        },
+    )
+    monkeypatch.setattr(
+        module,
         "_single_artifact",
         lambda directory: directory / "collector" / "single_probe.json",
     )
@@ -91,6 +100,11 @@ def test_rsft_no_signal_materializes_the_unchanged_initial_adapter(tmp_path: Pat
         task_root=task_root,
         seed_dir=seed_dir,
         rsft_manifest={"selected_task_count": 0, "no_verified_successes": True},
+        canonical_initial_adapter={
+            "path": str(initial_adapter.resolve()),
+            "sha256": module._directory_sha256(initial_adapter),
+            "study_manifest_sha256": "test-study-manifest",
+        },
     )
 
     assert module._directory_sha256(adapter) == module._directory_sha256(initial_adapter)

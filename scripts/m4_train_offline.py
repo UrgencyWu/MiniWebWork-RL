@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import subprocess
 import sys
@@ -15,19 +14,12 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.m4_algorithms import OFFLINE_ALGORITHMS
 from miniwebwork.m4_offline import build_m4_offline_training_plan
-from miniwebwork.m4_protocol import DEFAULT_SEED_DIR, DEFAULT_TASK_ROOT, write_m4_run_manifest
-
-
-def _directory_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    files = sorted(file for file in path.rglob("*") if file.is_file())
-    if not files:
-        raise ValueError(f"Initial adapter has no files: {path}")
-    for file in files:
-        digest.update(str(file.relative_to(path)).encode("utf-8"))
-        digest.update(hashlib.sha256(file.read_bytes()).hexdigest().encode("ascii"))
-    return digest.hexdigest()
-
+from miniwebwork.m4_protocol import (
+    DEFAULT_SEED_DIR,
+    DEFAULT_TASK_ROOT,
+    assert_m4_canonical_initial_adapter,
+    write_m4_run_manifest,
+)
 
 def _trainer_command(plan: dict, *, output_dir: Path, initial_adapter: Path, base_model: str, max_length: int, learning_rate: float, batch_size: int, grad_accum: int) -> list[str]:
     if max_length <= 0 or batch_size <= 0 or grad_accum <= 0 or learning_rate <= 0:
@@ -76,11 +68,13 @@ def main() -> int:
         seed_dir=args.seed_dir,
     )
     output_dir = args.output_dir.expanduser().resolve()
-    initial_adapter = args.initial_adapter.expanduser().resolve()
-    if not initial_adapter.is_dir():
-        raise FileNotFoundError(f"Initial adapter directory not found: {initial_adapter}")
+    canonical_initial_adapter = assert_m4_canonical_initial_adapter(
+        args.initial_adapter, task_root=args.task_root
+    )
+    initial_adapter = Path(canonical_initial_adapter["path"])
     plan["initial_adapter"] = str(initial_adapter)
-    plan["initial_adapter_sha256"] = _directory_sha256(initial_adapter)
+    plan["initial_adapter_sha256"] = canonical_initial_adapter["sha256"]
+    plan["canonical_initial_adapter"] = canonical_initial_adapter
     command = _trainer_command(
         plan,
         output_dir=output_dir,

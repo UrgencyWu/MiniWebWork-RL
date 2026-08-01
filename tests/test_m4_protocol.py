@@ -7,7 +7,9 @@ from miniwebwork.m4_protocol import (
     M4RunConfig,
     RSFT_TRAIN_TASKS_PER_PASS,
     STUDY_SEEDS,
+    assert_m4_canonical_initial_adapter,
     build_m4_run_manifest,
+    load_m4_study_manifest,
     m4_rsft_train_task_roster,
     m4_task_source_sha256,
     write_m4_run_manifest,
@@ -31,8 +33,22 @@ def test_primary_matrix_configs_are_preflightable_without_test_leakage():
                 TASK_ROOT / "train", "train"
             )
             assert manifest["hashes"]["task_source_sha256"] != manifest["hashes"]["train_public.jsonl"]
+            assert manifest["study_manifest"]["canonical_initial_adapter"]["relative_path"] == (
+                "outputs/m2_2r/seed_42/final_adapter"
+            )
             if algorithm in {"sft", "rsft"}:
                 assert "offline_training" in manifest["split_manifest"]["allowed_purposes"]
+
+
+def test_study_manifest_anchors_the_designated_initial_adapter_by_path_and_content():
+    study_manifest = load_m4_study_manifest(TASK_ROOT)
+    canonical = assert_m4_canonical_initial_adapter(
+        Path(study_manifest["canonical_initial_adapter"]["path"]), task_root=TASK_ROOT
+    )
+    assert canonical["relative_path"] == "outputs/m2_2r/seed_42/final_adapter"
+    assert canonical["sha256"] == study_manifest["canonical_initial_adapter"]["directory_sha256"]
+    with pytest.raises(ValueError, match="path does not match"):
+        assert_m4_canonical_initial_adapter(TASK_ROOT, task_root=TASK_ROOT)
 
 
 def test_protocol_rejects_unregistered_seed_and_wrong_online_collection_contract():

@@ -53,7 +53,17 @@ def _summary():
             "fallback_recovered_rate": _rate(0, 1),
             "environment_action_failure_rate": _rate(0, 1),
         },
-        "adapter_lineage": {"verified": True},
+        "adapter_lineage": {
+            "verified": True,
+            "supervision_audit": {
+                "mode": "supervised",
+                "completion_tokens_per_epoch": 10,
+                "planned_supervised_completion_tokens": 20,
+                "zero_completion_label_sample_count": 0,
+                "sample_count": 1,
+                "zero_completion_label_at_max_length_sample_count": 0,
+            },
+        },
         "frozen_task_roster_sha256": "frozen-roster",
     }
 
@@ -72,7 +82,7 @@ def _report():
         for first, second in combinations(sorted(ALGORITHMS), 2)
     }
     return {
-        "schema_version": "m4_final_report_v2",
+        "schema_version": "m4_final_report_v3",
         "complete": True,
         "matrix": matrix,
         "aggregates": {
@@ -82,25 +92,29 @@ def _report():
         "pairwise_task_clustered_comparisons": comparisons,
         "audit": {
             "common_initial_adapter_sha256": "shared-adapter",
+            "canonical_initial_adapter": {"path": "/canonical/adapter", "sha256": "shared-adapter"},
             "frozen_task_roster_sha256": "frozen-roster",
             "adapter_lineage_verified": True,
+            "designated_initial_adapter_verified": True,
+            "standard_final_artifact_path_verified": True,
             "frozen_record_roster_verified": True,
         },
     }
 
 
-def test_v2_renderer_requires_audited_mechanism_evidence_and_renders_json_denominators():
+def test_v3_renderer_requires_audited_mechanism_evidence_and_renders_json_denominators():
     module = _load_module()
     rendered = module._render(_report())
     assert "完整性与谱系门禁" in rendered
     assert "变长轨迹与任务级成本" in rendered
     assert "JSON 动作质量" in rendered
+    assert "离线监督 token 审计" in rendered
     assert "0/3 (0.000)" in rendered
 
 
-def test_v2_renderer_fails_closed_when_json_or_trajectory_evidence_is_missing():
+def test_v3_renderer_fails_closed_when_json_or_trajectory_evidence_is_missing():
     module = _load_module()
     report = _report()
     del report["matrix"]["sft"]["20260801"]["json_action_quality"]
-    with pytest.raises(ValueError, match="missing v2 report field"):
+    with pytest.raises(ValueError, match="missing v3 report field"):
         module._render(report)

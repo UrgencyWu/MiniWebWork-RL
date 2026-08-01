@@ -1,0 +1,29 @@
+{
+  "schema_version": "m4_study_manifest_v1",
+  "study_id": "m4_rlvr_v1",
+  "canonical_initial_adapter": {
+    "relative_path": "outputs/m2_2r/seed_42/final_adapter",
+    "directory_sha256": "85926fc27f409198605fdad7cb5c4a517f159fa6878928d9a32fd53dd7476b01"
+  },
+  "budget_contract": {
+    "online_and_rsft": {
+      "unit": "generated_action_tokens",
+      "total_cap": 250000,
+      "ordered_passes": 2,
+      "per_pass_cap": 125000,
+      "rollout_group_size": 4
+    },
+    "sft": {
+      "unit": "completion_only_supervised_label_tokens",
+      "upper_cap": 250000,
+      "supervision_passes": 2,
+      "report_realized_label_tokens": true,
+      "report_zero_label_truncation": true
+    }
+  },
+  "primary_matrix": {
+    "algorithms": ["sft", "rsft", "rloo", "grpo", "gspo"],
+    "study_seeds": [20260801, 20260802, 20260803],
+    "frozen_final_test": true
+  }
+}

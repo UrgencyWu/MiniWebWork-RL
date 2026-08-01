@@ -161,12 +161,49 @@ def prepare_dataset(ds, tokenizer, max_length: int, num_proc: int = 1) -> "datas
     return tokenized
 
 
+def completion_label_token_statistics(dataset, max_length: int | None = None) -> dict:
+    """Audit effective completion supervision after prompt-length truncation.
+
+    Completion-only training can silently lose an example's labels when its
+    rendered browser context consumes ``max_length``.  Count those rows before
+    model loading so the M4 report can distinguish a nominal token allowance
+    from the labels the trainer actually receives.
+    """
+    sample_count = 0
+    effective_supervision_sample_count = 0
+    zero_completion_label_sample_count = 0
+    completion_tokens_per_epoch = 0
+    at_max_length_sample_count = 0
+    zero_completion_label_at_max_length_sample_count = 0
+    for example in dataset:
+        sample_count += 1
+        labels = example["labels"]
+        label_count = sum(label != -100 for label in labels)
+        completion_tokens_per_epoch += label_count
+        if label_count:
+            effective_supervision_sample_count += 1
+        else:
+            zero_completion_label_sample_count += 1
+        if max_length is not None and len(example["input_ids"]) >= max_length:
+            at_max_length_sample_count += 1
+            if not label_count:
+                zero_completion_label_at_max_length_sample_count += 1
+    return {
+        "sample_count": sample_count,
+        "effective_supervision_sample_count": effective_supervision_sample_count,
+        "zero_completion_label_sample_count": zero_completion_label_sample_count,
+        "zero_completion_label_sample_fraction": (
+            zero_completion_label_sample_count / sample_count if sample_count else 0.0
+        ),
+        "completion_tokens_per_epoch": completion_tokens_per_epoch,
+        "at_max_length_sample_count": at_max_length_sample_count,
+        "zero_completion_label_at_max_length_sample_count": zero_completion_label_at_max_length_sample_count,
+    }
+
+
 def completion_label_token_count(dataset) -> int:
     """Count the exact supervised action-token labels in a prepared dataset."""
-    return sum(
-        sum(label != -100 for label in example["labels"])
-        for example in dataset
-    )
+    return int(completion_label_token_statistics(dataset)["completion_tokens_per_epoch"])
 
 
 def find_latest_checkpoint(seed_dir: Path) -> str | None:
@@ -284,7 +321,8 @@ def train_single_seed(
     train_dataset = prepare_dataset(train_dataset, tokenizer, max_length, num_proc=1)
     eval_dataset_raw = eval_dataset  # Keep raw for action metrics
     eval_dataset = prepare_dataset(eval_dataset, tokenizer, max_length, num_proc=1)
-    completion_tokens_per_epoch = completion_label_token_count(train_dataset)
+    supervision_statistics = completion_label_token_statistics(train_dataset, max_length=max_length)
+    completion_tokens_per_epoch = supervision_statistics["completion_tokens_per_epoch"]
     if completion_tokens_per_epoch <= 0:
         raise ValueError("SFT train dataset has no completion tokens")
     planned_supervised_completion_tokens = completion_tokens_per_epoch * num_epochs
@@ -296,6 +334,42 @@ def train_single_seed(
             "planned supervised completion tokens exceed cap: "
             f"{planned_supervised_completion_tokens} > {max_supervised_completion_tokens}"
         )
+
+    initial_adapter_hash = None
+    if initial_adapter is not None:
+        initial_adapter = Path(initial_adapter).expanduser().resolve()
+        if not initial_adapter.is_dir():
+            raise FileNotFoundError(f"Initial adapter not found: {initial_adapter}")
+        initial_adapter_hash = directory_sha256(initial_adapter)
+    supervision_audit = {
+        "schema_version": "m4_sft_supervision_audit_v1",
+        "seed": seed,
+        "max_length": max_length,
+        "num_epochs": num_epochs,
+        "statistics": supervision_statistics,
+        "planned_supervised_completion_tokens": planned_supervised_completion_tokens,
+        "max_supervised_completion_tokens": max_supervised_completion_tokens,
+        "budget_semantics": "completion-only supervised label-token upper bound; not generated action-token equivalence",
+        "cap_satisfied": (
+            max_supervised_completion_tokens is None
+            or planned_supervised_completion_tokens <= max_supervised_completion_tokens
+        ),
+        "initial_adapter": str(initial_adapter) if initial_adapter is not None else None,
+        "initial_adapter_sha256": initial_adapter_hash,
+    }
+    supervision_audit_path = seed_dir / "supervision_audit.json"
+    supervision_audit_path.write_text(
+        json.dumps(supervision_audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    supervision_audit_sha256 = hashlib.sha256(supervision_audit_path.read_bytes()).hexdigest()
+    print(
+        "  Supervision audit: "
+        f"{supervision_statistics['completion_tokens_per_epoch']} labels/epoch; "
+        f"{supervision_statistics['zero_completion_label_sample_count']}/"
+        f"{supervision_statistics['sample_count']} zero-label rows; "
+        f"{supervision_statistics['zero_completion_label_at_max_length_sample_count']} at max length",
+        flush=True,
+    )
 
     # Find checkpoint to resume from
     checkpoint = resume_from_checkpoint
@@ -322,14 +396,9 @@ def train_single_seed(
     print(f"  Model loaded in {load_time:.1f}s")
     print(f"  GPU memory: {torch.cuda.memory_allocated()/(1024**3):.1f} GB")
 
-    initial_adapter_hash = None
     if initial_adapter is not None:
         from peft import PeftModel
 
-        initial_adapter = Path(initial_adapter).expanduser().resolve()
-        if not initial_adapter.is_dir():
-            raise FileNotFoundError(f"Initial adapter not found: {initial_adapter}")
-        initial_adapter_hash = directory_sha256(initial_adapter)
         print(f"Loading fixed initial adapter: {initial_adapter}", flush=True)
         model = PeftModel.from_pretrained(
             model,
@@ -459,6 +528,10 @@ def train_single_seed(
         "completion_tokens_per_epoch": completion_tokens_per_epoch,
         "planned_supervised_completion_tokens": planned_supervised_completion_tokens,
         "max_supervised_completion_tokens": max_supervised_completion_tokens,
+        "supervision_statistics": supervision_statistics,
+        "supervision_audit": str(supervision_audit_path),
+        "supervision_audit_sha256": supervision_audit_sha256,
+        "supervision_budget_semantics": supervision_audit["budget_semantics"],
         "initial_adapter": str(initial_adapter) if initial_adapter is not None else None,
         "initial_adapter_sha256": initial_adapter_hash,
     }

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import shutil
 import subprocess
@@ -19,7 +18,9 @@ from miniwebwork.m4_protocol import (
     DEFAULT_TASK_ROOT,
     M4RunConfig,
     RSFT_TRAIN_TASKS_PER_PASS,
+    assert_m4_canonical_initial_adapter,
     build_m4_run_manifest,
+    m4_adapter_directory_sha256,
     write_m4_run_manifest,
 )
 
@@ -32,14 +33,7 @@ def _single_artifact(directory: Path) -> Path:
 
 
 def _directory_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    files = sorted(file for file in path.rglob("*") if file.is_file())
-    if not files:
-        raise ValueError(f"adapter directory has no files: {path}")
-    for file in files:
-        digest.update(str(file.relative_to(path)).encode("utf-8"))
-        digest.update(hashlib.sha256(file.read_bytes()).hexdigest().encode("ascii"))
-    return digest.hexdigest()
+    return m4_adapter_directory_sha256(path)
 
 
 def _materialize_no_signal_adapter(
@@ -50,6 +44,7 @@ def _materialize_no_signal_adapter(
     task_root: Path,
     seed_dir: Path,
     rsft_manifest: dict,
+    canonical_initial_adapter: dict[str, str],
 ) -> Path:
     """Preserve RSFT's no-positive outcome without leaking oracle examples."""
     if rsft_manifest.get("selected_task_count") != 0 or not rsft_manifest.get("no_verified_successes"):
@@ -66,7 +61,9 @@ def _materialize_no_signal_adapter(
         "algorithm": "rsft",
         "no_signal": True,
         "reason": "no_verified_successful_rollout_in_fixed_12_task_two_pass_roster",
+        "initial_adapter": str(initial_adapter),
         "initial_adapter_sha256": initial_hash,
+        "canonical_initial_adapter": canonical_initial_adapter,
         "final_adapter_sha256": final_hash,
     }
     (target.parent / "metrics.json").write_text(
@@ -77,6 +74,7 @@ def _materialize_no_signal_adapter(
         {
             "initial_adapter": str(initial_adapter),
             "initial_adapter_sha256": initial_hash,
+            "canonical_initial_adapter": canonical_initial_adapter,
             "no_signal": True,
             "rsft_corpus_manifest": rsft_manifest,
             "final_adapter": str(target),
@@ -99,11 +97,14 @@ def main() -> int:
     args = parser.parse_args()
     config = M4RunConfig("rsft", args.seed, "train")
     config.validate(task_root=args.task_root)
-    initial_adapter = args.initial_adapter.expanduser().resolve()
+    canonical_initial_adapter = assert_m4_canonical_initial_adapter(
+        args.initial_adapter, task_root=args.task_root
+    )
+    initial_adapter = Path(canonical_initial_adapter["path"])
     validation_data = args.sft_validation_data_dir.expanduser().resolve()
     output_dir = args.output_dir.expanduser().resolve()
-    if not initial_adapter.is_dir() or not validation_data.is_dir():
-        raise FileNotFoundError("RSFT requires existing initial adapter and full SFT validation corpus")
+    if not validation_data.is_dir():
+        raise FileNotFoundError("RSFT requires a full SFT validation corpus")
     commands = []
     for pass_index in range(1, config.online_passes + 1):
         commands.append([
@@ -115,7 +116,16 @@ def main() -> int:
             "--task-root", str(args.task_root), "--seed-dir", str(args.seed_dir),
         ])
     if args.dry_run:
-        print(json.dumps({"commands": commands}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "canonical_initial_adapter": canonical_initial_adapter,
+                    "commands": commands,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     artifacts = []
     for pass_index, command in enumerate(commands, start=1):
@@ -136,6 +146,7 @@ def main() -> int:
             task_root=args.task_root,
             seed_dir=args.seed_dir,
             rsft_manifest=rsft_manifest,
+            canonical_initial_adapter=canonical_initial_adapter,
         )
         print(
             json.dumps(

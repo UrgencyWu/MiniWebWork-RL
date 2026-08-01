@@ -13,7 +13,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.m4_algorithms import ONLINE_ALGORITHMS
-from miniwebwork.m4_protocol import DEFAULT_SEED_DIR, DEFAULT_TASK_ROOT, M4RunConfig
+from miniwebwork.m4_protocol import (
+    DEFAULT_SEED_DIR,
+    DEFAULT_TASK_ROOT,
+    M4RunConfig,
+    assert_m4_canonical_initial_adapter,
+)
 
 
 def _single_artifact(directory: Path) -> Path:
@@ -67,13 +72,24 @@ def main() -> int:
     args = parser.parse_args()
     config = M4RunConfig(args.algorithm, args.seed, "train")
     config.validate(task_root=args.task_root)
-    initial_adapter = args.initial_adapter.expanduser().resolve()
-    if not initial_adapter.is_dir():
-        raise FileNotFoundError(f"Initial adapter not found: {initial_adapter}")
+    canonical_initial_adapter = assert_m4_canonical_initial_adapter(
+        args.initial_adapter, task_root=args.task_root
+    )
+    initial_adapter = Path(canonical_initial_adapter["path"])
     output_dir = args.output_dir.expanduser().resolve()
     plan = _commands(config, initial_adapter=initial_adapter, output_dir=output_dir)
     if args.dry_run:
-        print(json.dumps({"config": config.__dict__, "plan": plan}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "config": config.__dict__,
+                    "canonical_initial_adapter": canonical_initial_adapter,
+                    "plan": plan,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
 
     adapter = initial_adapter
@@ -105,7 +121,19 @@ def main() -> int:
         completed.append({"pass_index": pass_index, "artifact": str(artifact), "next_adapter": str(adapter)})
     (output_dir / "online_run_summary.json").parent.mkdir(parents=True, exist_ok=True)
     (output_dir / "online_run_summary.json").write_text(
-        json.dumps({"algorithm": args.algorithm, "seed": args.seed, "passes": completed}, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(
+            {
+                "algorithm": args.algorithm,
+                "seed": args.seed,
+                "initial_adapter": str(initial_adapter),
+                "initial_adapter_sha256": canonical_initial_adapter["sha256"],
+                "canonical_initial_adapter": canonical_initial_adapter,
+                "passes": completed,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     print(json.dumps(completed, ensure_ascii=False, indent=2))
