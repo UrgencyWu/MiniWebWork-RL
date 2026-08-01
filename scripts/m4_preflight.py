@@ -29,6 +29,7 @@ def main() -> int:
     parser.add_argument("--task-root", type=Path, default=DEFAULT_TASK_ROOT)
     parser.add_argument("--seed-dir", type=Path, default=DEFAULT_SEED_DIR)
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--expected-git-sha", default=None)
     args = parser.parse_args()
     config = M4RunConfig(args.algorithm, args.seed, args.phase)
     manifest = build_m4_run_manifest(
@@ -36,6 +37,10 @@ def main() -> int:
         task_root=args.task_root,
         seed_dir=args.seed_dir,
     )
+    if args.expected_git_sha is not None and manifest["git_sha"] != args.expected_git_sha:
+        raise ValueError(
+            f"M4 preflight git SHA mismatch: expected {args.expected_git_sha}, got {manifest['git_sha']}"
+        )
     if args.output is not None:
         write_m4_run_manifest(args.output, manifest)
     print(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True))

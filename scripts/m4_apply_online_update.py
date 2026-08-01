@@ -66,6 +66,8 @@ def _validate_artifact(
         raise ValueError("M4 update requires a complete schema-3.3 rollout artifact")
     if artifact.get("study_id") != "m4_rlvr_v1" or artifact.get("split") != "train":
         raise PermissionError("M4 update accepts only strict M4 train artifacts")
+    if artifact.get("git_sha") != run_manifest.get("git_sha"):
+        raise ValueError("rollout artifact git SHA does not match the frozen M4 train manifest")
     if artifact.get("study_seed") != config.seed or artifact.get("collection_pass_index") != pass_index:
         raise ValueError("artifact study seed or pass index does not match this update")
     if artifact.get("K") != config.group_size:
@@ -76,7 +78,7 @@ def _validate_artifact(
         raise ValueError("M4 update requires strict no-cache on-policy collection")
     if artifact.get("adapter_sha256") != adapter_hash:
         raise ValueError("rollout artifact adapter hash does not match --adapter")
-    if artifact.get("task_source_sha256") != run_manifest["hashes"]["train_public.jsonl"]:
+    if artifact.get("task_source_sha256") != run_manifest["hashes"]["task_source_sha256"]:
         raise ValueError("rollout artifact task source hash does not match M4 train manifest")
     if artifact.get("max_collected_action_tokens") != ONLINE_PASS_ACTION_TOKEN_CAP:
         raise ValueError("artifact does not use the fixed per-pass M4 token cap")

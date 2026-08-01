@@ -47,7 +47,7 @@ def task_cluster_bootstrap_ci(
 
 def _action_token_count(record: dict[str, Any]) -> int:
     total = 0
-    for turn in record.get("turns") or record.get("steps", []):
+    for turn in _record_steps(record):
         if isinstance(turn, dict):
             value = turn.get("output_tokens")
             if isinstance(value, int) and value >= 0:
@@ -56,6 +56,127 @@ def _action_token_count(record: dict[str, Any]) -> int:
                 generated = turn.get("generated_token_ids", [])
                 total += len(generated) if isinstance(generated, list) else 0
     return total
+
+
+def _record_steps(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the canonical per-decision evidence from strict or legacy records."""
+    steps = record.get("steps") or record.get("turns") or []
+    if not isinstance(steps, list) or any(not isinstance(step, dict) for step in steps):
+        raise ValueError("M4 rollout steps must be a list of mappings")
+    return steps
+
+
+def _rate(numerator: int, denominator: int) -> dict[str, int | float | None]:
+    if numerator < 0 or denominator < 0 or numerator > denominator:
+        raise ValueError("M4 rate numerator/denominator is invalid")
+    return {
+        "numerator": numerator,
+        "denominator": denominator,
+        "value": numerator / denominator if denominator else None,
+    }
+
+
+def _task_metric_summary(
+    per_task: list[dict[str, Any]],
+    field: str,
+    *,
+    bootstrap_samples: int,
+    bootstrap_seed: int,
+) -> dict[str, Any]:
+    values = [float(row[field]) for row in per_task if row.get(field) is not None]
+    return {
+        "task_count": len(values),
+        "mean": _mean(values),
+        "task_cluster_bootstrap_95ci": task_cluster_bootstrap_ci(
+            values, samples=bootstrap_samples, seed=bootstrap_seed
+        ),
+    }
+
+
+def _trajectory_length_strata(valid_records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Describe, but do not causally condition on, M4 environment-path length."""
+    boundaries = (("0-4", 0, 4), ("5-9", 5, 9), ("10-14", 10, 14), ("15-20", 15, 20))
+    buckets: dict[str, list[dict[str, Any]]] = {label: [] for label, _, _ in boundaries}
+    for record in valid_records:
+        steps = record.get("environment_steps")
+        if not isinstance(steps, int) or steps < 0 or steps > 20:
+            raise ValueError("valid M4 rollout environment_steps must be an integer in [0, 20]")
+        for label, lower, upper in boundaries:
+            if lower <= steps <= upper:
+                buckets[label].append(record)
+                break
+    result: dict[str, dict[str, Any]] = {}
+    for label, _, _ in boundaries:
+        records = buckets[label]
+        result[label] = {
+            "valid_rollouts": len(records),
+            "successes": sum(bool(record.get("success")) for record in records),
+            "success_rate": _rate(
+                sum(bool(record.get("success")) for record in records), len(records)
+            ),
+            "mean_environment_steps": _mean(
+                float(record["environment_steps"]) for record in records
+            ),
+            "mean_model_turns": _mean(
+                float(record.get("model_turns", 0)) for record in records
+            ),
+            "mean_action_tokens": _mean(_action_token_count(record) for record in records),
+        }
+    return result
+
+
+def _json_action_quality(valid_records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Measure JSON/action failures per model decision with explicit denominators."""
+    decisions = strict_json_failures = schema_invalid = fallback_recovered = 0
+    executed_actions = environment_action_failures = 0
+    schema_errors: Counter[str] = Counter()
+    environment_errors: Counter[str] = Counter()
+    for record in valid_records:
+        steps = _record_steps(record)
+        model_turns = record.get("model_turns")
+        if not isinstance(model_turns, int) or model_turns != len(steps):
+            raise ValueError("valid M4 rollout model_turns must equal its recorded decision count")
+        for step in steps:
+            decisions += 1
+            strict_json_failures += not bool(step.get("strict_json_success"))
+            schema_valid = bool(step.get("schema_valid"))
+            schema_invalid += not schema_valid
+            fallback_recovered += bool(step.get("fallback_used")) and schema_valid
+            raw_errors = step.get("schema_errors") or step.get("errors") or []
+            if not isinstance(raw_errors, list):
+                raise ValueError("M4 schema error evidence must be a list")
+            schema_errors.update(error for error in raw_errors if isinstance(error, str) and error)
+
+            action_success = step.get("env_action_success")
+            error_code = step.get("env_error_code")
+            if action_success is None and isinstance(step.get("action_result"), dict):
+                action_success = step["action_result"].get("success")
+                error_code = step["action_result"].get("error_code", error_code)
+            if action_success is not None:
+                executed_actions += 1
+                if not bool(action_success):
+                    environment_action_failures += 1
+                    if isinstance(error_code, str) and error_code:
+                        environment_errors[error_code] += 1
+
+    return {
+        "valid_rollouts": len(valid_records),
+        "model_decisions": decisions,
+        "strict_json_failure_rate": _rate(strict_json_failures, decisions),
+        "schema_invalid_rate": _rate(schema_invalid, decisions),
+        "fallback_recovered_rate": _rate(fallback_recovered, decisions),
+        "schema_error_rates": {
+            code: _rate(count, decisions) for code, count in sorted(schema_errors.items())
+        },
+        "executed_actions": executed_actions,
+        "environment_action_failure_rate": _rate(
+            environment_action_failures, executed_actions
+        ),
+        "environment_error_rates": {
+            code: _rate(count, executed_actions)
+            for code, count in sorted(environment_errors.items())
+        },
+    }
 
 
 def summarize_m4_evaluation(
@@ -116,6 +237,21 @@ def summarize_m4_evaluation(
                 "action_tokens": sum(_action_token_count(record) for record in task_records),
                 "model_turns": sum(int(record.get("model_turns", 0)) for record in task_records),
                 "environment_steps": sum(int(record.get("environment_steps", 0)) for record in task_records),
+                "valid_mean_action_tokens": (
+                    _mean(_action_token_count(record) for record in valid)
+                    if len(valid) == expected_rollouts_per_task
+                    else None
+                ),
+                "valid_mean_model_turns": (
+                    _mean(float(record.get("model_turns", 0)) for record in valid)
+                    if len(valid) == expected_rollouts_per_task
+                    else None
+                ),
+                "valid_mean_environment_steps": (
+                    _mean(float(record.get("environment_steps", 0)) for record in valid)
+                    if len(valid) == expected_rollouts_per_task
+                    else None
+                ),
             }
         )
 
@@ -156,6 +292,28 @@ def summarize_m4_evaluation(
             task_type: _mean(values) for task_type, values in sorted(task_type_values.items())
         },
         "failure_taxonomy": failure["summary"],
+        "trajectory_cost_task_macro": {
+            "environment_steps": _task_metric_summary(
+                per_task,
+                "valid_mean_environment_steps",
+                bootstrap_samples=bootstrap_samples,
+                bootstrap_seed=bootstrap_seed,
+            ),
+            "model_turns": _task_metric_summary(
+                per_task,
+                "valid_mean_model_turns",
+                bootstrap_samples=bootstrap_samples,
+                bootstrap_seed=bootstrap_seed,
+            ),
+            "action_tokens": _task_metric_summary(
+                per_task,
+                "valid_mean_action_tokens",
+                bootstrap_samples=bootstrap_samples,
+                bootstrap_seed=bootstrap_seed,
+            ),
+        },
+        "trajectory_length_strata": _trajectory_length_strata(valid_attempts),
+        "json_action_quality": _json_action_quality(valid_attempts),
         "cost": {
             "action_tokens": sum(row["action_tokens"] for row in per_task),
             "model_turns": sum(row["model_turns"] for row in per_task),

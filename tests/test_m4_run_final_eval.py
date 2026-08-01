@@ -25,6 +25,14 @@ def test_final_eval_resolves_offline_adapter_only_with_completed_metrics(tmp_pat
     assert module._resolve_final_adapter("sft", 20260801, tmp_path) == adapter.resolve()
 
 
+def test_final_eval_resolves_rsft_from_the_shared_offline_adapter_layout(tmp_path: Path):
+    module = _load_module()
+    adapter = tmp_path / "rsft" / "seed_20260801" / "training" / "seed_20260801" / "final_adapter"
+    adapter.mkdir(parents=True)
+    (adapter.parent / "metrics.json").write_text(json.dumps({"seed": 20260801}))
+    assert module._resolve_final_adapter("rsft", 20260801, tmp_path) == adapter.resolve()
+
+
 def test_final_eval_resolves_second_online_pass_and_builds_final_test_command(tmp_path: Path):
     module = _load_module()
     first = tmp_path / "grpo" / "seed_20260801" / "pass_1" / "update" / "updated_adapter"

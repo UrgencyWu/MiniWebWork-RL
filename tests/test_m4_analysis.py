@@ -115,3 +115,69 @@ def test_m4_analysis_reads_strict_rollout_steps_for_cost_and_failure_taxonomy():
     assert summary["cost"]["action_tokens"] == 13
     assert summary["cost"]["reported_wall_seconds"] == 9.5
     assert summary["failure_taxonomy"]["primary_failure_counts"]["output_format_failure"] == 1
+
+
+def test_m4_analysis_reports_path_length_strata_cost_ci_and_json_action_denominators():
+    records = _records()
+    for record, environment_steps in zip(records, (1, 5, 10, 15)):
+        record["environment_steps"] = environment_steps
+        record["turns"][0]["fallback_used"] = False
+    records[1]["turns"][0].update(
+        {
+            "strict_json_success": False,
+            "schema_valid": False,
+            "schema_errors": ["malformed_json"],
+        }
+    )
+    records[1]["turns"][0].pop("action_result")
+    records[2]["turns"][0].update(
+        {
+            "fallback_used": True,
+            "action_result": {"success": False, "error_code": "invalid_target"},
+        }
+    )
+
+    summary = summarize_m4_evaluation(
+        records,
+        expected_task_count=2,
+        expected_rollouts_per_task=2,
+        bootstrap_samples=100,
+    )
+
+    strata = summary["trajectory_length_strata"]
+    assert [strata[label]["valid_rollouts"] for label in ("0-4", "5-9", "10-14", "15-20")] == [1, 1, 1, 1]
+    assert sum(item["valid_rollouts"] for item in strata.values()) == summary["valid_attempts"]
+    assert summary["trajectory_cost_task_macro"]["environment_steps"]["task_count"] == 2
+    assert len(summary["trajectory_cost_task_macro"]["action_tokens"]["task_cluster_bootstrap_95ci"]) == 2
+
+    quality = summary["json_action_quality"]
+    assert quality["model_decisions"] == 4
+    assert quality["strict_json_failure_rate"] == {"numerator": 1, "denominator": 4, "value": 0.25}
+    assert quality["schema_invalid_rate"] == {"numerator": 1, "denominator": 4, "value": 0.25}
+    assert quality["fallback_recovered_rate"] == {"numerator": 1, "denominator": 4, "value": 0.25}
+    assert quality["schema_error_rates"]["malformed_json"]["denominator"] == 4
+    assert quality["environment_action_failure_rate"] == {
+        "numerator": 1,
+        "denominator": 3,
+        "value": 1 / 3,
+    }
+
+
+def test_m4_json_quality_excludes_infrastructure_rollouts_from_decision_denominators():
+    records = _records()
+    records[-1]["rollout_valid"] = False
+    records[-1]["turns"][0].update(
+        {"strict_json_success": False, "schema_valid": False, "schema_errors": ["malformed_json"]}
+    )
+
+    summary = summarize_m4_evaluation(
+        records,
+        expected_task_count=2,
+        expected_rollouts_per_task=2,
+        bootstrap_samples=100,
+    )
+
+    quality = summary["json_action_quality"]
+    assert quality["valid_rollouts"] == 3
+    assert quality["model_decisions"] == 3
+    assert quality["strict_json_failure_rate"]["numerator"] == 0

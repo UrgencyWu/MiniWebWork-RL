@@ -756,8 +756,12 @@ def main() -> None:
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     tasks, task_source_hash = _load_tasks(task_dir, args.split)
+    available_task_count = len(tasks)
     if args.task_order_seed is not None:
         random.Random(args.task_order_seed).shuffle(tasks)
+    full_task_order_sha256 = hashlib.sha256(
+        "\n".join(task["task_id"] for task in tasks).encode("utf-8")
+    ).hexdigest()
     if args.max_tasks is not None:
         tasks = tasks[: args.max_tasks]
     task_order_sha256 = hashlib.sha256(
@@ -774,7 +778,6 @@ def main() -> None:
         args.temperature,
         args.top_p,
         args.top_k,
-        args.max_new_tokens,
     )
     distribution_tag = (
         f"t{_float_tag(args.temperature)}_p{_float_tag(args.top_p)}_k{args.top_k}"
@@ -893,6 +896,9 @@ def main() -> None:
                     "max_new_tokens": args.max_new_tokens,
                     "max_collected_action_tokens": args.max_collected_action_tokens,
                     "collected_action_tokens": collected_action_tokens,
+                    "available_task_count": available_task_count,
+                    "max_tasks": args.max_tasks,
+                    "full_task_order_sha256": full_task_order_sha256,
                     "requested_task_count": len(tasks),
                     "completed_task_count": len(groups),
                     "stopped_for_action_token_budget": stopped_for_action_token_budget,
@@ -939,6 +945,9 @@ def main() -> None:
             "max_new_tokens": args.max_new_tokens,
             "max_collected_action_tokens": args.max_collected_action_tokens,
             "collected_action_tokens": collected_action_tokens,
+            "available_task_count": available_task_count,
+            "max_tasks": args.max_tasks,
+            "full_task_order_sha256": full_task_order_sha256,
             "requested_task_count": len(tasks),
             "completed_task_count": len(groups),
             "stopped_for_action_token_budget": stopped_for_action_token_budget,

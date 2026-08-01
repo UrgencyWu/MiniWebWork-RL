@@ -9,8 +9,12 @@ from typing import Any
 
 from .m4_protocol import (
     COLLECTED_ACTION_TOKEN_CAP,
+    M4_TRAIN_TASK_COUNT,
     M4RunConfig,
+    ONLINE_PASS_ACTION_TOKEN_CAP,
+    RSFT_TRAIN_TASKS_PER_PASS,
     build_m4_run_manifest,
+    m4_task_roster_sha256,
 )
 
 OFFLINE_SUPERVISION_PASSES = 2
@@ -119,18 +123,64 @@ def _validate_rsft_corpus(data_dir: Path) -> dict[str, Any]:
         raise ValueError("M4 RSFT corpus has no selected successful trajectories")
     if not isinstance(manifest.get("source_adapter_sha256"), str):
         raise ValueError("M4 RSFT corpus does not identify its initial adapter")
-    if manifest.get("source_task_count") != 240:
-        raise ValueError("M4 RSFT corpus must audit all 240 train tasks")
+    source_task_ids = manifest.get("source_task_ids")
+    if (
+        not isinstance(source_task_ids, list)
+        or len(source_task_ids) != RSFT_TRAIN_TASKS_PER_PASS
+        or any(not isinstance(task_id, str) or not task_id for task_id in source_task_ids)
+        or len(set(source_task_ids)) != len(source_task_ids)
+    ):
+        raise ValueError("M4 RSFT corpus must declare the fixed unique source task roster")
+    if manifest.get("source_task_count") != RSFT_TRAIN_TASKS_PER_PASS:
+        raise ValueError("M4 RSFT corpus source task count drifted from the fixed budgeted roster")
+    if manifest.get("source_task_universe_count") != M4_TRAIN_TASK_COUNT:
+        raise ValueError("M4 RSFT corpus train universe does not match the frozen 240-task split")
+    expected_coverage = RSFT_TRAIN_TASKS_PER_PASS / M4_TRAIN_TASK_COUNT
+    coverage = manifest.get("source_task_coverage_fraction")
+    if not isinstance(coverage, (int, float)) or abs(float(coverage) - expected_coverage) > 1e-12:
+        raise ValueError("M4 RSFT corpus source task coverage is inconsistent with the fixed roster")
+    if manifest.get("source_task_roster_sha256") != m4_task_roster_sha256(source_task_ids):
+        raise ValueError("M4 RSFT corpus source task roster hash mismatch")
+    if manifest.get("source_pass_action_token_cap") != ONLINE_PASS_ACTION_TOKEN_CAP:
+        raise ValueError("M4 RSFT corpus pass cap drifted from the uniform generation budget")
+    per_pass_tokens = manifest.get("source_collected_action_tokens_per_pass")
+    if (
+        not isinstance(per_pass_tokens, list)
+        or len(per_pass_tokens) != OFFLINE_SUPERVISION_PASSES
+        or any(not isinstance(value, int) or value < 0 or value > ONLINE_PASS_ACTION_TOKEN_CAP for value in per_pass_tokens)
+        or manifest.get("source_total_collected_action_tokens") != sum(per_pass_tokens)
+        or sum(per_pass_tokens) > COLLECTED_ACTION_TOKEN_CAP
+    ):
+        raise ValueError("M4 RSFT corpus generated action-token accounting is invalid")
+    if manifest.get("source_roster_overlap_count") != RSFT_TRAIN_TASKS_PER_PASS:
+        raise ValueError("M4 RSFT corpus passes must share the complete fixed source roster")
+    overlap_fraction = manifest.get("source_roster_overlap_fraction")
+    if not isinstance(overlap_fraction, (int, float)) or abs(float(overlap_fraction) - 1.0) > 1e-12:
+        raise ValueError("M4 RSFT corpus pass-roster overlap must be exactly one")
+    if manifest.get("source_pass_indices") != [1, 2]:
+        raise ValueError("M4 RSFT corpus must preserve ordered source pass provenance")
     if (
         manifest.get("selected_task_count", 0)
         + manifest.get("unselected_task_count", 0)
         != manifest.get("source_task_count")
     ):
         raise ValueError("M4 RSFT selection counts do not cover the source task roster")
+    selection_audit = manifest.get("selection_audit")
+    if not isinstance(selection_audit, list) or len(selection_audit) != RSFT_TRAIN_TASKS_PER_PASS:
+        raise ValueError("M4 RSFT corpus selection audit does not cover the fixed source roster")
+    selection_task_ids = [item.get("task_id") for item in selection_audit if isinstance(item, dict)]
+    if len(selection_task_ids) != len(selection_audit) or set(selection_task_ids) != set(source_task_ids):
+        raise ValueError("M4 RSFT selection audit task IDs do not match the fixed source roster")
+    if sum(item.get("selected_episode_id") is not None for item in selection_audit) != manifest.get("selected_task_count"):
+        raise ValueError("M4 RSFT selection audit selected count is inconsistent")
     expected_hash = manifest.get("records_sha256")
     if not isinstance(expected_hash, str) or _sha256(data_dir / "train.jsonl") != expected_hash:
         raise ValueError("M4 RSFT corpus hash mismatch for train.jsonl")
-    _validate_jsonl_split(data_dir / "train.jsonl", expected_split="train", task_prefix="M4-TRAIN-")
+    train_task_ids = _validate_jsonl_split(
+        data_dir / "train.jsonl", expected_split="train", task_prefix="M4-TRAIN-"
+    )
+    if not train_task_ids.issubset(set(source_task_ids)):
+        raise ValueError("M4 RSFT optimizer rows contain tasks outside the fixed source roster")
     return {
         "kind": "verified_rsft",
         "data_dir": str(data_dir),
@@ -140,6 +190,9 @@ def _validate_rsft_corpus(data_dir: Path) -> dict[str, Any]:
         "records_sha256": expected_hash,
         "source_adapter_sha256": manifest["source_adapter_sha256"],
         "source_pass_indices": manifest.get("source_pass_indices"),
+        "source_task_count": manifest["source_task_count"],
+        "source_task_coverage_fraction": float(coverage),
+        "source_total_collected_action_tokens": manifest["source_total_collected_action_tokens"],
         "selection_boundary": manifest.get("selection_boundary"),
     }
 

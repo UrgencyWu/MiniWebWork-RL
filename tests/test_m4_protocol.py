@@ -5,8 +5,11 @@ import pytest
 
 from miniwebwork.m4_protocol import (
     M4RunConfig,
+    RSFT_TRAIN_TASKS_PER_PASS,
     STUDY_SEEDS,
     build_m4_run_manifest,
+    m4_rsft_train_task_roster,
+    m4_task_source_sha256,
     write_m4_run_manifest,
 )
 
@@ -24,6 +27,10 @@ def test_primary_matrix_configs_are_preflightable_without_test_leakage():
             assert manifest["config"]["seed"] == seed
             assert manifest["resolved_split"] == "train"
             assert manifest["hashes"]["train_public.jsonl"]
+            assert manifest["hashes"]["task_source_sha256"] == m4_task_source_sha256(
+                TASK_ROOT / "train", "train"
+            )
+            assert manifest["hashes"]["task_source_sha256"] != manifest["hashes"]["train_public.jsonl"]
             if algorithm in {"sft", "rsft"}:
                 assert "offline_training" in manifest["split_manifest"]["allowed_purposes"]
 
@@ -35,6 +42,20 @@ def test_protocol_rejects_unregistered_seed_and_wrong_online_collection_contract
         M4RunConfig("gspo", STUDY_SEEDS[0], "train", group_size=8).validate(
             task_root=TASK_ROOT
         )
+    with pytest.raises(ValueError, match="max_model_turns is fixed"):
+        M4RunConfig("rsft", STUDY_SEEDS[0], "train", max_model_turns=19).validate(
+            task_root=TASK_ROOT
+        )
+
+
+def test_rsft_fixed_roster_is_seeded_bounded_prefix_of_frozen_240_task_train_split():
+    first = m4_rsft_train_task_roster(TASK_ROOT, STUDY_SEEDS[0])
+    second = m4_rsft_train_task_roster(TASK_ROOT, STUDY_SEEDS[0])
+    other = m4_rsft_train_task_roster(TASK_ROOT, STUDY_SEEDS[1])
+    assert len(first) == RSFT_TRAIN_TASKS_PER_PASS == 12
+    assert len(set(first)) == len(first)
+    assert first == second
+    assert first != other
 
 
 def test_final_test_manifest_is_evaluation_only_and_write_is_idempotent(tmp_path: Path):
@@ -45,6 +66,9 @@ def test_final_test_manifest_is_evaluation_only_and_write_is_idempotent(tmp_path
     )
     assert manifest["resolved_split"] == "test"
     assert manifest["split_manifest"]["may_update_model"] is False
+    assert manifest["hashes"]["task_source_sha256"] == m4_task_source_sha256(
+        TASK_ROOT / "test", "test"
+    )
 
     output = tmp_path / "run_manifest.json"
     write_m4_run_manifest(output, manifest)

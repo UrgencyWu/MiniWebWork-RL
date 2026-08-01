@@ -19,12 +19,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from miniwebwork.m4_algorithms import ONLINE_ALGORITHMS
+from miniwebwork.m4_algorithms import ALL_ALGORITHMS
 from miniwebwork.m4_protocol import (
     DEFAULT_SEED_DIR,
     DEFAULT_TASK_ROOT,
+    M4_MAX_NEW_TOKENS,
     M4RunConfig,
     ONLINE_PASS_ACTION_TOKEN_CAP,
+    RSFT_TRAIN_TASKS_PER_PASS,
     build_m4_run_manifest,
     write_m4_run_manifest,
 )
@@ -39,8 +41,12 @@ def _collection_seed(study_seed: int, pass_index: int | None) -> int:
 
 
 def _action_token_budget(config: M4RunConfig) -> int | None:
-    """Split the fixed study-wide online budget evenly across two passes."""
-    return ONLINE_PASS_ACTION_TOKEN_CAP if config.phase == "train" else None
+    """Split the fixed generation budget for on-policy and RSFT train passes."""
+    return (
+        ONLINE_PASS_ACTION_TOKEN_CAP
+        if config.phase == "train" and config.algorithm_id != "sft"
+        else None
+    )
 
 
 def _collector_command(
@@ -96,7 +102,7 @@ def _collector_command(
         "--max-env-steps",
         str(config.max_environment_steps),
         "--max-new-tokens",
-        "128",
+        str(M4_MAX_NEW_TOKENS),
         "--output-dir",
         str(output_dir / "collector"),
         "--study-id",
@@ -116,9 +122,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--algorithm",
-        choices=sorted(ONLINE_ALGORITHMS | {"rsft"}),
+        choices=sorted(ALL_ALGORITHMS),
         required=True,
-        help="RSFT reuses strict train collection but never calls an online update.",
+        help="Collect a preregistered M4 algorithm's train or frozen evaluation rollouts.",
     )
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--phase", choices=("train", "dev", "final_test"), required=True)
@@ -132,6 +138,13 @@ def main() -> int:
     args = parser.parse_args()
     if args.max_tasks is not None and args.max_tasks <= 0:
         raise ValueError("max-tasks must be positive")
+    if args.algorithm == "sft" and args.phase == "train":
+        raise ValueError("SFT uses the audited offline corpus and cannot collect M4 train rollouts")
+    if args.algorithm == "rsft" and args.phase == "train" and args.max_tasks != RSFT_TRAIN_TASKS_PER_PASS:
+        raise ValueError(
+            f"RSFT train collection requires --max-tasks {RSFT_TRAIN_TASKS_PER_PASS} "
+            "to keep both fixed-budget passes on the same roster"
+        )
     adapter = args.adapter.expanduser().resolve()
     if not adapter.is_dir():
         raise FileNotFoundError(f"Adapter directory not found: {adapter}")
@@ -155,6 +168,7 @@ def main() -> int:
         "train_pass_index": args.train_pass_index,
         "max_collected_action_tokens": _action_token_budget(config),
         "task_order_seed": config.seed,
+        "max_tasks": args.max_tasks,
     }
     print(json.dumps({"run_manifest": manifest, "collector_command": command}, indent=2))
     if args.dry_run:

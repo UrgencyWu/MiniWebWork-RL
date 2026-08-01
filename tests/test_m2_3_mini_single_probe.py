@@ -1,5 +1,6 @@
 import importlib.util
 import inspect
+import sys
 from pathlib import Path
 
 import pytest
@@ -54,3 +55,65 @@ def test_collector_action_token_budget_reserves_whole_rollout_groups():
         max_model_turns=2,
         max_new_tokens=128,
     )
+
+
+def test_probe_main_passes_only_three_sampling_parameters_to_strict_distribution(
+    monkeypatch, tmp_path: Path
+):
+    probe = _load_probe_module()
+    seen: list[tuple[float, float, int]] = []
+
+    class StopBeforeGpu(Exception):
+        pass
+
+    def strict_spy(temperature: float, top_p: float, top_k: int) -> bool:
+        seen.append((temperature, top_p, top_k))
+        return True
+
+    def stop_load_policy(*args, **kwargs):
+        raise StopBeforeGpu
+
+    adapter = tmp_path / "adapter"
+    seed_dir = tmp_path / "seed"
+    adapter.mkdir()
+    seed_dir.mkdir()
+
+    monkeypatch.setattr(probe, "strict_raw_policy_distribution", strict_spy)
+    monkeypatch.setattr(
+        probe, "_load_tasks", lambda *args, **kwargs: ([{"task_id": "M4-TEST"}], "task-hash")
+    )
+    monkeypatch.setattr(probe, "_directory_sha256", lambda *args, **kwargs: "adapter-hash")
+    monkeypatch.setattr(probe, "_file_sha256", lambda *args, **kwargs: "prompt-hash")
+    monkeypatch.setattr(probe, "_git_sha", lambda: "test-sha")
+    monkeypatch.setattr(probe, "Heartbeat", lambda *args, **kwargs: None)
+    monkeypatch.setattr(probe, "load_policy", stop_load_policy)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "m2_3_mini_single_probe.py",
+            "--policy",
+            "custom",
+            "--policy-label",
+            "test",
+            "--adapter",
+            str(adapter),
+            "--task-dir",
+            str(tmp_path / "tasks"),
+            "--seed-dir",
+            str(seed_dir),
+            "--temperature",
+            "1.0",
+            "--top-p",
+            "1.0",
+            "--top-k",
+            "0",
+            "--output-dir",
+            str(tmp_path / "out"),
+        ],
+    )
+
+    with pytest.raises(StopBeforeGpu):
+        probe.main()
+
+    assert seen == [(1.0, 1.0, 0)]

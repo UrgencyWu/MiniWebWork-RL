@@ -17,6 +17,7 @@ repo_root="/home/wushaohua/data/MiniWebWork-RL"
 source /home/wushaohua/miniconda3/etc/profile.d/conda.sh
 conda activate miniwebwork
 cd "$repo_root"
+source scripts/m4_assert_frozen_git.sh
 
 python scripts/m4_train_offline.py \
   --algorithm sft \

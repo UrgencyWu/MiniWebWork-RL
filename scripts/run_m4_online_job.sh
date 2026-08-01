@@ -28,6 +28,7 @@ source /home/wushaohua/miniconda3/etc/profile.d/conda.sh
 conda activate miniwebwork
 repo_root="/home/wushaohua/data/MiniWebWork-RL"
 cd "$repo_root"
+source scripts/m4_assert_frozen_git.sh
 
 exec python scripts/m4_run_online.py \
   --algorithm "$algorithm" \

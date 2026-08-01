@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from miniwebwork.m4_offline import build_m4_offline_training_plan
+from miniwebwork.m4_protocol import RSFT_TRAIN_TASKS_PER_PASS, m4_task_roster_sha256
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +61,50 @@ def _write_sft_corpus(path: Path, train_task_id: str = "M4-TRAIN-W001-CHEAPEST_F
     return path
 
 
+def _write_rsft_corpus(path: Path) -> Path:
+    path.mkdir()
+    source_task_ids = [
+        f"M4-TRAIN-W{world:03d}-CHEAPEST_FEASIBLE"
+        for world in range(1, RSFT_TRAIN_TASKS_PER_PASS + 1)
+    ]
+    train = path / "train.jsonl"
+    rows = [{"split": "train", "task_id": source_task_ids[0]}]
+    train.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    selection_audit = [
+        {
+            "task_id": task_id,
+            "selected_episode_id": "selected" if index == 0 else None,
+        }
+        for index, task_id in enumerate(source_task_ids)
+    ]
+    manifest = {
+        "dataset_id": "m4_rsft_tokenized_v1",
+        "algorithm": "rsft",
+        "split": "train",
+        "source_passes": 2,
+        "source_adapter_sha256": "initial-adapter",
+        "source_pass_indices": [1, 2],
+        "source_task_universe_count": 240,
+        "source_task_count": RSFT_TRAIN_TASKS_PER_PASS,
+        "source_task_ids": source_task_ids,
+        "source_task_roster_sha256": m4_task_roster_sha256(source_task_ids),
+        "source_task_coverage_fraction": RSFT_TRAIN_TASKS_PER_PASS / 240,
+        "source_pass_action_token_cap": 125_000,
+        "source_collected_action_tokens_per_pass": [100, 100],
+        "source_total_collected_action_tokens": 200,
+        "source_roster_overlap_count": RSFT_TRAIN_TASKS_PER_PASS,
+        "source_roster_overlap_fraction": 1.0,
+        "selected_task_count": 1,
+        "unselected_task_count": RSFT_TRAIN_TASKS_PER_PASS - 1,
+        "sample_count": len(rows),
+        "records_sha256": _sha256(train),
+        "selection_audit": selection_audit,
+        "selection_boundary": "verified best-of-n train-only selection",
+    }
+    (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return path
+
+
 def _load_runner_module():
     path = ROOT / "scripts" / "m4_train_offline.py"
     spec = importlib.util.spec_from_file_location("m4_train_offline", path)
@@ -107,6 +152,42 @@ def test_sft_offline_plan_rejects_test_task_rows_even_when_hashes_match(tmp_path
             "sft",
             20260801,
             train_data_dir=data_dir,
+            task_root=TASK_ROOT,
+            seed_dir=SEED_DIR,
+        )
+
+
+def test_rsft_offline_plan_accepts_only_the_fixed_12_task_generation_roster(tmp_path: Path):
+    rsft_data = _write_rsft_corpus(tmp_path / "rsft")
+    validation_data = _write_sft_corpus(tmp_path / "validation")
+    plan = build_m4_offline_training_plan(
+        "rsft",
+        20260801,
+        train_data_dir=rsft_data,
+        validation_data_dir=validation_data,
+        task_root=TASK_ROOT,
+        seed_dir=SEED_DIR,
+    )
+
+    assert plan["train_data"]["kind"] == "verified_rsft"
+    assert plan["train_data"]["source_task_count"] == 12
+    assert plan["train_data"]["source_task_coverage_fraction"] == 0.05
+    assert plan["train_data"]["source_total_collected_action_tokens"] == 200
+
+
+def test_rsft_offline_plan_rejects_legacy_full_roster_claim_under_fixed_cap(tmp_path: Path):
+    rsft_data = _write_rsft_corpus(tmp_path / "bad_rsft")
+    manifest_path = rsft_data / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["source_task_count"] = 240
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="source task count drifted"):
+        build_m4_offline_training_plan(
+            "rsft",
+            20260801,
+            train_data_dir=rsft_data,
+            validation_data_dir=_write_sft_corpus(tmp_path / "validation"),
             task_root=TASK_ROOT,
             seed_dir=SEED_DIR,
         )
