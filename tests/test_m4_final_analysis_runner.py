@@ -42,6 +42,7 @@ def test_final_analysis_requires_collector_compatible_combined_task_source_hash(
         "complete": True,
         "study_id": "m4_rlvr_v1",
         "git_sha": manifest["git_sha"],
+        "prompt_contract": manifest["prompt_contract"],
         "split": "test",
         "study_seed": 20260801,
         "K": 4,
@@ -58,6 +59,13 @@ def test_final_analysis_requires_collector_compatible_combined_task_source_hash(
 
     artifact["task_source_sha256"] = manifest["hashes"]["test_public.jsonl"]
     with pytest.raises(ValueError, match="test task hash"):
+        module._validate_final_artifact(
+            artifact, algorithm="gspo", seed=20260801, run_manifest=manifest
+        )
+
+    artifact["task_source_sha256"] = manifest["hashes"]["task_source_sha256"]
+    artifact["prompt_contract"] = "browser_agent_v2"
+    with pytest.raises(ValueError, match="prompt contract"):
         module._validate_final_artifact(
             artifact, algorithm="gspo", seed=20260801, run_manifest=manifest
         )
@@ -277,4 +285,110 @@ def test_final_analysis_rejects_archived_or_nonstandard_final_artifact_paths(tmp
     with pytest.raises(ValueError, match="outside the standard"):
         module._require_standard_final_artifact_path(
             archived, algorithm="sft", seed=20260801, final_eval_root=final_root
+        )
+
+
+def test_final_analysis_requires_sft_fixed_effective_label_target_evidence(tmp_path: Path):
+    module = _load_module()
+    initial = tmp_path / "initial"
+    initial.mkdir()
+    adapter = tmp_path / "training" / "seed_20260801" / "final_adapter"
+    adapter.mkdir(parents=True)
+    source_statistics = {
+        "sample_count": 2460,
+        "effective_supervision_sample_count": 2460,
+        "zero_completion_label_sample_count": 0,
+        "zero_completion_label_sample_fraction": 0.0,
+        "completion_tokens_per_epoch": 48660,
+        "min_nonzero_completion_label_tokens": 8,
+        "max_nonzero_completion_label_tokens": 36,
+        "at_max_length_sample_count": 0,
+        "zero_completion_label_at_max_length_sample_count": 0,
+    }
+    statistics = {
+        "sample_count": 12690,
+        "effective_supervision_sample_count": 12690,
+        "zero_completion_label_sample_count": 0,
+        "zero_completion_label_sample_fraction": 0.0,
+        "completion_tokens_per_epoch": 249997,
+        "min_nonzero_completion_label_tokens": 8,
+        "max_nonzero_completion_label_tokens": 36,
+        "at_max_length_sample_count": 0,
+        "zero_completion_label_at_max_length_sample_count": 0,
+    }
+    selection = {
+        "mode": "seeded_repeated_full_example_permutations",
+        "seed": 20260801,
+        "target_supervised_completion_tokens": 250000,
+        "realized_supervised_completion_tokens": 249997,
+        "shortfall_supervised_completion_tokens": 3,
+        "min_nonzero_source_completion_label_tokens": 8,
+        "selected_occurrence_count": 12690,
+        "complete_examples_only": True,
+    }
+    semantics = "fixed effective completion-only supervised label-token target"
+    audit = {
+        "schema_version": "m4_sft_supervision_audit_v2",
+        "seed": 20260801,
+        "max_length": 6144,
+        "num_epochs": 1,
+        "statistics": statistics,
+        "source_statistics": source_statistics,
+        "budget_selection": selection,
+        "target_supervised_completion_tokens": 250000,
+        "max_zero_completion_label_fraction": 0.0,
+        "planned_supervised_completion_tokens": 249997,
+        "max_supervised_completion_tokens": 250000,
+        "budget_semantics": semantics,
+        "initial_adapter": str(initial),
+        "initial_adapter_sha256": "initial-hash",
+    }
+    audit_path = adapter.parent / "supervision_audit.json"
+    audit_path.write_text(json.dumps(audit))
+    metrics = {
+        "seed": 20260801,
+        "initial_adapter": str(initial),
+        "initial_adapter_sha256": "initial-hash",
+        "supervision_audit": str(audit_path),
+        "supervision_audit_sha256": module._sha256(audit_path),
+        "supervision_budget_semantics": semantics,
+        "completion_tokens_per_epoch": 249997,
+        "planned_supervised_completion_tokens": 249997,
+        "max_supervised_completion_tokens": 250000,
+        "target_supervised_completion_tokens": 250000,
+        "budget_selection": selection,
+        "source_supervision_statistics": source_statistics,
+        "max_zero_completion_label_fraction": 0.0,
+    }
+    run_manifest = {
+        "supervision_passes": 1,
+        "max_supervised_completion_tokens": 250000,
+        "training_budget": {
+            "mode": "fixed_effective_completion_label_token_target",
+            "target_supervised_completion_tokens": 250000,
+            "max_sequence_length": 6144,
+            "max_zero_completion_label_fraction": 0.0,
+        },
+    }
+    canonical = {"path": str(initial), "sha256": "initial-hash"}
+    result = module._validate_offline_supervision_audit(
+        algorithm="sft",
+        run_manifest=run_manifest,
+        metrics=metrics,
+        adapter=adapter,
+        canonical_initial_adapter=canonical,
+    )
+    assert result["mode"] == "fixed_effective_label_target"
+    assert result["shortfall_supervised_completion_tokens"] == 3
+
+    audit["budget_selection"]["shortfall_supervised_completion_tokens"] = 8
+    audit_path.write_text(json.dumps(audit))
+    metrics["supervision_audit_sha256"] = module._sha256(audit_path)
+    with pytest.raises(ValueError, match="fixed token-target"):
+        module._validate_offline_supervision_audit(
+            algorithm="sft",
+            run_manifest=run_manifest,
+            metrics=metrics,
+            adapter=adapter,
+            canonical_initial_adapter=canonical,
         )

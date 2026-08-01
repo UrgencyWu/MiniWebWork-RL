@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from miniwebwork.m4_protocol import (
+    M4_PROMPT_CONTRACT,
     M4RunConfig,
     RSFT_TRAIN_TASKS_PER_PASS,
     STUDY_SEEDS,
@@ -36,6 +37,8 @@ def test_primary_matrix_configs_are_preflightable_without_test_leakage():
             assert manifest["study_manifest"]["canonical_initial_adapter"]["relative_path"] == (
                 "outputs/m2_2r/seed_42/final_adapter"
             )
+            assert manifest["prompt_contract"] == M4_PROMPT_CONTRACT
+            assert manifest["hashes"]["prompt_system_sha256"]
             if algorithm in {"sft", "rsft"}:
                 assert "offline_training" in manifest["split_manifest"]["allowed_purposes"]
 
@@ -47,6 +50,7 @@ def test_study_manifest_anchors_the_designated_initial_adapter_by_path_and_conte
     )
     assert canonical["relative_path"] == "outputs/m2_2r/seed_42/final_adapter"
     assert canonical["sha256"] == study_manifest["canonical_initial_adapter"]["directory_sha256"]
+    assert study_manifest["prompt_contract"] == M4_PROMPT_CONTRACT
     with pytest.raises(ValueError, match="path does not match"):
         assert_m4_canonical_initial_adapter(TASK_ROOT, task_root=TASK_ROOT)
 

@@ -68,6 +68,8 @@ def _validate_artifact(
         raise PermissionError("M4 update accepts only strict M4 train artifacts")
     if artifact.get("git_sha") != run_manifest.get("git_sha"):
         raise ValueError("rollout artifact git SHA does not match the frozen M4 train manifest")
+    if artifact.get("prompt_contract") != run_manifest.get("prompt_contract"):
+        raise ValueError("rollout artifact prompt contract does not match the frozen M4 train manifest")
     if artifact.get("study_seed") != config.seed or artifact.get("collection_pass_index") != pass_index:
         raise ValueError("artifact study seed or pass index does not match this update")
     if artifact.get("K") != config.group_size:

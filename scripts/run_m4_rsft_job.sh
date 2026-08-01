@@ -25,5 +25,5 @@ source scripts/m4_assert_frozen_git.sh
 exec python scripts/m4_run_rsft.py \
   --seed "$study_seed" \
   --initial-adapter outputs/m2_2r/seed_42/final_adapter \
-  --sft-validation-data-dir outputs/m4_sft_corpus_v1 \
+  --sft-validation-data-dir outputs/m4_sft_corpus_v2 \
   --output-dir "outputs/m4_runs/rsft/seed_${study_seed}"

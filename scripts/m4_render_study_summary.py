@@ -77,6 +77,7 @@ def _require_summary(summary: Any, *, algorithm: str, seed: int) -> dict[str, An
         supervision_audit = summary["adapter_lineage"].get("supervision_audit")
         if not isinstance(supervision_audit, dict) or supervision_audit.get("mode") not in {
             "supervised",
+            "fixed_effective_label_target",
             "no_signal",
         }:
             raise ValueError(f"missing offline supervision audit for {algorithm}/{seed}")

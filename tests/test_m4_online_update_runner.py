@@ -24,12 +24,13 @@ def _load_module():
     return module
 
 
-def _artifact(task_hash: str, git_sha: str) -> dict:
+def _artifact(task_hash: str, git_sha: str, prompt_contract: str = "browser_agent_v3_compact") -> dict:
     return {
         "schema_version": "3.3",
         "complete": True,
         "study_id": "m4_rlvr_v1",
         "git_sha": git_sha,
+        "prompt_contract": prompt_contract,
         "split": "train",
         "study_seed": 20260801,
         "collection_pass_index": 1,
@@ -71,6 +72,18 @@ def test_online_update_runner_accepts_only_matching_strict_m4_train_artifact():
             run_manifest=manifest,
         )
 
+    artifact["task_source_sha256"] = manifest["hashes"]["task_source_sha256"]
+    artifact["prompt_contract"] = "browser_agent_v2"
+    with pytest.raises(ValueError, match="prompt contract"):
+        module._validate_artifact(
+            artifact,
+            config=config,
+            pass_index=1,
+            adapter_hash="adapter",
+            run_manifest=manifest,
+        )
+
+    artifact["prompt_contract"] = manifest["prompt_contract"]
     artifact["split"] = "test"
     with pytest.raises(PermissionError, match="train artifacts"):
         module._validate_artifact(

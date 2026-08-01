@@ -22,6 +22,6 @@ source scripts/m4_assert_frozen_git.sh
 python scripts/m4_train_offline.py \
   --algorithm sft \
   --seed "$study_seed" \
-  --train-data-dir outputs/m4_sft_corpus_v1 \
+  --train-data-dir outputs/m4_sft_corpus_v2 \
   --initial-adapter outputs/m2_2r/seed_42/final_adapter \
   --output-dir "outputs/m4_runs/sft/seed_${study_seed}"

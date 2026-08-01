@@ -7,14 +7,18 @@ from typing import Optional
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "prompts"
 
-MAX_VISIBLE_TEXT = 8000
+# M4 v2 compact context contract.  These are character/element limits rather
+# than a tokenizer-dependent runtime truncation so SFT, online collection and
+# frozen evaluation can all build byte-identical prompts from an Observation.
+MAX_VISIBLE_TEXT = 5000
 HISTORY_WINDOW = 5
-MAX_ELEMENTS = 100
-PROMPT_VERSION = "browser_agent_v2"
+MAX_CONTROL_ELEMENTS = 16
+MAX_LINK_ELEMENTS = 16
+PROMPT_VERSION = "browser_agent_v3_compact"
 
 
 def load_system_prompt(version: str = None) -> str:
-    """Load system prompt. Defaults to PROMPT_VERSION (canonical v2)."""
+    """Load the system prompt for the versioned shared context contract."""
     version = version or PROMPT_VERSION
     path = PROMPTS_DIR / f"{version}.txt"
     if path.exists():
@@ -27,20 +31,59 @@ def prompt_sha256(version: str = None) -> str:
     return hashlib.sha256(load_system_prompt(version).encode()).hexdigest()
 
 
+def _serialize_one_element(e) -> dict:
+    """Serialize the bounded, model-visible fields of one interactive element."""
+    d = {"element_id": e.element_id, "role": e.role, "name": e.name,
+         "testid": e.testid if e.testid else None, "disabled": e.disabled}
+    if e.tag in ("input", "textarea"):
+        d["value"] = e.value[:100] if e.value else ""
+    if e.tag == "select" and e.options:
+        d["options"] = e.options[:10]
+    if e.role in ("link", "button"):
+        d["text"] = e.text[:100] if e.text else ""
+    return d
+
+
 def _serialize_elements(observation) -> list:
-    """Compact element serialization for prompt."""
+    """Prioritize usable controls, then a bounded prefix of usable links.
+
+    A raw 100-element listing can consume most of the model context on a
+    product page.  The task filter/form controls are always more actionable
+    than the long product-link tail, so preserve them first and use a fixed
+    link budget.  The exact same deterministic selector is used by SFT and
+    every rollout path.
+    """
+    raw_elements = list(observation.elements or [])
+    controls = [
+        element
+        for element in raw_elements
+        if element.role != "link" and not element.disabled
+    ][:MAX_CONTROL_ELEMENTS]
+    links = [
+        element
+        for element in raw_elements
+        if element.role == "link" and not element.disabled
+    ][:MAX_LINK_ELEMENTS]
     els = []
-    for e in (observation.elements or [])[:MAX_ELEMENTS]:
-        d = {"element_id": e.element_id, "role": e.role, "name": e.name,
-             "testid": e.testid if e.testid else None, "disabled": e.disabled}
-        if e.tag in ("input", "textarea"):
-            d["value"] = e.value[:100] if e.value else ""
-        if e.tag == "select" and e.options:
-            d["options"] = e.options[:10]
-        if e.role in ("link", "button"):
-            d["text"] = e.text[:100] if e.text else ""
-        els.append(d)
+    for e in [*controls, *links]:
+        els.append(_serialize_one_element(e))
     return els
+
+
+def visible_element_ids(observation) -> set[str]:
+    """Expose the generic compact selector for dataset-contract validation."""
+    return {element["element_id"] for element in _serialize_elements(observation)}
+
+
+def context_contract() -> dict[str, int | str]:
+    """Return the versioned prompt limits recorded in M4 provenance."""
+    return {
+        "prompt_version": PROMPT_VERSION,
+        "max_visible_text_characters": MAX_VISIBLE_TEXT,
+        "history_window": HISTORY_WINDOW,
+        "max_control_elements": MAX_CONTROL_ELEMENTS,
+        "max_link_elements": MAX_LINK_ELEMENTS,
+    }
 
 
 def _serialize_history(history: list, window: int = HISTORY_WINDOW) -> list:
@@ -58,7 +101,7 @@ def _serialize_history(history: list, window: int = HISTORY_WINDOW) -> list:
 
 def build_messages(observation, history: list = None, version: str = None,
                    max_text: int = MAX_VISIBLE_TEXT, history_window: int = HISTORY_WINDOW) -> list:
-    """Build chat messages for the model. Defaults to PROMPT_VERSION (browser_agent_v2)."""
+    """Build chat messages for the model under the versioned compact contract."""
     version = version or PROMPT_VERSION
     system = load_system_prompt(version)
     history = history or []

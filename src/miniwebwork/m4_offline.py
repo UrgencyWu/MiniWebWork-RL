@@ -9,10 +9,14 @@ from typing import Any
 
 from .m4_protocol import (
     COLLECTED_ACTION_TOKEN_CAP,
+    M4_MAX_SEQUENCE_LENGTH,
+    M4_PROMPT_CONTRACT,
     M4_TRAIN_TASK_COUNT,
     M4RunConfig,
     ONLINE_PASS_ACTION_TOKEN_CAP,
     RSFT_TRAIN_TASKS_PER_PASS,
+    SFT_EFFECTIVE_COMPLETION_LABEL_TOKEN_TARGET,
+    SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION,
     build_m4_run_manifest,
     m4_task_roster_sha256,
 )
@@ -64,14 +68,14 @@ def _validate_sft_corpus(data_dir: Path) -> dict[str, Any]:
     if not isinstance(train, dict) or not isinstance(dev, dict):
         raise ValueError("M4 oracle SFT corpus must contain train and dev manifests")
     required_train = {
-        "dataset_id": "m4_oracle_sft_v1",
+        "dataset_id": "m4_oracle_sft_v2",
         "task_source_dataset_id": "m4_rlvr_v1",
         "task_split": "train",
         "purpose": "offline_training",
         "sample_split": "train",
     }
     required_dev = {
-        "dataset_id": "m4_oracle_sft_v1",
+        "dataset_id": "m4_oracle_sft_v2",
         "task_source_dataset_id": "m4_rlvr_v1",
         "task_split": "dev",
         "purpose": "model_selection",
@@ -87,6 +91,14 @@ def _validate_sft_corpus(data_dir: Path) -> dict[str, Any]:
             raise PermissionError(f"M4 SFT {name} manifest violates split boundary: {mismatches}")
     if train.get("task_count") != 240 or dev.get("task_count") != 72:
         raise ValueError("M4 SFT corpus must cover all 240 train and 72 dev tasks")
+    if manifest.get("prompt_contract") != M4_PROMPT_CONTRACT:
+        raise ValueError("M4 SFT corpus has the wrong shared prompt contract")
+    if train.get("prompt_contract") != M4_PROMPT_CONTRACT or dev.get("prompt_contract") != M4_PROMPT_CONTRACT:
+        raise ValueError("M4 SFT split manifests have the wrong shared prompt contract")
+    if not isinstance(manifest.get("prompt_system_sha256"), str) or not isinstance(
+        manifest.get("context_contract"), dict
+    ):
+        raise ValueError("M4 SFT corpus lacks compact prompt provenance")
     for filename, expected_hash in (
         ("train.jsonl", manifest.get("train_sha256")),
         ("valid.jsonl", manifest.get("valid_sha256")),
@@ -110,6 +122,9 @@ def _validate_sft_corpus(data_dir: Path) -> dict[str, Any]:
         "train_records_sha256": manifest["train_sha256"],
         "valid_records_sha256": manifest["valid_sha256"],
         "selection_boundary": manifest.get("selection_boundary"),
+        "prompt_contract": manifest["prompt_contract"],
+        "prompt_system_sha256": manifest["prompt_system_sha256"],
+        "context_contract": manifest["context_contract"],
     }
 
 
@@ -230,20 +245,41 @@ def build_m4_offline_training_plan(
     if algorithm_id == "sft":
         train_data = _validate_sft_corpus(train_data_dir)
         validation_data = train_data if validation_data_dir == train_data_dir else _validate_sft_corpus(validation_data_dir)
+        supervision_passes = 1
+        training_budget = {
+            "mode": "fixed_effective_completion_label_token_target",
+            "target_supervised_completion_tokens": SFT_EFFECTIVE_COMPLETION_LABEL_TOKEN_TARGET,
+            "max_sequence_length": M4_MAX_SEQUENCE_LENGTH,
+            "max_zero_completion_label_fraction": SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION,
+            "deterministic_packing": "seeded repeated permutations of complete tokenized examples",
+        }
+        budget_semantics = (
+            "fixed effective completion-only supervised label-token target packed from full examples; "
+            "source and realized label statistics are both audited"
+        )
     else:
         train_data = _validate_rsft_corpus(train_data_dir)
         validation_data = _validate_sft_corpus(validation_data_dir)
+        supervision_passes = OFFLINE_SUPERVISION_PASSES
+        training_budget = {
+            "mode": "two_selected_corpus_passes",
+            "max_supervised_completion_tokens": COLLECTED_ACTION_TOKEN_CAP,
+            "max_sequence_length": M4_MAX_SEQUENCE_LENGTH,
+        }
+        budget_semantics = (
+            "completion-only supervised label-token upper bound; realized labels and zero-label "
+            "truncation are audited separately from online generated action tokens"
+        )
     return {
-        "schema_version": "m4_offline_training_plan_v1",
+        "schema_version": "m4_offline_training_plan_v2",
         "run_manifest": run_manifest,
         "algorithm_id": algorithm_id,
         "study_seed": seed,
-        "supervision_passes": OFFLINE_SUPERVISION_PASSES,
+        "supervision_passes": supervision_passes,
         "max_supervised_completion_tokens": COLLECTED_ACTION_TOKEN_CAP,
-        "budget_semantics": (
-            "completion-only supervised label-token upper bound; realized labels and zero-label "
-            "truncation are audited separately from online generated action tokens"
-        ),
+        "max_sequence_length": M4_MAX_SEQUENCE_LENGTH,
+        "training_budget": training_budget,
+        "budget_semantics": budget_semantics,
         "train_data": train_data,
         "validation_data": validation_data,
         "selection_boundary": "valid.jsonl is evaluation/model-selection only; it is never optimizer input",

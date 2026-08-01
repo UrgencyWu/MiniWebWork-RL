@@ -36,25 +36,30 @@ def _write_sft_corpus(path: Path, train_task_id: str = "M4-TRAIN-W001-CHEAPEST_F
     valid.write_text("".join(json.dumps(row) + "\n" for row in valid_rows), encoding="utf-8")
     manifest = {
         "train": {
-            "dataset_id": "m4_oracle_sft_v1",
+            "dataset_id": "m4_oracle_sft_v2",
             "task_source_dataset_id": "m4_rlvr_v1",
             "task_split": "train",
             "purpose": "offline_training",
             "sample_split": "train",
             "task_count": 240,
             "sample_count": len(train_rows),
+            "prompt_contract": "browser_agent_v3_compact",
         },
         "dev": {
-            "dataset_id": "m4_oracle_sft_v1",
+            "dataset_id": "m4_oracle_sft_v2",
             "task_source_dataset_id": "m4_rlvr_v1",
             "task_split": "dev",
             "purpose": "model_selection",
             "sample_split": "dev",
             "task_count": 72,
             "sample_count": len(valid_rows),
+            "prompt_contract": "browser_agent_v3_compact",
         },
         "train_sha256": _sha256(train),
         "valid_sha256": _sha256(valid),
+        "prompt_contract": "browser_agent_v3_compact",
+        "prompt_system_sha256": "prompt-hash",
+        "context_contract": {"prompt_version": "browser_agent_v3_compact"},
         "selection_boundary": "dev examples are evaluation/model-selection only, never optimizer samples",
     }
     (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -114,7 +119,7 @@ def _load_runner_module():
     return module
 
 
-def test_sft_offline_plan_binds_two_passes_and_cap_to_the_m4_manifest(tmp_path: Path):
+def test_sft_offline_plan_binds_effective_label_target_to_the_m4_manifest(tmp_path: Path):
     data_dir = _write_sft_corpus(tmp_path / "sft")
     plan = build_m4_offline_training_plan(
         "sft",
@@ -124,7 +129,7 @@ def test_sft_offline_plan_binds_two_passes_and_cap_to_the_m4_manifest(tmp_path: 
         seed_dir=SEED_DIR,
     )
 
-    assert plan["supervision_passes"] == 2
+    assert plan["supervision_passes"] == 1
     assert plan["max_supervised_completion_tokens"] == 250_000
     assert plan["train_data"]["kind"] == "oracle_sft"
     assert plan["run_manifest"]["resolved_split"] == "train"
@@ -135,14 +140,17 @@ def test_sft_offline_plan_binds_two_passes_and_cap_to_the_m4_manifest(tmp_path: 
         output_dir=tmp_path / "run",
         initial_adapter=tmp_path / "adapter",
         base_model="model",
-        max_length=8192,
+        max_length=6144,
         learning_rate=2e-4,
         batch_size=1,
         grad_accum=16,
     )
-    assert command[command.index("--epochs") + 1] == "2"
+    assert command[command.index("--epochs") + 1] == "1"
     assert command[command.index("--initial-adapter") + 1].endswith("adapter")
     assert command[command.index("--max-supervised-completion-tokens") + 1] == "250000"
+    assert command[command.index("--target-supervised-completion-tokens") + 1] == "250000"
+    assert command[command.index("--budget-selection-seed") + 1] == "20260801"
+    assert command[command.index("--max-zero-completion-label-fraction") + 1] == "0.0"
 
 
 def test_sft_offline_plan_rejects_test_task_rows_even_when_hashes_match(tmp_path: Path):

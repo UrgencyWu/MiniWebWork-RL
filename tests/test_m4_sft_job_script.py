@@ -5,7 +5,7 @@ def test_m4_sft_job_script_declares_one_seed_argument_and_fixed_lineage():
     script = (Path(__file__).resolve().parents[1] / "scripts" / "run_m4_sft_job.sh").read_text()
     assert script.startswith("#!/usr/bin/env bash")
     assert "usage: $0 STUDY_SEED" in script
-    assert "outputs/m4_sft_corpus_v1" in script
+    assert "outputs/m4_sft_corpus_v2" in script
     assert "outputs/m2_2r/seed_42/final_adapter" in script
     assert "m4_assert_frozen_git.sh" in script
 
@@ -14,7 +14,7 @@ def test_m4_rsft_job_script_declares_fixed_control_lineage():
     script = (Path(__file__).resolve().parents[1] / "scripts" / "run_m4_rsft_job.sh").read_text()
     assert script.startswith("#!/usr/bin/env bash")
     assert "usage: $0 STUDY_SEED" in script
-    assert "outputs/m4_sft_corpus_v1" in script
+    assert "outputs/m4_sft_corpus_v2" in script
     assert "outputs/m2_2r/seed_42/final_adapter" in script
     assert "m4_assert_frozen_git.sh" in script
 

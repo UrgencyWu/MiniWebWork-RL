@@ -19,15 +19,20 @@ from .data_generation.m4_rlvr import (
     validate_m4_rlvr_dataset,
 )
 from .m4_algorithms import AlgorithmSpec, get_algorithm_spec
+from .model_agent import prompt_builder
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PROTOCOL_VERSION = "m4_rlvr_study_v1"
-STUDY_MANIFEST_SCHEMA_VERSION = "m4_study_manifest_v1"
-STUDY_MANIFEST_PATH = PROJECT_ROOT / "data" / "m4_study_manifest_v1.json"
+PROTOCOL_VERSION = "m4_rlvr_study_v2"
+STUDY_MANIFEST_SCHEMA_VERSION = "m4_study_manifest_v2"
+STUDY_MANIFEST_PATH = PROJECT_ROOT / "data" / "m4_study_manifest_v2.json"
 STUDY_SEEDS = (20260801, 20260802, 20260803)
 ONLINE_GROUP_SIZE = 4
 ONLINE_PASSES = 2
 COLLECTED_ACTION_TOKEN_CAP = 250_000
+M4_PROMPT_CONTRACT = "browser_agent_v3_compact"
+M4_MAX_SEQUENCE_LENGTH = 6144
+SFT_EFFECTIVE_COMPLETION_LABEL_TOKEN_TARGET = COLLECTED_ACTION_TOKEN_CAP
+SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION = 0.0
 EVAL_ROLLOUTS_PER_TASK = 4
 M4_MAX_ENVIRONMENT_STEPS = 20
 M4_MAX_MODEL_TURNS = 20
@@ -41,6 +46,11 @@ RSFT_TRAIN_TASKS_PER_PASS = ONLINE_PASS_ACTION_TOKEN_CAP // (
 )
 if RSFT_TRAIN_TASKS_PER_PASS <= 0:
     raise RuntimeError("M4 RSFT fixed roster must contain at least one complete K-way group")
+if prompt_builder.PROMPT_VERSION != M4_PROMPT_CONTRACT:
+    raise RuntimeError(
+        "M4 prompt-builder contract drift: "
+        f"expected {M4_PROMPT_CONTRACT}, got {prompt_builder.PROMPT_VERSION}"
+    )
 
 
 def _sha256(path: Path) -> str:
@@ -86,6 +96,8 @@ def load_m4_study_manifest(task_root: Path = DEFAULT_TASK_ROOT) -> dict[str, Any
         raise ValueError("M4 study manifest schema version is not supported")
     if payload.get("study_id") != DATASET_ID:
         raise ValueError("M4 study manifest study_id does not match the frozen dataset")
+    if payload.get("prompt_contract") != M4_PROMPT_CONTRACT:
+        raise ValueError("M4 study manifest prompt contract does not match the frozen protocol")
     declared = payload.get("canonical_initial_adapter")
     if not isinstance(declared, dict):
         raise ValueError("M4 study manifest lacks canonical_initial_adapter")
@@ -117,6 +129,7 @@ def load_m4_study_manifest(task_root: Path = DEFAULT_TASK_ROOT) -> dict[str, Any
             "path": str(canonical_path),
             "directory_sha256": declared_hash,
         },
+        "prompt_contract": payload["prompt_contract"],
     }
 
 
@@ -342,13 +355,16 @@ def build_m4_run_manifest(
                 "directory_sha256": study_manifest["canonical_initial_adapter"]["directory_sha256"],
             },
             "budget_contract": study_manifest["payload"].get("budget_contract"),
+            "prompt_contract": study_manifest["prompt_contract"],
         },
+        "prompt_contract": M4_PROMPT_CONTRACT,
         "split_manifest": split_manifest,
         "hashes": {
             "dataset_manifest_sha256": _sha256(task_root / "dataset_manifest.json"),
             "split_manifest_sha256": _sha256(task_dir / "m4_split_manifest.json"),
             "seed_manifest_sha256": _sha256(seed_dir / "manifest.json"),
             "task_source_sha256": m4_task_source_sha256(task_dir, config.split),
+            "prompt_system_sha256": prompt_builder.prompt_sha256(M4_PROMPT_CONTRACT),
             **{path.name: _sha256(path) for path in task_files},
         },
     }

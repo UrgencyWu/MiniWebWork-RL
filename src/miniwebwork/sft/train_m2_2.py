@@ -8,6 +8,7 @@ Uses standard HuggingFace Trainer with pre-tokenized data:
 import json
 import hashlib
 import os
+import random
 import sys
 import time
 from pathlib import Path
@@ -137,6 +138,11 @@ def prepare_dataset(ds, tokenizer, max_length: int, num_proc: int = 1) -> "datas
                 raise ValueError("pre-tokenized SFT row has inconsistent sequence lengths")
             if not any(label != -100 for label in example["labels"]):
                 raise ValueError("pre-tokenized SFT row has no completion labels")
+            if len(example["input_ids"]) > max_length:
+                raise ValueError(
+                    "pre-tokenized SFT row exceeds max_length: "
+                    f"{len(example['input_ids'])} > {max_length}"
+                )
         print(f"  Using {len(tokenized)} pre-tokenized completion-only rows")
         return tokenized
     print(f"  Tokenizing (max_length={max_length})...")
@@ -175,6 +181,7 @@ def completion_label_token_statistics(dataset, max_length: int | None = None) ->
     completion_tokens_per_epoch = 0
     at_max_length_sample_count = 0
     zero_completion_label_at_max_length_sample_count = 0
+    nonzero_label_counts: list[int] = []
     for example in dataset:
         sample_count += 1
         labels = example["labels"]
@@ -182,6 +189,7 @@ def completion_label_token_statistics(dataset, max_length: int | None = None) ->
         completion_tokens_per_epoch += label_count
         if label_count:
             effective_supervision_sample_count += 1
+            nonzero_label_counts.append(label_count)
         else:
             zero_completion_label_sample_count += 1
         if max_length is not None and len(example["input_ids"]) >= max_length:
@@ -196,6 +204,8 @@ def completion_label_token_statistics(dataset, max_length: int | None = None) ->
             zero_completion_label_sample_count / sample_count if sample_count else 0.0
         ),
         "completion_tokens_per_epoch": completion_tokens_per_epoch,
+        "min_nonzero_completion_label_tokens": min(nonzero_label_counts) if nonzero_label_counts else None,
+        "max_nonzero_completion_label_tokens": max(nonzero_label_counts) if nonzero_label_counts else None,
         "at_max_length_sample_count": at_max_length_sample_count,
         "zero_completion_label_at_max_length_sample_count": zero_completion_label_at_max_length_sample_count,
     }
@@ -204,6 +214,76 @@ def completion_label_token_statistics(dataset, max_length: int | None = None) ->
 def completion_label_token_count(dataset) -> int:
     """Count the exact supervised action-token labels in a prepared dataset."""
     return int(completion_label_token_statistics(dataset)["completion_tokens_per_epoch"])
+
+
+def pack_dataset_to_completion_token_budget(dataset, target_tokens: int, seed: int):
+    """Repeat deterministic full examples until no one fits the label-token target.
+
+    This packer deliberately never truncates or fractionalizes an action.  It
+    uses fresh seeded permutations of the whole tokenized source set, allowing
+    a fixed supervision-token budget even when browser trajectories have
+    unequal action lengths.  ``datasets.Dataset.select`` preserves duplicate
+    occurrences, while the list fallback keeps the helper unit-testable.
+    """
+    if not isinstance(target_tokens, int) or target_tokens <= 0:
+        raise ValueError("target_tokens must be a positive integer")
+    if not isinstance(seed, int):
+        raise ValueError("budget selection seed must be an integer")
+    label_counts = [sum(label != -100 for label in example["labels"]) for example in dataset]
+    eligible = [index for index, count in enumerate(label_counts) if count > 0]
+    if not eligible:
+        raise ValueError("cannot pack a dataset with no completion labels")
+    smallest = min(label_counts[index] for index in eligible)
+    if smallest > target_tokens:
+        raise ValueError(
+            "target supervised completion tokens cannot fit a full source example: "
+            f"target={target_tokens}, smallest={smallest}"
+        )
+
+    generator = random.Random(seed)
+    selected_indices: list[int] = []
+    occurrence_counts = [0] * len(label_counts)
+    remaining = target_tokens
+    completed_permutations = 0
+    while remaining >= smallest:
+        order = list(eligible)
+        generator.shuffle(order)
+        selected_this_permutation = 0
+        for index in order:
+            count = label_counts[index]
+            if count <= remaining:
+                selected_indices.append(index)
+                occurrence_counts[index] += 1
+                remaining -= count
+                selected_this_permutation += 1
+        if not selected_this_permutation:
+            break
+        completed_permutations += 1
+
+    realized = target_tokens - remaining
+    if hasattr(dataset, "select"):
+        packed_dataset = dataset.select(selected_indices)
+    else:
+        packed_dataset = [dataset[index] for index in selected_indices]
+    packed_statistics = completion_label_token_statistics(packed_dataset)
+    if packed_statistics["completion_tokens_per_epoch"] != realized:
+        raise RuntimeError("packed completion-label count disagrees with selected examples")
+    return packed_dataset, {
+        "mode": "seeded_repeated_full_example_permutations",
+        "seed": seed,
+        "target_supervised_completion_tokens": target_tokens,
+        "realized_supervised_completion_tokens": realized,
+        "shortfall_supervised_completion_tokens": remaining,
+        "min_nonzero_source_completion_label_tokens": smallest,
+        "source_sample_count": len(label_counts),
+        "source_effective_supervision_sample_count": len(eligible),
+        "selected_occurrence_count": len(selected_indices),
+        "selected_unique_source_sample_count": sum(count > 0 for count in occurrence_counts),
+        "source_repetition_min": min(occurrence_counts[index] for index in eligible),
+        "source_repetition_max": max(occurrence_counts[index] for index in eligible),
+        "completed_permutations": completed_permutations,
+        "complete_examples_only": True,
+    }
 
 
 def find_latest_checkpoint(seed_dir: Path) -> str | None:
@@ -295,6 +375,9 @@ def train_single_seed(
     grad_accum: int,
     resume_from_checkpoint: str = None,
     max_supervised_completion_tokens: int | None = None,
+    target_supervised_completion_tokens: int | None = None,
+    budget_selection_seed: int | None = None,
+    max_zero_completion_label_fraction: float | None = None,
     initial_adapter: Path | None = None,
 ) -> dict:
     """Train a single seed. Supports checkpoint resumption."""
@@ -321,6 +404,27 @@ def train_single_seed(
     train_dataset = prepare_dataset(train_dataset, tokenizer, max_length, num_proc=1)
     eval_dataset_raw = eval_dataset  # Keep raw for action metrics
     eval_dataset = prepare_dataset(eval_dataset, tokenizer, max_length, num_proc=1)
+    source_supervision_statistics = completion_label_token_statistics(train_dataset, max_length=max_length)
+    if max_zero_completion_label_fraction is not None:
+        if not 0.0 <= max_zero_completion_label_fraction <= 1.0:
+            raise ValueError("max_zero_completion_label_fraction must be in [0, 1]")
+        if source_supervision_statistics["zero_completion_label_sample_fraction"] > max_zero_completion_label_fraction:
+            raise ValueError(
+                "source zero-label completion fraction exceeds the declared maximum: "
+                f"{source_supervision_statistics['zero_completion_label_sample_fraction']} > "
+                f"{max_zero_completion_label_fraction}"
+            )
+    budget_selection = None
+    if target_supervised_completion_tokens is not None:
+        if num_epochs != 1:
+            raise ValueError("a fixed effective supervision-token target requires exactly one training epoch")
+        if budget_selection_seed is None:
+            raise ValueError("a fixed effective supervision-token target requires --budget-selection-seed")
+        if max_supervised_completion_tokens is not None and target_supervised_completion_tokens > max_supervised_completion_tokens:
+            raise ValueError("target supervised completion tokens exceed the declared upper cap")
+        train_dataset, budget_selection = pack_dataset_to_completion_token_budget(
+            train_dataset, target_supervised_completion_tokens, budget_selection_seed
+        )
     supervision_statistics = completion_label_token_statistics(train_dataset, max_length=max_length)
     completion_tokens_per_epoch = supervision_statistics["completion_tokens_per_epoch"]
     if completion_tokens_per_epoch <= 0:
@@ -341,15 +445,25 @@ def train_single_seed(
         if not initial_adapter.is_dir():
             raise FileNotFoundError(f"Initial adapter not found: {initial_adapter}")
         initial_adapter_hash = directory_sha256(initial_adapter)
+    budget_semantics = (
+        "fixed effective completion-only supervised label-token target packed from deterministic "
+        "full tokenized examples; not generated action-token equivalence"
+        if target_supervised_completion_tokens is not None
+        else "completion-only supervised label-token upper bound; not generated action-token equivalence"
+    )
     supervision_audit = {
-        "schema_version": "m4_sft_supervision_audit_v1",
+        "schema_version": "m4_sft_supervision_audit_v2",
         "seed": seed,
         "max_length": max_length,
         "num_epochs": num_epochs,
         "statistics": supervision_statistics,
+        "source_statistics": source_supervision_statistics,
+        "budget_selection": budget_selection,
+        "target_supervised_completion_tokens": target_supervised_completion_tokens,
+        "max_zero_completion_label_fraction": max_zero_completion_label_fraction,
         "planned_supervised_completion_tokens": planned_supervised_completion_tokens,
         "max_supervised_completion_tokens": max_supervised_completion_tokens,
-        "budget_semantics": "completion-only supervised label-token upper bound; not generated action-token equivalence",
+        "budget_semantics": budget_semantics,
         "cap_satisfied": (
             max_supervised_completion_tokens is None
             or planned_supervised_completion_tokens <= max_supervised_completion_tokens
@@ -364,7 +478,7 @@ def train_single_seed(
     supervision_audit_sha256 = hashlib.sha256(supervision_audit_path.read_bytes()).hexdigest()
     print(
         "  Supervision audit: "
-        f"{supervision_statistics['completion_tokens_per_epoch']} labels/epoch; "
+        f"{supervision_statistics['completion_tokens_per_epoch']} realized labels/epoch; "
         f"{supervision_statistics['zero_completion_label_sample_count']}/"
         f"{supervision_statistics['sample_count']} zero-label rows; "
         f"{supervision_statistics['zero_completion_label_at_max_length_sample_count']} at max length",
@@ -529,6 +643,10 @@ def train_single_seed(
         "planned_supervised_completion_tokens": planned_supervised_completion_tokens,
         "max_supervised_completion_tokens": max_supervised_completion_tokens,
         "supervision_statistics": supervision_statistics,
+        "source_supervision_statistics": source_supervision_statistics,
+        "budget_selection": budget_selection,
+        "target_supervised_completion_tokens": target_supervised_completion_tokens,
+        "max_zero_completion_label_fraction": max_zero_completion_label_fraction,
         "supervision_audit": str(supervision_audit_path),
         "supervision_audit_sha256": supervision_audit_sha256,
         "supervision_budget_semantics": supervision_audit["budget_semantics"],
@@ -562,6 +680,19 @@ def main():
     parser.add_argument("--grad-accum", type=int, default=DEFAULT_GRAD_ACCUM)
     parser.add_argument("--resume-from-checkpoint", type=str, default=None)
     parser.add_argument("--max-supervised-completion-tokens", type=int, default=None)
+    parser.add_argument(
+        "--target-supervised-completion-tokens",
+        type=int,
+        default=None,
+        help="Pack complete tokenized source examples to this deterministic label-token target.",
+    )
+    parser.add_argument(
+        "--budget-selection-seed",
+        type=int,
+        default=None,
+        help="Required with --target-supervised-completion-tokens.",
+    )
+    parser.add_argument("--max-zero-completion-label-fraction", type=float, default=None)
     parser.add_argument(
         "--initial-adapter",
         type=Path,
@@ -599,6 +730,9 @@ def main():
             grad_accum=args.grad_accum,
             resume_from_checkpoint=args.resume_from_checkpoint,
             max_supervised_completion_tokens=args.max_supervised_completion_tokens,
+            target_supervised_completion_tokens=args.target_supervised_completion_tokens,
+            budget_selection_seed=args.budget_selection_seed,
+            max_zero_completion_label_fraction=args.max_zero_completion_label_fraction,
             initial_adapter=args.initial_adapter,
         )
         all_metrics.append(metrics)
@@ -618,6 +752,9 @@ def main():
             "lora_alpha": LORA_ALPHA,
             "seeds": args.seeds,
             "max_supervised_completion_tokens": args.max_supervised_completion_tokens,
+            "target_supervised_completion_tokens": args.target_supervised_completion_tokens,
+            "budget_selection_seed": args.budget_selection_seed,
+            "max_zero_completion_label_fraction": args.max_zero_completion_label_fraction,
             "initial_adapter": str(args.initial_adapter) if args.initial_adapter else None,
         },
         "seeds": all_metrics,

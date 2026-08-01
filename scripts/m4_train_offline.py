@@ -18,13 +18,18 @@ from miniwebwork.m4_protocol import (
     DEFAULT_SEED_DIR,
     DEFAULT_TASK_ROOT,
     assert_m4_canonical_initial_adapter,
+    M4_MAX_SEQUENCE_LENGTH,
     write_m4_run_manifest,
 )
 
 def _trainer_command(plan: dict, *, output_dir: Path, initial_adapter: Path, base_model: str, max_length: int, learning_rate: float, batch_size: int, grad_accum: int) -> list[str]:
     if max_length <= 0 or batch_size <= 0 or grad_accum <= 0 or learning_rate <= 0:
         raise ValueError("M4 offline trainer settings must be positive")
-    return [
+    if max_length != plan["max_sequence_length"]:
+        raise ValueError(
+            f"M4 offline max_length is frozen at {plan['max_sequence_length']}, got {max_length}"
+        )
+    command = [
         sys.executable,
         str(PROJECT_ROOT / "src" / "miniwebwork" / "sft" / "train_m2_2.py"),
         "--base-model", base_model,
@@ -40,6 +45,14 @@ def _trainer_command(plan: dict, *, output_dir: Path, initial_adapter: Path, bas
         "--grad-accum", str(grad_accum),
         "--max-supervised-completion-tokens", str(plan["max_supervised_completion_tokens"]),
     ]
+    if plan["algorithm_id"] == "sft":
+        budget = plan["training_budget"]
+        command.extend([
+            "--target-supervised-completion-tokens", str(budget["target_supervised_completion_tokens"]),
+            "--budget-selection-seed", str(plan["study_seed"]),
+            "--max-zero-completion-label-fraction", str(budget["max_zero_completion_label_fraction"]),
+        ])
+    return command
 
 
 def main() -> int:
@@ -53,7 +66,7 @@ def main() -> int:
     parser.add_argument("--seed-dir", type=Path, default=DEFAULT_SEED_DIR)
     parser.add_argument("--initial-adapter", type=Path, required=True)
     parser.add_argument("--base-model", default="/data/share/model/Qwen3.5-4B")
-    parser.add_argument("--max-length", type=int, default=8192)
+    parser.add_argument("--max-length", type=int, default=M4_MAX_SEQUENCE_LENGTH)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--grad-accum", type=int, default=16)

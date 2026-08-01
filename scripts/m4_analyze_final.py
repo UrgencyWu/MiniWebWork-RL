@@ -27,6 +27,9 @@ from miniwebwork.m4_protocol import (
     DEFAULT_SEED_DIR,
     DEFAULT_TASK_ROOT,
     M4RunConfig,
+    M4_MAX_SEQUENCE_LENGTH,
+    SFT_EFFECTIVE_COMPLETION_LABEL_TOKEN_TARGET,
+    SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION,
     STUDY_SEEDS,
     assert_m4_canonical_initial_adapter,
     build_m4_run_manifest,
@@ -116,7 +119,7 @@ def _validate_offline_supervision_audit(
 
     audit_path = adapter.parent / "supervision_audit.json"
     audit = _load_json_object(audit_path, label="offline supervision audit")
-    if audit.get("schema_version") != "m4_sft_supervision_audit_v1":
+    if audit.get("schema_version") != "m4_sft_supervision_audit_v2":
         raise ValueError("offline supervision audit schema is unsupported")
     if audit.get("seed") != metrics.get("seed"):
         raise ValueError("offline supervision audit seed does not match training metrics")
@@ -153,19 +156,93 @@ def _validate_offline_supervision_audit(
     supervision_passes = run_manifest.get("supervision_passes")
     cap = run_manifest.get("max_supervised_completion_tokens")
     planned = audit.get("planned_supervised_completion_tokens")
-    if supervision_passes != 2 or cap != COLLECTED_ACTION_TOKEN_CAP:
-        raise ValueError("offline supervision plan does not use the preregistered two-pass upper cap")
-    if planned != labels_per_epoch * supervision_passes or planned > cap:
-        raise ValueError("offline realized supervised-label tokens violate the declared upper cap")
-    for key, expected in (
-        ("completion_tokens_per_epoch", labels_per_epoch),
-        ("planned_supervised_completion_tokens", planned),
-        ("max_supervised_completion_tokens", cap),
-    ):
+    training_budget = run_manifest.get("training_budget")
+    if not isinstance(training_budget, dict):
+        raise ValueError("offline run manifest lacks a frozen training budget")
+    if audit.get("max_length") != M4_MAX_SEQUENCE_LENGTH:
+        raise ValueError("offline supervision audit has the wrong frozen max sequence length")
+    if algorithm == "sft":
+        target = training_budget.get("target_supervised_completion_tokens")
+        if (
+            training_budget.get("mode") != "fixed_effective_completion_label_token_target"
+            or target != SFT_EFFECTIVE_COMPLETION_LABEL_TOKEN_TARGET
+            or training_budget.get("max_sequence_length") != M4_MAX_SEQUENCE_LENGTH
+            or training_budget.get("max_zero_completion_label_fraction")
+            != SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION
+            or supervision_passes != 1
+            or cap != SFT_EFFECTIVE_COMPLETION_LABEL_TOKEN_TARGET
+        ):
+            raise ValueError("SFT run does not use the preregistered effective-label token protocol")
+        source_statistics = audit.get("source_statistics")
+        if not isinstance(source_statistics, dict):
+            raise ValueError("SFT supervision audit lacks source label statistics")
+        source_zero_fraction = source_statistics.get("zero_completion_label_sample_fraction")
+        source_minimum = source_statistics.get("min_nonzero_completion_label_tokens")
+        if (
+            source_zero_fraction != SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION
+            or not isinstance(source_minimum, int)
+            or source_minimum <= 0
+            or audit.get("max_zero_completion_label_fraction") != SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION
+        ):
+            raise ValueError("SFT source corpus violates the zero-label supervision gate")
+        selection = audit.get("budget_selection")
+        if not isinstance(selection, dict):
+            raise ValueError("SFT supervision audit lacks deterministic budget-selection evidence")
+        if (
+            audit.get("target_supervised_completion_tokens") != target
+            or audit.get("num_epochs") != 1
+            or selection.get("mode") != "seeded_repeated_full_example_permutations"
+            or selection.get("seed") != audit.get("seed")
+            or selection.get("target_supervised_completion_tokens") != target
+            or selection.get("realized_supervised_completion_tokens") != planned
+            or selection.get("shortfall_supervised_completion_tokens") != target - planned
+            or selection.get("min_nonzero_source_completion_label_tokens") != source_minimum
+            or selection.get("complete_examples_only") is not True
+            or selection.get("selected_occurrence_count") != sample_count
+            or not 0 <= target - planned < source_minimum
+        ):
+            raise ValueError("SFT realized supervision labels violate the fixed token-target contract")
+        if planned != labels_per_epoch or planned > target:
+            raise ValueError("SFT planned supervised-label tokens do not match the packed epoch")
+        expected_metric_pairs = (
+            ("completion_tokens_per_epoch", labels_per_epoch),
+            ("planned_supervised_completion_tokens", planned),
+            ("max_supervised_completion_tokens", cap),
+            ("target_supervised_completion_tokens", target),
+            ("budget_selection", selection),
+            ("source_supervision_statistics", source_statistics),
+            ("max_zero_completion_label_fraction", SFT_MAX_ZERO_COMPLETION_LABEL_FRACTION),
+        )
+        result = {
+            "mode": "fixed_effective_label_target",
+            "target_supervised_completion_tokens": target,
+            "realized_supervised_completion_tokens": planned,
+            "shortfall_supervised_completion_tokens": target - planned,
+            "source_sample_count": source_statistics.get("sample_count"),
+            "source_zero_completion_label_sample_count": source_statistics.get(
+                "zero_completion_label_sample_count"
+            ),
+        }
+    else:
+        if (
+            training_budget.get("mode") != "two_selected_corpus_passes"
+            or supervision_passes != 2
+            or cap != COLLECTED_ACTION_TOKEN_CAP
+        ):
+            raise ValueError("RSFT supervision plan does not use the preregistered two-pass upper cap")
+        if planned != labels_per_epoch * supervision_passes or planned > cap:
+            raise ValueError("RSFT realized supervised-label tokens violate the declared upper cap")
+        expected_metric_pairs = (
+            ("completion_tokens_per_epoch", labels_per_epoch),
+            ("planned_supervised_completion_tokens", planned),
+            ("max_supervised_completion_tokens", cap),
+        )
+        result = {"mode": "supervised"}
+    for key, expected in expected_metric_pairs:
         if metrics.get(key) != expected:
             raise ValueError(f"offline metrics {key} does not match the supervision audit")
     return {
-        "mode": "supervised",
+        **result,
         "audit_path": str(audit_path.resolve()),
         "audit_sha256": _sha256(audit_path),
         "completion_tokens_per_epoch": labels_per_epoch,
@@ -478,6 +555,8 @@ def _validate_final_artifact(
         raise PermissionError("final analysis accepts only frozen M4 test artifacts")
     if artifact.get("git_sha") != run_manifest.get("git_sha"):
         raise ValueError("final artifact git SHA does not match the frozen M4 test manifest")
+    if artifact.get("prompt_contract") != run_manifest.get("prompt_contract"):
+        raise ValueError("final artifact prompt contract does not match the frozen M4 test manifest")
     if artifact.get("study_seed") != seed or artifact.get("K") != 4:
         raise ValueError("final artifact has the wrong study seed or rollout count")
     if artifact.get("task_source_sha256") != run_manifest["hashes"]["task_source_sha256"]:

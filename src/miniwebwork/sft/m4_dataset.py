@@ -16,8 +16,8 @@ from ..tasks import get_oracle, load_public_tasks
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_TASK_DIR = PROJECT_ROOT / "data" / "tasks" / "m4_rlvr_v1" / "train"
 DEFAULT_SEED_DIR = PROJECT_ROOT / "data" / "seed_m4_rlvr_v1"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "sft" / "m4_oracle_v1"
-DATASET_ID = "m4_oracle_sft_v1"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "sft" / "m4_oracle_v2"
+DATASET_ID = "m4_oracle_sft_v2"
 
 
 def _sha256(path: Path) -> str:
@@ -117,6 +117,12 @@ def build_m4_oracle_sft_dataset(
                 messages = prompt_builder.build_messages(observation, history)
                 action_object = expert.act(observation)
                 action = action_object.to_dict()
+                target = action.get("target")
+                if isinstance(target, str) and target and target not in prompt_builder.visible_element_ids(observation):
+                    raise RuntimeError(
+                        "M4 compact prompt contract hid an oracle action target: "
+                        f"task={task_id} turn={turn_index} target={target}"
+                    )
                 records.append(
                     {
                         "sample_id": f"{task_id}:turn:{turn_index}",
@@ -157,6 +163,8 @@ def build_m4_oracle_sft_dataset(
         "sample_count": len(records),
         "max_steps": max_steps,
         "prompt_contract": getattr(prompt_builder, "PROMPT_VERSION", "unknown"),
+        "prompt_system_sha256": prompt_builder.prompt_sha256(),
+        "context_contract": prompt_builder.context_contract(),
         "task_split_manifest_sha256": _sha256(task_dir / "m4_split_manifest.json"),
         "seed_manifest_sha256": _sha256(seed_dir / "manifest.json"),
         "output_filename": output_filename,
@@ -210,6 +218,9 @@ def build_m4_oracle_sft_corpus(
     manifest = {
         "schema_version": "1.0",
         "dataset_id": DATASET_ID,
+        "prompt_contract": prompt_builder.PROMPT_VERSION,
+        "prompt_system_sha256": prompt_builder.prompt_sha256(),
+        "context_contract": prompt_builder.context_contract(),
         "train": train,
         "dev": dev,
         "train_sha256": _sha256(output_dir / "train.jsonl"),
