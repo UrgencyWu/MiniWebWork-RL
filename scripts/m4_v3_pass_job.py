@@ -13,8 +13,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.m4_protocol import DEFAULT_SEED_DIR, DEFAULT_TASK_ROOT
-from miniwebwork.m4_v3_protocol import V3_STUDY_ID, assert_v3_initial_adapter
-from miniwebwork.m4_v3_protocol import write_v3_manifest
+from miniwebwork.m4_v3_protocol import (
+    V3_STUDY_ID,
+    assert_v3_initial_adapter,
+    load_v3_study_manifest,
+    write_v3_manifest,
+)
 
 
 def _artifact(directory: Path) -> Path:
@@ -36,10 +40,20 @@ def main() -> int:
     parser.add_argument("--base-model", default="/data/share/model/Qwen3.5-4B")
     args = parser.parse_args()
     input_adapter = args.input_adapter.expanduser().resolve()
+    canonical = None
     if args.pass_index == 1:
-        assert_v3_initial_adapter(input_adapter)
+        canonical = assert_v3_initial_adapter(input_adapter)
     elif not input_adapter.is_dir():
         raise FileNotFoundError(f"v3 pass input adapter not found: {input_adapter}")
+    if canonical is None:
+        study_payload = load_v3_study_manifest()
+        declared = study_payload["payload"]["canonical_initial_adapter"]
+        canonical = {
+            "path": str((PROJECT_ROOT / declared["relative_path"]).resolve()),
+            "relative_path": declared["relative_path"],
+            "sha256": declared["directory_sha256"],
+            "study_manifest_sha256": study_payload["sha256"],
+        }
     output_dir = args.output_dir.expanduser().resolve()
     update_report = output_dir / "update" / "online_update_report.json"
     summary_path = output_dir.parent / "online_run_summary.json"
@@ -96,6 +110,7 @@ def main() -> int:
             "seed": args.seed,
             "initial_adapter": pass1.get("source_adapter"),
             "initial_adapter_sha256": pass1.get("source_adapter_sha256"),
+            "canonical_initial_adapter": canonical,
             "passes": [
                 {
                     "pass_index": 1,

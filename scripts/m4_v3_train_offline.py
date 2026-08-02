@@ -37,6 +37,7 @@ def main() -> int:
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--grad-accum", type=int, default=16)
+    parser.add_argument("--resume-from-checkpoint", type=Path, default=None)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     train_data = args.train_data_dir.expanduser().resolve()
@@ -66,6 +67,11 @@ def main() -> int:
         "--budget-selection-seed", str(args.seed),
         "--max-zero-completion-label-fraction", "0.0",
     ]
+    if args.resume_from_checkpoint is not None:
+        checkpoint = args.resume_from_checkpoint.expanduser().resolve()
+        if not checkpoint.is_dir():
+            raise FileNotFoundError(f"resume checkpoint not found: {checkpoint}")
+        command.extend(["--resume-from-checkpoint", str(checkpoint)])
     manifest["offline_training"] = {
         "algorithm": args.algorithm,
         "train_data_dir": str(train_data),
@@ -75,7 +81,11 @@ def main() -> int:
         "max_sequence_length": V3_MAX_SEQUENCE_LENGTH,
         "max_zero_completion_label_fraction": 0.0,
         "command": command,
+        "resume_capable": True,
     }
+    manifest["initial_adapter"] = canonical["path"]
+    manifest["initial_adapter_sha256"] = canonical["sha256"]
+    manifest["canonical_initial_adapter"] = canonical
     print(json.dumps({"run_manifest": manifest, "trainer_command": command}, ensure_ascii=False, indent=2))
     if args.dry_run:
         return 0
