@@ -121,6 +121,20 @@ def main() -> int:
     config = M4RunConfig(args.algorithm, args.seed, "train")
     manifest = build_v3_run_manifest(config, task_root=args.task_root, seed_dir=args.seed_dir)
     output_dir = args.output_dir.expanduser().resolve()
+    existing_gate_path = output_dir / "v3_training_gate.json"
+    if existing_gate_path.is_file():
+        existing_gate = json.loads(existing_gate_path.read_text(encoding="utf-8"))
+        if (
+            existing_gate.get("complete") is True
+            and existing_gate.get("study_id") == V3_STUDY_ID
+            and existing_gate.get("algorithm") == args.algorithm
+            and existing_gate.get("seed") == args.seed
+            and existing_gate.get("git_sha") == manifest["git_sha"]
+        ):
+            print(json.dumps({"resumed_from_completed_gate": str(existing_gate_path)}, ensure_ascii=False))
+            return 0
+        if existing_gate.get("complete") is True:
+            raise ValueError("existing v3 training gate belongs to a different identity")
     command = [
         sys.executable,
         str(PROJECT_ROOT / "src" / "miniwebwork" / "sft" / "train_m2_2.py"),
@@ -189,6 +203,8 @@ def main() -> int:
     gate = {
         "schema_version": V3_STUDY_ID + "_offline_gate_v1",
         "study_id": V3_STUDY_ID,
+        "complete": True,
+        "git_sha": manifest["git_sha"],
         "algorithm": args.algorithm,
         "seed": args.seed,
         "target_supervised_completion_tokens": V3_TARGET_SUPERVISED_COMPLETION_TOKENS,
