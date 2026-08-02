@@ -99,10 +99,10 @@ def main() -> int:
         "resume_capable": True,
         "checkpoint_atomicity": "completed_K4_rollout_group",
     }
-    write_v3_manifest(output_dir / "resolved_run_manifest.json", manifest)
     print(json.dumps({"run_manifest": manifest, "collector_command": command}, ensure_ascii=False, indent=2))
     if args.dry_run:
         return 0
+    write_v3_manifest(output_dir / "resolved_run_manifest.json", manifest)
     subprocess.run(command, check=True)
     result = _artifact(collection_dir)
     artifact = json.loads(result.read_text(encoding="utf-8"))

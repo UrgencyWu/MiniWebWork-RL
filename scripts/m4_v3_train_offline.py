@@ -76,10 +76,10 @@ def main() -> int:
         "max_zero_completion_label_fraction": 0.0,
         "command": command,
     }
-    write_v3_manifest(output_dir / "resolved_run_manifest.json", manifest)
     print(json.dumps({"run_manifest": manifest, "trainer_command": command}, ensure_ascii=False, indent=2))
     if args.dry_run:
         return 0
+    write_v3_manifest(output_dir / "resolved_run_manifest.json", manifest)
     subprocess.run(command, check=True)
     audit = output_dir / "training" / f"seed_{args.seed}" / "supervision_audit.json"
     if not audit.is_file():

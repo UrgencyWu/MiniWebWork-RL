@@ -58,6 +58,8 @@ def main() -> int:
     adapter = initial_adapter
     for pass_index in (1, 2):
         pass_dir = output_dir / f"pass_{pass_index}"
+        if pass_index == 2 and adapter == initial_adapter:
+            adapter = output_dir / "pass_1" / "update" / "updated_adapter"
         plan.append({"pass_index": pass_index, "input_adapter": str(adapter), "pass_dir": str(pass_dir)})
         previous = pass_dir / "update" / "online_update_report.json"
         previous_payload = _report(previous)
@@ -69,7 +71,6 @@ def main() -> int:
         "checkpoint_atomicity": "completed_K4_rollout_group",
         "partial_group_policy": "discard_and_resample",
     }
-    write_v3_manifest(output_dir / "resolved_run_manifest.json", manifest)
     if args.dry_run:
         print(json.dumps({"run_manifest": manifest, "plan": plan}, ensure_ascii=False, indent=2))
         return 0
