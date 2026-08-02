@@ -3,6 +3,7 @@ import importlib.util
 import json
 import random
 import sys
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -55,6 +56,27 @@ def _load_probe():
     return module
 
 
+def _canonical_record_dicts(probe, raw_records):
+    record_fields = {field.name for field in fields(probe.RolloutRecord)}
+    step_fields = {field.name for field in fields(probe.RolloutStep)}
+    canonical = []
+    for raw in raw_records:
+        steps = [
+            probe.RolloutStep(**{key: value[key] for key in step_fields if key in value})
+            for value in raw.get("steps", [])
+        ]
+        payload = {
+            key: raw[key]
+            for key in record_fields
+            if key in raw and key != "steps"
+        }
+        payload["steps"] = steps
+        record = probe.RolloutRecord(**payload)
+        record.validate()
+        canonical.append(record.to_dict())
+    return canonical
+
+
 def test_resume_accepts_only_an_exact_completed_group_prefix(monkeypatch, tmp_path: Path):
     probe = _load_probe()
     tasks = [{"task_id": "M4-TRAIN-W001-CHEAPEST_FEASIBLE"}, {"task_id": "M4-TRAIN-W002-CHEAPEST_FEASIBLE"}]
@@ -87,6 +109,14 @@ def test_resume_accepts_only_an_exact_completed_group_prefix(monkeypatch, tmp_pa
     task_order_sha = hashlib.sha256("\n".join(task_order).encode("utf-8")).hexdigest()
     record = _record(task_order[0], 1, 0, success=True)
     records = [dict(record, rollout_index=index) for index in range(4)]
+    group_hash = hashlib.sha256(
+        json.dumps(
+            _canonical_record_dicts(probe, records),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
     resume = tmp_path / "incremental.json"
     resume.write_text(json.dumps({
         "complete": False,
@@ -109,7 +139,7 @@ def test_resume_accepts_only_an_exact_completed_group_prefix(monkeypatch, tmp_pa
         "completed_task_count": 1,
         "collected_action_tokens": 12,
         "stopped_for_action_token_budget": False,
-        "groups": [{"task_id": task_order[0]}],
+        "groups": [{"task_id": task_order[0], "group_sha256": group_hash}],
         "records": records,
     }), encoding="utf-8")
     monkeypatch.setattr(sys, "argv", [
@@ -123,3 +153,26 @@ def test_resume_accepts_only_an_exact_completed_group_prefix(monkeypatch, tmp_pa
     ])
     with pytest.raises(StopBeforeGpu):
         probe.main()
+
+
+def test_resume_identity_rejects_git_or_prompt_drift():
+    from miniwebwork.m4_v3_protocol import assert_resume_identity
+
+    expected = {
+        "schema_version": "m4_v3_collection_resume_v1",
+        "study_id": "m4_rlvr_v3",
+        "git_sha": "frozen-v3",
+        "prompt_contract": "browser_agent_v3_compact",
+        "dataset_manifest_sha256": "dataset",
+        "task_source_sha256": "tasks",
+        "pass_index": 1,
+        "study_seed": 20260801,
+        "adapter_sha256": "adapter",
+        "task_order_seed": 20260801,
+        "task_order_sha256": "order",
+        "group_size": 4,
+        "action_token_cap": 125000,
+    }
+    drifted = dict(expected, git_sha="edited-after-checkpoint")
+    with pytest.raises(ValueError, match="git_sha"):
+        assert_resume_identity(drifted, expected)

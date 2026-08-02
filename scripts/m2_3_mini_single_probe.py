@@ -644,6 +644,18 @@ def _metrics(records: list[RolloutRecord], groups: list[dict]) -> dict:
     }
 
 
+def _group_sha256(records: list[RolloutRecord]) -> str:
+    """Hash the complete ordered K-way group for recovery/audit purposes."""
+    payload = [record.to_dict() for record in records]
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _can_start_complete_task_group(
     collected_action_tokens: int,
     token_cap: int | None,
@@ -848,10 +860,24 @@ def main() -> None:
             raise ValueError("resume completed-task count disagrees with group evidence")
         if resume_completed_task_count > requested_task_count:
             raise ValueError("resume completed-task count exceeds requested task count")
+        expected_record_count = resume_completed_task_count * args.K
+        if len(resume_records) != expected_record_count:
+            raise ValueError(
+                "resume record count does not contain exactly one complete record group per task"
+            )
         prior_task_ids = [record.task_id for record in resume_records[:: max(args.K, 1)]]
         expected_prefix = [task["task_id"] for task in tasks[:resume_completed_task_count]]
         if prior_task_ids != expected_prefix:
             raise ValueError("resume records are not an exact prefix of the frozen task order")
+        for group_index, group in enumerate(resume_groups):
+            group_records = resume_records[group_index * args.K : (group_index + 1) * args.K]
+            if group.get("task_id") != group_records[0].task_id:
+                raise ValueError("resume group task identity disagrees with record evidence")
+            expected_group_hash = _group_sha256(group_records)
+            if group.get("group_sha256") != expected_group_hash:
+                raise ValueError(
+                    "resume group hash mismatch; partial or edited groups are not resumable"
+                )
         resume_collected_action_tokens = int(resume_payload.get("collected_action_tokens", 0))
         if not 0 <= resume_collected_action_tokens <= (args.max_collected_action_tokens or 2**63 - 1):
             raise ValueError("resume collected action tokens are invalid")
@@ -945,6 +971,7 @@ def main() -> None:
                 args.K,
                 update_distribution_compatible=group_compatible,
             ).to_dict()
+            group["group_sha256"] = _group_sha256(task_records)
             group["max_raw_sampling_logprob_abs_diff"] = max_difference
             group["strict_logprob_match_tolerance"] = STRICT_LOGPROB_MATCH_TOLERANCE
             groups.append(group)
@@ -1030,7 +1057,7 @@ def main() -> None:
             "available_task_count": available_task_count,
             "max_tasks": args.max_tasks,
             "full_task_order_sha256": full_task_order_sha256,
-            "requested_task_count": len(tasks),
+            "requested_task_count": requested_task_count,
             "completed_task_count": len(groups),
             "stopped_for_action_token_budget": stopped_for_action_token_budget,
             "logprob_contract": {

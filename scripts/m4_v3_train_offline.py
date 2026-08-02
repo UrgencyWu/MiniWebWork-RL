@@ -12,7 +12,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from miniwebwork.m4_protocol import DEFAULT_SEED_DIR, DEFAULT_TASK_ROOT, M4RunConfig
+from miniwebwork.m4_protocol import (
+    DEFAULT_SEED_DIR,
+    DEFAULT_TASK_ROOT,
+    M4RunConfig,
+    ONLINE_PASS_ACTION_TOKEN_CAP,
+    ONLINE_PASSES,
+    M4_TRAIN_TASK_COUNT,
+)
 from miniwebwork.m4_v3_protocol import (
     V3_MAX_SEQUENCE_LENGTH,
     V3_STUDY_ID,
@@ -21,6 +28,69 @@ from miniwebwork.m4_v3_protocol import (
     build_v3_run_manifest,
     write_v3_manifest,
 )
+
+
+def _validate_rsft_source_manifest(train_data: Path) -> dict:
+    path = train_data / "manifest.json"
+    if not path.is_file():
+        raise FileNotFoundError("v3 RSFT training requires its tokenized manifest.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    expected = {
+        "schema_version": "m4_rsft_tokenized_v3",
+        "dataset_id": "m4_rsft_tokenized_v3",
+        "algorithm": "rsft",
+        "split": "train",
+        "source_passes": ONLINE_PASSES,
+        "source_pass_indices": [1, 2],
+        "source_task_universe_count": M4_TRAIN_TASK_COUNT,
+        "source_pass_action_token_cap": ONLINE_PASS_ACTION_TOKEN_CAP,
+        "target_supervised_completion_tokens": V3_TARGET_SUPERVISED_COMPLETION_TOKENS,
+        "max_sequence_length": V3_MAX_SEQUENCE_LENGTH,
+        "zero_completion_label_sample_fraction": 0.0,
+        "packing": "deterministic_sorted_verified_rows_repeated_without_partial_examples",
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            raise ValueError(
+                f"v3 RSFT source manifest mismatch for {key}: "
+                f"{payload.get(key)!r} != {value!r}"
+            )
+    artifact_paths = payload.get("source_artifacts")
+    artifact_hashes = payload.get("source_artifact_sha256")
+    if not isinstance(artifact_paths, list) or len(artifact_paths) != ONLINE_PASSES:
+        raise ValueError("v3 RSFT source manifest must name both pass artifacts")
+    if not isinstance(artifact_hashes, list) or len(artifact_hashes) != ONLINE_PASSES:
+        raise ValueError("v3 RSFT source manifest lacks both artifact hashes")
+    forbidden = ("m4_invalidated", "m4_v2_runs", "443d8d7")
+    if any(any(fragment in str(path).lower() for fragment in forbidden) for path in artifact_paths):
+        raise ValueError("v3 RSFT source manifest references an excluded artifact namespace")
+    per_pass = payload.get("source_collected_action_tokens_per_pass")
+    if (
+        not isinstance(per_pass, list)
+        or len(per_pass) != ONLINE_PASSES
+        or any(not isinstance(value, int) or not 0 < value <= ONLINE_PASS_ACTION_TOKEN_CAP for value in per_pass)
+    ):
+        raise ValueError("v3 RSFT source manifest has invalid per-pass action-token accounting")
+    minimum = payload.get("min_nonzero_completion_label_tokens")
+    realized = payload.get("realized_supervised_completion_tokens")
+    shortfall = payload.get("shortfall_supervised_completion_tokens")
+    if not isinstance(minimum, int) or minimum <= 0:
+        raise ValueError("v3 RSFT source manifest lacks a positive minimum label count")
+    if not isinstance(realized, int) or realized <= 0 or not isinstance(shortfall, int):
+        raise ValueError("v3 RSFT source manifest has invalid realized supervision")
+    if shortfall < 0 or shortfall >= minimum:
+        raise ValueError("v3 RSFT source manifest does not meet the 250k target tolerance")
+    return {"path": str(path.resolve()), "sha256": _sha256(path), "payload": payload}
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def main() -> int:
@@ -44,6 +114,9 @@ def main() -> int:
     validation_data = args.validation_data_dir.expanduser().resolve()
     if not train_data.is_dir() or not validation_data.is_dir():
         raise FileNotFoundError("v3 offline training requires train and validation directories")
+    rsft_source_manifest = None
+    if args.algorithm == "rsft":
+        rsft_source_manifest = _validate_rsft_source_manifest(train_data)
     canonical = assert_v3_initial_adapter(args.initial_adapter)
     config = M4RunConfig(args.algorithm, args.seed, "train")
     manifest = build_v3_run_manifest(config, task_root=args.task_root, seed_dir=args.seed_dir)
@@ -83,6 +156,8 @@ def main() -> int:
         "command": command,
         "resume_capable": True,
     }
+    if rsft_source_manifest is not None:
+        manifest["offline_training"]["rsft_source_manifest"] = rsft_source_manifest
     manifest["initial_adapter"] = canonical["path"]
     manifest["initial_adapter_sha256"] = canonical["sha256"]
     manifest["canonical_initial_adapter"] = canonical
@@ -99,7 +174,17 @@ def main() -> int:
     if statistics.get("zero_completion_label_sample_fraction") != 0.0:
         raise ValueError("v3 offline training produced non-zero zero-label fraction")
     realized = statistics.get("completion_tokens_per_epoch")
-    if not isinstance(realized, int) or realized <= 0 or V3_TARGET_SUPERVISED_COMPLETION_TOKENS - realized >= 13:
+    minimum = statistics.get("min_nonzero_completion_label_tokens")
+    shortfall = V3_TARGET_SUPERVISED_COMPLETION_TOKENS - realized if isinstance(realized, int) else None
+    if (
+        not isinstance(realized, int)
+        or realized <= 0
+        or not isinstance(minimum, int)
+        or minimum <= 0
+        or not isinstance(shortfall, int)
+        or shortfall < 0
+        or shortfall >= minimum
+    ):
         raise ValueError("v3 offline training did not meet the auditable 250k target tolerance")
     gate = {
         "schema_version": V3_STUDY_ID + "_offline_gate_v1",
@@ -108,9 +193,13 @@ def main() -> int:
         "seed": args.seed,
         "target_supervised_completion_tokens": V3_TARGET_SUPERVISED_COMPLETION_TOKENS,
         "realized_supervised_completion_tokens": realized,
+        "shortfall_supervised_completion_tokens": shortfall,
+        "min_nonzero_completion_label_tokens": minimum,
         "zero_completion_label_sample_fraction": 0.0,
         "supervision_audit": str(audit),
     }
+    if rsft_source_manifest is not None:
+        gate["rsft_source_manifest"] = rsft_source_manifest
     write_v3_manifest(output_dir / "v3_training_gate.json", gate)
     return 0
 

@@ -52,11 +52,26 @@ def _load_artifact(path: Path, seed: int) -> tuple[dict[str, Any], list[Any]]:
     records = [_record_from_dict(row) for row in payload.get("records", [])]
     if not records:
         raise ValueError("v3 RSFT artifact has no records")
+    if len(records) != completed * ONLINE_GROUP_SIZE:
+        raise ValueError("v3 RSFT artifact does not contain exactly K records per group")
     task_counts: dict[str, int] = {}
     for record in records:
         task_counts[record.task_id] = task_counts.get(record.task_id, 0) + 1
     if any(value != ONLINE_GROUP_SIZE for value in task_counts.values()):
         raise ValueError("v3 RSFT requires complete K=4 groups")
+    for index, group in enumerate(groups):
+        group_records = records[index * ONLINE_GROUP_SIZE : (index + 1) * ONLINE_GROUP_SIZE]
+        if group.get("task_id") != group_records[0].task_id:
+            raise ValueError("v3 RSFT group task identity disagrees with records")
+        encoded = json.dumps(
+            [record.to_dict() for record in group_records],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        expected_hash = hashlib.sha256(encoded).hexdigest()
+        if group.get("group_sha256") != expected_hash:
+            raise ValueError("v3 RSFT group hash mismatch")
     return payload, records
 
 
@@ -137,6 +152,10 @@ def build_m4_v3_rsft_dataset(artifact_paths: list[Path], output_dir: Path, *, se
     all_records = [record for _, records in loaded for record in records]
     rows, selection_audit = _rows(all_records)
     packed, realized = _pack(rows, V3_TARGET_SUPERVISED_COMPLETION_TOKENS)
+    label_counts = [sum(value != -100 for value in row["labels"]) for row in rows]
+    minimum_nonzero_labels = min(label_counts) if label_counts else None
+    if not isinstance(minimum_nonzero_labels, int) or minimum_nonzero_labels <= 0:
+        raise ValueError("v3 RSFT selected rows must all have positive completion labels")
     text = "".join(json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n" for row in packed)
     selected_tasks = sorted({row["task_id"] for row in rows})
     pass_tasks = [sorted({record.task_id for record in records}) for _, records in loaded]
@@ -163,12 +182,17 @@ def build_m4_v3_rsft_dataset(artifact_paths: list[Path], output_dir: Path, *, se
         "source_pass_action_token_cap": ONLINE_PASS_ACTION_TOKEN_CAP,
         "source_collected_action_tokens_per_pass": [item["collected_action_tokens"] for item in artifacts],
         "source_total_collected_action_tokens": sum(item["collected_action_tokens"] for item in artifacts),
+        "source_group_sha256": [
+            [group["group_sha256"] for group in item["groups"]]
+            for item in artifacts
+        ],
         "selected_task_count": len(selected_tasks),
         "verified_source_row_count": len(rows),
         "sample_count": len(packed),
         "target_supervised_completion_tokens": V3_TARGET_SUPERVISED_COMPLETION_TOKENS,
         "realized_supervised_completion_tokens": realized,
         "shortfall_supervised_completion_tokens": V3_TARGET_SUPERVISED_COMPLETION_TOKENS - realized,
+        "min_nonzero_completion_label_tokens": minimum_nonzero_labels,
         "max_sequence_length": V3_MAX_SEQUENCE_LENGTH,
         "zero_completion_label_sample_fraction": 0.0,
         "records_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),

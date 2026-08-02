@@ -41,6 +41,43 @@ def _artifact(directory: Path) -> Path:
     return artifacts[0]
 
 
+def _reuse_completed_artifact(
+    directory: Path,
+    *,
+    manifest: dict,
+    split: str,
+    expected_task_count: int,
+    pass_index: int | None,
+) -> Path | None:
+    """Make a retried 24h allocation idempotent after a completed collection."""
+    paths = sorted((directory / "collector").glob("single_probe_*.json"))
+    if not paths:
+        return None
+    if len(paths) != 1:
+        raise ValueError(f"multiple v3 complete artifacts exist; refusing to guess: {paths}")
+    artifact = paths[0]
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    if payload.get("complete") is not True:
+        raise ValueError("collector directory contains a non-complete final artifact")
+    expected = {
+        "study_id": V3_STUDY_ID,
+        "git_sha": manifest["git_sha"],
+        "split": split,
+        "study_seed": manifest["config"]["seed"],
+        "collection_pass_index": pass_index,
+        "K": 4,
+        "max_tasks": None,
+        "available_task_count": expected_task_count,
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            raise ValueError(
+                f"existing v3 artifact identity mismatch for {key}: "
+                f"{payload.get(key)!r} != {value!r}"
+            )
+    return artifact
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--algorithm", choices=("sft", "rsft", "rloo", "grpo", "gspo"), required=True)
@@ -71,6 +108,16 @@ def main() -> int:
     collection_seed = _collection_seed(args.seed, args.pass_index or 0)
     split = "train" if args.phase == "train" else "test"
     expected_task_count = 240 if args.phase == "train" else SPLIT_WORLD_COUNTS["test"] * 4
+    existing = _reuse_completed_artifact(
+        collection_dir,
+        manifest=manifest,
+        split=split,
+        expected_task_count=expected_task_count,
+        pass_index=args.pass_index,
+    )
+    if existing is not None:
+        print(json.dumps({"resumed_from_completed_artifact": str(existing)}, ensure_ascii=False))
+        return 0
     command = [
         sys.executable,
         str(PROJECT_ROOT / "scripts" / "m2_3_mini_single_probe.py"),
@@ -99,7 +146,7 @@ def main() -> int:
             "--collection-pass-index", str(args.pass_index),
             "--max-collected-action-tokens", str(ONLINE_PASS_ACTION_TOKEN_CAP),
         ])
-    if args.phase == "train" and incremental.is_file():
+    if incremental.is_file():
         command.extend(["--resume-from", str(incremental)])
     manifest["collection"] = {
         "study_seed": args.seed,

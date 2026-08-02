@@ -1,6 +1,8 @@
+import hashlib
 import json
 from pathlib import Path
 
+from miniwebwork.sft.m4_rsft_dataset import _record_from_dict
 from miniwebwork.sft.m4_v3_rsft_dataset import _pack, build_m4_v3_rsft_dataset
 
 
@@ -47,6 +49,17 @@ def _artifact(pass_index: int):
         for task_id in task_ids
         for rollout_index in range(4)
     ]
+    groups = [{"task_id": task_id} for task_id in task_ids]
+    for index, task_id in enumerate(task_ids):
+        group_records = records[index * 4 : (index + 1) * 4]
+        canonical_records = [_record_from_dict(record).to_dict() for record in group_records]
+        encoded = json.dumps(
+            canonical_records,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        groups[index]["group_sha256"] = hashlib.sha256(encoded).hexdigest()
     return {
         "schema_version": "3.3",
         "complete": True,
@@ -74,7 +87,7 @@ def _artifact(pass_index: int):
         "completed_task_count": 12,
         "stopped_for_action_token_budget": True,
         "records": records,
-        "groups": [{"task_id": task_id} for task_id in task_ids],
+        "groups": groups,
         "collected_action_tokens": len(records) * 3,
     }
 
