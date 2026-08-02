@@ -701,6 +701,12 @@ def main() -> None:
     parser.add_argument("--split", choices=["train", "valid", "dev", "test"], default="valid")
     parser.add_argument("--max-tasks", type=int, default=None)
     parser.add_argument(
+        "--resume-from",
+        type=Path,
+        default=None,
+        help="Resume from an immutable incomplete artifact at a complete task-group boundary.",
+    )
+    parser.add_argument(
         "--task-order-seed",
         type=int,
         default=None,
@@ -764,6 +770,7 @@ def main() -> None:
     ).hexdigest()
     if args.max_tasks is not None:
         tasks = tasks[: args.max_tasks]
+    requested_task_count = len(tasks)
     task_order_sha256 = hashlib.sha256(
         "\n".join(task["task_id"] for task in tasks).encode("utf-8")
     ).hexdigest()
@@ -782,6 +789,77 @@ def main() -> None:
     distribution_tag = (
         f"t{_float_tag(args.temperature)}_p{_float_tag(args.top_p)}_k{args.top_k}"
     )
+    resume_records: list[RolloutRecord] = []
+    resume_groups: list[dict] = []
+    resume_collected_action_tokens = 0
+    resume_completed_task_count = 0
+    resume_stopped_for_action_token_budget = False
+    if args.resume_from is not None:
+        resume_path = args.resume_from.expanduser().resolve()
+        if not resume_path.is_file():
+            raise FileNotFoundError(f"resume artifact not found: {resume_path}")
+        resume_payload = json.loads(resume_path.read_text(encoding="utf-8"))
+        if resume_payload.get("complete") is not False:
+            raise ValueError("--resume-from must point to an incomplete artifact")
+        identity_fields = {
+            "git_sha": git_sha,
+            "policy": policy,
+            "temperature": args.temperature,
+            "top_p": args.top_p,
+            "top_k": args.top_k,
+            "K": args.K,
+            "seed": args.seed,
+            "study_seed": args.study_seed if args.study_seed is not None else args.seed,
+            "collection_pass_index": args.collection_pass_index,
+            "task_source_sha256": task_source_hash,
+            "task_order_seed": args.task_order_seed,
+            "task_order_sha256": task_order_sha256,
+            "adapter_sha256": adapter_hash,
+            "max_new_tokens": args.max_new_tokens,
+            "max_collected_action_tokens": args.max_collected_action_tokens,
+            "full_task_order_sha256": full_task_order_sha256,
+        }
+        for key, expected in identity_fields.items():
+            if resume_payload.get(key) != expected:
+                raise ValueError(
+                    f"resume identity mismatch for {key}: "
+                    f"{resume_payload.get(key)!r} != {expected!r}"
+                )
+        resume_groups = list(resume_payload.get("groups", []))
+        resume_records = []
+        record_fields = set(RolloutRecord.__dataclass_fields__)
+        step_fields = set(RolloutStep.__dataclass_fields__)
+        for raw_record in resume_payload.get("records", []):
+            steps = [
+                RolloutStep(**{key: value[key] for key in step_fields if key in value})
+                for value in raw_record.get("steps", [])
+            ]
+            record_payload = {
+                key: raw_record[key]
+                for key in record_fields
+                if key in raw_record and key != "steps"
+            }
+            record_payload["steps"] = steps
+            record = RolloutRecord(**record_payload)
+            record.validate()
+            resume_records.append(record)
+        resume_completed_task_count = int(resume_payload.get("completed_task_count", len(resume_groups)))
+        if resume_completed_task_count != len(resume_groups):
+            raise ValueError("resume completed-task count disagrees with group evidence")
+        if resume_completed_task_count > requested_task_count:
+            raise ValueError("resume completed-task count exceeds requested task count")
+        prior_task_ids = [record.task_id for record in resume_records[:: max(args.K, 1)]]
+        expected_prefix = [task["task_id"] for task in tasks[:resume_completed_task_count]]
+        if prior_task_ids != expected_prefix:
+            raise ValueError("resume records are not an exact prefix of the frozen task order")
+        resume_collected_action_tokens = int(resume_payload.get("collected_action_tokens", 0))
+        if not 0 <= resume_collected_action_tokens <= (args.max_collected_action_tokens or 2**63 - 1):
+            raise ValueError("resume collected action tokens are invalid")
+        resume_stopped_for_action_token_budget = bool(
+            resume_payload.get("stopped_for_action_token_budget", False)
+        )
+        tasks = tasks[resume_completed_task_count:]
+
     heartbeat = Heartbeat(
         output_dir / f"heartbeat_{args.policy}_{distribution_tag}.json",
         policy,
@@ -790,6 +868,10 @@ def main() -> None:
         args.top_k,
         len(tasks),
     )
+    if heartbeat is not None:
+        heartbeat.payload["tasks_done"] = resume_completed_task_count
+        heartbeat.payload["total_tasks"] = requested_task_count
+        heartbeat.write()
 
     backend, agent = load_policy(
         args.base_model,
@@ -798,13 +880,13 @@ def main() -> None:
         args.top_p,
         args.top_k,
     )
-    records: list[RolloutRecord] = []
-    groups: list[dict] = []
-    collected_action_tokens = 0
-    stopped_for_action_token_budget = False
+    records: list[RolloutRecord] = resume_records
+    groups: list[dict] = resume_groups
+    collected_action_tokens = resume_collected_action_tokens
+    stopped_for_action_token_budget = resume_stopped_for_action_token_budget
     started = time.time()
     try:
-        for task_index, task in enumerate(tasks, start=1):
+        for task_index, task in enumerate(tasks, start=resume_completed_task_count + 1):
             if not _can_start_complete_task_group(
                 collected_action_tokens,
                 args.max_collected_action_tokens,
@@ -899,7 +981,7 @@ def main() -> None:
                     "available_task_count": available_task_count,
                     "max_tasks": args.max_tasks,
                     "full_task_order_sha256": full_task_order_sha256,
-                    "requested_task_count": len(tasks),
+                    "requested_task_count": requested_task_count,
                     "completed_task_count": len(groups),
                     "stopped_for_action_token_budget": stopped_for_action_token_budget,
                     "groups": groups,

@@ -64,8 +64,9 @@ def _validate_artifact(
 ) -> None:
     if artifact.get("schema_version") != "3.3" or not artifact.get("complete"):
         raise ValueError("M4 update requires a complete schema-3.3 rollout artifact")
-    if artifact.get("study_id") != "m4_rlvr_v1" or artifact.get("split") != "train":
-        raise PermissionError("M4 update accepts only strict M4 train artifacts")
+    expected_study_id = run_manifest.get("study_id", "m4_rlvr_v1")
+    if artifact.get("study_id") != expected_study_id or artifact.get("split") != "train":
+        raise PermissionError("M4 update accepts only strict train artifacts for the active protocol")
     if artifact.get("git_sha") != run_manifest.get("git_sha"):
         raise ValueError("rollout artifact git SHA does not match the frozen M4 train manifest")
     if artifact.get("prompt_contract") != run_manifest.get("prompt_contract"):
@@ -117,6 +118,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--task-root", type=Path, default=DEFAULT_TASK_ROOT)
     parser.add_argument("--seed-dir", type=Path, default=DEFAULT_SEED_DIR)
+    parser.add_argument("--study-id", choices=("m4_rlvr_v1", "m4_rlvr_v3"), default="m4_rlvr_v1")
     parser.add_argument("--learning-rate", type=float, default=1e-6)
     parser.add_argument("--clip-epsilon", type=float, default=0.2)
     parser.add_argument("--gradient-clip", type=float, default=1.0)
@@ -135,7 +137,13 @@ def main() -> int:
         raise RuntimeError("M4 online update requires CUDA")
 
     config = M4RunConfig(args.algorithm, args.seed, "train")
-    run_manifest = build_m4_run_manifest(config, task_root=args.task_root, seed_dir=args.seed_dir)
+    if args.study_id == "m4_rlvr_v3":
+        from miniwebwork.m4_v3_protocol import build_v3_run_manifest, V3_STUDY_ID
+        run_manifest = build_v3_run_manifest(config, task_root=args.task_root, seed_dir=args.seed_dir)
+        if args.study_id != V3_STUDY_ID:
+            raise ValueError("v3 study identity mismatch")
+    else:
+        run_manifest = build_m4_run_manifest(config, task_root=args.task_root, seed_dir=args.seed_dir)
     artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
     helpers = _m3_helpers()
     adapter_hash = helpers._directory_sha256(adapter_dir)
@@ -237,7 +245,11 @@ def main() -> int:
         report["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
         _atomic_json_write(report_path, report)
         if report.get("complete"):
-            write_m4_run_manifest(output_dir / "resolved_run_manifest.json", report["run_manifest"])
+            if args.study_id == "m4_rlvr_v3":
+                from miniwebwork.m4_v3_protocol import write_v3_manifest
+                write_v3_manifest(output_dir / "resolved_run_manifest.json", report["run_manifest"])
+            else:
+                write_m4_run_manifest(output_dir / "resolved_run_manifest.json", report["run_manifest"])
         print(json.dumps(report, ensure_ascii=False, indent=2))
 
 

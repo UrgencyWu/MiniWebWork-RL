@@ -1,0 +1,56 @@
+{
+  "schema_version": "m4_study_manifest_v3",
+  "study_id": "m4_rlvr_v3",
+  "prompt_contract": "browser_agent_v3_compact",
+  "canonical_initial_adapter": {
+    "relative_path": "outputs/m2_2r/seed_42/final_adapter",
+    "directory_sha256": "85926fc27f409198605fdad7cb5c4a517f159fa6878928d9a32fd53dd7476b01"
+  },
+  "dataset_contract": {
+    "train_tasks": 240,
+    "dev_tasks": 72,
+    "test_tasks": 120,
+    "frozen_test_rollouts_per_task": 4,
+    "excluded_artifact_roots": ["outputs/m4_invalidated", "outputs/m4_v2_runs"]
+  },
+  "budget_contract": {
+    "online_and_rsft": {
+      "unit": "generated_action_tokens",
+      "total_cap": 250000,
+      "ordered_passes": 2,
+      "per_pass_cap": 125000,
+      "rollout_group_size": 4,
+      "task_roster": "full_240_train_roster_deterministic_order"
+    },
+    "sft_and_rsft_supervision": {
+      "unit": "effective_completion_only_supervised_label_tokens",
+      "target": 250000,
+      "max_sequence_length": 6144,
+      "max_zero_completion_label_fraction": 0.0,
+      "deterministic_packing": "complete_verified_examples_repeated_in_frozen_order"
+    }
+  },
+  "recovery_contract": {
+    "slurm_wall_time_limit": "24:00:00",
+    "checkpoint_atomicity": "completed_K4_rollout_group",
+    "partial_group_policy": "discard_and_resample",
+    "identity_fields": [
+      "git_sha",
+      "prompt_contract",
+      "dataset_manifest_sha256",
+      "task_source_sha256",
+      "pass_index",
+      "study_seed",
+      "adapter_sha256",
+      "task_order_seed",
+      "task_order_sha256",
+      "group_size",
+      "action_token_cap"
+    ]
+  },
+  "primary_matrix": {
+    "algorithms": ["sft", "rsft", "rloo", "grpo", "gspo"],
+    "study_seeds": [20260801, 20260802, 20260803],
+    "frozen_final_test": true
+  }
+}
