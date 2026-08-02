@@ -14,6 +14,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.m4_protocol import DEFAULT_SEED_DIR, DEFAULT_TASK_ROOT
 from miniwebwork.m4_v3_protocol import V3_STUDY_ID, assert_v3_initial_adapter
+from miniwebwork.m4_v3_protocol import write_v3_manifest
 
 
 def _artifact(directory: Path) -> Path:
@@ -41,6 +42,12 @@ def main() -> int:
         raise FileNotFoundError(f"v3 pass input adapter not found: {input_adapter}")
     output_dir = args.output_dir.expanduser().resolve()
     update_report = output_dir / "update" / "online_update_report.json"
+    summary_path = output_dir.parent / "online_run_summary.json"
+    if args.pass_index == 2 and args.algorithm != "rsft" and summary_path.is_file():
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        if payload.get("study_id") == V3_STUDY_ID and payload.get("complete") is True:
+            print(json.dumps({"resumed_from_completed_summary": True, "summary": str(summary_path)}))
+            return 0
     if args.algorithm != "rsft" and update_report.is_file():
         payload = json.loads(update_report.read_text(encoding="utf-8"))
         if payload.get("complete") and payload.get("passed"):
@@ -77,6 +84,36 @@ def main() -> int:
         "--seed-dir", str(args.seed_dir),
     ]
     subprocess.run(update, check=True)
+    if args.pass_index == 2:
+        pass1_report_path = output_dir.parent / "pass_1" / "update" / "online_update_report.json"
+        pass1 = json.loads(pass1_report_path.read_text(encoding="utf-8"))
+        pass2 = json.loads(update_report.read_text(encoding="utf-8"))
+        summary = {
+            "schema_version": V3_STUDY_ID + "_online_summary_v1",
+            "study_id": V3_STUDY_ID,
+            "complete": True,
+            "algorithm": args.algorithm,
+            "seed": args.seed,
+            "initial_adapter": pass1.get("source_adapter"),
+            "initial_adapter_sha256": pass1.get("source_adapter_sha256"),
+            "passes": [
+                {
+                    "pass_index": 1,
+                    "artifact": pass1.get("source_artifact"),
+                    "artifact_sha256": pass1.get("source_artifact_sha256"),
+                    "next_adapter": pass1.get("next_adapter"),
+                    "next_adapter_sha256": pass1.get("next_adapter_sha256"),
+                },
+                {
+                    "pass_index": 2,
+                    "artifact": pass2.get("source_artifact"),
+                    "artifact_sha256": pass2.get("source_artifact_sha256"),
+                    "next_adapter": pass2.get("next_adapter"),
+                    "next_adapter_sha256": pass2.get("next_adapter_sha256"),
+                },
+            ],
+        }
+        write_v3_manifest(summary_path, summary)
     print(json.dumps({"pass_index": args.pass_index, "artifact": str(artifact), "update": str(update_report)}))
     return 0
 
