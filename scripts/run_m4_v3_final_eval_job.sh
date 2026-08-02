@@ -4,6 +4,9 @@
 #SBATCH --time=24:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
+# Keep the CPU-side model/cache footprint bounded so multiple 1-GPU jobs
+# can share the 386 GB node when the scheduler has free accelerators.
+#SBATCH --mem=64G
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
