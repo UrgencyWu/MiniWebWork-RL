@@ -139,7 +139,9 @@ def main() -> int:
         "--max-env-steps", "20",
         "--max-new-tokens", "128",
         "--study-id", V3_STUDY_ID,
-        "--output-dir", str(collection_dir),
+        # Keep the immutable final artifact and incremental checkpoint in the
+        # standard collection/collector namespace used by the lineage gates.
+        "--output-dir", str(collection_dir / "collector"),
     ]
     if args.phase == "train":
         command.extend([
