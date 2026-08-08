@@ -543,6 +543,29 @@ Jobs 1297/1298 分别暴露新增长 token 测试夹具的 token SHA 与 traject
 Job 1299 得到 `36 passed`，完整 Job 1300 得到 `420 passed, 10 deselected`。
 提交后仍须在 clean SHA 重跑，并以全新 Step-aware GPU E2E 关闭正确性门禁。
 
+clean `613ae81e` 的 Job 1301 得到 `420 passed, 10 deselected`。Job 1302 随后以
+runtime v6 完成 8 个 K=4 group、32 trajectories、385 turns、7988 action tokens；
+parity mean/P95/P99/P99.9 为 `0.001586/0.000328/0.051070/0.233614`，clip coverage
+`0.1252%`、mean ratio `0.999851`，单点 max `0.552678` 仅诊断。它完成 2 次真实
+Step-aware update，参数变化 `0.03686`，adapter/rollout/optimizer、iteration manifest、
+run state、4 段 ledger、9 段 phase event 与 post-wake 生成全部独立核验通过。因此
+Step-aware 和分布感知 parity 正确性门禁关闭。
+
+Job 1302 的吞吐提高到 `414.11 trajectories/hour` 与 `103,371 action tokens/hour`；
+generation/learner/post-wake 最低显存余量为 `45.25%/44.62%/36.44%`，learner P50
+为 `100%`。但 generation utilization 仍为 P50=`11%`、mean=`24.66%`、P95=`58%`，
+说明浏览器/model 请求仍形成同步波而非显存不足。runtime v7 候选合同 SHA256 为
+`bada7b229be6eb80d978656cd325428c48d319c0c7b96418a82e3932a3a3755b`：保持研究语义、
+算法和 Slurm 1 GPU/8 CPU/48 GB 不变，仅将 vLLM/browser 在途上限扩至 64、并发
+K=4 槽扩至 16，KV 比例设为 `0.64`（64×6144 的 393,216-token 最坏容量需求），并
+按 batch 内 group index 以 `0.25s` 确定性错峰启动，打散 bulk-synchronous 空洞。
+必须由全新 E2E 的实际 KV capacity、利用率、显存与完整 wake 决定是否接受。
+
+runtime v7 定向 Job 1303 得到 `41 passed, 2 failed`：两项旧并发测试的 fake episode
+仅 40ms，短于 250ms 默认错峰，因而无法观测槽位重叠；这不是生产并发失败。将纯
+槽位测试显式设为零错峰、同时保留独立错峰时序测试后，Job 1304 得到 `43 passed`。
+完整非浏览器 Job 1305 随后得到 `422 passed, 10 deselected`。
+
 ## 11. 24 小时中断恢复与原子性
 
 Slurm wall time 固定不超过 24 小时。恢复单位分两层：

@@ -28,12 +28,13 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
     )
     assert payload["generation_contract"]["post_wake_generation_smoke_required"] is True
     assert payload["adapter_view_contract"] == EXPECTED_ADAPTER_VIEW_CONTRACT
-    assert payload["generation_contract"]["gpu_memory_utilization"] == 0.5
-    assert payload["generation_contract"]["maximum_sequences"] == 32
+    assert payload["generation_contract"]["gpu_memory_utilization"] == 0.64
+    assert payload["generation_contract"]["maximum_sequences"] == 64
     assert payload["rollout_contract"]["browser_worker_candidates"] == [
-        1, 2, 4, 8, 16, 32
+        1, 2, 4, 8, 16, 32, 64
     ]
-    assert payload["rollout_contract"]["maximum_concurrent_k4_groups"] == 8
+    assert payload["rollout_contract"]["maximum_concurrent_k4_groups"] == 16
+    assert payload["rollout_contract"]["group_launch_stagger_seconds"] == 0.25
     assert payload["rollout_contract"]["maximum_group_token_reserve"] == 10240
     assert payload["learner_contract"]["behavior_policy_staleness"] == 0
     assert {

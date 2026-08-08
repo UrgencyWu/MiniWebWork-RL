@@ -288,6 +288,41 @@ def test_global_budget_reservation_prevents_two_groups_being_inflight(tmp_path):
     assert maximum_active == 1
 
 
+def test_group_launches_are_deterministically_staggered(tmp_path):
+    tasks = tuple(
+        TaskDescriptor(f"TASK-{index}", f"family-{index}", "long")
+        for index in range(3)
+    )
+    identity = _identity(tasks)
+    store = CollectionStore(tmp_path / "collection", identity)
+    starts = []
+    lock = threading.Lock()
+
+    def monitored(group_id, task):
+        with lock:
+            starts.append((group_id, time.monotonic()))
+        return _runner(store, identity)(group_id, task)
+
+    report = collect_iteration(
+        store=store,
+        identity=identity,
+        tasks=tasks,
+        initial_sampler_state=None,
+        group_runner=monitored,
+        global_generated_action_tokens_before=0,
+        maximum_concurrent_groups=3,
+        group_launch_stagger_seconds=0.02,
+    )
+    assert report["committed_group_count"] == 3
+    assert [group_id for group_id, _ in starts] == [
+        "i0000-g0000",
+        "i0000-g0001",
+        "i0000-g0002",
+    ]
+    assert starts[1][1] - starts[0][1] >= 0.015
+    assert starts[2][1] - starts[1][1] >= 0.015
+
+
 def test_no_group_starts_when_global_budget_cannot_reserve_one_complete_k4(tmp_path):
     tasks = _tasks()
     identity = _identity(tasks)

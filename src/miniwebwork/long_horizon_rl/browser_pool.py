@@ -27,7 +27,7 @@ from .vllm_backend import (
     ThreadsafeVLLMBackend,
 )
 
-ALLOWED_BROWSER_WORKERS = (1, 2, 4, 8, 16, 32)
+ALLOWED_BROWSER_WORKERS = (1, 2, 4, 8, 16, 32, 64)
 
 
 def _require(condition: bool, message: str) -> None:

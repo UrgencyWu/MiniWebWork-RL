@@ -24,8 +24,8 @@ from .contracts import sha256_file
 from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
-RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v6"
-RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v6.json"
+RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v7"
+RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v7.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
     "run_identity_schema": "m4_long_horizon_run_identity_v3",
     "turn_schema": "m4_long_horizon_turn_evidence_v3",
@@ -164,6 +164,18 @@ PARITY_CALIBRATION = {
         "retain_single_token_maximum_as_diagnostic_only;fail_closed_on_exact_"
         "behavior_sampling_identity_plus_mean_p95_p99_p999_clip_fraction_and_mean_ratio"
     ),
+    "runtime_v6_step_aware_validation_job_id": 1302,
+    "runtime_v6_step_aware_token_count": 7988,
+    "runtime_v6_step_aware_mean_absolute_logprob_difference": 0.0015858009922818366,
+    "runtime_v6_step_aware_p95_absolute_logprob_difference": 0.0003283759579062462,
+    "runtime_v6_step_aware_p99_absolute_logprob_difference": 0.05106997489929199,
+    "runtime_v6_step_aware_p999_absolute_logprob_difference": 0.2336139678955078,
+    "runtime_v6_step_aware_maximum_absolute_log_ratio_diagnostic": 0.5526777505874634,
+    "runtime_v6_step_aware_initial_ratio_clip_fraction": 0.0012518778167250877,
+    "runtime_v6_step_aware_mean_importance_ratio": 0.9998510321734483,
+    "runtime_v6_step_aware_optimizer_updates": 2,
+    "runtime_v6_step_aware_parameter_change_norm": 0.03685925012247875,
+    "runtime_v6_step_aware_post_wake_behavior_sampling_maximum_absolute_difference": 0.0,
 }
 
 
@@ -246,21 +258,23 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         "sampling distribution drift",
     )
     _require(
-        math.isclose(generation.get("gpu_memory_utilization"), 0.5),
+        math.isclose(generation.get("gpu_memory_utilization"), 0.64),
         "vLLM memory fraction drift",
     )
-    _require(generation.get("maximum_sequences") == 32, "vLLM maximum sequences drift")
+    _require(generation.get("maximum_sequences") == 64, "vLLM maximum sequences drift")
     _require(
-        generation.get("maximum_full_length_kv_tokens_required") == 196_608,
+        generation.get("maximum_full_length_kv_tokens_required") == 393_216,
         "vLLM KV-capacity requirement drift",
     )
     _require(
-        generation.get("memory_calibration_job_id") == 1289,
-        "vLLM memory-calibration lineage drift",
+        generation.get("memory_capacity_projection_source_job_id") == 1302,
+        "vLLM memory-projection lineage drift",
     )
     _require(
-        generation.get("memory_calibration_observed_kv_tokens") == 553_344,
-        "vLLM observed KV capacity drift",
+        math.isclose(generation.get("memory_capacity_projection_source_utilization"), 0.5)
+        and generation.get("memory_capacity_projection_source_kv_tokens") == 319_968
+        and math.isclose(generation.get("memory_capacity_target_utilization"), 0.64),
+        "vLLM KV-capacity projection drift",
     )
     _require(
         generation.get("enable_prefix_caching") is False,
@@ -297,12 +311,16 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
 
     rollout = payload.get("rollout_contract", {})
     _require(
-        rollout.get("browser_worker_candidates") == [1, 2, 4, 8, 16, 32],
+        rollout.get("browser_worker_candidates") == [1, 2, 4, 8, 16, 32, 64],
         "worker candidates drift",
     )
     _require(
-        rollout.get("maximum_concurrent_k4_groups") == 8,
+        rollout.get("maximum_concurrent_k4_groups") == 16,
         "concurrent K4 group count drift",
+    )
+    _require(
+        math.isclose(rollout.get("group_launch_stagger_seconds"), 0.25),
+        "group launch stagger drift",
     )
     _require(rollout.get("persistent_browser_per_candidate") is True, "persistent browser disabled")
     _require(

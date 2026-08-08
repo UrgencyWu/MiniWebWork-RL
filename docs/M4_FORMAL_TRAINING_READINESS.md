@@ -43,10 +43,10 @@ SFT、GRPO 或 step-aware 作业。
 | SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
 | 异步 vLLM rollout | PARTIAL | clean `b9335f8` 的 Job 1295 用 32 lanes 完成 8 个原子 K=4 group、32 trajectories、385 turns 与 8040 action tokens，达到 371.55 trajectories/hour、93,353 action tokens/hour，并完成 learner/commit/wake；生成显存余量恢复到 45.25%、post-wake 为 36.44%，但 generation GPU util P50 仍为 11%，性能门禁未关闭 |
 | 迭代 learner / GRPO | PASS | Job 1289 完成真实 tensor replay、分层 clipped loss、2 policy epochs和 2 次非零 optimizer update；参数变化范数 `0.03717`，adapter/rollout adapter/optimizer 三工件及 semantic SHA 原子推进到 `policy_0001`，随后同卡 wake 并完成更新后真实生成。学习报告、iteration manifest、run state、四段 ledger 和九段 phase event 的内容哈希/链式哈希全部独立复核一致 |
-| Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一，并已接入共享 tensor learner；Job 1296 已完成真实 32-trajectory collection，但在 optimizer 前被单个有限 replay max 误拒绝，待 runtime v6 全新同卡 update/commit/wake smoke |
-| On-policy / parity 门禁 | PARTIAL | 错误命名空间负对照 Job 1267 的 mean/P95/max 为 `1.18677/10.12739/21.51204`，仍会被 mean、P95/P99/P99.9、clip coverage 与 mean-ratio 多门禁拒绝。Job 1295 全部分布门禁通过；Job 1296 的 mean/P95/P99/P99.9/clip/mean-ratio 也全部通过，却仅因 8144 token 中单点 max-log-ratio `2.66791` 被拒。runtime v6 因而把 finite single-token max 保留为诊断、移出 pass/fail；须经回归和全新 GPU run 后才可恢复 PASS，历史结果不追溯改判 |
+| Step-aware 信用分配 | PASS | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一。clean `613ae81e` 的 Job 1302 在全新 32-trajectory collection 上完成 2 次真实 Step-aware optimizer update，参数变化 `0.03686`，三工件原子提交、同卡 wake 与更新后真实生成全部通过 |
+| On-policy / parity 门禁 | PASS | 错误命名空间负对照 Job 1267 仍被多项分布门禁以数量级差距拒绝。Job 1302 的 mean/P95/P99/P99.9/clip/mean-ratio 为 `0.001586/0.000328/0.051070/0.233614/0.1252%/0.999851`，全部通过；finite single-token max `0.552678` 原样报告但不作判定。behavior/sampling 精确一致，历史 v1–v5 结果不追溯改判 |
 | 24 小时原子恢复 | PARTIAL | v3 journal 使用 cached hash-chain append+flush+fsync，并用 stat 加有界头尾内容哨兵适配远端粗粒度时间戳；先持久化最小 token charge、再原子落 full turn/trajectory/group；不完整 attempt 保留成本并定点归档；iteration v2 原子提交、run_state 向前对账与 partial-stage fault injection 已通过；若更新已提交但缺少完整报告，则保留 commit 但明确判同卡 wake 门禁失败，绝不补写 PASS；旧 v2 root 因 schema/runtime/git 身份不一致 fail closed，待全新 root 的真实 Slurm 进程中断/续跑 smoke |
-| GPU 性能门禁 | PARTIAL | Job 1295 的 rollout 为 371.55 trajectories/hour、learner P50=100%，显存门禁均通过；KV 比例 0.5 将 generation/post-wake 余量改善至 45.25%/36.44%。但 32 lanes 的 generation P50 仍为 11%（mean 21.55%、P95 59%），有效 optimizer-token 比例仅 13.74%（如实报告，不硬凑）；仍需调度去相位/更高安全并发与累计 30 分钟 soak，且 Slurm 请求保持 1 GPU/8 CPU/48 GB |
+| GPU 性能门禁 | PARTIAL | Job 1302 达到 414.11 trajectories/hour、103,371 action tokens/hour，learner P50=100%，generation/learner/post-wake 最低显存余量为 45.25%/44.62%/36.44%；但 32 lanes 的 generation P50 仍为 11%（mean 24.66%、P95 58%），有效 optimizer-token 比例 13.83%（如实报告）。runtime v7 仅把单卡在途上限扩至 64、K=4 槽扩至 16 并以 0.25 秒确定性错峰；Slurm 请求仍为 1 GPU/8 CPU/48 GB，待 E2E 与累计 30 分钟 soak |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
 
@@ -258,6 +258,11 @@ wall time                 <=24h per Slurm job
 | 1298 | pre-commit working tree（基于 `b9335f8`） | runtime v6 定向 parity 回归 | 2 CPU / 8 GB / 24 h 上限 | `FAILED 1:0`；`35 passed, 1 failed`，测试夹具未同步 trajectory 聚合 token 计数；生产校验未失败，保留为测试证据诊断 |
 | 1299 | pre-commit working tree（基于 `b9335f8`） | runtime v6 修正后定向 parity 回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`36 passed`；孤立 finite max 仅诊断、分布级错配仍 fail-closed，PASS |
 | 1300 | pre-commit working tree（基于 `b9335f8`） | runtime v6 完整非浏览器 CPU 回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`420 passed, 10 deselected`；PASS，仍需提交后 clean SHA 回归 |
+| 1301 | `613ae81e4e4f0d7786bb92d67b2f571096da2f51` | runtime v6 clean 非浏览器 CPU 回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`420 passed, 10 deselected`；PASS |
+| 1302 | `613ae81e4e4f0d7786bb92d67b2f571096da2f51` | runtime v6 32-lane Step-aware online E2E | 1 GPU / 8 CPU / 48 GB / 24 h 上限 | `COMPLETED 0:0`，16:59；8 个 K=4 group、7988 tokens、2 次真实 update、原子 adapter/optimizer/manifest/run-state/ledger、同卡 wake 与 post-wake 真实生成全部 PASS；414.11 trajectories/hour，但 generation P50=11%，故正确性 PASS、性能 `NOT_READY` |
+| 1303 | pre-commit working tree（基于 `613ae81e`） | runtime v7 64-lane/错峰定向回归 | 2 CPU / 8 GB / 24 h 上限 | `FAILED 1:0`；`41 passed, 2 failed`，旧并发测试的 40ms fake episode 短于新 250ms 默认错峰，故只能观测到 4 lanes；生产代码未失败，促成测试尺度隔离 |
+| 1304 | pre-commit working tree（基于 `613ae81e`） | runtime v7 修正后定向回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`43 passed`；8/32/64-lane 槽位测试显式关闭错峰，独立测试验证确定性错峰，PASS |
+| 1305 | pre-commit working tree（基于 `613ae81e`） | runtime v7 完整非浏览器 CPU 回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`422 passed, 10 deselected`；PASS，仍需提交后 clean SHA 回归 |
 
 Jobs 1272–1277、1281 与 1286 的脚本和安装均位于已失败 run 的 `diagnostics/` 输出空间，没有写入
 tracked 路径、共享 Conda 或正式输出根目录。这些作业只回答 backend parity 的

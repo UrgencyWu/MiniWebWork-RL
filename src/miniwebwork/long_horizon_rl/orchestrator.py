@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +22,8 @@ from .rollout import admit_next_group
 from .sampler import DeterministicSignalSampler, TaskDescriptor, TaskSignal
 
 COLLECTION_ORCHESTRATOR_SCHEMA = "m4_long_horizon_collection_orchestrator_v1"
-MAXIMUM_CONCURRENT_K4_GROUPS = 8
+MAXIMUM_CONCURRENT_K4_GROUPS = 16
+GROUP_LAUNCH_STAGGER_SECONDS = 0.25
 MAXIMUM_ZERO_TOKEN_NO_PROGRESS_BATCHES = 3
 TRAIN_PUBLIC_PATH = DATASET_ROOT / "train" / "train_public.jsonl"
 
@@ -204,6 +206,7 @@ def collect_iteration(
     maximum_concurrent_groups: int = MAXIMUM_CONCURRENT_K4_GROUPS,
     maximum_tasks: int = MAX_TASKS_PER_ITERATION,
     token_cap: int = ACTION_TOKEN_CAP,
+    group_launch_stagger_seconds: float = GROUP_LAUNCH_STAGGER_SECONDS,
 ) -> dict[str, Any]:
     """Resume or collect one frozen-policy iteration without exceeding the global cap."""
 
@@ -225,6 +228,12 @@ def collect_iteration(
         "iteration task count exceeds the runtime contract",
     )
     _require(isinstance(token_cap, int) and token_cap > 0, "invalid action-token cap")
+    _require(
+        isinstance(group_launch_stagger_seconds, (int, float))
+        and not isinstance(group_launch_stagger_seconds, bool)
+        and 0 <= group_launch_stagger_seconds <= GROUP_LAUNCH_STAGGER_SECONDS,
+        "group launch stagger exceeds the runtime contract",
+    )
     sampler = restore_sampler(tasks, study_seed=identity.seed, state=initial_sampler_state)
     _require(
         sampler_task_order_sha256(tasks, study_seed=identity.seed) == identity.task_order_sha256,
@@ -291,9 +300,14 @@ def collect_iteration(
 
         token_count_before_batch = store.journal.generated_action_tokens
         with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+            def run_staggered(entry: PlannedGroup, batch_index: int):
+                if group_launch_stagger_seconds:
+                    time.sleep(batch_index * group_launch_stagger_seconds)
+                return group_runner(entry.group_id, entry.task)
+
             futures = [
-                executor.submit(group_runner, entry.group_id, entry.task)
-                for entry in batch
+                executor.submit(run_staggered, entry, batch_index)
+                for batch_index, entry in enumerate(batch)
             ]
             results = [future.result() for future in futures]
         for entry, result in zip(batch, results):
