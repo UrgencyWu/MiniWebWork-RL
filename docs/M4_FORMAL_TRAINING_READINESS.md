@@ -41,7 +41,7 @@ SFT、GRPO 或 step-aware 作业。
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
 | SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
-| 异步 vLLM rollout | PARTIAL | `data/m4_long_horizon_runtime_v1.json` 已冻结单 GPU AsyncLLM、1/2/4/8 browser workers、最多 2 个并发 K=4 group、同卡 sleep/wake adapter swap 与完整 raw/sampling log-prob 合同；vLLM 0.17 接口、同步 browser bridge、exact-K collector、双组预算预留及“一组失败不归档在途 peer”已通过 CPU 回归，待真实浏览器并发和 GPU smoke |
+| 异步 vLLM rollout | PARTIAL | `data/m4_long_horizon_runtime_v1.json` 已冻结单 GPU AsyncLLM、1/2/4/8 browser workers、最多 2 个并发 K=4 group、同卡 sleep/wake adapter swap、CuMem allocator 环境与完整 raw/sampling log-prob 合同；vLLM 0.17 接口、同步 browser bridge、exact-K collector、双组预算预留及“一组失败不归档在途 peer”已通过 CPU 回归，待真实浏览器并发和 GPU smoke |
 | 迭代 learner / GRPO | PARTIAL | 已实现真实 tensor replay、分层 PPO clipped loss、2 policy epochs、零信号跳过、PEFT/AdamW artifact 保存，以及 adapter/optimizer/token/sampler 原子 iteration 提交；目录提交后状态推进前可向前对账，partial learner stage 从同一 frozen collection 重做；待同卡 GPU 更新 smoke |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一，并已接入共享 tensor learner；CPU 单测通过，待真实 collection 的同卡 GPU smoke |
 | On-policy / parity 门禁 | PARTIAL | v2 run identity 绑定 base-model/runtime hash、iteration/policy；turn 绑定 attempt/request/sampling seed、adapter、prompt/completion IDs 与 behavior/sampling log-prob；首次 GPU 观测前已预注册 behavior/sampling `1e-7` 及 replay mean/P95/max `0.02/0.08/0.18`、mean ratio 偏差 `0.02`，待 vLLM↔HF GPU smoke 实测 |
@@ -74,7 +74,7 @@ learner、双 K4 collector 与原子 iteration state 后，完整非 GPU 回归�
 预留，以及“iteration 目录已 rename、run_state 尚未写入”故障后的只前进对账。
 
 在线 runtime 机器合同 SHA256 为
-`0d2a77e44a11e27e7c94112c1084c0e6ac28caf6cbc51e547263597e7d47ca1d`；
+`0f3cac765032cc369f510c40fb0efb14ad54bb0176bff4da49077ad4ec93174a`；
 它固定 Python 3.11.14、PyTorch 2.10.0+cu128、Transformers 5.14.1、PEFT
 0.19.1、vLLM 0.17.0 与 Playwright 1.61.0，并继续保持
 `formal_submission_allowed=false`。该合同只冻结实现边界，不代表 GPU 门禁通过。
@@ -168,6 +168,19 @@ wall time                 <=24h per Slurm job
 | 1262 | `d60380714613d6f6d51fb9e6532601e84dd0d728` | SFT microbatch 与 20-update disposable GPU preflight | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `FAILED 1:0`，1:04；microbatch=1 最长序列反向占用 97,250/97,887 MiB，候选 2 OOM；未训练 adapter；促成冻结 gradient checkpointing 与失败工件落盘修复；不得记为 PASS |
 | 1263 | `eb96af377eef0774c90a28318f8fcce4fd53dcfd` | checkpointing 后 SFT GPU preflight 重试 | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `FAILED 1:0`，2:59；候选 1 显存约 13.8GB，但候选明细落盘时路径被 forward 输出变量遮蔽；failure artifact 完整，未进入 20-update smoke；不得记为 PASS |
 | 1264 | `3a0acb44f69b46f05efb4d7650ee88aee1931af1` | 完整 SFT microbatch 选择与 20-update disposable GPU preflight | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `COMPLETED 0:0`，41:23；四候选均通过，选择 microbatch=8、grad accumulation=2；reserved-VRAM 余量 51.02%，外部遥测余量 50.58%，GPU util P50=100%；完整 dev 与 adapter 审计通过；PASS |
+| 1265 | `2501b9980547cd7caaeefa345c2df24a342227ec` | 首次 8-worker online E2E preflight | 1 GPU / 8 CPU / 48 GB / 24 h 上限 | `FAILED 1:0`，0:38；vLLM CuMem sleep pool 在模型载入前拒绝 `expandable_segments:True`；仅创建 journal identity，generated token、trajectory、learner update 与 PASS report 均为 0；旧 run root 冻结为失败诊断且不得续用 |
+
+Job 1265 绑定的 runtime SHA256 为
+`0d2a77e44a11e27e7c94112c1084c0e6ac28caf6cbc51e547263597e7d47ca1d`。
+stdout/stderr/GPU telemetry/run-config/engine-starting event SHA256 分别为
+`3d2241fb05bb120d4e9b845149395afc9acc825a60d57ded634d533b8df8cc6e`、
+`9af59b7de32d8b4f40e66bdcb7e4dcd738ffdbe6923f95f4ab1c6c36d9d8cb13`、
+`da707163b0f51c1ad9896728b8098b2c67aeef9e66c5f774337112ed5295a624`、
+`0504250d82b4312d37935de661c1e5aeabd34eb8d46ec00f23d48052f5782506` 和
+`765be65f260b4dec62bf32a31ad4e36c69a4afa2bde08f4d0b54b5364966c96e`。
+修复只将两个 PyTorch allocator 环境别名显式清空，以满足 vLLM sleep-mode 的
+CuMemAllocator 前置条件；算法、数据、采样和首次 GPU 观测前冻结的 parity
+阈值均未改变。
 
 Job 1262 的 stdout/stderr/GPU telemetry SHA256 分别为
 `1f55c71aa82601589236a49341f47c6a12d386e5b3c33209eccbb4a879365e9f`、

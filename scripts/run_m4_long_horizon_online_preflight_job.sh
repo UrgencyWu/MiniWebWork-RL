@@ -41,7 +41,11 @@ fi
 
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export TOKENIZERS_PARALLELISM=false
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# vLLM sleep mode uses CuMemAllocator; expandable segments are incompatible
+# with that memory pool. Keep both PyTorch allocator aliases unset for the
+# engine and the later same-process learner.
+unset PYTORCH_CUDA_ALLOC_CONF
+unset PYTORCH_ALLOC_CONF
 
 job_id="${SLURM_JOB_ID:-manual}"
 output_root="$repo_root/outputs/m4_long_horizon_credit_v1/preflight/online_${run_name}"

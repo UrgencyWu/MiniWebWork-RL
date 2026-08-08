@@ -41,6 +41,7 @@
     "enable_prefix_caching": true,
     "enable_chunked_prefill": true,
     "enable_sleep_mode": true,
+    "cuda_allocator_environment": "pytorch_allocator_aliases_unset_for_vllm_cumem_sleep",
     "adapter_swap_protocol": "remove_lora_then_sleep_level_2_then_same_gpu_hf_learner_then_wake_and_add_lora",
     "generation_during_learner": false
   },

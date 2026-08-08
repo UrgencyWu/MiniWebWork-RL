@@ -16,6 +16,9 @@ def test_online_preflight_job_uses_one_modest_24h_allocation_and_stable_resume_r
     assert "formal_training=false" in script
     assert "outputs/m4_long_horizon_credit_v1/preflight" in script
     assert "outputs/m4_long_horizon_credit_v1/formal" not in script
+    assert "unset PYTORCH_CUDA_ALLOC_CONF" in script
+    assert "unset PYTORCH_ALLOC_CONF" in script
+    assert "export PYTORCH_CUDA_ALLOC_CONF" not in script
 
 
 def test_online_preflight_python_entrypoint_exposes_no_formal_mode():

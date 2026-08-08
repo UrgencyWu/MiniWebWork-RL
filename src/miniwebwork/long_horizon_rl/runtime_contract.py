@@ -130,6 +130,11 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
     _require(generation.get("enable_prefix_caching") is True, "prefix caching disabled")
     _require(generation.get("enable_chunked_prefill") is True, "chunked prefill disabled")
     _require(generation.get("enable_sleep_mode") is True, "same-GPU sleep mode disabled")
+    _require(
+        generation.get("cuda_allocator_environment")
+        == "pytorch_allocator_aliases_unset_for_vllm_cumem_sleep",
+        "vLLM sleep allocator contract drift",
+    )
     _require(generation.get("generation_during_learner") is False, "stale generation enabled")
 
     rollout = payload.get("rollout_contract", {})
