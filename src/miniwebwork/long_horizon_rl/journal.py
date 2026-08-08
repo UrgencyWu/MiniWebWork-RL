@@ -15,6 +15,7 @@ from .contracts import (
     GROUP_SCHEMA,
     RunIdentity,
     atomic_write_json,
+    bounded_file_sentinel,
     canonical_json_bytes,
     directory_sha256,
     group_content_sha256,
@@ -90,6 +91,7 @@ class AppendOnlyAttemptJournal:
         self._events = list(read_journal(self.path))
         self._file_size = self.path.stat().st_size if self.path.exists() else 0
         self._stat_signature = self._current_stat_signature()
+        self._content_sentinel = bounded_file_sentinel(self.path)
         self._generated_action_tokens = 0
         self._committed_group_ids: list[str] = []
         self._turn_charge_keys: set[tuple[str, int, str, int]] = set()
@@ -112,14 +114,23 @@ class AppendOnlyAttemptJournal:
                 },
             )
 
-    def _current_stat_signature(self) -> tuple[int, int, int, int]:
+    def _current_stat_signature(self) -> tuple[int, int, int, int, int]:
         if not self.path.exists():
-            return (0, 0, 0, 0)
+            return (0, 0, 0, 0, 0)
         stat = self.path.stat()
-        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+        return (
+            stat.st_dev,
+            stat.st_ino,
+            stat.st_size,
+            stat.st_mtime_ns,
+            stat.st_ctime_ns,
+        )
 
     def _assert_file_unchanged(self) -> None:
-        if self._current_stat_signature() != self._stat_signature:
+        if (
+            self._current_stat_signature() != self._stat_signature
+            or bounded_file_sentinel(self.path) != self._content_sentinel
+        ):
             raise ValueError("journal file changed outside this writer")
 
     def _apply_event_cache(self, event: Mapping[str, Any]) -> None:
@@ -176,6 +187,7 @@ class AppendOnlyAttemptJournal:
             self._events.append(event)
             self._file_size += len(line)
             self._stat_signature = self._current_stat_signature()
+            self._content_sentinel = bounded_file_sentinel(self.path)
             self._apply_event_cache(event)
             return event
 
@@ -483,11 +495,6 @@ class CollectionStore:
             for event in events
             if event["event_type"] == "group_invalid"
         }
-        archived = {
-            (event["payload"]["group_id"], event["payload"]["attempt_index"])
-            for event in events
-            if event["event_type"] == "attempt_archived"
-        }
         for key in sorted(starts):
             if key in committed:
                 continue
@@ -498,58 +505,100 @@ class CollectionStore:
                     attempt_index=attempt_index,
                     reason="resume_detected_incomplete_attempt",
                 )
-            source = self._attempt_path(group_id, attempt_index)
-            destination = (
-                self.invalidated_attempts_dir
-                / group_id
-                / f"attempt-{attempt_index:04d}"
+            event = self.archive_invalid_attempt(
+                group_id=group_id,
+                attempt_index=attempt_index,
             )
-            if source.exists():
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                if destination.exists():
-                    raise FileExistsError(f"invalidated attempt archive collision: {destination}")
-                os.rename(source, destination)
-                _fsync_directory(source.parent)
-                _fsync_directory(destination.parent)
-            orphan_group = self.groups_dir / f"{group_id}.json"
-            if orphan_group.exists():
-                destination.mkdir(parents=True, exist_ok=True)
-                orphan_destination = destination / "orphan-group-artifact.json"
-                if orphan_destination.exists():
-                    raise FileExistsError(
-                        f"orphan group archive collision: {orphan_destination}"
-                    )
-                os.rename(orphan_group, orphan_destination)
-                _fsync_directory(orphan_group.parent)
-                _fsync_directory(destination)
-            if destination.exists() and key not in archived:
-                archived_files = any(path.is_file() for path in destination.rglob("*"))
-                event = self.journal.append(
-                    "attempt_archived",
-                    {
-                        "group_id": group_id,
-                        "attempt_index": attempt_index,
-                        "archive_relative_path": str(destination.relative_to(self.root)),
-                        "archive_directory_sha256": (
-                            directory_sha256(destination) if archived_files else sha256_json([])
-                        ),
-                        "retained_generated_action_tokens": self.journal.generated_action_tokens,
-                    },
-                )
-                recovered.append(event)
-            elif key not in archived:
-                event = self.journal.append(
-                    "attempt_archived",
-                    {
-                        "group_id": group_id,
-                        "attempt_index": attempt_index,
-                        "archive_relative_path": None,
-                        "archive_directory_sha256": None,
-                        "retained_generated_action_tokens": self.journal.generated_action_tokens,
-                    },
-                )
+            if event is not None:
                 recovered.append(event)
         return tuple(recovered)
+
+    def archive_invalid_attempt(
+        self,
+        *,
+        group_id: str,
+        attempt_index: int,
+    ) -> dict[str, Any] | None:
+        """Archive exactly one terminal-invalid attempt without touching peers."""
+
+        key = (group_id, attempt_index)
+        events = self.journal.events
+        starts = {
+            (event["payload"]["group_id"], event["payload"]["attempt_index"])
+            for event in events
+            if event["event_type"] == "group_started"
+        }
+        committed = {
+            (event["payload"]["group_id"], event["payload"]["attempt_index"])
+            for event in events
+            if event["event_type"] == "group_committed"
+        }
+        invalid = {
+            (event["payload"]["group_id"], event["payload"]["attempt_index"])
+            for event in events
+            if event["event_type"] == "group_invalid"
+        }
+        archived = {
+            (event["payload"]["group_id"], event["payload"]["attempt_index"])
+            for event in events
+            if event["event_type"] == "attempt_archived"
+        }
+        if key in archived:
+            return None
+        if key not in starts:
+            raise ValueError("cannot archive an attempt without a start event")
+        if key in committed:
+            raise ValueError("cannot archive a committed group attempt")
+        if key not in invalid:
+            raise ValueError("cannot archive an attempt before terminal invalidation")
+
+        source = self._attempt_path(group_id, attempt_index)
+        destination = (
+            self.invalidated_attempts_dir
+            / group_id
+            / f"attempt-{attempt_index:04d}"
+        )
+        if source.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.exists():
+                raise FileExistsError(f"invalidated attempt archive collision: {destination}")
+            os.rename(source, destination)
+            _fsync_directory(source.parent)
+            _fsync_directory(destination.parent)
+        orphan_group = self.groups_dir / f"{group_id}.json"
+        if orphan_group.exists():
+            destination.mkdir(parents=True, exist_ok=True)
+            orphan_destination = destination / "orphan-group-artifact.json"
+            if orphan_destination.exists():
+                raise FileExistsError(
+                    f"orphan group archive collision: {orphan_destination}"
+                )
+            os.rename(orphan_group, orphan_destination)
+            _fsync_directory(orphan_group.parent)
+            _fsync_directory(destination)
+        archived_files = destination.exists() and any(
+            path.is_file() for path in destination.rglob("*")
+        )
+        return self.journal.append(
+            "attempt_archived",
+            {
+                "group_id": group_id,
+                "attempt_index": attempt_index,
+                "archive_relative_path": (
+                    str(destination.relative_to(self.root)) if destination.exists() else None
+                ),
+                "archive_directory_sha256": (
+                    (
+                        directory_sha256(destination)
+                        if archived_files
+                        else sha256_json([])
+                    )
+                    if destination.exists()
+                    else None
+                ),
+                "retained_generated_action_tokens": self.journal.generated_action_tokens,
+            },
+        )
 
     def commit_group(self, group: Mapping[str, Any], *, attempt_index: int) -> dict[str, Any]:
         validated = validate_committed_group(group, self.identity)
@@ -632,7 +681,7 @@ class CollectionStore:
             group = json.loads(path.read_text(encoding="utf-8"))
             validate_committed_group(group, self.identity)
             groups.append(group)
-        return tuple(groups)
+        return tuple(sorted(groups, key=lambda group: group["group_id"]))
 
     def freeze_collection(
         self,

@@ -15,6 +15,7 @@ from .contracts import (
     COLLECTION_SCHEMA,
     RunIdentity,
     atomic_write_json,
+    bounded_file_sentinel,
     canonical_json_bytes,
     directory_sha256,
     sha256_file,
@@ -77,12 +78,19 @@ class IterationLedger:
         self._events = list(self._read())
         self._size = self.path.stat().st_size if self.path.exists() else 0
         self._stat_signature = self._current_stat_signature()
+        self._content_sentinel = bounded_file_sentinel(self.path)
 
-    def _current_stat_signature(self) -> tuple[int, int, int, int]:
+    def _current_stat_signature(self) -> tuple[int, int, int, int, int]:
         if not self.path.exists():
-            return (0, 0, 0, 0)
+            return (0, 0, 0, 0, 0)
         stat = self.path.stat()
-        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+        return (
+            stat.st_dev,
+            stat.st_ino,
+            stat.st_size,
+            stat.st_mtime_ns,
+            stat.st_ctime_ns,
+        )
 
     def _read(self) -> tuple[dict[str, Any], ...]:
         if not self.path.is_file():
@@ -110,7 +118,8 @@ class IterationLedger:
     @property
     def events(self) -> tuple[dict[str, Any], ...]:
         _require(
-            self._current_stat_signature() == self._stat_signature,
+            self._current_stat_signature() == self._stat_signature
+            and bounded_file_sentinel(self.path) == self._content_sentinel,
             "iteration ledger changed outside this writer",
         )
         return tuple(dict(event) for event in self._events)
@@ -119,7 +128,8 @@ class IterationLedger:
         _require(isinstance(event_type, str) and bool(event_type), "ledger event type is empty")
         normalized = json.loads(canonical_json_bytes(dict(payload)))
         _require(
-            self._current_stat_signature() == self._stat_signature,
+            self._current_stat_signature() == self._stat_signature
+            and bounded_file_sentinel(self.path) == self._content_sentinel,
             "iteration ledger changed outside this writer",
         )
         event = {
@@ -149,6 +159,7 @@ class IterationLedger:
         self._events.append(event)
         self._size += len(line)
         self._stat_signature = self._current_stat_signature()
+        self._content_sentinel = bounded_file_sentinel(self.path)
         return event
 
 

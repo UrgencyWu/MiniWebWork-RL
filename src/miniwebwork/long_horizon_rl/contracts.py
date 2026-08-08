@@ -27,6 +27,7 @@ COLLECTION_SCHEMA = "m4_long_horizon_collection_v2"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 POLICY_VERSION_PATTERN = re.compile(r"^policy_[0-9]{4,}$")
+FILE_SENTINEL_BLOCK_BYTES = 64 * 1024
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -49,6 +50,25 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def bounded_file_sentinel(path: Path) -> tuple[int, str, str]:
+    """Hash bounded head/tail guards to defeat coarse remote stat caching."""
+
+    source = Path(path).expanduser().resolve()
+    if not source.is_file():
+        empty = hashlib.sha256(b"").hexdigest()
+        return (0, empty, empty)
+    size = source.stat().st_size
+    with source.open("rb") as handle:
+        head = handle.read(FILE_SENTINEL_BLOCK_BYTES)
+        handle.seek(max(0, size - FILE_SENTINEL_BLOCK_BYTES))
+        tail = handle.read(FILE_SENTINEL_BLOCK_BYTES)
+    return (
+        size,
+        hashlib.sha256(head).hexdigest(),
+        hashlib.sha256(tail).hexdigest(),
+    )
 
 
 def directory_sha256(path: Path) -> str:

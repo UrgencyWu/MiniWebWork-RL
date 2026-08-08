@@ -180,3 +180,19 @@ def test_budget_admission_reserves_worst_case_complete_group():
     )
     assert blocked.allowed is False
     assert blocked.reason == "insufficient_worst_case_group_reserve"
+
+
+def test_budget_admission_reserves_every_concurrent_inflight_group():
+    first = admit_next_group(
+        global_tokens_before_iteration=0,
+        current_iteration_tokens=230000,
+        reserved_inflight_groups=0,
+    )
+    assert first.allowed is True
+    second = admit_next_group(
+        global_tokens_before_iteration=0,
+        current_iteration_tokens=230000,
+        reserved_inflight_groups=1,
+    )
+    assert second.allowed is False
+    assert second.total_inflight_reserve == 20480

@@ -35,7 +35,9 @@ class GroupBudgetAdmission:
     allowed: bool
     global_tokens_before: int
     current_iteration_tokens: int
+    reserved_inflight_groups: int
     maximum_group_reserve: int
+    total_inflight_reserve: int
     token_cap: int
     reason: str
 
@@ -44,6 +46,7 @@ def admit_next_group(
     *,
     global_tokens_before_iteration: int,
     current_iteration_tokens: int,
+    reserved_inflight_groups: int = 0,
     token_cap: int = ACTION_TOKEN_CAP,
 ) -> GroupBudgetAdmission:
     """Reserve the worst-case K4 group so the formal cap cannot be exceeded."""
@@ -51,17 +54,21 @@ def admit_next_group(
     for name, value in (
         ("global_tokens_before_iteration", global_tokens_before_iteration),
         ("current_iteration_tokens", current_iteration_tokens),
+        ("reserved_inflight_groups", reserved_inflight_groups),
         ("token_cap", token_cap),
     ):
         _require(isinstance(value, int) and value >= 0, f"invalid {name}")
     reserve = GROUP_SIZE * MAX_MODEL_TURNS * MAX_NEW_TOKENS
     consumed = global_tokens_before_iteration + current_iteration_tokens
-    allowed = consumed + reserve <= token_cap
+    total_inflight_reserve = (reserved_inflight_groups + 1) * reserve
+    allowed = consumed + total_inflight_reserve <= token_cap
     return GroupBudgetAdmission(
         allowed=allowed,
         global_tokens_before=global_tokens_before_iteration,
         current_iteration_tokens=current_iteration_tokens,
+        reserved_inflight_groups=reserved_inflight_groups,
         maximum_group_reserve=reserve,
+        total_inflight_reserve=total_inflight_reserve,
         token_cap=token_cap,
         reason="reserved_complete_group" if allowed else "insufficient_worst_case_group_reserve",
     )
@@ -327,7 +334,10 @@ def run_atomic_k4_group(
             attempt_index=attempt_index,
             reason=" | ".join(errors)[:500],
         )
-        store.recover_incomplete_attempts()
+        store.archive_invalid_attempt(
+            group_id=group_id,
+            attempt_index=attempt_index,
+        )
         return {
             "committed": False,
             "group_id": group_id,
