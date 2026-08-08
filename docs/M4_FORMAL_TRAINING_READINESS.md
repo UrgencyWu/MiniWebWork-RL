@@ -42,9 +42,9 @@ SFT、GRPO 或 step-aware 作业。
 | SFT trainer 与 dev 停止规则 | PENDING | 需实现 completion-only loss、microbatch benchmark 和 plateau 工件 |
 | 异步 vLLM rollout | PENDING | 需实现多 browser worker、连续批处理和完整采样 log-prob |
 | 迭代 learner / GRPO | PENDING | 需实现多 iteration/minibatch、有效组账本和 250k token cap |
-| Step-aware 信用分配 | PENDING | 需冻结公共 anchor signature、macro+micro 公式与无 anchor fallback |
-| On-policy / parity 门禁 | PENDING | 需验证 behavior/replay 分布语义、staleness=0、adapter SHA |
-| 24 小时原子恢复 | PENDING | 需完成 group/iteration fault injection 和一次真实 Slurm resume smoke |
+| Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一；CPU 单测通过；待接入真实 learner smoke |
+| On-policy / parity 门禁 | PARTIAL | turn/trajectory/group 已逐层绑定 policy、adapter SHA、prompt/completion IDs、behavior/sampling log-prob；sampling log-prob 已进入主轨迹；待 vLLM↔HF parity 与 staleness=0 GPU smoke |
+| 24 小时原子恢复 | PARTIAL | append+flush+fsync hash-chain journal、实际 token 保留、exact-K durable trajectory gate、原子 group/collection artifact 与身份漂移 fail-closed 已通过 CPU 测试；待 iteration adapter/optimizer commit、fault injection 与真实 Slurm resume |
 | GPU 性能门禁 | PENDING | 需完成 SFT microbatch 与 rollout concurrency 单卡 preflight |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
@@ -56,6 +56,12 @@ SFT、GRPO 或 step-aware 作业。
 `10 passed, 297 deselected`，其中包含 v2 SFT train/dev 小回放，并真实保留
 三个供应商的 88%/93%/99% 公开证据。
 最终冻结仍必须在提交后的 clean SHA 上重跑，不能只引用此工作区快照。
+
+核心在线合同的当前 CPU 回归覆盖：隐藏 oracle/verifier/episode/query/DOM ID 不进入
+anchor；GRPO macro、step-aware micro、零方差 fallback；task-family 冷覆盖与
+Beta(1,1) uncertainty priority；并发 journal hash chain、无效组成本保留、exact-K
+commit、路径逃逸和 collection freeze 幂等。完整非浏览器回归为 `314 passed,
+10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
 
 ## 3. 已冻结的数据合同
 

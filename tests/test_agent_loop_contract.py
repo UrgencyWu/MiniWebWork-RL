@@ -66,8 +66,11 @@ class _InvalidAgent:
 def test_schema_invalid_turns_do_not_enter_executed_history():
     environment = _Environment()
     agent = _InvalidAgent()
+    generated_turns = []
 
-    result = run_model_episode("TASK", environment, agent)
+    result = run_model_episode(
+        "TASK", environment, agent, turn_generated_callback=generated_turns.append
+    )
 
     assert result["rollout_valid"] is True
     assert result["reward"] == 0.0
@@ -75,6 +78,9 @@ def test_schema_invalid_turns_do_not_enter_executed_history():
     assert result["model_turns"] == 3
     assert environment.step_calls == 0
     assert agent.feedback_calls == 0
+    assert len(generated_turns) == 3
+    assert all(turn["sampling_logprobs"] == [-1.0] for turn in generated_turns)
+    assert all(turn["generated_token_ids"] == [3] for turn in generated_turns)
 
 
 def test_backend_error_is_infrastructure_not_policy_failure():
@@ -89,3 +95,20 @@ def test_backend_error_is_infrastructure_not_policy_failure():
     assert result["reward"] is None
     assert result["termination_reason"] == "model_backend_error"
     assert environment.step_calls == 0
+
+
+def test_turn_journal_callback_failure_invalidates_rollout():
+    environment = _Environment()
+    agent = _InvalidAgent()
+
+    def fail_to_persist(_turn):
+        raise OSError("journal fsync failed")
+
+    result = run_model_episode(
+        "TASK", environment, agent, turn_generated_callback=fail_to_persist
+    )
+    assert result["rollout_valid"] is False
+    assert result["reward"] is None
+    assert result["failure_origin"] == "infrastructure"
+    assert result["termination_reason"] == "environment_or_runner_error"
+    assert "journal fsync failed" in result["error"]

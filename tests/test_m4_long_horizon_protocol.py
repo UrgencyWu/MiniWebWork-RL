@@ -4,9 +4,14 @@ from pathlib import Path
 import pytest
 
 from miniwebwork.m4_long_horizon_protocol import (
+    CREDIT_FORMULA_VERSION,
     FORMAL_METHODS,
+    ONLINE_LEARNER_CONFIG,
     ONLINE_METHODS,
+    SFT_LORA_CONFIG,
+    SFT_STOPPING_RULE,
     SPLIT_COUNTS,
+    TASK_SAMPLER_VERSION,
     assert_dataset_binding,
     assert_formal_submission_closed,
     assert_preflight_output,
@@ -32,6 +37,13 @@ def test_focused_manifest_is_preflight_only_and_excludes_algorithm_zoo():
     assert FORMAL_METHODS == ("verified_sft", "multi_turn_grpo", "step_aware_gpo")
     assert ONLINE_METHODS == ("multi_turn_grpo", "step_aware_gpo")
     assert set(payload["formal_matrix"]["excluded_formal_algorithms"]) == {"rsft", "rloo", "gspo"}
+    assert payload["sft_contract"]["lora"] == SFT_LORA_CONFIG
+    assert payload["sft_contract"]["stopping"] == SFT_STOPPING_RULE
+    assert payload["online_contract"]["learner"] == ONLINE_LEARNER_CONFIG
+    assert payload["online_contract"]["task_sampler"]["version"] == TASK_SAMPLER_VERSION
+    assert payload["credit_assignment_contract"]["formula_version"] == CREDIT_FORMULA_VERSION
+    assert payload["credit_assignment_contract"]["micro_return_gamma"] == 0.95
+    assert payload["credit_assignment_contract"]["micro_advantage_weight"] == 1.0
     assert_formal_submission_closed(payload)
 
 
@@ -49,6 +61,23 @@ def test_manifest_rejects_early_formal_opening():
     payload = load_study_manifest()["payload"]
     payload["formal_submission_allowed"] = True
     with pytest.raises(ValueError, match="opened early"):
+        validate_study_manifest(payload)
+
+
+def test_manifest_rejects_credit_sampler_or_sft_stopping_drift():
+    payload = load_study_manifest()["payload"]
+    payload["credit_assignment_contract"]["micro_return_gamma"] = 1.0
+    with pytest.raises(ValueError, match="gamma"):
+        validate_study_manifest(payload)
+
+    payload = load_study_manifest()["payload"]
+    payload["online_contract"]["task_sampler"]["cold_coverage_before_revisit"] = False
+    with pytest.raises(ValueError, match="cold coverage"):
+        validate_study_manifest(payload)
+
+    payload = load_study_manifest()["payload"]
+    payload["sft_contract"]["stopping"]["maximum_epochs"] = 10
+    with pytest.raises(ValueError, match="stopping"):
         validate_study_manifest(payload)
 
 

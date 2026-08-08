@@ -39,6 +39,42 @@ ONLINE_SEEDS = (20260801, 20260802, 20260803)
 GROUP_SIZE = 4
 ACTION_TOKEN_CAP = 250_000
 MAX_TASKS_PER_ITERATION = 32
+MAX_SEQUENCE_LENGTH = 6_144
+MAX_MODEL_TURNS = 20
+MAX_ENVIRONMENT_STEPS = 20
+MAX_NEW_TOKENS = 128
+CREDIT_FORMULA_VERSION = "public_anchor_macro_micro_v1"
+CREDIT_ADVANTAGE_EPSILON = 1e-6
+CREDIT_MICRO_RETURN_GAMMA = 0.95
+CREDIT_MICRO_WEIGHT = 1.0
+CREDIT_ANCHOR_VISIT_POLICY = "first_visit_per_trajectory"
+TASK_SAMPLER_VERSION = "balanced_cold_then_beta_uncertainty_v1"
+TASK_SAMPLER_MINIMUM_WEIGHT = 0.05
+SFT_SEED = 20260801
+SFT_LORA_CONFIG = {
+    "r": 16,
+    "alpha": 32,
+    "dropout": 0.0,
+    "target_modules": [
+        "q_proj", "k_proj", "v_proj", "o_proj",
+        "gate_proj", "up_proj", "down_proj",
+    ],
+}
+SFT_STOPPING_RULE = {
+    "maximum_epochs": 3,
+    "minimum_epochs": 2,
+    "plateau_patience_evaluations": 1,
+    "dev_nll_minimum_improvement": 0.005,
+    "teacher_forced_action_exact_minimum_improvement": 0.002,
+    "teacher_forced_schema_valid_minimum_improvement": 0.002,
+}
+ONLINE_LEARNER_CONFIG = {
+    "policy_epochs": 2,
+    "trajectory_minibatch_size": 4,
+    "learning_rate": 5e-6,
+    "clip_epsilon": 0.2,
+    "gradient_clip": 1.0,
+}
 HORIZON_RANGES = {
     "basic": (6, 8),
     "medium": (9, 12),
@@ -148,6 +184,12 @@ def validate_study_manifest(payload: Mapping[str, Any]) -> None:
         == "bounded policy-visible supplier/product observations only",
         "SFT evidence-memory contract drift",
     )
+    _require(sft.get("seed") == SFT_SEED, "SFT seed drift")
+    _require(sft.get("maximum_sequence_length") == MAX_SEQUENCE_LENGTH, "SFT max length drift")
+    _require(sft.get("lora") == SFT_LORA_CONFIG, "SFT LoRA contract drift")
+    _require(sft.get("stopping") == SFT_STOPPING_RULE, "SFT stopping rule drift")
+    _require(sft.get("microbatch_candidates") == [1, 2, 4, 8], "SFT microbatch candidates drift")
+    _require(sft.get("effective_batch_size") == 16, "SFT effective batch drift")
 
     online = payload.get("online_contract", {})
     _require(online.get("group_size") == GROUP_SIZE, "K drift")
@@ -157,12 +199,34 @@ def validate_study_manifest(payload: Mapping[str, Any]) -> None:
     _require(online.get("behavior_policy_staleness") == 0, "on-policy staleness drift")
     _require(online.get("incomplete_group_may_update") is False, "partial group update enabled")
     _require(online.get("invalid_and_zero_signal_tokens_count_toward_budget") is True, "cost accounting weakened")
+    _require(online.get("maximum_model_turns") == MAX_MODEL_TURNS, "model-turn cap drift")
+    _require(online.get("maximum_environment_steps") == MAX_ENVIRONMENT_STEPS, "environment-step cap drift")
+    _require(online.get("maximum_new_tokens_per_turn") == MAX_NEW_TOKENS, "new-token cap drift")
+    _require(online.get("learner") == ONLINE_LEARNER_CONFIG, "online learner contract drift")
+    sampler = online.get("task_sampler", {})
+    _require(sampler.get("version") == TASK_SAMPLER_VERSION, "task sampler version drift")
+    _require(sampler.get("cold_coverage_before_revisit") is True, "task sampler cold coverage disabled")
+    _require(sampler.get("posterior") == "Beta(1,1)", "task sampler posterior drift")
+    _require(sampler.get("uncertainty_weight") == "max(0.05, 4*p*(1-p))", "task sampler weight drift")
+    _require(sampler.get("balance_key") == "task_family", "task sampler balance drift")
+    _require(sampler.get("deterministic_uncertainty_priority_with_sha_tie_break") is True, "task sampler priority drift")
+    _require(sampler.get("outcomes_allowed") == "committed train groups only", "task sampler outcome leakage")
 
     reward = payload.get("reward_contract", {})
     _require(reward.get("verified_success") == 1.0, "success reward drift")
     _require(reward.get("valid_policy_failure") == 0.0, "policy failure reward drift")
     _require("infrastructure_failure" in reward and reward["infrastructure_failure"] is None, "infra failure reward drift")
     _require(reward.get("process_or_format_rewards_in_primary_experiment") is False, "unregistered shaping reward enabled")
+
+    credit = payload.get("credit_assignment_contract", {})
+    _require(credit.get("formula_version") == CREDIT_FORMULA_VERSION, "credit formula drift")
+    _require(credit.get("advantage_epsilon") == CREDIT_ADVANTAGE_EPSILON, "credit epsilon drift")
+    _require(credit.get("micro_return_gamma") == CREDIT_MICRO_RETURN_GAMMA, "credit gamma drift")
+    _require(credit.get("micro_advantage_weight") == CREDIT_MICRO_WEIGHT, "credit omega drift")
+    _require(credit.get("anchor_visit_policy") == CREDIT_ANCHOR_VISIT_POLICY, "anchor visit policy drift")
+    _require(credit.get("anchor_state_source") == "public policy-visible observation plus exact prompt-token context", "anchor source drift")
+    _require(credit.get("normalization") == "token mean within turn; turn mean within trajectory; trajectory mean within K group", "credit normalization drift")
+    _require(credit.get("no_informative_anchor_fallback") == "exact macro advantage", "credit fallback drift")
 
     resources = payload.get("resource_contract", {})
     _require(resources.get("maximum_concurrent_gpu_jobs") == 4, "GPU concurrency drift")

@@ -103,18 +103,52 @@
   },
   "sft_contract": {
     "source_split": "train",
+    "seed": 20260801,
     "unique_verified_turn_evidence_only": true,
     "completion_only_loss": true,
+    "maximum_sequence_length": 6144,
     "maximum_zero_label_fraction": 0.0,
     "repeat_examples_to_reach_token_target": false,
     "prompt_evidence_memory": "bounded policy-visible supplier/product observations only",
+    "lora": {
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.0,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    },
+    "microbatch_candidates": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "effective_batch_size": 16,
     "selection_rule": "maximum non-OOM microbatch from 1,2,4,8 with fixed effective batch and at least 15 percent VRAM headroom",
-    "stopping_rule": "preregistered epoch cap plus dev NLL/action/schema plateau"
+    "stopping_rule": "preregistered epoch cap plus dev NLL/action/schema plateau",
+    "stopping": {
+      "maximum_epochs": 3,
+      "minimum_epochs": 2,
+      "plateau_patience_evaluations": 1,
+      "dev_nll_minimum_improvement": 0.005,
+      "teacher_forced_action_exact_minimum_improvement": 0.002,
+      "teacher_forced_schema_valid_minimum_improvement": 0.002
+    }
   },
   "online_contract": {
     "group_size": 4,
     "generated_action_token_cap_per_seed": 250000,
     "maximum_tasks_per_iteration": 32,
+    "maximum_model_turns": 20,
+    "maximum_environment_steps": 20,
+    "maximum_new_tokens_per_turn": 128,
     "sampling": {
       "temperature": 1.0,
       "top_p": 1.0,
@@ -123,7 +157,23 @@
     "behavior_policy_staleness": 0,
     "incomplete_group_may_update": false,
     "invalid_and_zero_signal_tokens_count_toward_budget": true,
-    "budget_stops_only_before_starting_a_new_group": true
+    "budget_stops_only_before_starting_a_new_group": true,
+    "learner": {
+      "policy_epochs": 2,
+      "trajectory_minibatch_size": 4,
+      "learning_rate": 5e-06,
+      "clip_epsilon": 0.2,
+      "gradient_clip": 1.0
+    },
+    "task_sampler": {
+      "version": "balanced_cold_then_beta_uncertainty_v1",
+      "cold_coverage_before_revisit": true,
+      "posterior": "Beta(1,1)",
+      "uncertainty_weight": "max(0.05, 4*p*(1-p))",
+      "balance_key": "task_family",
+      "deterministic_uncertainty_priority_with_sha_tie_break": true,
+      "outcomes_allowed": "committed train groups only"
+    }
   },
   "reward_contract": {
     "verified_success": 1.0,
@@ -132,8 +182,16 @@
     "process_or_format_rewards_in_primary_experiment": false
   },
   "credit_assignment_contract": {
+    "formula_version": "public_anchor_macro_micro_v1",
     "baseline": "episode-relative terminal advantage broadcast to action tokens with per-turn and per-trajectory length normalization",
     "main_method": "episode macro advantage plus public-state anchor micro advantage applied only to the corresponding turn action tokens",
+    "advantage_epsilon": 1e-06,
+    "micro_return_gamma": 0.95,
+    "micro_advantage_weight": 1.0,
+    "anchor_visit_policy": "first_visit_per_trajectory",
+    "anchor_state_source": "public policy-visible observation plus exact prompt-token context",
+    "normalization": "token mean within turn; turn mean within trajectory; trajectory mean within K group",
+    "no_informative_anchor_fallback": "exact macro advantage",
     "hidden_oracle_state_allowed_in_anchor_signature": false
   },
   "resource_contract": {

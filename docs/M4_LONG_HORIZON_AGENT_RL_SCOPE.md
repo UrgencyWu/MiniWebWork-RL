@@ -212,7 +212,12 @@ SFT 的目标是让 4B 策略进入可探索区域：稳定输出 JSON action、
 - 每个样本保留真实 prompt/observation 和一个 action completion；
 - completion-only loss，zero-label sample 必须为 0；
 - 不通过重复完整数据排列机械凑 250k label token；
-- 使用固定 epoch 上限和 dev NLL/action/schema plateau 进行预注册停止；
+- 固定 seed `20260801`、LoRA `r=16/alpha=32/dropout=0`，target modules 为
+  q/k/v/o/gate/up/down projection；dropout=0 同时保证后续 behavior/replay
+  parity 不受随机 mask 污染；
+- 最多 3 epoch、至少 2 epoch；每个 epoch 评估 dev NLL、teacher-forced action
+  exact match 和 schema-valid rate。若三项分别未改善 `0.005/0.002/0.002`，
+  连续 1 次评估即 plateau 停止；
 - 保存 unique sample count、监督 label token、总 forward token 和 GPU 成本。
 
 ### 6.3 GPU 配置选择
@@ -254,13 +259,20 @@ checkpointing；启用 dataloader workers/prefetch，并降低 checkpoint 保存
 
 ### 7.2 动态学习信号采样
 
-同一任务 K=4 全成功或全失败时，组相对优势为零。正式 sampler 使用预注册规则：
+同一任务 K=4 全成功或全失败时，组相对优势为零。正式 sampler
+`balanced_cold_then_beta_uncertainty_v1` 使用预注册规则：
 
 1. 第一轮按 seed 对三个 horizon strata 做确定性、均衡排列；
-2. 后续轮次优先从历史成功率处于中间区间的任务 strata 采样；
-3. 全成功、全失败和基础设施尝试仍计入 rollout 成本；
-4. 不允许事后按某个算法的最终 test 表现修改 task stream；
-5. 两个在线方法使用相同规则、相同初始任务顺序和相同预算。
+2. 每个 task family 在所有任务至少有一个 committed group 前严格优先未见任务；
+3. 冷覆盖后使用 train committed groups 的 `Beta(1,1)` 后验
+   `p=(successes+1)/(valid_trajectories+2)`，权重固定为
+   `max(0.05, 4*p*(1-p))` 严格降序优先，再以 study seed、iteration 和 task ID
+   的 SHA-256 key 对同权任务做确定性无放回 tie-break；
+4. 全成功、全失败和基础设施尝试仍计入 rollout 成本；infra-invalid 不伪装成
+   reward observation；
+5. 不允许事后按某个算法的 dev/test 表现修改 task stream；
+6. 两个在线方法使用相同规则、相同初始任务顺序和相同预算；实际自适应路径若因
+   train outcome 不同而分叉，必须完整报告任务 roster，不能声称 task ID 完全相同。
 
 该机制用于提高稀疏奖励下的有效梯度比例，而不是删除不利结果。
 
@@ -271,7 +283,7 @@ checkpointing；启用 dataloader workers/prefetch，并降低 checkpoint 保存
 对同一任务的 K=4 有效轨迹，用终态 verifier reward 计算组相对优势：
 
 ```text
-A_episode_i = (r_i - mean(r_group)) / (std(r_group) + epsilon)
+A_episode_i = (r_i - mean(r_group)) / (std_population(r_group) + 1e-6)
 ```
 
 轨迹 `i` 每个 turn 的所有 action token 都接收同一个 `A_episode_i`。每个 turn
@@ -282,27 +294,29 @@ A_episode_i = (r_i - mean(r_group)) / (std(r_group) + epsilon)
 
 ### 8.2 Step-aware main method
 
-主方法采用 GiGPO-style 两层信用分配：
+主方法冻结为 `public_anchor_macro_micro_v1`，采用 GiGPO-style 两层信用分配：
 
 1. **Macro advantage**：与 GRPO 相同，评价完整轨迹最终结果；
-2. **Anchor-state micro advantage**：在同一任务的 K 条轨迹中，找到访问过的相同
-   规范化公共环境状态，比较从该状态选择不同动作后的 outcome/return；
-3. **Turn advantage**：按冻结公式组合 macro 和 micro signal，并只应用到对应
-   turn 的 action token。
+2. **Anchor-state micro advantage**：每条轨迹对每个 anchor 只取首次访问；在
+   同一任务 K 条轨迹中比较该位置的 `gamma=0.95` 折扣终态 return，并以相同
+   population-std/`1e-6` 规则标准化；少于两条轨迹或 return 零方差时严格为 0；
+3. **Turn advantage**：`A_turn = A_episode + 1.0 * A_anchor`，micro 只应用到该
+   anchor 的首次访问 turn；其他 turn 精确 fallback 为 macro advantage。
 
 Anchor-state signature 只能来自 policy 可见或环境公开状态，例如：
 
 ```text
 task_id
-page/template identity
-normalized URL and visible query/filter state
-selected public product/supplier identity
-public workflow/submission state
+page/template identity and normalized path without origin/query/fragment
+normalized visible text and stable public controls
+public action result/workflow state
+exact prompt-token context SHA
 ```
 
-不得使用 oracle answer、隐藏 verifier 字段或 test 信息构造 anchor。规范化函数、
-组合公式、无重复 anchor 的 fallback 和 formula version 必须在正式提交前通过单元
-测试并冻结。
+不得使用 episode ID、DOM 临时 element ID、oracle answer、隐藏 verifier 字段或
+test 信息构造 anchor。token loss 先在 turn 内平均，再在 trajectory 内按 turn
+平均，最后在 K=4 group 内按 trajectory 平均；长输出或长轨迹不会仅因 token 更多
+获得更大权重。
 
 ### 8.3 奖励边界
 

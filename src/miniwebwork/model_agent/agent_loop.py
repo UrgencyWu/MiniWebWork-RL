@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from ..agent_env.environment import ProcurementBrowserEnv
@@ -18,6 +20,7 @@ def run_model_episode(
     agent,
     max_model_turns: int = 20,
     max_env_steps: int = 15,
+    turn_generated_callback: Callable[[dict], None] | None = None,
 ) -> dict:
     """Run one episode and return a structured evaluation trajectory.
 
@@ -64,6 +67,7 @@ def run_model_episode(
                 "raw_output": attempt.raw_output,
                 "generated_token_ids": attempt.generated_token_ids,
                 "token_logprobs": attempt.token_logprobs,
+                "sampling_logprobs": attempt.sampling_logprobs,
                 "output_tokens": attempt.output_tokens,
                 "latency_ms": attempt.latency_ms,
                 "strict_json_success": attempt.strict_json_success,
@@ -77,6 +81,11 @@ def run_model_episode(
                 "truncated": False,
             }
             turns.append(turn)
+            if turn_generated_callback is not None:
+                # Charge and fsync generated tokens before browser execution.
+                # A callback failure invalidates the rollout because the
+                # action can no longer satisfy the durable evidence contract.
+                turn_generated_callback(copy.deepcopy(turn))
 
             if any(
                 error.startswith(INFRASTRUCTURE_ERROR_PREFIXES)
