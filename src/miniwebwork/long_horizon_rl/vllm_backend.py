@@ -58,8 +58,8 @@ class VLLMBackendConfig:
     dtype: str = "bfloat16"
     max_model_len: int = MAX_SEQUENCE_LENGTH
     max_new_tokens: int = MAX_NEW_TOKENS
-    gpu_memory_utilization: float = 0.64
-    max_num_seqs: int = 64
+    gpu_memory_utilization: float = 0.5
+    max_num_seqs: int = 32
     enforce_eager: bool = True
     adapter_id: int = 1
     stream_interval: int = 8
@@ -85,8 +85,8 @@ class VLLMBackendConfig:
         _require(self.dtype == "bfloat16", "vLLM dtype drift")
         _require(self.max_model_len == MAX_SEQUENCE_LENGTH, "vLLM model length drift")
         _require(self.max_new_tokens == MAX_NEW_TOKENS, "vLLM turn token cap drift")
-        _require(math.isclose(self.gpu_memory_utilization, 0.64), "vLLM memory fraction drift")
-        _require(self.max_num_seqs == 64, "vLLM maximum sequence count drift")
+        _require(math.isclose(self.gpu_memory_utilization, 0.5), "vLLM memory fraction drift")
+        _require(self.max_num_seqs == 32, "vLLM maximum sequence count drift")
         _require(self.enforce_eager is True, "vLLM Qwen3.5 LoRA eager gate disabled")
         _require(self.adapter_id == 1, "vLLM adapter id drift")
         _require(self.stream_interval == 8, "vLLM stream interval drift")

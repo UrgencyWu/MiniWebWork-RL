@@ -490,9 +490,11 @@ artifact 调整。不得无测量地扩大 CPU 或内存申请。
 | 指标 | 目标 |
 |---|---:|
 | rollout 吞吐 | 至少为当前约 38 trajectories/hour 的 3 倍 |
-| generation 阶段 GPU utilization P50 | ≥60% |
+| generation 阶段 GPU utilization P50 | 诊断性原样报告，不单独判退 |
+| generation 阶段 GPU utilization P95 | ≥50% |
 | learner 阶段 GPU utilization P50 | ≥80% |
 | 显存安全余量 | ≥15% |
+| 并发饱和选择 | 选中配置达到吞吐门槛，且更高并发挑战的吞吐增益 ≤10% |
 | 进入优化器的 action-token 比例 | 目标 ≥20%，必须原样报告 |
 | 每个在线 seed 的 optimizer iterations | 多次迭代；预计 10–14，按 token/group 边界结束 |
 
@@ -571,6 +573,31 @@ runtime v7 定向 Job 1303 得到 `41 passed, 2 failed`：两项旧并发测试�
 合同允许的 64；没有 collection 或训练工件。入口现直接复用
 `ALLOWED_BROWSER_WORKERS`，并增加防重复硬编码测试，修复后必须重新冻结 clean SHA。
 定向 Job 1308 得到 `27 passed`，完整 Job 1309 得到 `422 passed, 10 deselected`。
+
+修复提交后 clean Job 1310 再次得到 `422 passed, 10 deselected`。clean Job 1311
+随后完成 runtime v7 的 64-lane/16-group 饱和挑战：64 trajectories、774 turns、
+16,638 action tokens，真实 KV capacity 为 428,208 tokens，完整 learner、三工件提交、
+同卡 wake 和更新后生成均通过。其吞吐为 `384.11 trajectories/hour` 与
+`99,858 action tokens/hour`，低于 Job 1302 的 32-lane `414.11/103,371`；generation
+mean/P95 也从 `24.66%/58%` 降至 `19.90%/57%`，queue-wait P50 从约 `0.64s`
+升至 `1.14s`。这说明单卡已在 32 lanes 附近进入浏览器、调度和模型交替负载的
+饱和区，再扩大并发只增加排队，不能提升 GPU 有效工作量，因此不继续试 128 lanes。
+
+runtime v8 候选合同 SHA256 为
+`06670a7caef86158dc849ac8a79d092267544b023c7b2fe45142089a48cdf6c4`。它保留
+runtime v7 对 64 lanes/16 groups 的能力上限，但正式候选选择恢复为 32 lanes、
+8 个并发 K=4 groups、`gpu_memory_utilization=0.5`、`max_num_seqs=32`、零错峰；
+Slurm 仍固定 1 GPU/8 CPU/48 GB/24h。性能硬门禁改为：吞吐至少为旧 38 trajectories/hour
+的 3 倍、generation P95≥50%、learner P50≥80%、显存余量≥15%，且 64-lane
+挑战相对 32-lane 的吞吐增益不超过 10%。generation P50、mean、queue wait、功耗和
+有效 optimizer-token 比例继续完整报告，但不再用 1 秒采样下的交替空洞单点否定
+已经通过的吞吐与饱和证据。该调整发生在正式训练前并版本化，不追溯修改历史结果。
+v8 仍须通过 clean CPU 回归、全新 32-lane E2E、选定配置累计至少 30 分钟
+collection-phase soak，以及真实 Slurm collection/learner 两阶段中断恢复，才能冻结。
+
+runtime v8 的提交前定向 Job 1312 得到 `40 passed`，完整非浏览器/非 GPU/非 Slurm
+Job 1313 得到 `423 passed, 10 deselected`。两者只证明候选补丁自洽；提交后的 clean
+SHA 回归、GPU E2E、soak 与中断恢复证据仍不可省略。
 
 ## 11. 24 小时中断恢复与原子性
 

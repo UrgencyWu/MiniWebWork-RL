@@ -23,7 +23,8 @@ from .sampler import DeterministicSignalSampler, TaskDescriptor, TaskSignal
 
 COLLECTION_ORCHESTRATOR_SCHEMA = "m4_long_horizon_collection_orchestrator_v1"
 MAXIMUM_CONCURRENT_K4_GROUPS = 16
-GROUP_LAUNCH_STAGGER_SECONDS = 0.25
+GROUP_LAUNCH_STAGGER_SECONDS = 0.0
+MAXIMUM_GROUP_LAUNCH_STAGGER_SECONDS = 0.25
 MAXIMUM_ZERO_TOKEN_NO_PROGRESS_BATCHES = 3
 TRAIN_PUBLIC_PATH = DATASET_ROOT / "train" / "train_public.jsonl"
 
@@ -231,7 +232,7 @@ def collect_iteration(
     _require(
         isinstance(group_launch_stagger_seconds, (int, float))
         and not isinstance(group_launch_stagger_seconds, bool)
-        and 0 <= group_launch_stagger_seconds <= GROUP_LAUNCH_STAGGER_SECONDS,
+        and 0 <= group_launch_stagger_seconds <= MAXIMUM_GROUP_LAUNCH_STAGGER_SECONDS,
         "group launch stagger exceeds the runtime contract",
     )
     sampler = restore_sampler(tasks, study_seed=identity.seed, state=initial_sampler_state)

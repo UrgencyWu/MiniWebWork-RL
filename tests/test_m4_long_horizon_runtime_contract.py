@@ -28,13 +28,15 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
     )
     assert payload["generation_contract"]["post_wake_generation_smoke_required"] is True
     assert payload["adapter_view_contract"] == EXPECTED_ADAPTER_VIEW_CONTRACT
-    assert payload["generation_contract"]["gpu_memory_utilization"] == 0.64
-    assert payload["generation_contract"]["maximum_sequences"] == 64
+    assert payload["generation_contract"]["gpu_memory_utilization"] == 0.5
+    assert payload["generation_contract"]["maximum_sequences"] == 32
     assert payload["rollout_contract"]["browser_worker_candidates"] == [
         1, 2, 4, 8, 16, 32, 64
     ]
     assert payload["rollout_contract"]["maximum_concurrent_k4_groups"] == 16
-    assert payload["rollout_contract"]["group_launch_stagger_seconds"] == 0.25
+    assert payload["rollout_contract"]["selected_browser_workers"] == 32
+    assert payload["rollout_contract"]["selected_concurrent_k4_groups"] == 8
+    assert payload["rollout_contract"]["group_launch_stagger_seconds"] == 0.0
     assert payload["rollout_contract"]["maximum_group_token_reserve"] == 10240
     assert payload["learner_contract"]["behavior_policy_staleness"] == 0
     assert {
@@ -108,4 +110,13 @@ def test_online_runtime_contract_fails_closed_on_research_relevant_drift(
     payload = copy.deepcopy(load_online_runtime_contract()["payload"])
     payload[section][field] = value
     with pytest.raises(ValueError, match=error):
+        validate_online_runtime_contract(payload)
+
+
+def test_online_runtime_contract_fails_closed_on_saturation_selection_drift():
+    payload = copy.deepcopy(load_online_runtime_contract()["payload"])
+    payload["telemetry_contract"]["gates"][
+        "saturation_challenger_trajectories_per_hour"
+    ] = 500.0
+    with pytest.raises(ValueError, match="saturation evidence"):
         validate_online_runtime_contract(payload)

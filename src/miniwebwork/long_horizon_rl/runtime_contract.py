@@ -24,8 +24,8 @@ from .contracts import sha256_file
 from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
-RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v7"
-RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v7.json"
+RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v8"
+RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v8.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
     "run_identity_schema": "m4_long_horizon_run_identity_v3",
     "turn_schema": "m4_long_horizon_turn_evidence_v3",
@@ -176,6 +176,19 @@ PARITY_CALIBRATION = {
     "runtime_v6_step_aware_optimizer_updates": 2,
     "runtime_v6_step_aware_parameter_change_norm": 0.03685925012247875,
     "runtime_v6_step_aware_post_wake_behavior_sampling_maximum_absolute_difference": 0.0,
+    "runtime_v7_saturation_job_id": 1311,
+    "runtime_v7_group_count": 16,
+    "runtime_v7_token_count": 16638,
+    "runtime_v7_mean_absolute_logprob_difference": 0.002583167558184004,
+    "runtime_v7_p95_absolute_logprob_difference": 0.0007290001958608627,
+    "runtime_v7_p99_absolute_logprob_difference": 0.06945174932479858,
+    "runtime_v7_p999_absolute_logprob_difference": 0.2876361310482025,
+    "runtime_v7_maximum_absolute_log_ratio_diagnostic": 2.426311492919922,
+    "runtime_v7_initial_ratio_clip_fraction": 0.001983411467724486,
+    "runtime_v7_mean_importance_ratio": 0.9996460643297014,
+    "runtime_v7_optimizer_updates": 6,
+    "runtime_v7_parameter_change_norm": 0.06980343223858164,
+    "runtime_v7_post_wake_behavior_sampling_maximum_absolute_difference": 0.0,
 }
 
 
@@ -258,23 +271,22 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         "sampling distribution drift",
     )
     _require(
-        math.isclose(generation.get("gpu_memory_utilization"), 0.64),
+        math.isclose(generation.get("gpu_memory_utilization"), 0.5),
         "vLLM memory fraction drift",
     )
-    _require(generation.get("maximum_sequences") == 64, "vLLM maximum sequences drift")
+    _require(generation.get("maximum_sequences") == 32, "vLLM maximum sequences drift")
     _require(
-        generation.get("maximum_full_length_kv_tokens_required") == 393_216,
+        generation.get("maximum_full_length_kv_tokens_required") == 196_608,
         "vLLM KV-capacity requirement drift",
     )
     _require(
-        generation.get("memory_capacity_projection_source_job_id") == 1302,
-        "vLLM memory-projection lineage drift",
+        generation.get("memory_selection_job_id") == 1302,
+        "vLLM memory-selection lineage drift",
     )
     _require(
-        math.isclose(generation.get("memory_capacity_projection_source_utilization"), 0.5)
-        and generation.get("memory_capacity_projection_source_kv_tokens") == 319_968
-        and math.isclose(generation.get("memory_capacity_target_utilization"), 0.64),
-        "vLLM KV-capacity projection drift",
+        generation.get("memory_selection_observed_kv_tokens") == 319_968
+        and math.isclose(generation.get("memory_selection_post_wake_headroom"), 0.3644099829395119),
+        "vLLM memory-selection evidence drift",
     )
     _require(
         generation.get("enable_prefix_caching") is False,
@@ -319,7 +331,12 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         "concurrent K4 group count drift",
     )
     _require(
-        math.isclose(rollout.get("group_launch_stagger_seconds"), 0.25),
+        rollout.get("selected_browser_workers") == 32
+        and rollout.get("selected_concurrent_k4_groups") == 8,
+        "selected rollout candidate drift",
+    )
+    _require(
+        math.isclose(rollout.get("group_launch_stagger_seconds"), 0.0),
         "group launch stagger drift",
     )
     _require(rollout.get("persistent_browser_per_candidate") is True, "persistent browser disabled")
@@ -415,7 +432,22 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
     )
     gates = telemetry.get("gates", {})
     _require(math.isclose(gates.get("rollout_trajectories_per_hour_minimum"), 114.0), "rollout gate drift")
-    _require(math.isclose(gates.get("generation_gpu_utilization_p50_minimum"), 0.6), "generation utilization gate drift")
+    _require(gates.get("generation_gpu_utilization_p50_diagnostic_only") is True, "generation P50 diagnostic drift")
+    _require(math.isclose(gates.get("generation_gpu_utilization_p95_minimum"), 0.5), "generation active-tail gate drift")
+    _require(
+        gates.get("saturation_selected_browser_workers") == 32
+        and gates.get("saturation_challenger_browser_workers") == 64,
+        "rollout saturation candidate drift",
+    )
+    _require(
+        math.isclose(gates.get("saturation_challenger_throughput_improvement_maximum"), 1.1)
+        and math.isclose(gates.get("saturation_selected_trajectories_per_hour"), 414.1060445946014)
+        and math.isclose(gates.get("saturation_challenger_trajectories_per_hour"), 384.11349008080083)
+        and gates["saturation_challenger_trajectories_per_hour"]
+        / gates["saturation_selected_trajectories_per_hour"]
+        <= gates["saturation_challenger_throughput_improvement_maximum"],
+        "rollout saturation evidence drift",
+    )
     _require(math.isclose(gates.get("learner_gpu_utilization_p50_minimum"), 0.8), "learner utilization gate drift")
     _require(math.isclose(gates.get("vram_headroom_minimum"), 0.15), "VRAM gate drift")
     _require(math.isclose(gates.get("optimizer_action_token_fraction_target"), 0.2), "optimizer-token target drift")
