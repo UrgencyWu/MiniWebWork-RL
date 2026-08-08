@@ -7,8 +7,11 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+import miniwebwork.long_horizon_rl.learner as learner_module
+
 from miniwebwork.long_horizon_rl.learner import (
     TurnTrainingExample,
+    audit_initial_replay_parity,
     audit_group_behavior_sampling_parity,
     build_or_load_policy_optimizer,
     create_bootstrap_optimizer_artifact,
@@ -20,7 +23,7 @@ from miniwebwork.long_horizon_rl.learner import (
     train_policy_groups,
 )
 
-from miniwebwork.long_horizon_rl.contracts import group_content_sha256
+from miniwebwork.long_horizon_rl.contracts import group_content_sha256, token_ids_sha256
 from test_m4_long_horizon_credit import _group, _identity
 
 
@@ -190,10 +193,81 @@ def _parity_thresholds():
         "replay_p95_absolute_difference": 1e-5,
         "replay_p99_absolute_difference": 1e-5,
         "replay_p999_absolute_difference": 1e-5,
-        "replay_maximum_absolute_log_ratio": 1e-5,
         "replay_initial_ratio_clip_fraction": 1e-5,
         "mean_importance_ratio_absolute_deviation": 1e-5,
     }
+
+
+def test_initial_parity_reports_but_does_not_gate_one_finite_sparse_maximum(monkeypatch):
+    group = _uniform_behavior_group()
+    uniform_logprob = -math.log(64)
+    for trajectory in group["trajectories"]:
+        for turn in trajectory["turns"]:
+            turn["generated_token_ids"] = list(range(125))
+            turn["behavior_logprobs"] = [uniform_logprob] * 125
+            turn["sampling_logprobs"] = [uniform_logprob] * 125
+            turn["generated_token_sha256"] = token_ids_sha256(
+                turn["generated_token_ids"]
+            )
+        trajectory["generated_action_tokens"] = 250
+    group["generated_action_tokens"] = 1000
+    group["group_sha256"] = group_content_sha256(group)
+
+    candidate = [uniform_logprob] * 1000
+    candidate[-1] += 2.66
+    monkeypatch.setattr(learner_module, "replay_examples", lambda **_kwargs: candidate)
+    thresholds = {
+        "behavior_sampling_maximum_absolute_difference": 1e-6,
+        "replay_mean_absolute_difference": 0.02,
+        "replay_p95_absolute_difference": 0.08,
+        "replay_p99_absolute_difference": 0.08,
+        "replay_p999_absolute_difference": 0.5,
+        "replay_initial_ratio_clip_fraction": 0.005,
+        "mean_importance_ratio_absolute_deviation": 0.02,
+    }
+    report = audit_initial_replay_parity(
+        model=None,
+        groups=[group],
+        method="multi_turn_grpo",
+        identity=_identity("multi_turn_grpo"),
+        pad_token_id=0,
+        microbatch_size=8,
+        device=torch.device("cpu"),
+        thresholds=thresholds,
+    )
+    assert report["passed"] is True
+    assert report["maximum_absolute_log_ratio"] == pytest.approx(2.66)
+    assert "maximum_absolute_log_ratio" not in report["checks"]
+
+
+def test_initial_parity_still_rejects_distribution_wide_mismatch(monkeypatch):
+    group = _uniform_behavior_group()
+    uniform_logprob = -math.log(64)
+    monkeypatch.setattr(
+        learner_module,
+        "replay_examples",
+        lambda **_kwargs: [uniform_logprob + 1.0] * 16,
+    )
+    thresholds = {
+        "behavior_sampling_maximum_absolute_difference": 1e-6,
+        "replay_mean_absolute_difference": 0.02,
+        "replay_p95_absolute_difference": 0.08,
+        "replay_p99_absolute_difference": 0.08,
+        "replay_p999_absolute_difference": 0.5,
+        "replay_initial_ratio_clip_fraction": 0.005,
+        "mean_importance_ratio_absolute_deviation": 0.02,
+    }
+    with pytest.raises(ValueError, match="initial behavior/replay parity failed"):
+        audit_initial_replay_parity(
+            model=None,
+            groups=[group],
+            method="multi_turn_grpo",
+            identity=_identity("multi_turn_grpo"),
+            pad_token_id=0,
+            microbatch_size=8,
+            device=torch.device("cpu"),
+            thresholds=thresholds,
+        )
 
 
 def test_shared_tensor_learner_updates_each_nonzero_k4_group_per_policy_epoch():

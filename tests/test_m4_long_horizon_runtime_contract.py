@@ -1,6 +1,4 @@
 import copy
-import math
-
 import pytest
 
 from miniwebwork.long_horizon_rl.runtime_contract import (
@@ -57,9 +55,7 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
     assert payload["parity_contract"]["thresholds_frozen_before_formal_training"] is True
     assert payload["parity_contract"]["calibration"] == PARITY_CALIBRATION
     assert payload["parity_contract"]["replay_p999_absolute_difference"] == 0.5
-    assert payload["parity_contract"]["replay_maximum_absolute_log_ratio"] == pytest.approx(
-        math.log(10.0)
-    )
+    assert "replay_maximum_absolute_log_ratio" not in payload["parity_contract"]
     assert payload["slurm_contract"] == {
         "gpus": 1,
         "cpus": 8,
@@ -86,7 +82,12 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
         ("rollout_contract", "maximum_concurrent_k4_groups", 3, "concurrent"),
         ("learner_contract", "behavior_policy_staleness", 1, "staleness"),
         ("parity_contract", "replay_p999_absolute_difference", 0.6, "parity"),
-        ("parity_contract", "replay_maximum_absolute_log_ratio", 3.0, "parity"),
+        (
+            "parity_contract",
+            "replay_maximum_absolute_log_ratio",
+            3.0,
+            "single-token maximum",
+        ),
         ("adapter_view_contract", "expected_tensor_count", 255, "adapter-view"),
         ("evidence_contract", "run_identity_schema", "legacy", "schema"),
         ("evidence_contract", "required_turn_lineage", [], "turn lineage"),

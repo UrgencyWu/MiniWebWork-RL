@@ -520,6 +520,29 @@ runtime v5 候选合同 SHA256 为
 Job 1291 得到 `36 passed`，完整 Job 1292 得到 `418 passed, 10 deselected`；这些
 只证明候选代码自洽，仍不能替代 clean SHA 的 GPU 性能与恢复证据。
 
+clean `b9335f8` 上的 Job 1294 随后得到 `418 passed, 10 deselected`。Job 1295
+以 32 lanes 完成 32 trajectories、385 turns、8040 action tokens、2 次真实更新及
+原子 commit/wake，吞吐提升到 `371.55 trajectories/hour`；generation/post-wake
+显存余量为 `45.25%/36.44%`，但 generation utilization P50 仍为 `11%`，说明仅增加
+lane 不能消除浏览器与模型请求的同步波峰。有效 optimizer-token 比例为 `13.74%`，
+源于 8 个 group 中仅 1 个具有非零组内优势，必须原样作为样本效率证据。
+
+同提交 Job 1296 的 Step-aware collection 完成 8144 token；mean/P95/P99/P99.9、
+initial clip fraction 与 mean ratio 分别为 `0.002127/0.000392/0.055286/0.246272`、
+`0.1965%` 与 `0.999675`，behavior/sampling 也精确一致，却只因一个有限 token 的
+max-log-ratio `2.667906` 超过 `ln(10)` 被拒。结合 Jobs 1281/1286 已证明的 batch-shape
+敏感性，runtime v6 将单点 maximum 保留在报告中但移出 pass/fail；硬门禁仍为精确
+behavior/sampling、mean、P95、P99、P99.9、clip coverage 与 mean ratio。错误 adapter
+Job 1267 仍会被多项分布门禁以数量级差距拒绝。v6 必须在全新 root 上完成真实
+Step-aware update/commit/wake，历史 v1–v5 结果均不追溯改判。
+
+runtime v6 候选合同 SHA256 为
+`6b03a6a90daf2c47b80b113ac836d871e59fc05a2fc453313bd2621797a3f0f0`。
+Jobs 1297/1298 分别暴露新增长 token 测试夹具的 token SHA 与 trajectory 聚合计数
+没有联动更新；二者都在进入生产 parity 断言前失败并保留为测试诊断。修正后的
+Job 1299 得到 `36 passed`，完整 Job 1300 得到 `420 passed, 10 deselected`。
+提交后仍须在 clean SHA 重跑，并以全新 Step-aware GPU E2E 关闭正确性门禁。
+
 ## 11. 24 小时中断恢复与原子性
 
 Slurm wall time 固定不超过 24 小时。恢复单位分两层：

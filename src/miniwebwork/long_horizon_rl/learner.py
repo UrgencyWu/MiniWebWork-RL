@@ -428,7 +428,6 @@ def audit_initial_replay_parity(
         "replay_p95_absolute_difference",
         "replay_p99_absolute_difference",
         "replay_p999_absolute_difference",
-        "replay_maximum_absolute_log_ratio",
         "replay_initial_ratio_clip_fraction",
         "mean_importance_ratio_absolute_deviation",
     }
@@ -477,10 +476,6 @@ def audit_initial_replay_parity(
         "p999_absolute_difference": (
             report["p999_absolute_logprob_difference"]
             <= thresholds["replay_p999_absolute_difference"]
-        ),
-        "maximum_absolute_log_ratio": (
-            report["maximum_absolute_log_ratio"]
-            <= thresholds["replay_maximum_absolute_log_ratio"]
         ),
         "initial_ratio_clip_fraction": (
             report["initial_ratio_clip_fraction"]

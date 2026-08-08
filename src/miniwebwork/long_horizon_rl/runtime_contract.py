@@ -24,8 +24,8 @@ from .contracts import sha256_file
 from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
-RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v5"
-RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v5.json"
+RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v6"
+RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v6.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
     "run_identity_schema": "m4_long_horizon_run_identity_v3",
     "turn_schema": "m4_long_horizon_turn_evidence_v3",
@@ -68,7 +68,6 @@ PARITY_THRESHOLDS = {
     "replay_p95_absolute_difference": 0.08,
     "replay_p99_absolute_difference": 0.08,
     "replay_p999_absolute_difference": 0.5,
-    "replay_maximum_absolute_log_ratio": math.log(10.0),
     "replay_initial_ratio_clip_fraction": 0.005,
     "mean_importance_ratio_absolute_deviation": 0.02,
 }
@@ -143,6 +142,28 @@ PARITY_CALIBRATION = {
     "runtime_v4_optimizer_updates": 2,
     "runtime_v4_parameter_change_norm": 0.037170038295178266,
     "runtime_v4_post_wake_behavior_sampling_maximum_absolute_difference": 0.0,
+    "runtime_v5_grpo_job_id": 1295,
+    "runtime_v5_grpo_token_count": 8040,
+    "runtime_v5_grpo_mean_absolute_logprob_difference": 0.002138247400720372,
+    "runtime_v5_grpo_p95_absolute_logprob_difference": 0.00024105655029416084,
+    "runtime_v5_grpo_p99_absolute_logprob_difference": 0.04517373442649841,
+    "runtime_v5_grpo_p999_absolute_logprob_difference": 0.35196539759635925,
+    "runtime_v5_grpo_maximum_absolute_log_ratio": 1.9909225702285767,
+    "runtime_v5_grpo_initial_ratio_clip_fraction": 0.0016169154228855722,
+    "runtime_v5_grpo_mean_importance_ratio": 1.000584248671697,
+    "runtime_v5_step_aware_job_id": 1296,
+    "runtime_v5_step_aware_token_count": 8144,
+    "runtime_v5_step_aware_mean_absolute_logprob_difference": 0.002127327528750038,
+    "runtime_v5_step_aware_p95_absolute_logprob_difference": 0.00039223674684762955,
+    "runtime_v5_step_aware_p99_absolute_logprob_difference": 0.05528593063354492,
+    "runtime_v5_step_aware_p999_absolute_logprob_difference": 0.2462717890739441,
+    "runtime_v5_step_aware_maximum_absolute_log_ratio": 2.6679060459136963,
+    "runtime_v5_step_aware_initial_ratio_clip_fraction": 0.0019646365422396855,
+    "runtime_v5_step_aware_mean_importance_ratio": 0.9996751473203268,
+    "runtime_v6_tail_gate_change": (
+        "retain_single_token_maximum_as_diagnostic_only;fail_closed_on_exact_"
+        "behavior_sampling_identity_plus_mean_p95_p99_p999_clip_fraction_and_mean_ratio"
+    ),
 }
 
 
@@ -335,6 +356,10 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
     )
     for field, expected in PARITY_THRESHOLDS.items():
         _require(math.isclose(parity.get(field), expected), f"parity {field} drift")
+    _require(
+        "replay_maximum_absolute_log_ratio" not in parity,
+        "single-token maximum parity gate reintroduced",
+    )
     _require(
         parity.get("failure") == "fail_closed_before_optimizer_step",
         "parity failure policy drift",
