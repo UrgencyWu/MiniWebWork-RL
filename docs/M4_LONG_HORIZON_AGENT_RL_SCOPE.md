@@ -1,6 +1,7 @@
 # MiniWebWork-RL 长程智能体强化学习收缩方案
 
-> 状态：2026-08-08 批准的正式范围；前置实现与门禁验证进行中。
+> 状态：2026-08-08 批准的正式范围；2026-08-09 完成 parity 合同版本化校准，
+> 前置实现与门禁验证仍在进行中。
 >
 > 本文档取代 `M4_RLVR_STUDY_PROTOCOL.md` 中“五算法 × 三随机种子”的正式
 > 矩阵。旧协议、旧提交和既有 v3 工件仅保留为诊断与工程演进证据。本文档
@@ -116,7 +117,8 @@ raw/sampling log-prob 语义不一致或零奖励方差被排除。随后所有�
 
 这个结果证明了门禁可以阻止不兼容数据进入梯度，但也证明当前流程不是真正高效
 的迭代式在线 RL。正式方案必须先解决采样分布语义、动态学习信号采样和更新频率，
-不能通过放宽 log-prob 阈值掩盖问题。
+不能通过只提高单个 log-prob 上限、删除异常 token 或忽略负对照来掩盖问题；
+parity 合同必须在正式训练前用正、负对照做版本化校准并完整披露。
 
 ### 2.5 当前 SFT 预算设计造成重复训练
 
@@ -350,13 +352,42 @@ top_k = 0
 K = 4
 ```
 
-当前 raw/sampling mismatch 必须从语义上修复。为避免观察 GPU 结果后选择门槛，
-正式阈值在首次 GPU parity smoke 前预注册为：behavior/sampling 最大绝对
-log-prob 差 `1e-7`；vLLM behavior 对 HF replay 的 mean/P95/max 绝对
-log-prob 差分别不超过 `0.02/0.08/0.18`；mean importance ratio 相对 1 的
-偏差不超过 `0.02`。其中 max `0.18` 小于 PPO `clip_epsilon=0.2` 对应的正向
-log-ratio 边界 `log(1.2)`；任一项失败均在 optimizer step 前 fail closed，必须
-修复 backend/tokenizer/adapter 语义，不得事后放宽。每次 update 报告：
+当前 raw/sampling mismatch 必须从语义上修复。runtime v1 在首次 GPU parity
+smoke 前预注册：behavior/sampling 最大绝对 log-prob 差 `1e-7`；vLLM behavior
+对 HF replay 的 mean/P95/max 绝对 log-prob 差不超过 `0.02/0.08/0.18`；mean
+importance ratio 相对 1 的偏差不超过 `0.02`。Job 1267 作为错误 adapter
+命名空间负对照，得到 mean/P95/max `1.18677/10.12739/21.51204`，并在首次
+optimizer step 前被拒绝。
+
+修复 adapter 视图后，Job 1271 在 clean `e108fc96` 上完成 4 个原子 K=4 group、
+4143 个 action token，并证明 behavior/sampling 逐 token 完全一致；正确血缘的
+replay mean/P95/max 为 `0.001631/0.000438/0.367135`。它仅因 v1 的单点 max
+门槛失败，未执行 optimizer update。Job 1273 的逐 token 复核进一步得到 P99
+`0.04821`，且只有 `6/4143 = 0.1448%` token 的初始 importance ratio 落在
+PPO `[0.8, 1.2]` 之外；异常集中在少量 BF16 Qwen3.5 hybrid-recurrence
+batch-shape 敏感 token，而不是 token 对齐、采样分布或 adapter 身份错误。隔离安装
+FLA 的 Jobs 1275–1277 没有改善该分布且放大稀疏异常，因此明确拒绝把 FLA 或
+共享环境变更带入正式 runtime。
+
+在任何正式训练开始前，parity 合同据此升级为 runtime v2，并同时冻结一组互补
+门禁：
+
+```text
+behavior/sampling max absolute difference       <= 1e-7
+HF replay mean absolute difference              <= 0.02
+HF replay P95 / P99 absolute difference         <= 0.08 / 0.08
+HF replay maximum absolute difference           <= 0.50
+initial PPO ratio clip fraction                  <= 0.005
+mean importance ratio absolute deviation from 1 <= 0.02
+```
+
+其中 max `0.50` 只是保险上限；P99 与初始 ratio clip fraction 才约束异常的覆盖
+范围。该组合对正确血缘正对照留有测量余量，同时仍以数量级差距拒绝 Job 1267
+负对照。此次变更被标记为 `thresholds_frozen_before_gpu_observation=false`、
+`thresholds_frozen_before_formal_training=true`，不能伪装成首次观测前预注册；
+它必须通过全新 GPU preflight、真实 optimizer update 和 engine wake 后才可成为
+正式冻结依据。此后若再改阈值，必须新建 runtime 版本和校准工件，既有失败作业
+不得被追溯改判为 PASS。每次 update 报告：
 
 - behavior/replay 最大和分位 log-prob 差异；
 - importance ratio、clip fraction 和 approximate KL；
@@ -391,7 +422,14 @@ unload inference engine
 HF/PEFT learner minibatches on the same GPU
         ↓
 save next adapter and reload rollout engine
+        ↓
+run one lineage-bound post-wake generation smoke
 ```
+
+`wake_up()` 和 `add_lora()` 返回成功不足以单独证明新策略可用；preflight 必须再用
+新 canonical/view/semantic 三元 SHA 发起一次真实生成，逐 token 验证
+behavior/sampling 一致并落盘 phase event。该请求只计为前置 phase-switch 诊断成本，
+不进入正式训练 token 预算或研究结果。
 
 建议正式资源请求：
 

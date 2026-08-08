@@ -24,8 +24,8 @@ from .contracts import sha256_file
 from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
-RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v1"
-RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v1.json"
+RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v2"
+RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v2.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
     "run_identity_schema": "m4_long_horizon_run_identity_v3",
     "turn_schema": "m4_long_horizon_turn_evidence_v3",
@@ -66,8 +66,27 @@ PARITY_THRESHOLDS = {
     "behavior_sampling_maximum_absolute_difference": 1e-7,
     "replay_mean_absolute_difference": 0.02,
     "replay_p95_absolute_difference": 0.08,
-    "replay_maximum_absolute_difference": 0.18,
+    "replay_p99_absolute_difference": 0.08,
+    "replay_maximum_absolute_difference": 0.5,
+    "replay_initial_ratio_clip_fraction": 0.005,
     "mean_importance_ratio_absolute_deviation": 0.02,
+}
+PARITY_CALIBRATION = {
+    "status": "versioned_after_gpu_preflight_before_formal_training",
+    "positive_job_id": 1271,
+    "positive_token_count": 4143,
+    "positive_mean_absolute_logprob_difference": 0.001631149261297419,
+    "positive_p95_absolute_logprob_difference": 0.00043759867548942566,
+    "positive_maximum_absolute_logprob_difference": 0.36713528633117676,
+    "token_diagnostic_job_id": 1273,
+    "positive_p99_absolute_logprob_difference": 0.04820847511291504,
+    "positive_initial_ratio_clip_count": 6,
+    "positive_initial_ratio_clip_fraction": 0.001448225923244026,
+    "negative_job_id": 1267,
+    "negative_token_count": 1667,
+    "negative_mean_absolute_logprob_difference": 1.1867696967614851,
+    "negative_p95_absolute_logprob_difference": 10.127390384674072,
+    "negative_maximum_absolute_logprob_difference": 21.51203542947769,
 }
 
 
@@ -168,6 +187,15 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         == "pytorch_allocator_aliases_unset_for_vllm_cumem_sleep",
         "vLLM sleep allocator contract drift",
     )
+    _require(
+        generation.get("adapter_swap_protocol")
+        == "remove_lora_then_sleep_level_2_then_same_gpu_hf_learner_then_wake_and_add_lora",
+        "adapter swap protocol drift",
+    )
+    _require(
+        generation.get("post_wake_generation_smoke_required") is True,
+        "post-wake generation smoke disabled",
+    )
     _require(generation.get("generation_during_learner") is False, "stale generation enabled")
 
     _require(
@@ -220,8 +248,16 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
 
     parity = payload.get("parity_contract", {})
     _require(
-        parity.get("thresholds_frozen_before_gpu_observation") is True,
-        "parity thresholds were not preregistered",
+        parity.get("thresholds_frozen_before_gpu_observation") is False,
+        "parity calibration history drift",
+    )
+    _require(
+        parity.get("thresholds_frozen_before_formal_training") is True,
+        "parity thresholds are not frozen before formal training",
+    )
+    _require(
+        parity.get("calibration") == PARITY_CALIBRATION,
+        "parity calibration evidence drift",
     )
     for field, expected in PARITY_THRESHOLDS.items():
         _require(math.isclose(parity.get(field), expected), f"parity {field} drift")

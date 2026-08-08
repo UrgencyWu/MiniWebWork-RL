@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from miniwebwork.long_horizon_rl.online_runner import (
     _load_or_write_run_config,
+    audit_post_wake_generation,
     identity_from_run_state,
     run_online_preflight_once,
     summarize_collection_performance,
@@ -46,6 +48,45 @@ def test_collection_performance_reports_true_hierarchical_counts_and_rates():
         "p95": 2.0,
         "maximum": 2,
     }
+
+
+def test_post_wake_generation_proves_updated_adapter_and_sampling_identity():
+    result = SimpleNamespace(
+        error="",
+        new_tokens=2,
+        input_tokens=9,
+        generated_token_ids=[10, 11],
+        logprobs=[-0.5, -0.7],
+        sampling_logprobs=[-0.5, -0.7],
+        adapter_sha256="a" * 64,
+        rollout_adapter_sha256="b" * 64,
+        adapter_semantic_sha256="c" * 64,
+        request_id="post-wake-policy_0001",
+        sampling_seed=21260801,
+        raw_text='{"status":"awake"}',
+        latency_ms=10.0,
+        queue_wait_ms=1.0,
+        first_token_latency_ms=2.0,
+        generation_time_ms=7.0,
+    )
+    report = audit_post_wake_generation(
+        result,
+        expected_adapter_sha256="a" * 64,
+        expected_rollout_adapter_sha256="b" * 64,
+        expected_adapter_semantic_sha256="c" * 64,
+    )
+    assert report["generated_action_tokens"] == 2
+    assert report["behavior_sampling_maximum_absolute_difference"] == 0
+    assert report["passed"] is True
+
+    result.adapter_sha256 = "d" * 64
+    with pytest.raises(ValueError, match="canonical adapter identity"):
+        audit_post_wake_generation(
+            result,
+            expected_adapter_sha256="a" * 64,
+            expected_rollout_adapter_sha256="b" * 64,
+            expected_adapter_semantic_sha256="c" * 64,
+        )
 
 
 def test_run_config_is_immutable_and_self_hashed(tmp_path):
@@ -112,7 +153,7 @@ def test_recovered_commit_without_complete_report_fails_same_gpu_gate(tmp_path):
         "run_config": {"run_config_sha256": "c" * 64},
         "state_store": AdvancedStateStore(),
     }
-    with pytest.raises(RuntimeError, match="same-GPU sleep/wake was not proven"):
+    with pytest.raises(RuntimeError, match="same-GPU sleep/wake/generation was not proven"):
         asyncio.run(run_online_preflight_once(prepared))
 
     assert not (tmp_path / "preflight_report.json").exists()

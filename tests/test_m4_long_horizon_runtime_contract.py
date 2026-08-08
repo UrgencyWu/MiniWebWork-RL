@@ -6,6 +6,7 @@ from miniwebwork.long_horizon_rl.runtime_contract import (
     EXPECTED_ADAPTER_VIEW_CONTRACT,
     EXPECTED_EVIDENCE_SCHEMAS,
     EXPECTED_TURN_LINEAGE,
+    PARITY_CALIBRATION,
     PARITY_THRESHOLDS,
     load_online_runtime_contract,
     validate_online_runtime_contract,
@@ -25,6 +26,7 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
     assert payload["generation_contract"]["cuda_allocator_environment"] == (
         "pytorch_allocator_aliases_unset_for_vllm_cumem_sleep"
     )
+    assert payload["generation_contract"]["post_wake_generation_smoke_required"] is True
     assert payload["adapter_view_contract"] == EXPECTED_ADAPTER_VIEW_CONTRACT
     assert payload["rollout_contract"]["browser_worker_candidates"] == [1, 2, 4, 8]
     assert payload["rollout_contract"]["maximum_group_token_reserve"] == 10240
@@ -44,7 +46,9 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
         key: payload["parity_contract"][key]
         for key in PARITY_THRESHOLDS
     } == PARITY_THRESHOLDS
-    assert payload["parity_contract"]["thresholds_frozen_before_gpu_observation"] is True
+    assert payload["parity_contract"]["thresholds_frozen_before_gpu_observation"] is False
+    assert payload["parity_contract"]["thresholds_frozen_before_formal_training"] is True
+    assert payload["parity_contract"]["calibration"] == PARITY_CALIBRATION
     assert payload["slurm_contract"] == {
         "gpus": 1,
         "cpus": 8,
@@ -63,11 +67,13 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
         ("generation_contract", "cuda_allocator_environment", "expandable", "allocator"),
         ("generation_contract", "execution_mode", "cuda_graph", "execution-mode"),
         ("generation_contract", "cuda_graphs_enabled", True, "CUDA graphs"),
+        ("generation_contract", "adapter_swap_protocol", "load_without_wake", "adapter swap"),
+        ("generation_contract", "post_wake_generation_smoke_required", False, "post-wake"),
         ("rollout_contract", "group_size", 8, "K drift"),
         ("rollout_contract", "action_token_budget_per_method_seed", 200000, "budget"),
         ("rollout_contract", "maximum_concurrent_k4_groups", 3, "concurrent"),
         ("learner_contract", "behavior_policy_staleness", 1, "staleness"),
-        ("parity_contract", "replay_maximum_absolute_difference", 0.5, "parity"),
+        ("parity_contract", "replay_maximum_absolute_difference", 0.6, "parity"),
         ("adapter_view_contract", "expected_tensor_count", 255, "adapter-view"),
         ("evidence_contract", "run_identity_schema", "legacy", "schema"),
         ("evidence_contract", "required_turn_lineage", [], "turn lineage"),

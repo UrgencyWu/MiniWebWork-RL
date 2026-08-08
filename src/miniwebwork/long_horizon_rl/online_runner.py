@@ -197,6 +197,67 @@ def summarize_collection_performance(
     }
 
 
+def audit_post_wake_generation(
+    result: Any,
+    *,
+    expected_adapter_sha256: str,
+    expected_rollout_adapter_sha256: str,
+    expected_adapter_semantic_sha256: str,
+) -> dict[str, Any]:
+    """Prove that the updated adapter can generate after the same-GPU wake."""
+
+    _require(not result.error, "post-wake generation returned an error")
+    _require(result.new_tokens > 0, "post-wake generation produced no tokens")
+    _require(
+        result.new_tokens == len(result.generated_token_ids),
+        "post-wake generated-token count drift",
+    )
+    _require(
+        len(result.logprobs) == result.new_tokens
+        and len(result.sampling_logprobs) == result.new_tokens,
+        "post-wake logprob/token count drift",
+    )
+    _require(
+        result.adapter_sha256 == expected_adapter_sha256,
+        "post-wake canonical adapter identity drift",
+    )
+    _require(
+        result.rollout_adapter_sha256 == expected_rollout_adapter_sha256,
+        "post-wake rollout adapter identity drift",
+    )
+    _require(
+        result.adapter_semantic_sha256 == expected_adapter_semantic_sha256,
+        "post-wake adapter semantic identity drift",
+    )
+    behavior_sampling_maximum = max(
+        abs(float(behavior) - float(sampling))
+        for behavior, sampling in zip(result.logprobs, result.sampling_logprobs)
+    )
+    _require(
+        behavior_sampling_maximum
+        <= PARITY_THRESHOLDS["behavior_sampling_maximum_absolute_difference"],
+        "post-wake behavior/sampling parity failed",
+    )
+    return {
+        "request_id": result.request_id,
+        "sampling_seed": result.sampling_seed,
+        "input_tokens": result.input_tokens,
+        "generated_action_tokens": result.new_tokens,
+        "generated_token_ids_sha256": sha256_json(result.generated_token_ids),
+        "raw_text_sha256": sha256_json({"raw_text": result.raw_text}),
+        "behavior_sampling_maximum_absolute_difference": behavior_sampling_maximum,
+        "adapter_sha256": result.adapter_sha256,
+        "rollout_adapter_sha256": result.rollout_adapter_sha256,
+        "adapter_semantic_sha256": result.adapter_semantic_sha256,
+        "latency_ms": result.latency_ms,
+        "queue_wait_ms": result.queue_wait_ms,
+        "first_token_latency_ms": result.first_token_latency_ms,
+        "generation_time_ms": result.generation_time_ms,
+        "cost_scope": "preflight_phase_switch_diagnostic_not_formal_training",
+        "passed": True,
+    }
+
+
 def _phase_event(root: Path, event_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     directory = Path(root) / "phase_events"
     directory.mkdir(parents=True, exist_ok=True)
@@ -525,14 +586,15 @@ async def run_online_preflight_once(prepared: Mapping[str, Any]) -> dict[str, An
                 "passed": False,
                 "reason": (
                     "iteration committed without a durable complete preflight report; "
-                    "the prior process may have stopped before vLLM wake/add-adapter"
+                    "the prior process may have stopped before vLLM wake/add-adapter "
+                    "or post-wake generation"
                 ),
             },
             "complete": False,
         }
         atomic_write_json(root / "recovered_committed_update.json", recovery_report)
         raise RuntimeError(
-            "committed update recovered, but same-GPU sleep/wake was not proven; "
+            "committed update recovered, but same-GPU sleep/wake/generation was not proven; "
             "use a new preflight run root for the phase-switch gate"
         )
 
@@ -675,6 +737,31 @@ async def run_online_preflight_once(prepared: Mapping[str, Any]) -> dict[str, An
         )
         engine_in_learner_phase = False
         _phase_event(root, "vllm_wake_complete", wake_result)
+        post_wake_result = await engine.generate_messages(
+            [
+                {
+                    "role": "system",
+                    "content": "Return one compact JSON object and no other text.",
+                },
+                {
+                    "role": "user",
+                    "content": 'Return {"status":"awake"}.',
+                },
+            ],
+            request_id=f"post-wake-{new_state['current_policy_version']}",
+            sampling_seed=identity.seed + 1_000_000,
+        )
+        post_wake_generation = audit_post_wake_generation(
+            post_wake_result,
+            expected_adapter_sha256=new_state["current_adapter"]["sha256"],
+            expected_rollout_adapter_sha256=new_state["current_rollout_adapter"][
+                "sha256"
+            ],
+            expected_adapter_semantic_sha256=new_state[
+                "current_adapter_semantic_sha256"
+            ],
+        )
+        _phase_event(root, "post_wake_generation_complete", post_wake_generation)
         report = {
             "schema_version": ONLINE_PREFLIGHT_REPORT_SCHEMA,
             "study_id": STUDY_ID,
@@ -688,6 +775,7 @@ async def run_online_preflight_once(prepared: Mapping[str, Any]) -> dict[str, An
             "same_gpu_phase_switch": {
                 "sleep": sleep_result,
                 "wake": wake_result,
+                "post_wake_generation": post_wake_generation,
                 "passed": True,
             },
             "complete": True,
