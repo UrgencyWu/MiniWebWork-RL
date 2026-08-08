@@ -40,11 +40,11 @@ SFT、GRPO 或 step-aware 作业。
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
 | SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
-| 异步 vLLM rollout | PENDING | 需实现多 browser worker、连续批处理和完整采样 log-prob |
-| 迭代 learner / GRPO | PENDING | 需实现多 iteration/minibatch、有效组账本和 250k token cap |
+| 异步 vLLM rollout | PARTIAL | `data/m4_long_horizon_runtime_v1.json` 已冻结单 GPU AsyncLLM、1/2/4/8 browser workers、最多 2 个并发 K=4 group、同卡 sleep/wake adapter swap 与完整 raw/sampling log-prob 合同；证据 schema v2 与生成即记账已通过 CPU 回归，待真实 vLLM backend、浏览器并发和 GPU smoke |
+| 迭代 learner / GRPO | PARTIAL | 已实现冻结 collection 绑定、adapter/optimizer/token/sampler 原子 iteration 提交与多策略版本 run_state；目录提交后状态推进前故障可校验向前对账，partial learner stage 归档后从同一 collection 重做；待 PPO/GRPO tensor learner 与同卡更新 smoke |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一；CPU 单测通过；待接入真实 learner smoke |
-| On-policy / parity 门禁 | PARTIAL | turn/trajectory/group 已逐层绑定 policy、adapter SHA、prompt/completion IDs、behavior/sampling log-prob；sampling log-prob 已进入主轨迹；待 vLLM↔HF parity 与 staleness=0 GPU smoke |
-| 24 小时原子恢复 | PARTIAL | append+flush+fsync hash-chain journal、实际 token 保留、exact-K durable trajectory gate、原子 group/collection artifact 与身份漂移 fail-closed 已通过 CPU 测试；待 iteration adapter/optimizer commit、fault injection 与真实 Slurm resume |
+| On-policy / parity 门禁 | PARTIAL | v2 run identity 新增 base-model/runtime hash、iteration/policy；turn 新增 attempt/request/sampling seed 与 generated-token hash，逐层绑定 adapter、prompt/completion IDs、behavior/sampling log-prob；待 vLLM↔HF parity 与 staleness=0 GPU smoke |
+| 24 小时原子恢复 | PARTIAL | v2 journal 使用 O(1) cached hash-chain append+flush+fsync；先持久化最小 token charge、再原子落 full turn/trajectory/group；不完整 attempt 保留成本并归档；iteration 目录原子提交、run_state 向前对账与 partial-stage fault injection 已通过；待真实 Slurm 进程中断/续跑 smoke |
 | GPU 性能门禁 | PARTIAL | SFT 单卡门禁已通过：microbatch=8 为 1122.89 forward tok/s，外部遥测 GPU util P50=100%、显存余量 50.58%；仍需 rollout concurrency、同卡 learner 与 phase-specific 门禁 |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
@@ -63,6 +63,20 @@ Beta(1,1) uncertainty priority；并发 journal hash chain、无效组成本保�
 commit、路径逃逸和 collection freeze 幂等。加入专用 SFT trainer、协议漂移和
 Slurm 资源门禁后，完整非浏览器/非 GPU/非 Slurm 回归为
 `325 passed, 10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
+
+加入 runtime v1、证据 schema v2、两阶段 turn/trajectory/group 落盘与原子
+iteration state 后，完整非浏览器/非 GPU/非 Slurm 回归更新为
+`350 passed, 10 deselected`。聚焦的 runtime/credit/journal/iteration 回归分别覆盖：
+生成 token 在完整 turn artifact 前 fsync、重复 charge 拒绝、incomplete attempt 恢复归档、
+冻结 collection 禁止存在未终止 attempt、adapter/optimizer 与全局 token 账本原子推进，
+同长度外部 journal 篡改拒绝，以及“iteration 目录已 rename、run_state 尚未写入”
+故障后的只前进对账。
+
+在线 runtime 机器合同 SHA256 为
+`e6566992abd07ddb3c5abb35ac86d5c86233e802dcc2fbaeb388d78e83a02368`；
+它固定 Python 3.11.14、PyTorch 2.10.0+cu128、Transformers 5.14.1、PEFT
+0.19.1、vLLM 0.17.0 与 Playwright 1.61.0，并继续保持
+`formal_submission_allowed=false`。该合同只冻结实现边界，不代表 GPU 门禁通过。
 
 SFT 训练参数现由机器合同强制校验：learning rate `2e-4`、effective batch
 `16`、候选 microbatch `1/2/4/8`、reserved-VRAM headroom 至少 `15%`。GPU

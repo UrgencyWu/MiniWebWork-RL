@@ -1,0 +1,142 @@
+{
+  "schema_version": "m4_long_horizon_runtime_v1",
+  "study_id": "m4_long_horizon_credit_v1",
+  "lifecycle_state": "preflight",
+  "formal_submission_allowed": false,
+  "study_manifest_sha256": "50ef68b4506f4c04750db631f57d47c9d45d964f1bbb0ef6e09a5bbb4c534bc7",
+  "sft_preflight_selection_sha256": "51f38d959ab857599b7a7e104d3ddc964b5277e3e5f315488fda35952e775c36",
+  "software_contract": {
+    "python": "3.11.14",
+    "torch": "2.10.0+cu128",
+    "transformers": "5.14.1",
+    "peft": "0.19.1",
+    "accelerate": "1.13.0",
+    "safetensors": "0.8.0",
+    "vllm": "0.17.0",
+    "playwright": "1.61.0"
+  },
+  "model_contract": {
+    "base_model_path": "/data/share/model/Qwen3.5-4B",
+    "language_model_only": true,
+    "maximum_model_length": 6144,
+    "maximum_new_tokens_per_turn": 128,
+    "maximum_model_turns": 20,
+    "maximum_environment_steps": 20,
+    "lora_rank": 16
+  },
+  "generation_contract": {
+    "backend": "vllm_async",
+    "request_output_kind": "final_only",
+    "raw_logprobs_required": true,
+    "sampling_logprobs_required": true,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "top_k": 0,
+    "flat_logprobs": true,
+    "gpu_memory_utilization": 0.8,
+    "maximum_sequences": 8,
+    "enable_prefix_caching": true,
+    "enable_chunked_prefill": true,
+    "enable_sleep_mode": true,
+    "adapter_swap_protocol": "remove_lora_then_sleep_level_2_then_same_gpu_hf_learner_then_wake_and_add_lora",
+    "generation_during_learner": false
+  },
+  "rollout_contract": {
+    "browser_worker_candidates": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "maximum_concurrent_k4_groups": 2,
+    "persistent_browser_per_candidate": true,
+    "worker_bridge": "threadsafe_sync_browser_to_main_asyncio_loop",
+    "group_size": 4,
+    "group_commit": "exactly_K_infrastructure_valid_trajectories",
+    "incomplete_or_invalid_group": "retain_generated_token_cost_and_resample_entire_group",
+    "maximum_tasks_per_iteration": 32,
+    "action_token_budget_per_method_seed": 250000,
+    "budget_boundary": "before_starting_new_complete_group",
+    "maximum_group_token_reserve": 10240
+  },
+  "learner_contract": {
+    "backend": "transformers_peft_same_gpu",
+    "policy_epochs": 2,
+    "trajectory_minibatch_size": 4,
+    "learning_rate": 0.000005,
+    "clip_epsilon": 0.2,
+    "gradient_clip": 1.0,
+    "completion_only": true,
+    "normalization": "token_mean_within_turn_then_turn_mean_within_trajectory_then_trajectory_mean_within_K4",
+    "zero_advantage_group": "skip_and_report",
+    "behavior_policy_staleness": 0,
+    "effective_optimizer_token_numerator": "unique_generated_action_tokens_with_nonzero_advantage",
+    "optimizer_token_fraction_denominator": "all_generated_action_tokens_including_invalid_and_zero_signal"
+  },
+  "evidence_contract": {
+    "run_identity_schema": "m4_long_horizon_run_identity_v2",
+    "turn_schema": "m4_long_horizon_turn_evidence_v2",
+    "trajectory_schema": "m4_long_horizon_trajectory_v2",
+    "group_schema": "m4_long_horizon_group_v2",
+    "collection_schema": "m4_long_horizon_collection_v2",
+    "journal_schema": "m4_long_horizon_attempt_journal_v2",
+    "iteration_schema": "m4_long_horizon_iteration_v1",
+    "turn_charge_before_full_artifact": true,
+    "required_turn_lineage": [
+      "group_id",
+      "attempt_index",
+      "trajectory_id",
+      "rollout_index",
+      "turn_index",
+      "request_id",
+      "sampling_seed",
+      "policy_version",
+      "adapter_sha256",
+      "prompt_token_ids",
+      "generated_token_ids",
+      "behavior_logprobs",
+      "sampling_logprobs"
+    ]
+  },
+  "recovery_contract": {
+    "journal_append": "hash_chain_flush_fsync",
+    "orphan_or_incomplete_attempt": "durably_invalidate_archive_and_resample",
+    "collection_resume": "same_run_identity_and_policy_version_only",
+    "interrupted_update": "archive_partial_stage_and_replay_frozen_collection",
+    "iteration_commit": "atomic_directory_rename_then_atomic_run_state_advance",
+    "post_rename_pre_state_crash": "verify_manifest_and_reconcile_forward",
+    "identity_mismatch": "fail_closed"
+  },
+  "telemetry_contract": {
+    "external_interval_seconds": 5,
+    "phase_events_required": true,
+    "candidate_soak_minutes": 30,
+    "report": [
+      "trajectories_per_hour",
+      "model_turns_per_hour",
+      "generated_action_tokens_per_hour",
+      "trajectory_length_distribution",
+      "queue_wait",
+      "first_token_latency",
+      "generation_gpu_utilization",
+      "learner_gpu_utilization",
+      "vram_headroom",
+      "power_watts"
+    ],
+    "gates": {
+      "rollout_trajectories_per_hour_minimum": 114.0,
+      "generation_gpu_utilization_p50_minimum": 0.6,
+      "learner_gpu_utilization_p50_minimum": 0.8,
+      "vram_headroom_minimum": 0.15,
+      "optimizer_action_token_fraction_target": 0.2
+    }
+  },
+  "slurm_contract": {
+    "gpus": 1,
+    "cpus": 8,
+    "memory_gb": 48,
+    "wall_time": "24:00:00",
+    "maximum_concurrent_gpu_jobs": 4,
+    "real_resume_smoke_required": true
+  }
+}
