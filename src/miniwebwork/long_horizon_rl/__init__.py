@@ -20,6 +20,11 @@ from .contracts import (
 from .credit import CREDIT_FORMULA_VERSION, assign_group_credit
 from .journal import AppendOnlyAttemptJournal, CollectionStore
 from .sampler import SAMPLER_VERSION, DeterministicSignalSampler, TaskDescriptor
+from .sft_selection import (
+    SFT_SELECTION_SCHEMA,
+    load_sft_preflight_selection,
+    validate_sft_preflight_selection,
+)
 
 __all__ = [
     "AppendOnlyAttemptJournal",
@@ -31,11 +36,14 @@ __all__ = [
     "RUN_IDENTITY_SCHEMA",
     "RunIdentity",
     "SAMPLER_VERSION",
+    "SFT_SELECTION_SCHEMA",
     "TURN_SCHEMA",
     "TaskDescriptor",
     "assign_group_credit",
     "canonical_public_state",
+    "load_sft_preflight_selection",
     "public_anchor_signature",
     "validate_committed_group",
+    "validate_sft_preflight_selection",
     "validate_turn_evidence",
 ]

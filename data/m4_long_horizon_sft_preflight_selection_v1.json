@@ -1,0 +1,128 @@
+{
+  "schema_version": "m4_long_horizon_sft_preflight_selection_v1",
+  "study_id": "m4_long_horizon_credit_v1",
+  "stage": "sft_gpu_preflight",
+  "result": "PASS",
+  "formal_training": false,
+  "disposable_adapter": true,
+  "slurm": {
+    "job_id": 1264,
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:41:23",
+    "node": "user-NF5468M6",
+    "gpus": 1,
+    "cpus": 4,
+    "memory_gb": 32,
+    "wall_time_limit": "24:00:00"
+  },
+  "lineage": {
+    "git_sha": "3a0acb44f69b46f05efb4d7650ee88aee1931af1",
+    "tracked_worktree_clean": true,
+    "artifact_root": "outputs/m4_long_horizon_credit_v1/preflight/sft_1264",
+    "formal_outputs_created": false,
+    "sft_corpus": "data/sft/m4_long_horizon_verified_v2",
+    "sft_manifest_sha256": "5f5b2e253594dc7fa58c9ab1e8f653558f69a2a98885f0f0487179b185bb4df0",
+    "sft_token_audit_sha256": "61e38e0b3feca7b0f72b602354ea7fd2a6919d56c3b8a6c55c24dda94501c001",
+    "sft_train_sha256": "f962e84fd4bd7a58b73c3ed30ee21f6b05ea867b68718498182fea2de097a94c",
+    "sft_valid_sha256": "5e9d43aab308fd8720f0f6df849e6f2f299d8c1a0595bc1b7cd0dc5d2074f2b3"
+  },
+  "selection": {
+    "rule": "maximum non-OOM microbatch from 1,2,4,8 with fixed effective batch and at least 15 percent reserved-VRAM headroom",
+    "candidates": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "selected_microbatch": 8,
+    "effective_batch_size": 16,
+    "gradient_accumulation_steps": 2,
+    "minimum_vram_headroom_fraction": 0.15,
+    "selected_reserved_vram_headroom_fraction": 0.510158,
+    "selected_forward_tokens_per_second": 1122.8942,
+    "selected_peak_reserved_bytes": 49952063488,
+    "device_total_bytes": 101975851008,
+    "measurements": [
+      {
+        "microbatch": 1,
+        "forward_tokens_per_second": 807.6538,
+        "reserved_vram_headroom_fraction": 0.865154
+      },
+      {
+        "microbatch": 2,
+        "forward_tokens_per_second": 1011.4171,
+        "reserved_vram_headroom_fraction": 0.81296
+      },
+      {
+        "microbatch": 4,
+        "forward_tokens_per_second": 1087.2386,
+        "reserved_vram_headroom_fraction": 0.711697
+      },
+      {
+        "microbatch": 8,
+        "forward_tokens_per_second": 1122.8942,
+        "reserved_vram_headroom_fraction": 0.510158
+      }
+    ]
+  },
+  "training_smoke": {
+    "optimizer_updates": 20,
+    "stop_reason": "preflight_optimizer_update_cap",
+    "train_seen_unique_samples": 320,
+    "train_completion_label_tokens": 6710,
+    "train_nll": 0.08618996,
+    "dev_unique_samples": 846,
+    "dev_completion_label_tokens": 18162,
+    "dev_nll": 0.03441372456,
+    "dev_teacher_forced_action_exact": 0.8463356974,
+    "dev_teacher_forced_schema_valid": 0.9397163121,
+    "elapsed_seconds": 1468.519
+  },
+  "telemetry": {
+    "interval_seconds": 5,
+    "sample_count": 497,
+    "gpu_uuid": "GPU-ee498ebc-afed-7fab-c26a-eb92fe660e87",
+    "utilization_fraction_p50": 1.0,
+    "utilization_fraction_p95": 1.0,
+    "utilization_fraction_mean": 0.932435,
+    "maximum_memory_mib": 48380,
+    "device_memory_mib": 97887,
+    "external_vram_headroom_fraction": 0.5057566,
+    "power_watts_p50": 350.0,
+    "power_watts_maximum": 485.26
+  },
+  "adapter_audit": {
+    "directory_sha256": "fcf1b04eb462c50b70381f250a36f15bb2348b2420fac4a8b2e74959385753b2",
+    "checkpoint_matches_final": true,
+    "tensor_count": 256,
+    "nonzero_tensor_count": 256,
+    "all_finite": true,
+    "trainable_parameter_count": 21233664,
+    "base_model": "/data/share/model/Qwen3.5-4B",
+    "lora": {
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.0,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    }
+  },
+  "artifact_sha256": {
+    "invocation": "77cb661d317a51f59b4ef4a719a3a21d22e20d0ee016f732d4bd7b0e794ee0b8",
+    "benchmark": "9f0bc1ced4dfb15ee40e79bdce5a0d9144ae96fcc0d2096fec2d4d273c8afd50",
+    "training_report": "f9941b1844f1aa3ce84ec8fd3ede7eae26194446be1f1ae0fee43e723a492c90",
+    "preflight_report": "1a99f96636e6dea570659e84fff3e412aad57c9ca29c49ef55ee923a8b1b4e38",
+    "stdout": "2dc022171727332b2e201b377177d89ce7cb4e7a2478a30fa9adee6f9e766670",
+    "stderr": "76754c702f40dcd9904d224d422913bc7a97cc9bf321554ec57f456659801543",
+    "gpu_telemetry": "394c8fb8e622f0106f7087a3352a82bd87160f2f493ebffad8713ef9149be0f5",
+    "training_progress": "0ab0dfa99b6aff4d5dcf3073e9cf5055bf04aad829b75577ece9c21ce386a4e8"
+  }
+}

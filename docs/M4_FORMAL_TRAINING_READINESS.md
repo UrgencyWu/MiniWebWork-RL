@@ -39,13 +39,13 @@ SFT、GRPO 或 step-aware 作业。
 | Prompt / 公开证据合同 | PASS | `browser_agent_v4_long_memory` 只保留有界、模型可见的 supplier/product 页面摘要；移除 origin/query/episode ID；oracle 属性泄漏测试与三供应商真实页面记忆回放通过 |
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
-| SFT trainer 与 dev 停止规则 | PARTIAL | 已实现唯一 roster 的 completion-only 因果 loss、左填充/position ID、token 加权梯度累积、LoRA r16/alpha32/dropout0、non-reentrant gradient checkpointing、microbatch 1/2/4/8 与 15% 显存门禁、最多 3 epoch 的 dev NLL/action/schema plateau；CPU/静态测试通过，待修复后单 GPU disposable preflight 工件 |
+| SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
 | 异步 vLLM rollout | PENDING | 需实现多 browser worker、连续批处理和完整采样 log-prob |
 | 迭代 learner / GRPO | PENDING | 需实现多 iteration/minibatch、有效组账本和 250k token cap |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一；CPU 单测通过；待接入真实 learner smoke |
 | On-policy / parity 门禁 | PARTIAL | turn/trajectory/group 已逐层绑定 policy、adapter SHA、prompt/completion IDs、behavior/sampling log-prob；sampling log-prob 已进入主轨迹；待 vLLM↔HF parity 与 staleness=0 GPU smoke |
 | 24 小时原子恢复 | PARTIAL | append+flush+fsync hash-chain journal、实际 token 保留、exact-K durable trajectory gate、原子 group/collection artifact 与身份漂移 fail-closed 已通过 CPU 测试；待 iteration adapter/optimizer commit、fault injection 与真实 Slurm resume |
-| GPU 性能门禁 | PENDING | 需完成 SFT microbatch 与 rollout concurrency 单卡 preflight |
+| GPU 性能门禁 | PARTIAL | SFT 单卡门禁已通过：microbatch=8 为 1122.89 forward tok/s，外部遥测 GPU util P50=100%、显存余量 50.58%；仍需 rollout concurrency、同卡 learner 与 phase-specific 门禁 |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
 
@@ -81,6 +81,15 @@ checkpointing，而不是放宽 15% 显存门槛。1262 只保留为失败诊断
 变量遮蔽了 benchmark 路径并触发 `TypeError`。failure artifact 正确落盘，20 次
 update 仍未开始。v2.2 将 artifact 参数改为不可混淆的 `output_path` 并加入源码
 级防回归测试；1263 同样只作失败诊断。
+
+Job 1264 在 frozen clean `3a0acb44f69b46f05efb4d7650ee88aee1931af1` 上完整
+通过 SFT GPU 前置门禁。四个候选 microbatch 1/2/4/8 均满足 15% reserved-VRAM
+余量，吞吐分别为 807.65/1011.42/1087.24/1122.89 forward tok/s；按冻结规则选择
+microbatch=8、gradient accumulation=2。随后精确执行 20 次 disposable update，
+覆盖 320 个训练样本和 6,710 completion-label tokens，并对全部 846 个 dev turn、
+18,162 labels 评估。最终 dev NLL/action exact/schema valid 为
+0.03441/0.84634/0.93972。该 adapter 只作运行正确性证明，已明确标记 disposable，
+绝不可作为正式共享 SFT adapter；正式 SFT 仅复用冻结的 microbatch 选择。
 
 ## 3. 已冻结的数据合同
 
@@ -143,6 +152,7 @@ wall time                 <=24h per Slurm job
 | 1261 | `95d7c2607a4d279196aa760b1f56723332020792` | 完整 Verified SFT v2 语料、token 审计与最终验证 | 2 CPU / 8 GB / 4 h | `COMPLETED 0:0`，58:37；240/72 任务、2820/846 唯一 turn；zero-label/duplicate/truncation 均为 0；runtime DB 零残留；PASS |
 | 1262 | `d60380714613d6f6d51fb9e6532601e84dd0d728` | SFT microbatch 与 20-update disposable GPU preflight | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `FAILED 1:0`，1:04；microbatch=1 最长序列反向占用 97,250/97,887 MiB，候选 2 OOM；未训练 adapter；促成冻结 gradient checkpointing 与失败工件落盘修复；不得记为 PASS |
 | 1263 | `eb96af377eef0774c90a28318f8fcce4fd53dcfd` | checkpointing 后 SFT GPU preflight 重试 | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `FAILED 1:0`，2:59；候选 1 显存约 13.8GB，但候选明细落盘时路径被 forward 输出变量遮蔽；failure artifact 完整，未进入 20-update smoke；不得记为 PASS |
+| 1264 | `3a0acb44f69b46f05efb4d7650ee88aee1931af1` | 完整 SFT microbatch 选择与 20-update disposable GPU preflight | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `COMPLETED 0:0`，41:23；四候选均通过，选择 microbatch=8、grad accumulation=2；reserved-VRAM 余量 51.02%，外部遥测余量 50.58%，GPU util P50=100%；完整 dev 与 adapter 审计通过；PASS |
 
 Job 1262 的 stdout/stderr/GPU telemetry SHA256 分别为
 `1f55c71aa82601589236a49341f47c6a12d386e5b3c33209eccbb4a879365e9f`、
@@ -158,6 +168,21 @@ Job 1263 的 stdout/stderr/GPU telemetry/invocation/failure SHA256 分别为
 `ceb51091f3783adc08b85bb4303aea450f3ad65d356b7d613a1feb1501c0044c`、
 `d0047be40be638157cdcfc962edc1d4df8d998427669e61330588adfb2683a30` 和
 `581eb2732e9762bfca54aaa7a96df166a633638ba0d12b0777bd0b1492942219`。
+
+Job 1264 的 stdout/stderr/GPU telemetry/training-progress SHA256 分别为
+`2dc022171727332b2e201b377177d89ce7cb4e7a2478a30fa9adee6f9e766670`、
+`76754c702f40dcd9904d224d422913bc7a97cc9bf321554ec57f456659801543`、
+`394c8fb8e622f0106f7087a3352a82bd87160f2f493ebffad8713ef9149be0f5` 和
+`0ab0dfa99b6aff4d5dcf3073e9cf5055bf04aad829b75577ece9c21ce386a4e8`；
+invocation/benchmark/training-report/preflight-report SHA256 分别为
+`77cb661d317a51f59b4ef4a719a3a21d22e20d0ee016f732d4bd7b0e794ee0b8`、
+`9f0bc1ced4dfb15ee40e79bdce5a0d9144ae96fcc0d2096fec2d4d273c8afd50`、
+`f9941b1844f1aa3ce84ec8fd3ede7eae26194446be1f1ae0fee43e723a492c90` 和
+`1a99f96636e6dea570659e84fff3e412aad57c9ca29c49ef55ee923a8b1b4e38`。
+checkpoint 与 final adapter 的目录 SHA256 均为
+`fcf1b04eb462c50b70381f250a36f15bb2348b2420fac4a8b2e74959385753b2`；
+256/256 tensors 非零且全部有限，共 21,233,664 个可训练参数。完整结构化证据已
+冻结在 `data/m4_long_horizon_sft_preflight_selection_v1.json`。
 
 job 1259 的 stdout/stderr SHA256 分别为
 `6f8ea5b13cf84336a7f46352970fb7babb875d0201e306a94d5a971fc0e39e70` 和
