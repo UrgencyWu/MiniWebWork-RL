@@ -129,6 +129,7 @@ def test_logprob_parity_summary_reports_ratio_relevant_statistics():
     assert report["token_count"] == 2
     assert report["maximum_absolute_logprob_difference"] == pytest.approx(0.02)
     assert report["p99_absolute_logprob_difference"] == pytest.approx(0.02)
+    assert report["p999_absolute_logprob_difference"] == pytest.approx(0.02)
     assert report["initial_ratio_clip_count"] == 0
     assert report["initial_ratio_clip_fraction"] == 0.0
     assert report["mean_importance_ratio"] == pytest.approx(
@@ -142,9 +143,21 @@ def test_logprob_parity_summary_exposes_sparse_initial_clip_outliers():
     report = summarize_logprob_parity(reference, candidate)
     assert report["mean_absolute_logprob_difference"] == pytest.approx(0.0003)
     assert report["p99_absolute_logprob_difference"] == 0.0
+    assert report["p999_absolute_logprob_difference"] == 0.0
     assert report["maximum_absolute_logprob_difference"] == pytest.approx(0.3)
     assert report["initial_ratio_clip_count"] == 1
     assert report["initial_ratio_clip_fraction"] == pytest.approx(0.001)
+
+
+def test_logprob_parity_summary_p999_exposes_more_than_point_one_percent_tail():
+    reference = [0.0] * 1000
+    candidate = [0.0] * 998 + [0.2, 0.3]
+    report = summarize_logprob_parity(reference, candidate)
+    assert report["p99_absolute_logprob_difference"] == 0.0
+    assert report["p999_absolute_logprob_difference"] == pytest.approx(0.2)
+    assert report["maximum_absolute_log_ratio"] == pytest.approx(0.3)
+    assert report["initial_ratio_clip_count"] == 2
+    assert report["initial_ratio_clip_fraction"] == pytest.approx(0.002)
 
 
 class _TinyReplayModel(torch.nn.Module):
@@ -176,7 +189,8 @@ def _parity_thresholds():
         "replay_mean_absolute_difference": 1e-5,
         "replay_p95_absolute_difference": 1e-5,
         "replay_p99_absolute_difference": 1e-5,
-        "replay_maximum_absolute_difference": 1e-5,
+        "replay_p999_absolute_difference": 1e-5,
+        "replay_maximum_absolute_log_ratio": 1e-5,
         "replay_initial_ratio_clip_fraction": 1e-5,
         "mean_importance_ratio_absolute_deviation": 1e-5,
     }

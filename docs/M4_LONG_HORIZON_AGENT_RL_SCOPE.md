@@ -400,9 +400,23 @@ chunked prefill、K=4、采样、adapter 和 learner microbatch 均不变。v3 �
 全新 GPU preflight、真实 optimizer update、engine wake 和更新后生成后才可成为
 正式冻结依据。其 pre-commit 定向 CPU 回归 Job 1283 已得到 `47 passed`；Job
 1282 只暴露了 `/bin/sh` 包装器不支持 `pipefail`，pytest 未启动并保留为失败记录。
-如果 prefix-cache 隔离仍无法关闭 max 门禁，后续任何阈值修改都
-必须新建 runtime 版本、保留 1280/1281 负结果并解释 PPO clip 与尾部风险，既有
-失败作业不得被追溯改判为 PASS。每次 update 报告：
+Job 1284 在 clean `5a574933` 上得到 `415 passed, 10 deselected`；Job 1285 随后
+完成 4 个 K=4 group、4096 token 和 `277.66 trajectories/hour`，但 max
+`1.33493 > 0.50`，仍在 optimizer 前失败。Job 1286 对其冻结 collection 的两次
+mb8、mb4、mb1 replay 得到 P99.9 `0.240999/0.240999/0.374054/0.287926`，clip
+覆盖率均低于 `0.25%`，而 max 随 batch composition 为
+`1.64054/1.64054/1.43929/1.71813`。这与 Job 1281 独立复现了“高分位稳定、单点
+max 对 batch composition 敏感”。
+
+runtime v4 因而不是简单放宽 max：它保留 behavior/sampling 精确一致、mean≤0.02、
+P95/P99≤0.08、初始 PPO clip fraction≤0.5% 和 mean ratio 偏差≤0.02，新增
+P99.9≤0.5，并将脆弱的单点 `max≤0.5` 替换为灾难性
+`|log ratio|max≤ln(10)`。错误 adapter Job 1267 的 mean/P95/max
+`1.18677/10.12739/21.51204` 仍被多道门禁以数量级差距拒绝。v1–v3 失败均不追溯
+改判；v4 必须在全新 root 上完整通过后才可冻结。每次 update 报告：
+
+runtime v4 的 pre-commit 定向 CPU 回归 Job 1287 已得到 `49 passed`；它仍需新
+clean commit 的完整 CPU 回归和全新 GPU E2E，不能仅凭校准数据宣称通过。
 
 - behavior/replay 最大和分位 log-prob 差异；
 - importance ratio、clip fraction 和 approximate KL；
@@ -480,6 +494,13 @@ artifact 调整。不得无测量地扩大 CPU 或内存申请。
 
 若 GPU 指标未达标，应先优化 batching、worker 数和数据管线，不得直接启动六个
 正式在线 run。目标未达成可以保留为工程瓶颈结论，但不能声称“充分利用 GPU”。
+
+Job 1285 的严格 phase-window 遥测给出：rollout `277.66 trajectories/hour` 和
+`71,080 action tokens/hour` 已通过吞吐门槛；learner GPU utilization P50=`100%`、
+generation 显存余量 `15.49%` 也通过。但 generation GPU utilization P50 仅
+`11%`（mean `21.12%`、P95 `58%`），明确未通过 `60%`。因此在正确性 E2E 关闭后，
+下一轮性能工作必须在不增加 Slurm CPU 请求的前提下提高在途 browser/model 请求数，
+并用全新 preflight 复测；当前不能宣称 rollout 已充分利用 GPU。
 
 ## 11. 24 小时中断恢复与原子性
 

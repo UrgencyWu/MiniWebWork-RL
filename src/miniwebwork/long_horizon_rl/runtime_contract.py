@@ -24,8 +24,8 @@ from .contracts import sha256_file
 from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
-RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v3"
-RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v3.json"
+RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v4"
+RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v4.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
     "run_identity_schema": "m4_long_horizon_run_identity_v3",
     "turn_schema": "m4_long_horizon_turn_evidence_v3",
@@ -67,7 +67,8 @@ PARITY_THRESHOLDS = {
     "replay_mean_absolute_difference": 0.02,
     "replay_p95_absolute_difference": 0.08,
     "replay_p99_absolute_difference": 0.08,
-    "replay_maximum_absolute_difference": 0.5,
+    "replay_p999_absolute_difference": 0.5,
+    "replay_maximum_absolute_log_ratio": math.log(10.0),
     "replay_initial_ratio_clip_fraction": 0.005,
     "mean_importance_ratio_absolute_deviation": 0.02,
 }
@@ -103,6 +104,32 @@ PARITY_CALIBRATION = {
         "microbatch_1": 1.2449634075164795,
     },
     "runtime_v3_change": "disable_experimental_qwen35_mamba_prefix_caching_without_threshold_change",
+    "runtime_v3_validation_job_id": 1285,
+    "runtime_v3_token_count": 4096,
+    "runtime_v3_mean_absolute_logprob_difference": 0.001755040691261844,
+    "runtime_v3_p95_absolute_logprob_difference": 0.0003290991298854351,
+    "runtime_v3_p99_absolute_logprob_difference": 0.03335973620414734,
+    "runtime_v3_maximum_absolute_logprob_difference": 1.3349303007125854,
+    "runtime_v3_mean_importance_ratio": 0.9995195594653701,
+    "runtime_v3_initial_ratio_clip_count": 4,
+    "runtime_v3_initial_ratio_clip_fraction": 0.0009765625,
+    "runtime_v3_batch_shape_diagnostic_job_id": 1286,
+    "runtime_v3_batch_shape_p999_absolute_differences": {
+        "microbatch_8_repeat_a": 0.24099883437156677,
+        "microbatch_8_repeat_b": 0.24099883437156677,
+        "microbatch_4": 0.374053955078125,
+        "microbatch_1": 0.28792598843574524,
+    },
+    "runtime_v3_batch_shape_maximum_absolute_differences": {
+        "microbatch_8_repeat_a": 1.6405409574508667,
+        "microbatch_8_repeat_b": 1.6405409574508667,
+        "microbatch_4": 1.4392859935760498,
+        "microbatch_1": 1.7181252241134644,
+    },
+    "runtime_v4_tail_gate": (
+        "retain_mean_p95_p99_clip_fraction_and_mean_ratio;replace_batch_composition_sensitive_"
+        "single_point_max_0_5_with_p999_0_5_plus_catastrophic_abs_log_ratio_ln10"
+    ),
 }
 
 

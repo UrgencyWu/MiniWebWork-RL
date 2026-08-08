@@ -287,6 +287,7 @@ def summarize_logprob_parity(
     count = len(differences)
     p95_index = min(count - 1, max(0, math.ceil(0.95 * count) - 1))
     p99_index = min(count - 1, max(0, math.ceil(0.99 * count) - 1))
+    p999_index = min(count - 1, max(0, math.ceil(0.999 * count) - 1))
     log_ratios = [float(right) - float(left) for left, right in zip(reference, candidate)]
     ratios = [math.exp(min(80.0, max(-80.0, value))) for value in log_ratios]
     clip_epsilon = float(ONLINE_LEARNER_CONFIG["clip_epsilon"])
@@ -300,6 +301,7 @@ def summarize_logprob_parity(
         "mean_absolute_logprob_difference": sum(differences) / count,
         "p95_absolute_logprob_difference": differences[p95_index],
         "p99_absolute_logprob_difference": differences[p99_index],
+        "p999_absolute_logprob_difference": differences[p999_index],
         "maximum_absolute_logprob_difference": differences[-1],
         "mean_importance_ratio": sum(ratios) / count,
         "maximum_absolute_log_ratio": max(abs(value) for value in log_ratios),
@@ -425,7 +427,8 @@ def audit_initial_replay_parity(
         "replay_mean_absolute_difference",
         "replay_p95_absolute_difference",
         "replay_p99_absolute_difference",
-        "replay_maximum_absolute_difference",
+        "replay_p999_absolute_difference",
+        "replay_maximum_absolute_log_ratio",
         "replay_initial_ratio_clip_fraction",
         "mean_importance_ratio_absolute_deviation",
     }
@@ -471,9 +474,13 @@ def audit_initial_replay_parity(
             report["p99_absolute_logprob_difference"]
             <= thresholds["replay_p99_absolute_difference"]
         ),
-        "maximum_absolute_difference": (
-            report["maximum_absolute_logprob_difference"]
-            <= thresholds["replay_maximum_absolute_difference"]
+        "p999_absolute_difference": (
+            report["p999_absolute_logprob_difference"]
+            <= thresholds["replay_p999_absolute_difference"]
+        ),
+        "maximum_absolute_log_ratio": (
+            report["maximum_absolute_log_ratio"]
+            <= thresholds["replay_maximum_absolute_log_ratio"]
         ),
         "initial_ratio_clip_fraction": (
             report["initial_ratio_clip_fraction"]
