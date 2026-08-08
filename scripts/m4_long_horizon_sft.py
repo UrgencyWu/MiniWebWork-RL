@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -151,26 +152,44 @@ def main() -> None:
     }
     atomic_write_json(output_dir / "invocation.json", invocation)
 
-    model = load_trainable_lora_model(args.base_model)
-    benchmark = benchmark_microbatches(
-        model=model,
-        examples=train_examples,
-        tokenizer=tokenizer,
-        output=output_dir / "microbatch_benchmark.json",
-        corpus_manifest_sha256=input_binding["manifest_sha256"],
-        token_audit_sha256=input_binding["token_audit_sha256"],
-    )
-    training = train_sft(
-        model=model,
-        tokenizer=tokenizer,
-        train_examples=train_examples,
-        dev_examples=dev_examples,
-        output_dir=output_dir / "disposable_training_smoke",
-        microbatch_size=benchmark["selected_microbatch_size"],
-        workers=args.dataloader_workers,
-        maximum_optimizer_updates=SFT_PREFLIGHT_MAXIMUM_OPTIMIZER_UPDATES,
-        maximum_epochs=1,
-    )
+    benchmark_path = output_dir / "microbatch_benchmark.json"
+    try:
+        model = load_trainable_lora_model(args.base_model)
+        benchmark = benchmark_microbatches(
+            model=model,
+            examples=train_examples,
+            tokenizer=tokenizer,
+            output=benchmark_path,
+            corpus_manifest_sha256=input_binding["manifest_sha256"],
+            token_audit_sha256=input_binding["token_audit_sha256"],
+        )
+        training = train_sft(
+            model=model,
+            tokenizer=tokenizer,
+            train_examples=train_examples,
+            dev_examples=dev_examples,
+            output_dir=output_dir / "disposable_training_smoke",
+            microbatch_size=benchmark["selected_microbatch_size"],
+            workers=args.dataloader_workers,
+            maximum_optimizer_updates=SFT_PREFLIGHT_MAXIMUM_OPTIMIZER_UPDATES,
+            maximum_epochs=1,
+        )
+    except Exception as exc:
+        failure = {
+            "schema_version": "m4_long_horizon_sft_preflight_failure_v1",
+            "study_id": study["payload"]["study_id"],
+            "complete": True,
+            "passed": False,
+            "formal_training": False,
+            "git_sha": git_sha,
+            "exception_type": type(exc).__name__,
+            "error": str(exc)[:1000],
+            "traceback": traceback.format_exc()[-8000:],
+            "elapsed_s": time.monotonic() - started,
+            "benchmark_sha256": sha256_file(benchmark_path) if benchmark_path.is_file() else None,
+        }
+        atomic_write_json(output_dir / "preflight_failure.json", failure)
+        raise
     final_adapter = Path(training["final_adapter"])
     report = {
         "schema_version": "m4_long_horizon_sft_preflight_report_v1",

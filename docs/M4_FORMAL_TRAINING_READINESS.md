@@ -39,7 +39,7 @@ SFT、GRPO 或 step-aware 作业。
 | Prompt / 公开证据合同 | PASS | `browser_agent_v4_long_memory` 只保留有界、模型可见的 supplier/product 页面摘要；移除 origin/query/episode ID；oracle 属性泄漏测试与三供应商真实页面记忆回放通过 |
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
-| SFT trainer 与 dev 停止规则 | PARTIAL | 已实现唯一 roster 的 completion-only 因果 loss、左填充/position ID、token 加权梯度累积、LoRA r16/alpha32/dropout0、microbatch 1/2/4/8 与 15% 显存门禁、最多 3 epoch 的 dev NLL/action/schema plateau；CPU/静态测试通过，待单 GPU disposable preflight 工件 |
+| SFT trainer 与 dev 停止规则 | PARTIAL | 已实现唯一 roster 的 completion-only 因果 loss、左填充/position ID、token 加权梯度累积、LoRA r16/alpha32/dropout0、non-reentrant gradient checkpointing、microbatch 1/2/4/8 与 15% 显存门禁、最多 3 epoch 的 dev NLL/action/schema plateau；CPU/静态测试通过，待修复后单 GPU disposable preflight 工件 |
 | 异步 vLLM rollout | PENDING | 需实现多 browser worker、连续批处理和完整采样 log-prob |
 | 迭代 learner / GRPO | PENDING | 需实现多 iteration/minibatch、有效组账本和 250k token cap |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一；CPU 单测通过；待接入真实 learner smoke |
@@ -62,12 +62,19 @@ anchor；GRPO macro、step-aware micro、零方差 fallback；task-family 冷覆
 Beta(1,1) uncertainty priority；并发 journal hash chain、无效组成本保留、exact-K
 commit、路径逃逸和 collection freeze 幂等。加入专用 SFT trainer、协议漂移和
 Slurm 资源门禁后，完整非浏览器/非 GPU/非 Slurm 回归为
-`323 passed, 10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
+`324 passed, 10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
 
 SFT 训练参数现由机器合同强制校验：learning rate `2e-4`、effective batch
 `16`、候选 microbatch `1/2/4/8`、reserved-VRAM headroom 至少 `15%`。GPU
 preflight 只能执行 20 次 disposable optimizer update，入口没有 formal mode，
 并以 5 秒间隔记录 GPU 利用率、显存与功耗；通过 preflight 仍不会产生正式 SFT。
+
+首次 SFT GPU preflight Job 1262 在 frozen `d603807` 上按门禁失败：microbatch=1
+对最长 5494-token 样本反向时显存达到 `97,250 / 97,887 MiB`，随后更大候选
+OOM，未进入 20-update smoke。日志确认 Qwen3.5 的线性注意力缺少 FLA 与
+causal-conv 快路径并回退 PyTorch；因此 v2.1 固定启用 non-reentrant gradient
+checkpointing，而不是放宽 15% 显存门槛。1262 只保留为失败诊断，不可作为
+通过工件。
 
 ## 3. 已冻结的数据合同
 
@@ -128,6 +135,15 @@ wall time                 <=24h per Slurm job
 | 1259 | `b3d96dc4b83ceeae5e232698d03a8bd4f4461bd8` | 完整 Verified SFT 语料与 token 审计 | 2 CPU / 8 GB / 4 h | `FAILED 127:0`，1 秒内退出；批处理 PATH 中找不到裸 `srun`，第一个构建命令未执行，输出目录不存在；不得重用为研究工件 |
 | 1260 | `e9dd16441c5974332e289a1fb02620cf31eab2ef` | 完整 Verified SFT v1 语料 | 2 CPU / 8 GB / 4 h | `CANCELLED`，运行 35:48 后主动停止；train/dev 的 78 个 long task 中正确供应商 78/78 固定为第三个访问项，且 v3 prompt 不保留前三个供应商页的可靠性证据；该设计会教授位置捷径，所有部分产物均禁止进入正式血缘 |
 | 1261 | `95d7c2607a4d279196aa760b1f56723332020792` | 完整 Verified SFT v2 语料、token 审计与最终验证 | 2 CPU / 8 GB / 4 h | `COMPLETED 0:0`，58:37；240/72 任务、2820/846 唯一 turn；zero-label/duplicate/truncation 均为 0；runtime DB 零残留；PASS |
+| 1262 | `d60380714613d6f6d51fb9e6532601e84dd0d728` | SFT microbatch 与 20-update disposable GPU preflight | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `FAILED 1:0`，1:04；microbatch=1 最长序列反向占用 97,250/97,887 MiB，候选 2 OOM；未训练 adapter；促成冻结 gradient checkpointing 与失败工件落盘修复；不得记为 PASS |
+
+Job 1262 的 stdout/stderr/GPU telemetry SHA256 分别为
+`1f55c71aa82601589236a49341f47c6a12d386e5b3c33209eccbb4a879365e9f`、
+`a4a14e8dfbfe529d5ae719fafd6d8a10c20fd824f2d054f9b4d9fe648f73466a` 和
+`b28c302e76fdf507479de54a5e7bcf6ed989c843fe7ef60dfd0158ff42a7466c`。
+旧实现是在最终选择后才写 benchmark，因此 1262 只有 invocation 与遥测，没有
+候选明细 JSON；修复后每个候选结束即原子落盘，最终门禁失败也生成显式 failure
+artifact。此审计缺口本身也是 1262 不可提升为 PASS 的原因。
 
 job 1259 的 stdout/stderr SHA256 分别为
 `6f8ea5b13cf84336a7f46352970fb7babb875d0201e306a94d5a971fc0e39e70` 和

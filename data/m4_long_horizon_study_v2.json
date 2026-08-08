@@ -125,6 +125,10 @@
         "down_proj"
       ]
     },
+    "gradient_checkpointing": {
+      "enabled": true,
+      "use_reentrant": false
+    },
     "microbatch_candidates": [
       1,
       2,

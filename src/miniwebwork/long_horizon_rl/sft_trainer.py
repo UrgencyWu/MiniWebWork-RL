@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 from ..m4_long_horizon_protocol import (
     MAX_SEQUENCE_LENGTH,
     SFT_EFFECTIVE_BATCH_SIZE,
+    SFT_GRADIENT_CHECKPOINTING,
     SFT_LEARNING_RATE,
     SFT_LORA_CONFIG,
     SFT_MICROBATCH_CANDIDATES,
@@ -455,11 +456,22 @@ def build_dataloader(
     return DataLoader(**kwargs)
 
 
-def load_trainable_lora_model(base_model: Path | str):
-    from peft import LoraConfig, get_peft_model
-    from transformers import AutoModelForCausalLM
+def load_trainable_lora_model(
+    base_model: Path | str,
+    *,
+    auto_model_class: Any | None = None,
+    lora_config_class: Any | None = None,
+    peft_model_factory: Any | None = None,
+):
+    if auto_model_class is None or lora_config_class is None or peft_model_factory is None:
+        from peft import LoraConfig, get_peft_model
+        from transformers import AutoModelForCausalLM
 
-    model = AutoModelForCausalLM.from_pretrained(
+        auto_model_class = auto_model_class or AutoModelForCausalLM
+        lora_config_class = lora_config_class or LoraConfig
+        peft_model_factory = peft_model_factory or get_peft_model
+
+    model = auto_model_class.from_pretrained(
         str(base_model),
         torch_dtype=torch.bfloat16,
         device_map={"": "cuda:0"},
@@ -467,7 +479,12 @@ def load_trainable_lora_model(base_model: Path | str):
         trust_remote_code=True,
     )
     model.config.use_cache = False
-    config = LoraConfig(
+    model.gradient_checkpointing_enable(
+        gradient_checkpointing_kwargs={
+            "use_reentrant": SFT_GRADIENT_CHECKPOINTING["use_reentrant"],
+        }
+    )
+    config = lora_config_class(
         r=SFT_LORA_CONFIG["r"],
         lora_alpha=SFT_LORA_CONFIG["alpha"],
         lora_dropout=SFT_LORA_CONFIG["dropout"],
@@ -475,7 +492,7 @@ def load_trainable_lora_model(base_model: Path | str):
         bias="none",
         task_type="CAUSAL_LM",
     )
-    model = get_peft_model(model, config)
+    model = peft_model_factory(model, config)
     model.train()
     return model
 
@@ -648,6 +665,7 @@ def train_sft(
         "schema_version": SFT_TRAINER_SCHEMA,
         "seed": SFT_SEED,
         "lora": SFT_LORA_CONFIG,
+        "gradient_checkpointing": SFT_GRADIENT_CHECKPOINTING,
         "learning_rate": SFT_LEARNING_RATE,
         "maximum_sequence_length": MAX_SEQUENCE_LENGTH,
         "microbatch_size": microbatch_size,
@@ -711,6 +729,35 @@ def benchmark_microbatches(
     total_memory = torch.cuda.get_device_properties(device).total_memory
     results: list[dict[str, Any]] = []
     stop_after_oom = False
+
+    def write_report(
+        *,
+        complete: bool,
+        passed: bool,
+        selected: int | None = None,
+        failure_reason: str | None = None,
+    ) -> dict[str, Any]:
+        report = {
+            "schema_version": SFT_BENCHMARK_SCHEMA,
+            "seed": SFT_SEED,
+            "lora": SFT_LORA_CONFIG,
+            "gradient_checkpointing": SFT_GRADIENT_CHECKPOINTING,
+            "maximum_sequence_length": MAX_SEQUENCE_LENGTH,
+            "effective_batch_size": SFT_EFFECTIVE_BATCH_SIZE,
+            "candidate_microbatches": list(SFT_MICROBATCH_CANDIDATES),
+            "selection_rule": "largest passed candidate with at least 0.15 reserved-VRAM headroom",
+            "corpus_manifest_sha256": corpus_manifest_sha256,
+            "token_audit_sha256": token_audit_sha256,
+            "gpu_name": torch.cuda.get_device_properties(device).name,
+            "results": results,
+            "selected_microbatch_size": selected,
+            "complete": complete,
+            "passed": passed,
+        }
+        if failure_reason is not None:
+            report["failure_reason"] = failure_reason
+        atomic_write_json(output, report)
+        return report
 
     for candidate in SFT_MICROBATCH_CANDIDATES:
         if stop_after_oom:
@@ -802,27 +849,20 @@ def benchmark_microbatches(
             del optimizer
             gc.collect()
             torch.cuda.empty_cache()
+        write_report(complete=False, passed=False)
 
     with torch.no_grad():
         for name, parameter in model.named_parameters():
             if parameter.requires_grad:
                 parameter.copy_(initial[name].to(parameter.device, dtype=parameter.dtype))
 
-    selected = select_sft_microbatch(results)
-    report = {
-        "schema_version": SFT_BENCHMARK_SCHEMA,
-        "seed": SFT_SEED,
-        "lora": SFT_LORA_CONFIG,
-        "maximum_sequence_length": MAX_SEQUENCE_LENGTH,
-        "effective_batch_size": SFT_EFFECTIVE_BATCH_SIZE,
-        "candidate_microbatches": list(SFT_MICROBATCH_CANDIDATES),
-        "selection_rule": "largest passed candidate with at least 0.15 reserved-VRAM headroom",
-        "corpus_manifest_sha256": corpus_manifest_sha256,
-        "token_audit_sha256": token_audit_sha256,
-        "gpu_name": torch.cuda.get_device_properties(device).name,
-        "results": results,
-        "selected_microbatch_size": selected,
-        "passed": True,
-    }
-    atomic_write_json(output, report)
-    return report
+    try:
+        selected = select_sft_microbatch(results)
+    except RuntimeError:
+        write_report(
+            complete=True,
+            passed=False,
+            failure_reason="no_candidate_retained_frozen_vram_headroom",
+        )
+        raise
+    return write_report(complete=True, passed=True, selected=selected)

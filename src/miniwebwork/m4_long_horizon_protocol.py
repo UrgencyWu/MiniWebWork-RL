@@ -56,6 +56,10 @@ SFT_EFFECTIVE_BATCH_SIZE = 16
 SFT_MICROBATCH_CANDIDATES = (1, 2, 4, 8)
 SFT_VRAM_HEADROOM_MINIMUM = 0.15
 SFT_PREFLIGHT_MAXIMUM_OPTIMIZER_UPDATES = 20
+SFT_GRADIENT_CHECKPOINTING = {
+    "enabled": True,
+    "use_reentrant": False,
+}
 SFT_LORA_CONFIG = {
     "r": 16,
     "alpha": 32,
@@ -193,6 +197,10 @@ def validate_study_manifest(payload: Mapping[str, Any]) -> None:
     _require(sft.get("learning_rate") == SFT_LEARNING_RATE, "SFT learning rate drift")
     _require(sft.get("maximum_sequence_length") == MAX_SEQUENCE_LENGTH, "SFT max length drift")
     _require(sft.get("lora") == SFT_LORA_CONFIG, "SFT LoRA contract drift")
+    _require(
+        sft.get("gradient_checkpointing") == SFT_GRADIENT_CHECKPOINTING,
+        "SFT gradient-checkpointing drift",
+    )
     _require(sft.get("stopping") == SFT_STOPPING_RULE, "SFT stopping rule drift")
     _require(sft.get("microbatch_candidates") == list(SFT_MICROBATCH_CANDIDATES), "SFT microbatch candidates drift")
     _require(sft.get("effective_batch_size") == SFT_EFFECTIVE_BATCH_SIZE, "SFT effective batch drift")

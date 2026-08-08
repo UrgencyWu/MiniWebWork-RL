@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -11,6 +12,7 @@ from miniwebwork.long_horizon_rl.sft_trainer import (
     PlateauController,
     TokenizedSFTExample,
     completion_only_cross_entropy,
+    load_trainable_lora_model,
     select_sft_microbatch,
     tokenize_sft_record,
 )
@@ -175,3 +177,41 @@ def test_microbatch_selection_is_exact_and_fails_closed_on_headroom():
         ])
     with pytest.raises(ValueError, match="exactly"):
         select_sft_microbatch(results[:-1])
+
+
+def test_trainable_model_enables_nonreentrant_gradient_checkpointing():
+    calls = {}
+
+    class _Model:
+        config = SimpleNamespace(use_cache=True)
+
+        def gradient_checkpointing_enable(self, *, gradient_checkpointing_kwargs):
+            calls["gradient_checkpointing"] = gradient_checkpointing_kwargs
+
+        def train(self):
+            calls["train"] = True
+            return self
+
+    model = _Model()
+
+    class _AutoModel:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            calls["model_load"] = {"args": args, "kwargs": kwargs}
+            return model
+
+    class _LoraConfig:
+        def __init__(self, **kwargs):
+            calls["lora"] = kwargs
+
+    loaded = load_trainable_lora_model(
+        "/model",
+        auto_model_class=_AutoModel,
+        lora_config_class=_LoraConfig,
+        peft_model_factory=lambda source, config: source,
+    )
+    assert loaded is model
+    assert model.config.use_cache is False
+    assert calls["gradient_checkpointing"] == {"use_reentrant": False}
+    assert calls["lora"]["lora_dropout"] == 0.0
+    assert calls["train"] is True
