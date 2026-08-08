@@ -100,3 +100,15 @@ wall time                 <=24h per Slurm job
   判定和未通过原因。
 
 任何缺失、哈希漂移、旧产物混入或只能人工推断的门禁均按 `NOT_READY` 处理。
+
+## 6. Preflight 作业账本
+
+| JobID | 提交 SHA | 用途 | 资源 | 状态 / 结论 |
+|---:|---|---|---|---|
+| 1259 | `b3d96dc4b83ceeae5e232698d03a8bd4f4461bd8` | 完整 Verified SFT 语料与 token 审计 | 2 CPU / 8 GB / 4 h | `FAILED 127:0`，1 秒内退出；批处理 PATH 中找不到裸 `srun`，第一个构建命令未执行，输出目录不存在；不得重用为研究工件 |
+
+job 1259 的 stdout/stderr SHA256 分别为
+`6f8ea5b13cf84336a7f46352970fb7babb875d0201e306a94d5a971fc0e39e70` 和
+`6e4598b08632afb44f184d6ac8ff3e67ed49d394d66cd5c171ebe6b9381aa345`。
+修复只允许把 `srun` 解析为集群冻结绝对路径；重试必须使用新的 clean Git SHA、
+新的 JobID 和空输出目录。
