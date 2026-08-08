@@ -39,7 +39,7 @@ SFT、GRPO 或 step-aware 作业。
 | Prompt / 公开证据合同 | PASS | `browser_agent_v4_long_memory` 只保留有界、模型可见的 supplier/product 页面摘要；移除 origin/query/episode ID；oracle 属性泄漏测试与三供应商真实页面记忆回放通过 |
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
-| SFT trainer 与 dev 停止规则 | PENDING | 需实现 completion-only loss、microbatch benchmark 和 plateau 工件 |
+| SFT trainer 与 dev 停止规则 | PARTIAL | 已实现唯一 roster 的 completion-only 因果 loss、左填充/position ID、token 加权梯度累积、LoRA r16/alpha32/dropout0、microbatch 1/2/4/8 与 15% 显存门禁、最多 3 epoch 的 dev NLL/action/schema plateau；CPU/静态测试通过，待单 GPU disposable preflight 工件 |
 | 异步 vLLM rollout | PENDING | 需实现多 browser worker、连续批处理和完整采样 log-prob |
 | 迭代 learner / GRPO | PENDING | 需实现多 iteration/minibatch、有效组账本和 250k token cap |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一；CPU 单测通过；待接入真实 learner smoke |
@@ -60,8 +60,14 @@ SFT、GRPO 或 step-aware 作业。
 核心在线合同的当前 CPU 回归覆盖：隐藏 oracle/verifier/episode/query/DOM ID 不进入
 anchor；GRPO macro、step-aware micro、零方差 fallback；task-family 冷覆盖与
 Beta(1,1) uncertainty priority；并发 journal hash chain、无效组成本保留、exact-K
-commit、路径逃逸和 collection freeze 幂等。完整非浏览器回归为 `314 passed,
-10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
+commit、路径逃逸和 collection freeze 幂等。加入专用 SFT trainer、协议漂移和
+Slurm 资源门禁后，完整非浏览器/非 GPU/非 Slurm 回归为
+`323 passed, 10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
+
+SFT 训练参数现由机器合同强制校验：learning rate `2e-4`、effective batch
+`16`、候选 microbatch `1/2/4/8`、reserved-VRAM headroom 至少 `15%`。GPU
+preflight 只能执行 20 次 disposable optimizer update，入口没有 formal mode，
+并以 5 秒间隔记录 GPU 利用率、显存与功耗；通过 preflight 仍不会产生正式 SFT。
 
 ## 3. 已冻结的数据合同
 
@@ -90,10 +96,11 @@ wall time                 <=24h per Slurm job
 2. 使用 2 CPU、8 GB、4 小时上限的 Slurm 作业构建完整 SFT 语料；
 3. 审计唯一样本、train/dev 边界、真实 trace、6144 上限、completion-label token
    和零标签比例；
-4. 实现并测试统一在线 runtime、GRPO learner 和 step-aware credit assigner；
-5. 完成 K=4 / iteration 原子性、恢复、血缘、on-policy 和 token 账本测试；
-6. 提交短时单 GPU preflight，选择 SFT microbatch 和 rollout worker 数；
-7. 汇总所有工件到版本化 readiness manifest，并在干净冻结提交上重跑总审计。
+4. 实现专用 SFT trainer，并提交 disposable 单 GPU preflight 选择 microbatch；
+5. 实现并测试统一在线 runtime、GRPO learner 和 step-aware credit assigner；
+6. 完成 K=4 / iteration 原子性、恢复、血缘、on-policy 和 token 账本测试；
+7. 提交单 GPU online preflight，选择 rollout worker 数并验证同卡 learner；
+8. 汇总所有工件到版本化 readiness manifest，并在干净冻结提交上重跑总审计。
 
 队列中存在本研究的任何作业时，不修改 tracked 源码、协议或数据。CPU 和 GPU
 均属于调度资源：请求以测量为依据，避免用过多 CPU/内存阻塞并行作业。

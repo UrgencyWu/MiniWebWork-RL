@@ -51,6 +51,11 @@ CREDIT_ANCHOR_VISIT_POLICY = "first_visit_per_trajectory"
 TASK_SAMPLER_VERSION = "balanced_cold_then_beta_uncertainty_v1"
 TASK_SAMPLER_MINIMUM_WEIGHT = 0.05
 SFT_SEED = 20260801
+SFT_LEARNING_RATE = 2e-4
+SFT_EFFECTIVE_BATCH_SIZE = 16
+SFT_MICROBATCH_CANDIDATES = (1, 2, 4, 8)
+SFT_VRAM_HEADROOM_MINIMUM = 0.15
+SFT_PREFLIGHT_MAXIMUM_OPTIMIZER_UPDATES = 20
 SFT_LORA_CONFIG = {
     "r": 16,
     "alpha": 32,
@@ -185,11 +190,18 @@ def validate_study_manifest(payload: Mapping[str, Any]) -> None:
         "SFT evidence-memory contract drift",
     )
     _require(sft.get("seed") == SFT_SEED, "SFT seed drift")
+    _require(sft.get("learning_rate") == SFT_LEARNING_RATE, "SFT learning rate drift")
     _require(sft.get("maximum_sequence_length") == MAX_SEQUENCE_LENGTH, "SFT max length drift")
     _require(sft.get("lora") == SFT_LORA_CONFIG, "SFT LoRA contract drift")
     _require(sft.get("stopping") == SFT_STOPPING_RULE, "SFT stopping rule drift")
-    _require(sft.get("microbatch_candidates") == [1, 2, 4, 8], "SFT microbatch candidates drift")
-    _require(sft.get("effective_batch_size") == 16, "SFT effective batch drift")
+    _require(sft.get("microbatch_candidates") == list(SFT_MICROBATCH_CANDIDATES), "SFT microbatch candidates drift")
+    _require(sft.get("effective_batch_size") == SFT_EFFECTIVE_BATCH_SIZE, "SFT effective batch drift")
+    _require(sft.get("vram_headroom_minimum") == SFT_VRAM_HEADROOM_MINIMUM, "SFT VRAM headroom drift")
+    _require(
+        sft.get("preflight_maximum_optimizer_updates")
+        == SFT_PREFLIGHT_MAXIMUM_OPTIMIZER_UPDATES,
+        "SFT preflight update cap drift",
+    )
 
     online = payload.get("online_contract", {})
     _require(online.get("group_size") == GROUP_SIZE, "K drift")

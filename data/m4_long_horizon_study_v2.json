@@ -104,6 +104,7 @@
   "sft_contract": {
     "source_split": "train",
     "seed": 20260801,
+    "learning_rate": 0.0002,
     "unique_verified_turn_evidence_only": true,
     "completion_only_loss": true,
     "maximum_sequence_length": 6144,
@@ -131,6 +132,8 @@
       8
     ],
     "effective_batch_size": 16,
+    "vram_headroom_minimum": 0.15,
+    "preflight_maximum_optimizer_updates": 20,
     "selection_rule": "maximum non-OOM microbatch from 1,2,4,8 with fixed effective batch and at least 15 percent VRAM headroom",
     "stopping_rule": "preregistered epoch cap plus dev NLL/action/schema plateau",
     "stopping": {
