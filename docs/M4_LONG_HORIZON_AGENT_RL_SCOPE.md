@@ -385,9 +385,24 @@ mean importance ratio absolute deviation from 1 <= 0.02
 范围。该组合对正确血缘正对照留有测量余量，同时仍以数量级差距拒绝 Job 1267
 负对照。此次变更被标记为 `thresholds_frozen_before_gpu_observation=false`、
 `thresholds_frozen_before_formal_training=true`，不能伪装成首次观测前预注册；
-它必须通过全新 GPU preflight、真实 optimizer update 和 engine wake 后才可成为
-正式冻结依据。此后若再改阈值，必须新建 runtime 版本和校准工件，既有失败作业
-不得被追溯改判为 PASS。每次 update 报告：
+Job 1280 随后在 clean `5375e151` 和全新 root 下完成 4 个 K=4 group、4141 token，
+吞吐 `255.58 trajectories/hour`。其 behavior/sampling 仍精确一致，replay
+mean/P95/P99、初始 ratio clip fraction 和 mean ratio 全部通过；但 max
+`0.67653 > 0.50`，所以 v2 仍在 optimizer 前失败，未被追溯改判。Job 1281 对
+同一冻结 collection 做两次 mb8 及 mb4/mb1 replay：mb8 两次 max 都是
+`0.67653`，而 mb4/mb1 为 `1.98432/1.24496`；四次 mean 均约 `0.002`、P99
+均低于 `0.058`。这证明稀疏尾部可重复但强烈依赖 replay batch 形状，不能靠挑选
+microbatch 或单次 max 门槛掩盖。
+
+在讨论阈值前，runtime v3 先做单变量语义隔离：保持上述 v2 全部阈值不变，仅关闭
+vLLM 0.17 明确标记为 experimental 的 Qwen3.5 Mamba `align` prefix cache；
+chunked prefill、K=4、采样、adapter 和 learner microbatch 均不变。v3 必须通过
+全新 GPU preflight、真实 optimizer update、engine wake 和更新后生成后才可成为
+正式冻结依据。其 pre-commit 定向 CPU 回归 Job 1283 已得到 `47 passed`；Job
+1282 只暴露了 `/bin/sh` 包装器不支持 `pipefail`，pytest 未启动并保留为失败记录。
+如果 prefix-cache 隔离仍无法关闭 max 门禁，后续任何阈值修改都
+必须新建 runtime 版本、保留 1280/1281 负结果并解释 PPO clip 与尾部风险，既有
+失败作业不得被追溯改判为 PASS。每次 update 报告：
 
 - behavior/replay 最大和分位 log-prob 差异；
 - importance ratio、clip fraction 和 approximate KL；

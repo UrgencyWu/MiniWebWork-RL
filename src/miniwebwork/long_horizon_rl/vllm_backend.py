@@ -130,7 +130,11 @@ class VLLMBackendConfig:
             "enable_lora": True,
             "max_loras": 1,
             "max_lora_rank": SFT_LORA_CONFIG["r"],
-            "enable_prefix_caching": True,
+            # vLLM 0.17 labels Qwen3.5 Mamba align-mode prefix caching as
+            # experimental. Keep it off while preserving chunked prefill so
+            # replay-tail correctness is tested without cross-request state
+            # reuse as a confounder.
+            "enable_prefix_caching": False,
             "enable_chunked_prefill": True,
             "enable_sleep_mode": True,
             "generation_config": "vllm",

@@ -24,8 +24,8 @@ from .contracts import sha256_file
 from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
-RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v2"
-RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v2.json"
+RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v3"
+RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v3.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
     "run_identity_schema": "m4_long_horizon_run_identity_v3",
     "turn_schema": "m4_long_horizon_turn_evidence_v3",
@@ -87,6 +87,22 @@ PARITY_CALIBRATION = {
     "negative_mean_absolute_logprob_difference": 1.1867696967614851,
     "negative_p95_absolute_logprob_difference": 10.127390384674072,
     "negative_maximum_absolute_logprob_difference": 21.51203542947769,
+    "runtime_v2_validation_job_id": 1280,
+    "runtime_v2_token_count": 4141,
+    "runtime_v2_mean_absolute_logprob_difference": 0.002011027746882088,
+    "runtime_v2_p95_absolute_logprob_difference": 0.00041890458669513464,
+    "runtime_v2_p99_absolute_logprob_difference": 0.05867719650268555,
+    "runtime_v2_maximum_absolute_logprob_difference": 0.6765303611755371,
+    "runtime_v2_initial_ratio_clip_count": 9,
+    "runtime_v2_initial_ratio_clip_fraction": 0.0021733880705143687,
+    "batch_shape_diagnostic_job_id": 1281,
+    "batch_shape_maximum_absolute_differences": {
+        "microbatch_8_repeat_a": 0.6765303611755371,
+        "microbatch_8_repeat_b": 0.6765303611755371,
+        "microbatch_4": 1.9843209385871887,
+        "microbatch_1": 1.2449634075164795,
+    },
+    "runtime_v3_change": "disable_experimental_qwen35_mamba_prefix_caching_without_threshold_change",
 }
 
 
@@ -173,7 +189,10 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         "vLLM memory fraction drift",
     )
     _require(generation.get("maximum_sequences") == 8, "vLLM maximum sequences drift")
-    _require(generation.get("enable_prefix_caching") is True, "prefix caching disabled")
+    _require(
+        generation.get("enable_prefix_caching") is False,
+        "experimental Qwen3.5 Mamba prefix caching re-enabled",
+    )
     _require(generation.get("enable_chunked_prefill") is True, "chunked prefill disabled")
     _require(
         generation.get("execution_mode")

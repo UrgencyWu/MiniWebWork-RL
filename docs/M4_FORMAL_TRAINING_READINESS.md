@@ -41,12 +41,12 @@ SFT、GRPO 或 step-aware 作业。
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
 | SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
-| 异步 vLLM rollout | PARTIAL | Job 1271 已在 clean `e108fc96` 和正确三元 adapter 血缘上完成 8-worker、4 个原子 K=4 group、16 trajectories 与 4143 action tokens；behavior/sampling 逐 token 完全一致，vLLM view 被正确加载并进入同卡 learner。runtime v1 的 max-only parity 门禁随后在 optimizer 前拒绝作业；仍待 runtime v2 的全新 run 验证 update、wake 与完整 phase telemetry |
-| 迭代 learner / GRPO | PARTIAL | 已实现真实 tensor replay、分层 PPO clipped loss、2 policy epochs、零信号跳过、PEFT/AdamW artifact 保存，以及 canonical adapter、派生 rollout view、optimizer、semantic hash、token、sampler 的原子 iteration 提交；目录提交后状态推进前可向前对账，partial learner stage 从同一 frozen collection 重做。Job 1271 已证明 learner 可加载正确 view，但在首次 optimizer step 前被 v1 parity 拒绝；仍需 v2 同卡真实非零更新、三工件身份变化、engine wake 与后续生成 smoke |
+| 异步 vLLM rollout | PARTIAL | Job 1280 已在 clean `5375e151`、正确三元 adapter 血缘和 runtime v2 上完成 8-worker、4 个原子 K=4 group、16 trajectories、198 turns 与 4141 action tokens；225.37 秒内达到 255.58 trajectories/hour，behavior/sampling 精确一致。它在 learner max gate 失败；runtime v3 现仅关闭 experimental Mamba prefix cache、阈值不变，待全新 run 验证 |
+| 迭代 learner / GRPO | PARTIAL | 已实现真实 tensor replay、分层 PPO clipped loss、2 policy epochs、零信号跳过、PEFT/AdamW artifact 保存，以及 canonical adapter、派生 rollout view、optimizer、semantic hash、token、sampler 的原子 iteration 提交；目录提交后状态推进前可向前对账，partial learner stage 从同一 frozen collection 重做。Jobs 1271/1280 均在首次 optimizer step 前被各自版本的 parity max 拒绝；仍需 v3 同卡真实非零更新、三工件身份变化、engine wake 与后续生成 smoke |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一，并已接入共享 tensor learner；CPU 单测通过，待真实 collection 的同卡 GPU smoke |
-| On-policy / parity 门禁 | PARTIAL | 错误命名空间负对照 Job 1267 的 mean/P95/max 为 `1.18677/10.12739/21.51204`；正确血缘正对照 Job 1271 为 `0.001631/0.000438/0.367135`，behavior/sampling 精确一致。Job 1273 复核 P99=`0.04821`、初始 ratio clip 为 `6/4143=0.1448%`；因此在正式训练前版本化冻结 runtime v2 的 mean/P95/P99/max/clip-fraction/mean-ratio 六门禁，并明确披露其不是首次 GPU 观测前预注册。Jobs 1275–1277 的隔离 FLA 方案被实测否决；待全新 v2 GPU run 通过，既有 1271 不追溯改判 PASS |
+| On-policy / parity 门禁 | PARTIAL | 错误命名空间负对照 Job 1267 的 mean/P95/max 为 `1.18677/10.12739/21.51204`。正确血缘 Job 1280 的 mean/P95/P99/max 为 `0.002011/0.000419/0.058677/0.676530`，初始 ratio clip `9/4141=0.2173%`，除 v2 max=0.5 外均通过。Job 1281 证明同一 collection 的 mb8 max 可重复，而 mb4/mb1 max 为 `1.98432/1.24496`，mean/P99 仍稳定；因此不立即改阈值，先由 runtime v3 关闭 experimental Mamba prefix cache 做单变量复验。Jobs 1275–1277 的隔离 FLA 方案仍被否决；所有既有失败不追溯改判 |
 | 24 小时原子恢复 | PARTIAL | v3 journal 使用 cached hash-chain append+flush+fsync，并用 stat 加有界头尾内容哨兵适配远端粗粒度时间戳；先持久化最小 token charge、再原子落 full turn/trajectory/group；不完整 attempt 保留成本并定点归档；iteration v2 原子提交、run_state 向前对账与 partial-stage fault injection 已通过；若更新已提交但缺少完整报告，则保留 commit 但明确判同卡 wake 门禁失败，绝不补写 PASS；旧 v2 root 因 schema/runtime/git 身份不一致 fail closed，待全新 root 的真实 Slurm 进程中断/续跑 smoke |
-| GPU 性能门禁 | PARTIAL | SFT 单卡门禁已通过：microbatch=8 为 1122.89 forward tok/s，外部遥测 GPU util P50=100%、显存余量 50.58%。Job 1267 的真实 rollout 为 195.63 trajectories/hour，已超过当前约 38/h 的 3 倍门槛；Job 1271 又证明正确 adapter view 可完成 4 个并发采集组。仍需 v2 run 的 generation/learner GPU-util、learner throughput、有效 optimizer-token 比例、显存余量与 wake 门禁 |
+| GPU 性能门禁 | PARTIAL | SFT 单卡门禁已通过：microbatch=8 为 1122.89 forward tok/s，外部遥测 GPU util P50=100%、显存余量 50.58%。Job 1280 rollout 达到 255.58 trajectories/hour、66,146 action tokens/hour，超过约 38/h 的 3 倍门槛；learner replay 遥测多次为 100% GPU util。因 parity 在 update 前失败，仍缺 optimizer throughput、有效 optimizer-token 比例、更新阶段完整 P50、三工件变化与 wake 门禁 |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
 
@@ -77,13 +77,22 @@ runtime/credit/journal/iteration 回归分别覆盖：
 
 runtime v1 历史机器合同 SHA256 为
 `4e89447a49b0d353fb676817e391e2aad383851b19d2441aecd14ffe5dd7d8c8`；Job 1271
-仍严格按该版本执行并失败，不能用 v2 追溯改判。runtime v2 候选合同 SHA256
+仍严格按该版本执行并失败，不能用 v2 追溯改判。runtime v2 历史合同 SHA256
 为 `e3a93463c9d84badef89b5efc66b5a2f396a5afaf3383bc191d0e040bcd21b9a`；它在保持
 Python 3.11.14、PyTorch 2.10.0+cu128、Transformers 5.14.1、PEFT 0.19.1、
 vLLM 0.17.0、Playwright 1.61.0 与 `formal_submission_allowed=false` 不变的同时，
-加入 P99、初始 ratio clip fraction、正负对照校准血缘和更新后真实生成 smoke。
-该合同只冻结正式训练前
-的候选实现边界；全新 GPU preflight 未通过前仍为 `NOT_READY`。
+加入 P99、初始 ratio clip fraction、正负对照校准血缘和更新后真实生成 smoke；
+Job 1280 严格按它执行并因 max `0.67653 > 0.50` 失败，不能由后续版本追溯改判。
+
+runtime v3 候选合同 SHA256 为
+`a0a54069dc8a1ee1fbfb8ca9323bc942a88c0e61ef9d27638aca864b77aaab34`。它完整保留
+v2 阈值，仅将 `enable_prefix_caching` 从 `true` 改为 `false`，隔离 vLLM 0.17
+日志明确标记为 experimental 的 Qwen3.5 Mamba `align` prefix cache；chunked
+prefill、adapter、采样、K=4 和 learner microbatch 均未改变。全新 v3 GPU
+preflight 未通过前仍为 `NOT_READY`。pre-commit CPU 定向回归 Job 1283 已在
+该候选脏树与上述精确 runtime SHA 下得到 `47 passed`；Job 1282 仅因 Slurm
+`--wrap` 的 `/bin/sh` 不支持 `pipefail` 而在测试启动前退出，两者均不能替代新
+clean commit 的完整回归。
 
 SFT 训练参数现由机器合同强制校验：learning rate `2e-4`、effective batch
 `16`、候选 microbatch `1/2/4/8`、reserved-VRAM headroom 至少 `15%`。GPU
@@ -188,13 +197,18 @@ wall time                 <=24h per Slurm job
 | 1276 | `e108fc96` + output-only diagnostic | Transformers 5.14.1 与隔离 FLA 探测复核 | 2 CPU / 4 GB | `COMPLETED 0:0`，0:18；确认自动探测与发行包名不一致，转入显式隔离绑定测试；不改变正式环境 |
 | 1277 | `e108fc96` + output-only diagnostic | 显式隔离 FLA backend parity 对照 | 1 GPU / 4 CPU / 32 GB | `COMPLETED 0:0`，5:36；未改善正确血缘分布且放大稀疏 batch-shape 异常，正式拒绝 FLA 方案；不作为研究结果 |
 | 1278 | pre-commit working tree（基于 `e108fc96`） | runtime v2 parity、post-wake 与 runner 定向回归 | 2 CPU / 8 GB / 30 min 上限 | `COMPLETED 0:0`，0:06；远端 Python 3.11 Conda 中 `36 passed`，MaxRSS 约 443 MB；只作开发回归，不能替代新 clean SHA 的完整回归 |
+| 1279 | `5375e151534e2a69db1b94b8c03ca9d71df6d8d1` | runtime v2 clean 非浏览器回归 | 2 CPU / 8 GB / 1 h 上限 | `COMPLETED 0:0`，0:18；`414 passed, 10 deselected`，MaxRSS 约 789 MB；PASS |
+| 1280 | `5375e151534e2a69db1b94b8c03ca9d71df6d8d1` | runtime v2 全新 8-worker online E2E preflight | 1 GPU / 8 CPU / 48 GB / 24 h 上限 | `FAILED 1:0`，7:06；4 个 K=4 group、16 trajectories、198 turns、4141 token，255.58 trajectories/hour；behavior/sampling、mean/P95/P99/clip/mean-ratio 通过，max `0.67653>0.50`，optimizer 前失败；不得追溯改判 |
+| 1281 | `5375e151` + output-only diagnostic | Job 1280 冻结 collection 的 replay batch-shape 矩阵 | 1 GPU / 4 CPU / 32 GB / 1 h 上限 | `COMPLETED 0:0`，9:32；mb8 两次 max 均 `0.67653`，mb4/mb1 为 `1.98432/1.24496`；四次 mean 约 `0.002`、P99 < `0.058`。证明稀疏尾部对 batch 形状敏感；不作为研究结果 |
+| 1282 | pre-commit working tree（基于 `5375e151`） | runtime v3 定向 CPU 回归首次包装 | 2 CPU / 8 GB / 30 min 上限 | `FAILED 2:0`，0:01；Slurm `--wrap` 使用 `/bin/sh`，不支持 `set -o pipefail`，pytest 未启动；保留为包装器失败诊断，不是代码/测试失败 |
+| 1283 | pre-commit working tree（基于 `5375e151`） | runtime v3 prefix-cache 单变量变更定向回归 | 2 CPU / 8 GB / 30 min 上限 | `COMPLETED 0:0`，0:05；绑定 runtime v3 SHA `a0a54069...`，`47 passed`，MaxRSS 约 382 MB；PASS，但不替代新 clean SHA 的完整回归 |
 
-Jobs 1272–1277 的脚本和安装均位于已失败 run 的 `diagnostics/` 输出空间，没有写入
+Jobs 1272–1277 与 1281 的脚本和安装均位于已失败 run 的 `diagnostics/` 输出空间，没有写入
 tracked 路径、共享 Conda 或正式输出根目录。这些作业只回答 backend parity 的
-工程问题；不会进入算法成功率、成本、显著性或正式模型血缘。runtime v2 也不把
-Job 1271 改写为成功：它要求全新 run root 在新合同下重新收集、通过全部 parity
+工程问题；不会进入算法成功率、成本、显著性或正式模型血缘。runtime v3 也不把
+Jobs 1271/1280 改写为成功：它要求全新 run root 在新合同下重新收集、通过全部 parity
 门禁、产生可验证的非零 optimizer update、原子推进 adapter/optimizer 三元血缘，
-并成功 wake vLLM 后才能关闭该门禁。
+并成功 wake vLLM、加载新 view 且完成更新后真实生成，才能关闭该门禁。
 
 Job 1267 绑定 runtime SHA256
 `45158a21efaa6976dc4e0994d27e1fbf342ec60db2204e6f8047f43b7ae988b6`。

@@ -35,7 +35,7 @@ def test_vllm_engine_kwargs_freeze_raw_logprobs_same_gpu_lora_and_batching():
     assert kwargs["enable_lora"] is True
     assert kwargs["max_lora_rank"] == 16
     assert kwargs["max_num_seqs"] == 8
-    assert kwargs["enable_prefix_caching"] is True
+    assert kwargs["enable_prefix_caching"] is False
     assert kwargs["enable_chunked_prefill"] is True
     assert kwargs["enforce_eager"] is True
     assert kwargs["enable_sleep_mode"] is True
