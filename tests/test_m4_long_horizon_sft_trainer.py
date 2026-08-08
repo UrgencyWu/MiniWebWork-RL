@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import inspect
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +13,7 @@ from miniwebwork.long_horizon_rl.sft_trainer import (
     LengthBucketBatchSampler,
     PlateauController,
     TokenizedSFTExample,
+    benchmark_microbatches,
     completion_only_cross_entropy,
     load_trainable_lora_model,
     select_sft_microbatch,
@@ -215,3 +218,12 @@ def test_trainable_model_enables_nonreentrant_gradient_checkpointing():
     assert calls["gradient_checkpointing"] == {"use_reentrant": False}
     assert calls["lora"]["lora_dropout"] == 0.0
     assert calls["train"] is True
+
+
+def test_benchmark_artifact_path_cannot_be_shadowed_by_model_output():
+    signature = inspect.signature(benchmark_microbatches)
+    assert "output_path" in signature.parameters
+    source = inspect.getsource(benchmark_microbatches)
+    assert "model_output = _forward" in source
+    assert re.search(r"(?m)^\s*output\s*=", source) is None
+    assert "atomic_write_json(output_path, report)" in source

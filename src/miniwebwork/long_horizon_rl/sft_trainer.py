@@ -712,7 +712,7 @@ def benchmark_microbatches(
     model: Any,
     examples: Sequence[TokenizedSFTExample],
     tokenizer: Any,
-    output: Path,
+    output_path: Path,
     corpus_manifest_sha256: str,
     token_audit_sha256: str,
     warmup_microsteps: int = 2,
@@ -756,7 +756,7 @@ def benchmark_microbatches(
         }
         if failure_reason is not None:
             report["failure_reason"] = failure_reason
-        atomic_write_json(output, report)
+        atomic_write_json(output_path, report)
         return report
 
     for candidate in SFT_MICROBATCH_CANDIDATES:
@@ -787,8 +787,8 @@ def benchmark_microbatches(
                     torch.cuda.synchronize(device)
                     measured_started = time.monotonic()
                 moved = _move_batch(batch, device)
-                output = _forward(model, moved)
-                loss = completion_only_cross_entropy(output.logits, moved["labels"])
+                model_output = _forward(model, moved)
+                loss = completion_only_cross_entropy(model_output.logits, moved["labels"])
                 loss.total.backward()
                 accumulated_tokens += loss.token_count
                 accumulated_microbatches += 1

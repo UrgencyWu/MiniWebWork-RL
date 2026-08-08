@@ -159,7 +159,7 @@ def main() -> None:
             model=model,
             examples=train_examples,
             tokenizer=tokenizer,
-            output=benchmark_path,
+            output_path=benchmark_path,
             corpus_manifest_sha256=input_binding["manifest_sha256"],
             token_audit_sha256=input_binding["token_audit_sha256"],
         )

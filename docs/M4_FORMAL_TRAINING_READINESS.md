@@ -62,7 +62,7 @@ anchor；GRPO macro、step-aware micro、零方差 fallback；task-family 冷覆
 Beta(1,1) uncertainty priority；并发 journal hash chain、无效组成本保留、exact-K
 commit、路径逃逸和 collection freeze 幂等。加入专用 SFT trainer、协议漂移和
 Slurm 资源门禁后，完整非浏览器/非 GPU/非 Slurm 回归为
-`324 passed, 10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
+`325 passed, 10 deselected`。GPU/runtime 相关项未通过前，这些 `PARTIAL` 仍禁止正式提交。
 
 SFT 训练参数现由机器合同强制校验：learning rate `2e-4`、effective batch
 `16`、候选 microbatch `1/2/4/8`、reserved-VRAM headroom 至少 `15%`。GPU
@@ -75,6 +75,12 @@ OOM，未进入 20-update smoke。日志确认 Qwen3.5 的线性注意力缺少 
 causal-conv 快路径并回退 PyTorch；因此 v2.1 固定启用 non-reentrant gradient
 checkpointing，而不是放宽 15% 显存门槛。1262 只保留为失败诊断，不可作为
 通过工件。
+
+修复后的 Job 1263 在 frozen `eb96af3` 上将最长序列候选 1 的显存降至约
+13.8GB，证明 checkpointing 修复了资源门禁；但候选结束落盘时，局部模型输出
+变量遮蔽了 benchmark 路径并触发 `TypeError`。failure artifact 正确落盘，20 次
+update 仍未开始。v2.2 将 artifact 参数改为不可混淆的 `output_path` 并加入源码
+级防回归测试；1263 同样只作失败诊断。
 
 ## 3. 已冻结的数据合同
 
@@ -136,6 +142,7 @@ wall time                 <=24h per Slurm job
 | 1260 | `e9dd16441c5974332e289a1fb02620cf31eab2ef` | 完整 Verified SFT v1 语料 | 2 CPU / 8 GB / 4 h | `CANCELLED`，运行 35:48 后主动停止；train/dev 的 78 个 long task 中正确供应商 78/78 固定为第三个访问项，且 v3 prompt 不保留前三个供应商页的可靠性证据；该设计会教授位置捷径，所有部分产物均禁止进入正式血缘 |
 | 1261 | `95d7c2607a4d279196aa760b1f56723332020792` | 完整 Verified SFT v2 语料、token 审计与最终验证 | 2 CPU / 8 GB / 4 h | `COMPLETED 0:0`，58:37；240/72 任务、2820/846 唯一 turn；zero-label/duplicate/truncation 均为 0；runtime DB 零残留；PASS |
 | 1262 | `d60380714613d6f6d51fb9e6532601e84dd0d728` | SFT microbatch 与 20-update disposable GPU preflight | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `FAILED 1:0`，1:04；microbatch=1 最长序列反向占用 97,250/97,887 MiB，候选 2 OOM；未训练 adapter；促成冻结 gradient checkpointing 与失败工件落盘修复；不得记为 PASS |
+| 1263 | `eb96af377eef0774c90a28318f8fcce4fd53dcfd` | checkpointing 后 SFT GPU preflight 重试 | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `FAILED 1:0`，2:59；候选 1 显存约 13.8GB，但候选明细落盘时路径被 forward 输出变量遮蔽；failure artifact 完整，未进入 20-update smoke；不得记为 PASS |
 
 Job 1262 的 stdout/stderr/GPU telemetry SHA256 分别为
 `1f55c71aa82601589236a49341f47c6a12d386e5b3c33209eccbb4a879365e9f`、
@@ -144,6 +151,13 @@ Job 1262 的 stdout/stderr/GPU telemetry SHA256 分别为
 旧实现是在最终选择后才写 benchmark，因此 1262 只有 invocation 与遥测，没有
 候选明细 JSON；修复后每个候选结束即原子落盘，最终门禁失败也生成显式 failure
 artifact。此审计缺口本身也是 1262 不可提升为 PASS 的原因。
+
+Job 1263 的 stdout/stderr/GPU telemetry/invocation/failure SHA256 分别为
+`0e2f75a710cac96ae7097c68a4a169eec466ca0aa9d0c715d9c0e5f1d7b44891`、
+`1fb02bd89360bdaa9d7fefec66e36e2aebc69711c335180bf02fc9c9253ea23e`、
+`ceb51091f3783adc08b85bb4303aea450f3ad65d356b7d613a1feb1501c0044c`、
+`d0047be40be638157cdcfc962edc1d4df8d998427669e61330588adfb2683a30` 和
+`581eb2732e9762bfca54aaa7a96df166a633638ba0d12b0777bd0b1492942219`。
 
 job 1259 的 stdout/stderr SHA256 分别为
 `6f8ea5b13cf84336a7f46352970fb7babb875d0201e306a94d5a971fc0e39e70` 和
