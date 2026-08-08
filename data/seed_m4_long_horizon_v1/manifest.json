@@ -1,0 +1,15 @@
+{
+  "files": {
+    "products.json": {
+      "sha256": "a4b516a21acd08ad322428c281de3581b19e9aa2a07674568eaf771428935b5b"
+    },
+    "suppliers.json": {
+      "sha256": "83de6f2483095d27afe870b089431ca3f30070eaade24b97236e4e49cbf703b3"
+    }
+  },
+  "product_count": 432,
+  "schema_version": "1.0",
+  "seed_version": "m4_long_horizon_v1",
+  "supplier_count": 432,
+  "supplier_scope": "one supplier set per world; no cross-split supplier ids"
+}

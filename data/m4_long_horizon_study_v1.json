@@ -1,0 +1,157 @@
+{
+  "schema_version": "m4_long_horizon_study_v1",
+  "study_id": "m4_long_horizon_credit_v1",
+  "lifecycle_state": "preflight",
+  "formal_submission_allowed": false,
+  "authoritative_protocol": "docs/M4_LONG_HORIZON_AGENT_RL_SCOPE.md",
+  "research_question": "Under the same verified SFT initialization, task stream, K=4 sampling distribution, and 250000 generated action-token budget per seed, does turn-level macro plus anchor-state micro credit assignment improve over terminal-advantage-broadcast multi-turn GRPO, especially on medium and long browser tasks?",
+  "prompt_contract": "browser_agent_v3_compact",
+  "output_contract": {
+    "root": "outputs/m4_long_horizon_credit_v1",
+    "preflight_root": "outputs/m4_long_horizon_credit_v1/preflight",
+    "formal_root": "outputs/m4_long_horizon_credit_v1/formal",
+    "diagnostic_root": "outputs/m4_long_horizon_credit_v1/diagnostic",
+    "readiness_root": "outputs/m4_long_horizon_credit_v1/readiness",
+    "excluded_roots": [
+      "outputs/m4_invalidated",
+      "outputs/m4_v2_runs",
+      "outputs/m4_v3_runs"
+    ]
+  },
+  "formal_matrix": {
+    "shared_sft": {
+      "algorithm": "verified_sft",
+      "seed": 20260801,
+      "model_count": 1
+    },
+    "online_methods": [
+      "multi_turn_grpo",
+      "step_aware_gpo"
+    ],
+    "online_seeds": [
+      20260801,
+      20260802,
+      20260803
+    ],
+    "online_model_count": 6,
+    "total_model_count": 7,
+    "excluded_formal_algorithms": [
+      "rsft",
+      "rloo",
+      "gspo"
+    ]
+  },
+  "dataset_contract": {
+    "dataset_id": "m4_long_horizon_v1",
+    "task_root": "data/tasks/m4_long_horizon_v1",
+    "dataset_manifest_sha256": "ade9302269232a44bf92d28e8d9a357ef8e377509df09e69fdcf3c7cfe46fa5f",
+    "seed_root": "data/seed_m4_long_horizon_v1",
+    "seed_manifest_sha256": "d5742a3af8588c235a1d81f623ad14b5f0d793d9c99ad2b8580becf2c52383fd",
+    "split_counts": {
+      "train": 240,
+      "dev": 72,
+      "test": 120
+    },
+    "required_horizon_fields": [
+      "oracle_min_env_actions",
+      "horizon_stratum",
+      "oracle_trace_sha256"
+    ],
+    "horizon_strata": {
+      "basic": [
+        6,
+        8
+      ],
+      "medium": [
+        9,
+        12
+      ],
+      "long": [
+        13,
+        20
+      ]
+    },
+    "minimum_medium_long_fraction": 0.6666666666666666,
+    "split_isolation_fields": [
+      "world_signature",
+      "product_signature",
+      "supplier_signature",
+      "constraint_signature",
+      "answer_signature"
+    ],
+    "test_outcomes_available_during_preflight": false,
+    "frozen_test_rollouts_per_task": 4
+  },
+  "sft_contract": {
+    "source_split": "train",
+    "unique_verified_turn_evidence_only": true,
+    "completion_only_loss": true,
+    "maximum_zero_label_fraction": 0.0,
+    "repeat_examples_to_reach_token_target": false,
+    "selection_rule": "maximum non-OOM microbatch from 1,2,4,8 with fixed effective batch and at least 15 percent VRAM headroom",
+    "stopping_rule": "preregistered epoch cap plus dev NLL/action/schema plateau"
+  },
+  "online_contract": {
+    "group_size": 4,
+    "generated_action_token_cap_per_seed": 250000,
+    "maximum_tasks_per_iteration": 32,
+    "sampling": {
+      "temperature": 1.0,
+      "top_p": 1.0,
+      "top_k": 0
+    },
+    "behavior_policy_staleness": 0,
+    "incomplete_group_may_update": false,
+    "invalid_and_zero_signal_tokens_count_toward_budget": true,
+    "budget_stops_only_before_starting_a_new_group": true
+  },
+  "reward_contract": {
+    "verified_success": 1.0,
+    "valid_policy_failure": 0.0,
+    "infrastructure_failure": null,
+    "process_or_format_rewards_in_primary_experiment": false
+  },
+  "credit_assignment_contract": {
+    "baseline": "episode-relative terminal advantage broadcast to action tokens with per-turn and per-trajectory length normalization",
+    "main_method": "episode macro advantage plus public-state anchor micro advantage applied only to the corresponding turn action tokens",
+    "hidden_oracle_state_allowed_in_anchor_signature": false
+  },
+  "resource_contract": {
+    "maximum_concurrent_gpu_jobs": 4,
+    "gpus_per_job": 1,
+    "wall_time": "24:00:00",
+    "sft": {
+      "cpus": 4,
+      "memory_gb": 32
+    },
+    "online": {
+      "cpus": 8,
+      "memory_gb": 48
+    },
+    "final_eval": {
+      "cpus": 8,
+      "memory_gb": 48
+    }
+  },
+  "preflight_gates": {
+    "rollout_trajectories_per_hour_minimum": 114.0,
+    "generation_gpu_utilization_p50_minimum": 0.6,
+    "learner_gpu_utilization_p50_minimum": 0.8,
+    "vram_headroom_minimum": 0.15,
+    "optimizer_action_token_fraction_target": 0.2,
+    "telemetry_interval_seconds": [
+      5,
+      10
+    ],
+    "real_slurm_resume_smoke_required": true
+  },
+  "recovery_contract": {
+    "attempt_journal": "append_only",
+    "group_commit": "exactly_K_infra_valid_trajectories",
+    "invalid_or_interrupted_group": "resample_entire_group_and_retain_cost",
+    "collection_resume": "same_policy_version_only",
+    "interrupted_update": "replay_from_frozen_committed_collection",
+    "iteration_commit": "adapter_optimizer_ledger_and_manifest_atomic",
+    "identity_mismatch": "fail_closed"
+  }
+}

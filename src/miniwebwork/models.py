@@ -19,11 +19,13 @@ VALID_EPISODE_STATUSES = {EPISODE_ACTIVE, EPISODE_SUBMITTED, EPISODE_VERIFIED, E
 OBJECTIVE_EXACT_PRODUCT = "exact_product"
 OBJECTIVE_CHEAPEST_FEASIBLE = "cheapest_feasible"
 OBJECTIVE_HIGHEST_RATING_SUPPLIER = "highest_rating_supplier"
+OBJECTIVE_HIGHEST_RELIABILITY_SUPPLIER = "highest_reliability_supplier"
 OBJECTIVE_NO_FEASIBLE_PRODUCT = "no_feasible_product"
 VALID_OBJECTIVES = {
     OBJECTIVE_EXACT_PRODUCT,
     OBJECTIVE_CHEAPEST_FEASIBLE,
     OBJECTIVE_HIGHEST_RATING_SUPPLIER,
+    OBJECTIVE_HIGHEST_RELIABILITY_SUPPLIER,
     OBJECTIVE_NO_FEASIBLE_PRODUCT,
 }
 
@@ -43,6 +45,7 @@ FAILURE_WARRANTY_CONSTRAINT_FAILED = "warranty_constraint_failed"
 FAILURE_OBJECTIVE_NOT_OPTIMAL = "objective_not_optimal"
 FAILURE_FALSE_NO_SOLUTION = "false_no_solution"
 FAILURE_EXPECTED_NO_SOLUTION = "expected_no_solution"
+FAILURE_REQUIRED_SUPPLIER_NOT_INSPECTED = "required_supplier_not_inspected"
 
 
 @dataclass
@@ -75,7 +78,7 @@ class VerificationResult:
     objective_satisfied: bool = False
     failure_reasons: list = field(default_factory=list)
     details: dict = field(default_factory=dict)
-    verifier_version: str = "1.0.0"
+    verifier_version: str = "1.1.0"
 
     def to_dict(self) -> dict:
         return {

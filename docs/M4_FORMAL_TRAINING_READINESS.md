@@ -1,0 +1,102 @@
+# M4 正式训练前置就绪清单
+
+> Study：`m4_long_horizon_credit_v1`
+>
+> 当前阶段：`preflight`
+>
+> 正式提交开关：**关闭**（`formal_submission_allowed=false`）
+>
+> 本文档记录“可以开始正式训练之前”的必要证据。通过一项测试不等于完成
+> 训练，更不等于形成正式研究结果。
+
+## 1. 完成定义
+
+只有以下所有门禁都有可审计工件、冻结哈希和通过结论，才算完成本轮目标：
+
+1. 聚焦协议、数据、prompt、奖励、信用分配和输出目录合同冻结；
+2. 长程数据集与 Verified SFT 语料完成构建、隔离、回放和 token 审计；
+3. multi-turn GRPO 与 step-aware GPO 共用同一 on-policy rollout/learner；
+4. K=4 group、policy iteration、250k action-token 账本和 24 小时恢复语义通过；
+5. behavior/replay log-prob parity、staleness=0 和 adapter 血缘 fail-closed；
+6. 单 GPU preflight 达到或如实记录吞吐、GPU 利用率、显存和有效 token 门禁；
+7. CPU、真实 Slurm 恢复和端到端单 GPU smoke 全部通过；
+8. 工作区干净，代码、数据、语料、prompt、配置与运行 manifest 都绑定到同一
+   冻结提交；
+9. 就绪审计明确给出 `READY`，且没有正式训练作业已经被提前提交。
+
+完成本清单后，正式训练仍需一次独立的开启决策。前置 goal 不会自行提交正式
+SFT、GRPO 或 step-aware 作业。
+
+## 2. 当前状态（2026-08-08）
+
+| 门禁 | 状态 | 当前证据 / 缺口 |
+|---|---|---|
+| 聚焦研究问题与 7 模型矩阵 | PASS | `M4_LONG_HORIZON_AGENT_RL_SCOPE.md`；只保留共享 SFT、GRPO、step-aware GPO |
+| 机器可读 study/output 合同 | PASS | `data/m4_long_horizon_study_v1.json`；正式开关关闭，旧输出根目录被排除 |
+| 独立长程数据集 | PASS | 240/72/120；7/10/12/18 步；75% medium/long；manifest SHA 已绑定 |
+| Split 隔离 | PASS | world/product/supplier/constraint/answer signature 跨 split 零重叠 |
+| 真实浏览器与 verifier 工作流 | PASS | 18 步成功；跳过供应商检查即使答案正确也失败；旧 M4 流程兼容 |
+| Verified SFT 构建器 | PARTIAL | 小规模 train/dev 共 94 个逐 turn 样本回放通过；完整语料尚未构建 |
+| SFT 精确 token/零标签审计 | PENDING | 待 CPU Slurm 语料作业产生完整 manifest 与 tokenizer audit |
+| SFT trainer 与 dev 停止规则 | PENDING | 需实现 completion-only loss、microbatch benchmark 和 plateau 工件 |
+| 异步 vLLM rollout | PENDING | 需实现多 browser worker、连续批处理和完整采样 log-prob |
+| 迭代 learner / GRPO | PENDING | 需实现多 iteration/minibatch、有效组账本和 250k token cap |
+| Step-aware 信用分配 | PENDING | 需冻结公共 anchor signature、macro+micro 公式与无 anchor fallback |
+| On-policy / parity 门禁 | PENDING | 需验证 behavior/replay 分布语义、staleness=0、adapter SHA |
+| 24 小时原子恢复 | PENDING | 需完成 group/iteration fault injection 和一次真实 Slurm resume smoke |
+| GPU 性能门禁 | PENDING | 需完成 SFT microbatch 与 rollout concurrency 单卡 preflight |
+| 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
+| 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
+
+`PARTIAL` 和 `PENDING` 均禁止打开正式训练提交开关。
+
+## 3. 已冻结的数据合同
+
+```text
+study_id                  m4_long_horizon_credit_v1
+dataset_id                m4_long_horizon_v1
+prompt                    browser_agent_v3_compact
+train/dev/test            240 / 72 / 120
+horizon actions           basic=7, medium=10/12, long=18
+online K                  4
+online seeds              20260801 / 20260802 / 20260803
+action-token cap          250000 per online method/seed
+sampling                  temperature=1.0, top_p=1.0, top_k=0
+reward                    success=1, policy failure=0, infra failure=null
+maximum concurrent jobs   4 single-GPU jobs
+wall time                 <=24h per Slurm job
+```
+
+正式输出只能写入 `outputs/m4_long_horizon_credit_v1/formal`。当前前置工件只写入
+`preflight`、`readiness` 或版本化的数据目录；`outputs/m4_invalidated`、
+`outputs/m4_v2_runs` 和 `outputs/m4_v3_runs` 永不进入正式结果。
+
+## 4. 前置执行顺序
+
+1. 冻结并提交协议、长程数据和 Verified SFT 构建器；
+2. 使用 2 CPU、8 GB、4 小时上限的 Slurm 作业构建完整 SFT 语料；
+3. 审计唯一样本、train/dev 边界、真实 trace、6144 上限、completion-label token
+   和零标签比例；
+4. 实现并测试统一在线 runtime、GRPO learner 和 step-aware credit assigner；
+5. 完成 K=4 / iteration 原子性、恢复、血缘、on-policy 和 token 账本测试；
+6. 提交短时单 GPU preflight，选择 SFT microbatch 和 rollout worker 数；
+7. 汇总所有工件到版本化 readiness manifest，并在干净冻结提交上重跑总审计。
+
+队列中存在本研究的任何作业时，不修改 tracked 源码、协议或数据。CPU 和 GPU
+均属于调度资源：请求以测量为依据，避免用过多 CPU/内存阻塞并行作业。
+
+## 5. 就绪审计必须输出
+
+最终 readiness manifest 至少包含：
+
+- Git SHA、工作区 clean 状态和所有 tracked 文件哈希；
+- study、dataset、seed、SFT corpus、token audit 和 prompt SHA；
+- 每个 CPU/GPU/恢复 preflight 的 Slurm JobID、状态、ExitCode 和日志 SHA；
+- GPU 型号、软件版本、选中的 microbatch/workers 及其基准指标；
+- rollout 吞吐、generation/learner GPU utilization P50、VRAM headroom；
+- behavior/replay log-prob 差异、有效 group/token 比例和 staleness；
+- fault-injection 与真实 24 小时边界恢复结论；
+- `formal_submission_allowed` 仍为 false，以及明确的 `READY` / `NOT_READY`
+  判定和未通过原因。
+
+任何缺失、哈希漂移、旧产物混入或只能人工推断的门禁均按 `NOT_READY` 处理。

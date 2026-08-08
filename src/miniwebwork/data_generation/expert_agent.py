@@ -16,6 +16,18 @@ class OracleExpertProcurementAgent:
         self._state = {}          # Tracks which filters have been applied
         self._product_clicked = False  # True after clicking product link
         self._selection_confirmed = False  # True after clicking select-product
+        requirements = self._oracle.get("workflow_requirements", {})
+        supplier_ids = requirements.get("required_supplier_detail_ids", [])
+        if not isinstance(supplier_ids, list) or any(
+            not isinstance(supplier_id, str) or not supplier_id
+            for supplier_id in supplier_ids
+        ):
+            raise ValueError("workflow required_supplier_detail_ids must be strings")
+        if len(set(supplier_ids)) != len(supplier_ids):
+            raise ValueError("workflow required_supplier_detail_ids must be unique")
+        self._required_supplier_ids = tuple(supplier_ids)
+        self._inspected_supplier_ids = set()
+        self._pending_supplier_id = None
 
     def act(self, observation: Observation) -> AgentAction:
         self._step += 1
@@ -36,6 +48,9 @@ class OracleExpertProcurementAgent:
             return self._handle_product_detail(els, expected_decision)
 
         if pt == "supplier_detail":
+            if self._pending_supplier_id is not None:
+                self._inspected_supplier_ids.add(self._pending_supplier_id)
+                self._pending_supplier_id = None
             return AgentAction(action="back")
 
         if pt == "procurement_form":
@@ -113,14 +128,25 @@ class OracleExpertProcurementAgent:
             if e:
                 return AgentAction(action="click", target=e.element_id)
 
-        # 6) If no_solution expected
+        # 6) Long-horizon tasks require real supplier-detail inspection.  The
+        # detail page is the only page exposing delivery reliability.  Visit
+        # every frozen feasible supplier before selecting the final product.
+        for supplier_id in self._required_supplier_ids:
+            if supplier_id in self._inspected_supplier_ids:
+                continue
+            e = self._find(els, f"supplier-link-{supplier_id}")
+            if e:
+                self._pending_supplier_id = supplier_id
+                return AgentAction(action="click", target=e.element_id)
+
+        # 7) If no_solution expected
         if expected_decision == "no_solution" and not self._state.get("declared"):
             self._state["declared"] = True
             e = self._find(els, "declare-no-solution")
             if e:
                 return AgentAction(action="click", target=e.element_id)
 
-        # 7) Click expected product link (sets _product_clicked, NOT _selection_confirmed)
+        # 8) Click expected product link (sets _product_clicked, NOT _selection_confirmed)
         if expected_pid and not self._product_clicked:
             self._product_clicked = True
             e = self._find(els, f"product-link-{expected_pid}")

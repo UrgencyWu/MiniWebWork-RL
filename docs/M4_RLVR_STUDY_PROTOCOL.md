@@ -1,5 +1,14 @@
 # M4 RLVR Algorithm Study Protocol
 
+> **Historical protocol — superseded 2026-08-08.** The five-algorithm,
+> fifteen-run matrix in this document is no longer the approved project scope.
+> It is preserved as preregistration and diagnostic history only. The current
+> authoritative scope is
+> [`M4_LONG_HORIZON_AGENT_RL_SCOPE.md`](M4_LONG_HORIZON_AGENT_RL_SCOPE.md): one
+> shared verified SFT warm start, multi-turn GRPO as the baseline, and
+> step-aware credit assignment as the main method. Existing v3 jobs and
+> artifacts must not be promoted into that new formal matrix.
+
 Status: preregistered implementation protocol.  It is intentionally committed
 before the M4 development jobs and before any final-test evaluation.
 

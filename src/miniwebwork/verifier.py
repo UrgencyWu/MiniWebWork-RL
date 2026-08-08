@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import closing
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Sequence
 
 from .db import get_connection
 from .models import (
@@ -19,6 +19,7 @@ from .models import (
     FAILURE_OUT_OF_STOCK,
     FAILURE_PRICE_CONSTRAINT_FAILED,
     FAILURE_REGION_CONSTRAINT_FAILED,
+    FAILURE_REQUIRED_SUPPLIER_NOT_INSPECTED,
     FAILURE_SUPPLIER_CERTIFICATION_FAILED,
     FAILURE_SUPPLIER_RATING_FAILED,
     FAILURE_WARRANTY_CONSTRAINT_FAILED,
@@ -29,11 +30,28 @@ from .models import (
 from .tasks import compute_feasible_products, compute_optimal_product, get_oracle, parse_constraints
 
 
+def _visited_supplier_ids(workflow_trace: Sequence[dict[str, Any]] | None) -> set[str]:
+    """Extract public supplier-detail visits from the environment trajectory."""
+
+    visited: set[str] = set()
+    for step in workflow_trace or ():
+        observation = step.get("observation") if isinstance(step, dict) else None
+        if not isinstance(observation, dict) or observation.get("page_type") != "supplier_detail":
+            continue
+        path = observation.get("path")
+        if isinstance(path, str) and path.startswith("/suppliers/"):
+            supplier_id = path[len("/suppliers/"):].split("/", 1)[0]
+            if supplier_id:
+                visited.add(supplier_id)
+    return visited
+
+
 def verify_episode(
     task_id: str,
     episode_id: str,
     db_path: Optional[str] = None,
     task_dir: str | Path | None = None,
+    workflow_trace: Sequence[dict[str, Any]] | None = None,
 ) -> VerificationResult:
     """Verify one persisted submission against the frozen Oracle.
 
@@ -82,6 +100,23 @@ def verify_episode(
         result.decision_type = submission["decision_type"]
         result.selected_product_id = submission["product_id"] or ""
 
+        workflow_ok = True
+        workflow = oracle.get("workflow_requirements", {})
+        required_suppliers = workflow.get("required_supplier_detail_ids", [])
+        if required_suppliers:
+            visited_suppliers = _visited_supplier_ids(workflow_trace)
+            missing_suppliers = [
+                supplier_id
+                for supplier_id in required_suppliers
+                if supplier_id not in visited_suppliers
+            ]
+            result.details["required_supplier_detail_ids"] = list(required_suppliers)
+            result.details["visited_supplier_detail_ids"] = sorted(visited_suppliers)
+            if missing_suppliers:
+                workflow_ok = False
+                result.failure_reasons.append(FAILURE_REQUIRED_SUPPLIER_NOT_INSPECTED)
+                result.details["missing_supplier_detail_ids"] = missing_suppliers
+
         expected_decision = oracle.get("expected_decision_type", "")
         if result.decision_type != expected_decision:
             result.failure_reasons.append(FAILURE_WRONG_DECISION_TYPE)
@@ -99,7 +134,7 @@ def verify_episode(
                 result.details["feasible_products"] = [row["product_id"] for row in feasible]
                 return result
 
-            result.success = True
+            result.success = workflow_ok
             result.constraints_satisfied = True
             result.objective_satisfied = True
             return result
@@ -177,5 +212,5 @@ def verify_episode(
                 result.details["optimal_price"] = optimal["price"]
                 result.details["optimal_rating"] = optimal["rating"]
 
-        result.success = all_constraints_ok and result.objective_satisfied
+        result.success = all_constraints_ok and result.objective_satisfied and workflow_ok
         return result

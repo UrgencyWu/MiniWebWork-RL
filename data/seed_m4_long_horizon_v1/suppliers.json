@@ -1,0 +1,3890 @@
+[
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W001.",
+    "name": "W001 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W001-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W001.",
+    "name": "W001 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W001-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W001.",
+    "name": "W001 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W001-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W001.",
+    "name": "W001 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W001-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W002.",
+    "name": "W002 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W002-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W002.",
+    "name": "W002 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W002-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W002.",
+    "name": "W002 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W002-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W002.",
+    "name": "W002 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W002-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W003.",
+    "name": "W003 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W003-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W003.",
+    "name": "W003 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W003-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W003.",
+    "name": "W003 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W003-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W003.",
+    "name": "W003 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W003-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W004.",
+    "name": "W004 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W004-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W004.",
+    "name": "W004 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W004-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W004.",
+    "name": "W004 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W004-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W004.",
+    "name": "W004 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W004-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W005.",
+    "name": "W005 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W005-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W005.",
+    "name": "W005 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W005-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W005.",
+    "name": "W005 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W005-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W005.",
+    "name": "W005 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W005-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W006.",
+    "name": "W006 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W006-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W006.",
+    "name": "W006 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W006-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W006.",
+    "name": "W006 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W006-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W006.",
+    "name": "W006 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W006-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W007.",
+    "name": "W007 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W007-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W007.",
+    "name": "W007 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W007-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W007.",
+    "name": "W007 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W007-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W007.",
+    "name": "W007 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W007-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W008.",
+    "name": "W008 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W008-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W008.",
+    "name": "W008 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W008-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W008.",
+    "name": "W008 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W008-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W008.",
+    "name": "W008 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W008-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W009.",
+    "name": "W009 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W009-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W009.",
+    "name": "W009 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W009-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W009.",
+    "name": "W009 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W009-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W009.",
+    "name": "W009 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W009-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W010.",
+    "name": "W010 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W010-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W010.",
+    "name": "W010 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W010-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W010.",
+    "name": "W010 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W010-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W010.",
+    "name": "W010 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W010-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W011.",
+    "name": "W011 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W011-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W011.",
+    "name": "W011 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W011-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W011.",
+    "name": "W011 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W011-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W011.",
+    "name": "W011 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W011-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W012.",
+    "name": "W012 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W012-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W012.",
+    "name": "W012 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W012-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W012.",
+    "name": "W012 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W012-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W012.",
+    "name": "W012 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W012-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W013.",
+    "name": "W013 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W013-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W013.",
+    "name": "W013 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W013-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W013.",
+    "name": "W013 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W013-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W013.",
+    "name": "W013 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W013-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W014.",
+    "name": "W014 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W014-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W014.",
+    "name": "W014 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W014-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W014.",
+    "name": "W014 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W014-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W014.",
+    "name": "W014 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W014-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W015.",
+    "name": "W015 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W015-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W015.",
+    "name": "W015 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W015-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W015.",
+    "name": "W015 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W015-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W015.",
+    "name": "W015 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W015-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W016.",
+    "name": "W016 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W016-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W016.",
+    "name": "W016 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W016-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W016.",
+    "name": "W016 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W016-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W016.",
+    "name": "W016 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W016-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W017.",
+    "name": "W017 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W017-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W017.",
+    "name": "W017 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W017-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W017.",
+    "name": "W017 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W017-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W017.",
+    "name": "W017 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W017-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W018.",
+    "name": "W018 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W018-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W018.",
+    "name": "W018 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W018-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W018.",
+    "name": "W018 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W018-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W018.",
+    "name": "W018 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W018-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W019.",
+    "name": "W019 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W019-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W019.",
+    "name": "W019 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W019-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W019.",
+    "name": "W019 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W019-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W019.",
+    "name": "W019 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W019-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W020.",
+    "name": "W020 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W020-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W020.",
+    "name": "W020 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W020-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W020.",
+    "name": "W020 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W020-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W020.",
+    "name": "W020 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W020-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W021.",
+    "name": "W021 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W021-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W021.",
+    "name": "W021 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W021-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W021.",
+    "name": "W021 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W021-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W021.",
+    "name": "W021 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W021-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W022.",
+    "name": "W022 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W022-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W022.",
+    "name": "W022 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W022-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W022.",
+    "name": "W022 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W022-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W022.",
+    "name": "W022 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W022-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W023.",
+    "name": "W023 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W023-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W023.",
+    "name": "W023 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W023-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W023.",
+    "name": "W023 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W023-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W023.",
+    "name": "W023 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W023-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W024.",
+    "name": "W024 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W024-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W024.",
+    "name": "W024 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W024-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W024.",
+    "name": "W024 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W024-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W024.",
+    "name": "W024 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W024-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W025.",
+    "name": "W025 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W025-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W025.",
+    "name": "W025 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W025-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W025.",
+    "name": "W025 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W025-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W025.",
+    "name": "W025 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W025-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W026.",
+    "name": "W026 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W026-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W026.",
+    "name": "W026 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W026-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W026.",
+    "name": "W026 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W026-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W026.",
+    "name": "W026 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W026-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W027.",
+    "name": "W027 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W027-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W027.",
+    "name": "W027 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W027-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W027.",
+    "name": "W027 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W027-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W027.",
+    "name": "W027 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W027-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W028.",
+    "name": "W028 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W028-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W028.",
+    "name": "W028 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W028-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W028.",
+    "name": "W028 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W028-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W028.",
+    "name": "W028 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W028-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W029.",
+    "name": "W029 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W029-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W029.",
+    "name": "W029 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W029-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W029.",
+    "name": "W029 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W029-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W029.",
+    "name": "W029 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W029-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W030.",
+    "name": "W030 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W030-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W030.",
+    "name": "W030 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W030-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W030.",
+    "name": "W030 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W030-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W030.",
+    "name": "W030 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W030-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W031.",
+    "name": "W031 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W031-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W031.",
+    "name": "W031 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W031-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W031.",
+    "name": "W031 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W031-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W031.",
+    "name": "W031 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W031-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W032.",
+    "name": "W032 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W032-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W032.",
+    "name": "W032 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W032-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W032.",
+    "name": "W032 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W032-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W032.",
+    "name": "W032 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W032-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W033.",
+    "name": "W033 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W033-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W033.",
+    "name": "W033 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W033-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W033.",
+    "name": "W033 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W033-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W033.",
+    "name": "W033 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W033-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W034.",
+    "name": "W034 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W034-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W034.",
+    "name": "W034 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W034-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W034.",
+    "name": "W034 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W034-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W034.",
+    "name": "W034 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W034-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W035.",
+    "name": "W035 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W035-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W035.",
+    "name": "W035 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W035-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W035.",
+    "name": "W035 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W035-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W035.",
+    "name": "W035 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W035-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W036.",
+    "name": "W036 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W036-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W036.",
+    "name": "W036 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W036-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W036.",
+    "name": "W036 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W036-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W036.",
+    "name": "W036 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W036-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W037.",
+    "name": "W037 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W037-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W037.",
+    "name": "W037 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W037-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W037.",
+    "name": "W037 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W037-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W037.",
+    "name": "W037 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W037-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W038.",
+    "name": "W038 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W038-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W038.",
+    "name": "W038 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W038-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W038.",
+    "name": "W038 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W038-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W038.",
+    "name": "W038 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W038-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W039.",
+    "name": "W039 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W039-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W039.",
+    "name": "W039 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W039-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W039.",
+    "name": "W039 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W039-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W039.",
+    "name": "W039 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W039-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W040.",
+    "name": "W040 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W040-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W040.",
+    "name": "W040 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W040-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W040.",
+    "name": "W040 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W040-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W040.",
+    "name": "W040 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W040-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W041.",
+    "name": "W041 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W041-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W041.",
+    "name": "W041 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W041-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W041.",
+    "name": "W041 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W041-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W041.",
+    "name": "W041 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W041-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W042.",
+    "name": "W042 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W042-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W042.",
+    "name": "W042 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W042-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W042.",
+    "name": "W042 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W042-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W042.",
+    "name": "W042 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W042-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W043.",
+    "name": "W043 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W043-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W043.",
+    "name": "W043 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W043-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W043.",
+    "name": "W043 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W043-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W043.",
+    "name": "W043 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W043-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W044.",
+    "name": "W044 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W044-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W044.",
+    "name": "W044 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W044-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W044.",
+    "name": "W044 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W044-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W044.",
+    "name": "W044 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W044-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W045.",
+    "name": "W045 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W045-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W045.",
+    "name": "W045 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W045-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W045.",
+    "name": "W045 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W045-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W045.",
+    "name": "W045 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W045-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W046.",
+    "name": "W046 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W046-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W046.",
+    "name": "W046 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W046-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W046.",
+    "name": "W046 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W046-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W046.",
+    "name": "W046 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W046-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W047.",
+    "name": "W047 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W047-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W047.",
+    "name": "W047 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W047-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W047.",
+    "name": "W047 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W047-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W047.",
+    "name": "W047 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W047-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W048.",
+    "name": "W048 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W048-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W048.",
+    "name": "W048 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W048-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W048.",
+    "name": "W048 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W048-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W048.",
+    "name": "W048 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W048-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W049.",
+    "name": "W049 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W049-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W049.",
+    "name": "W049 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W049-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W049.",
+    "name": "W049 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W049-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W049.",
+    "name": "W049 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W049-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W050.",
+    "name": "W050 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W050-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W050.",
+    "name": "W050 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W050-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W050.",
+    "name": "W050 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W050-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W050.",
+    "name": "W050 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W050-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W051.",
+    "name": "W051 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W051-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W051.",
+    "name": "W051 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W051-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W051.",
+    "name": "W051 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W051-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W051.",
+    "name": "W051 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W051-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W052.",
+    "name": "W052 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W052-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W052.",
+    "name": "W052 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W052-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W052.",
+    "name": "W052 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W052-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W052.",
+    "name": "W052 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W052-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W053.",
+    "name": "W053 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W053-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W053.",
+    "name": "W053 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W053-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W053.",
+    "name": "W053 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W053-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W053.",
+    "name": "W053 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W053-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W054.",
+    "name": "W054 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W054-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W054.",
+    "name": "W054 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W054-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W054.",
+    "name": "W054 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W054-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W054.",
+    "name": "W054 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W054-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W055.",
+    "name": "W055 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W055-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W055.",
+    "name": "W055 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W055-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W055.",
+    "name": "W055 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W055-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W055.",
+    "name": "W055 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W055-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W056.",
+    "name": "W056 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W056-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W056.",
+    "name": "W056 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W056-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W056.",
+    "name": "W056 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W056-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W056.",
+    "name": "W056 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W056-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W057.",
+    "name": "W057 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W057-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W057.",
+    "name": "W057 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W057-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W057.",
+    "name": "W057 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W057-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W057.",
+    "name": "W057 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W057-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W058.",
+    "name": "W058 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W058-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W058.",
+    "name": "W058 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W058-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W058.",
+    "name": "W058 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W058-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W058.",
+    "name": "W058 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W058-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W059.",
+    "name": "W059 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W059-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W059.",
+    "name": "W059 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W059-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W059.",
+    "name": "W059 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W059-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W059.",
+    "name": "W059 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W059-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W060.",
+    "name": "W060 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W060-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W060.",
+    "name": "W060 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W060-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W060.",
+    "name": "W060 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W060-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W060.",
+    "name": "W060 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W060-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W061.",
+    "name": "W061 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W061-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W061.",
+    "name": "W061 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W061-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W061.",
+    "name": "W061 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W061-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W061.",
+    "name": "W061 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W061-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W062.",
+    "name": "W062 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W062-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W062.",
+    "name": "W062 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W062-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W062.",
+    "name": "W062 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W062-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W062.",
+    "name": "W062 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W062-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W063.",
+    "name": "W063 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W063-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W063.",
+    "name": "W063 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W063-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W063.",
+    "name": "W063 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W063-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W063.",
+    "name": "W063 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W063-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W064.",
+    "name": "W064 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W064-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W064.",
+    "name": "W064 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W064-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W064.",
+    "name": "W064 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W064-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W064.",
+    "name": "W064 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W064-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W065.",
+    "name": "W065 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W065-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W065.",
+    "name": "W065 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W065-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W065.",
+    "name": "W065 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W065-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W065.",
+    "name": "W065 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W065-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W066.",
+    "name": "W066 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W066-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W066.",
+    "name": "W066 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W066-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W066.",
+    "name": "W066 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W066-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W066.",
+    "name": "W066 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W066-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W067.",
+    "name": "W067 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W067-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W067.",
+    "name": "W067 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W067-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W067.",
+    "name": "W067 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W067-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W067.",
+    "name": "W067 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W067-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W068.",
+    "name": "W068 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W068-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W068.",
+    "name": "W068 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W068-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W068.",
+    "name": "W068 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W068-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W068.",
+    "name": "W068 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W068-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W069.",
+    "name": "W069 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W069-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W069.",
+    "name": "W069 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W069-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W069.",
+    "name": "W069 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W069-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W069.",
+    "name": "W069 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W069-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W070.",
+    "name": "W070 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W070-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W070.",
+    "name": "W070 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W070-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W070.",
+    "name": "W070 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W070-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W070.",
+    "name": "W070 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W070-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W071.",
+    "name": "W071 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W071-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W071.",
+    "name": "W071 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W071-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W071.",
+    "name": "W071 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W071-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W071.",
+    "name": "W071 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W071-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W072.",
+    "name": "W072 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W072-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W072.",
+    "name": "W072 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W072-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W072.",
+    "name": "W072 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W072-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W072.",
+    "name": "W072 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W072-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W073.",
+    "name": "W073 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W073-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W073.",
+    "name": "W073 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W073-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W073.",
+    "name": "W073 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W073-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W073.",
+    "name": "W073 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W073-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W074.",
+    "name": "W074 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W074-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W074.",
+    "name": "W074 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W074-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W074.",
+    "name": "W074 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W074-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W074.",
+    "name": "W074 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W074-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W075.",
+    "name": "W075 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W075-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W075.",
+    "name": "W075 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W075-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W075.",
+    "name": "W075 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W075-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W075.",
+    "name": "W075 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W075-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W076.",
+    "name": "W076 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W076-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W076.",
+    "name": "W076 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W076-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W076.",
+    "name": "W076 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W076-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W076.",
+    "name": "W076 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W076-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W077.",
+    "name": "W077 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W077-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W077.",
+    "name": "W077 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W077-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W077.",
+    "name": "W077 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W077-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W077.",
+    "name": "W077 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W077-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W078.",
+    "name": "W078 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W078-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W078.",
+    "name": "W078 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W078-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W078.",
+    "name": "W078 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W078-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W078.",
+    "name": "W078 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W078-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W079.",
+    "name": "W079 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W079-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W079.",
+    "name": "W079 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W079-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W079.",
+    "name": "W079 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W079-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W079.",
+    "name": "W079 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W079-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W080.",
+    "name": "W080 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W080-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W080.",
+    "name": "W080 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W080-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W080.",
+    "name": "W080 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W080-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W080.",
+    "name": "W080 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W080-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W081.",
+    "name": "W081 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W081-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W081.",
+    "name": "W081 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W081-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W081.",
+    "name": "W081 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W081-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W081.",
+    "name": "W081 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W081-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W082.",
+    "name": "W082 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W082-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W082.",
+    "name": "W082 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W082-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W082.",
+    "name": "W082 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W082-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W082.",
+    "name": "W082 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W082-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W083.",
+    "name": "W083 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W083-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W083.",
+    "name": "W083 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W083-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W083.",
+    "name": "W083 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W083-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W083.",
+    "name": "W083 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W083-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W084.",
+    "name": "W084 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W084-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W084.",
+    "name": "W084 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W084-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W084.",
+    "name": "W084 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W084-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W084.",
+    "name": "W084 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W084-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W085.",
+    "name": "W085 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W085-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W085.",
+    "name": "W085 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W085-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W085.",
+    "name": "W085 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W085-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W085.",
+    "name": "W085 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W085-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W086.",
+    "name": "W086 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W086-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W086.",
+    "name": "W086 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W086-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W086.",
+    "name": "W086 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W086-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W086.",
+    "name": "W086 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W086-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W087.",
+    "name": "W087 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W087-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W087.",
+    "name": "W087 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W087-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W087.",
+    "name": "W087 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W087-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W087.",
+    "name": "W087 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W087-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W088.",
+    "name": "W088 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W088-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W088.",
+    "name": "W088 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W088-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W088.",
+    "name": "W088 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W088-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W088.",
+    "name": "W088 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W088-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W089.",
+    "name": "W089 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W089-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W089.",
+    "name": "W089 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W089-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W089.",
+    "name": "W089 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W089-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W089.",
+    "name": "W089 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W089-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W090.",
+    "name": "W090 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W090-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W090.",
+    "name": "W090 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W090-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W090.",
+    "name": "W090 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W090-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W090.",
+    "name": "W090 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W090-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W091.",
+    "name": "W091 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W091-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W091.",
+    "name": "W091 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W091-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W091.",
+    "name": "W091 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W091-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W091.",
+    "name": "W091 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W091-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W092.",
+    "name": "W092 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W092-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W092.",
+    "name": "W092 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W092-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W092.",
+    "name": "W092 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W092-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W092.",
+    "name": "W092 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W092-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W093.",
+    "name": "W093 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W093-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W093.",
+    "name": "W093 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W093-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W093.",
+    "name": "W093 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W093-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W093.",
+    "name": "W093 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W093-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W094.",
+    "name": "W094 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W094-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W094.",
+    "name": "W094 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W094-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W094.",
+    "name": "W094 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W094-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W094.",
+    "name": "W094 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W094-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W095.",
+    "name": "W095 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W095-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W095.",
+    "name": "W095 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W095-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W095.",
+    "name": "W095 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W095-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W095.",
+    "name": "W095 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W095-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W096.",
+    "name": "W096 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W096-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W096.",
+    "name": "W096 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W096-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W096.",
+    "name": "W096 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W096-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W096.",
+    "name": "W096 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W096-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W097.",
+    "name": "W097 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W097-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W097.",
+    "name": "W097 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W097-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W097.",
+    "name": "W097 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W097-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W097.",
+    "name": "W097 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W097-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W098.",
+    "name": "W098 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W098-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W098.",
+    "name": "W098 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W098-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W098.",
+    "name": "W098 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W098-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W098.",
+    "name": "W098 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W098-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W099.",
+    "name": "W099 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W099-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W099.",
+    "name": "W099 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W099-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W099.",
+    "name": "W099 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W099-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W099.",
+    "name": "W099 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W099-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W100.",
+    "name": "W100 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W100-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W100.",
+    "name": "W100 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W100-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W100.",
+    "name": "W100 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W100-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W100.",
+    "name": "W100 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W100-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W101.",
+    "name": "W101 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W101-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W101.",
+    "name": "W101 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W101-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W101.",
+    "name": "W101 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W101-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W101.",
+    "name": "W101 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W101-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W102.",
+    "name": "W102 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W102-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W102.",
+    "name": "W102 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W102-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W102.",
+    "name": "W102 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W102-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W102.",
+    "name": "W102 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W102-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W103.",
+    "name": "W103 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W103-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W103.",
+    "name": "W103 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W103-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W103.",
+    "name": "W103 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W103-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W103.",
+    "name": "W103 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W103-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W104.",
+    "name": "W104 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W104-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W104.",
+    "name": "W104 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W104-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W104.",
+    "name": "W104 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W104-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W104.",
+    "name": "W104 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W104-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W105.",
+    "name": "W105 Reference Systems",
+    "rating": 4.6,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W105-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W105.",
+    "name": "W105 Value Fabric",
+    "rating": 4.2,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W105-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W105.",
+    "name": "W105 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W105-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W105.",
+    "name": "W105 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华北",
+    "supplier_id": "M4-LH-SUP-W105-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W106.",
+    "name": "W106 Reference Systems",
+    "rating": 4.6,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W106-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W106.",
+    "name": "W106 Value Fabric",
+    "rating": 4.2,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W106-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W106.",
+    "name": "W106 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W106-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W106.",
+    "name": "W106 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华东",
+    "supplier_id": "M4-LH-SUP-W106-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W107.",
+    "name": "W107 Reference Systems",
+    "rating": 4.6,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W107-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W107.",
+    "name": "W107 Value Fabric",
+    "rating": 4.2,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W107-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W107.",
+    "name": "W107 Resilient Logistics",
+    "rating": 4.95,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W107-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W107.",
+    "name": "W107 Clearance Exchange",
+    "rating": 3.5,
+    "region": "华南",
+    "supplier_id": "M4-LH-SUP-W107-D"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.93,
+    "description": "Supplier E dedicated to isolated long-horizon world W108.",
+    "name": "W108 Reference Systems",
+    "rating": 4.6,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W108-E"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.88,
+    "description": "Supplier C dedicated to isolated long-horizon world W108.",
+    "name": "W108 Value Fabric",
+    "rating": 4.2,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W108-C"
+  },
+  {
+    "certified": 1,
+    "delivery_reliability": 0.99,
+    "description": "Supplier R dedicated to isolated long-horizon world W108.",
+    "name": "W108 Resilient Logistics",
+    "rating": 4.95,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W108-R"
+  },
+  {
+    "certified": 0,
+    "delivery_reliability": 0.65,
+    "description": "Supplier D dedicated to isolated long-horizon world W108.",
+    "name": "W108 Clearance Exchange",
+    "rating": 3.5,
+    "region": "西北",
+    "supplier_id": "M4-LH-SUP-W108-D"
+  }
+]

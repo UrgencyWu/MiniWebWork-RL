@@ -1,0 +1,88 @@
+{
+  "dataset_id": "m4_long_horizon_v1",
+  "horizon_audit": {
+    "isolation": {
+      "answer_signature": 432,
+      "constraint_signature": 432,
+      "product_signature": 108,
+      "supplier_signature": 108,
+      "world_signature": 108
+    },
+    "splits": {
+      "dev": {
+        "horizon_counts": {
+          "basic": 18,
+          "long": 18,
+          "medium": 36
+        },
+        "medium_long_fraction": 0.75,
+        "task_count": 72
+      },
+      "test": {
+        "horizon_counts": {
+          "basic": 30,
+          "long": 30,
+          "medium": 60
+        },
+        "medium_long_fraction": 0.75,
+        "task_count": 120
+      },
+      "train": {
+        "horizon_counts": {
+          "basic": 60,
+          "long": 60,
+          "medium": 120
+        },
+        "medium_long_fraction": 0.75,
+        "task_count": 240
+      }
+    },
+    "valid": true
+  },
+  "isolation_contract": {
+    "answer_signatures_disjoint_across_splits": true,
+    "constraint_signatures_disjoint_across_splits": true,
+    "product_ids_disjoint_across_splits": true,
+    "supplier_ids_disjoint_across_splits": true,
+    "test_role": "frozen_final_evaluation",
+    "worlds_disjoint_across_splits": true
+  },
+  "schema_version": "1.0",
+  "seed_manifest_sha256": "1aa3c69a31f9384a9094a3cc45063bd60220de4c67d751e791da6a154b39f2b1",
+  "spec_sha256": "df488e805cf4abc0303291c41e940f4145952da3408f3df09447c3fa332bdc7c",
+  "split_files": {
+    "dev": {
+      "oracle_sha256": "b86645a38acd42814a50ac7df9e32669207549f956f4646ed5bb350b037406be",
+      "public_sha256": "04a6fd8bdaff0e6abf1d13a848672e17580c583caacb6349b6c377a590cdf322",
+      "split_manifest_sha256": "943ac0245714e18d649bca9f947fd4ef4e4bbdad9d73052b48a5106225f98e57"
+    },
+    "test": {
+      "oracle_sha256": "0b93a0633f51dee528273671ec0af8ab4025846ed8f2ea434772e5bf048cb2f5",
+      "public_sha256": "79ed99317eafe2656865f52535ba54527495c637164ead1f7737c7449d0c90f7",
+      "split_manifest_sha256": "29267565819ea36d8a673d562650fd5e82bc47ee10932dce35c301976db3d928"
+    },
+    "train": {
+      "oracle_sha256": "2756f3bdcda7885a6dfbef5a86380b3c29aac2874423df4bd75a3dad0f5d8929",
+      "public_sha256": "2145541f59930d9b09c8af71c7e46afa35183af9cbb8cf825a3a1fe795771639",
+      "split_manifest_sha256": "76b0d6aabebf35b8ff8cd84c27df57e6dd68d3400a0158c50cfd3b852909f96d"
+    }
+  },
+  "split_task_counts": {
+    "dev": 72,
+    "test": 120,
+    "train": 240
+  },
+  "split_world_counts": {
+    "dev": 18,
+    "test": 30,
+    "train": 60
+  },
+  "task_count": 432,
+  "task_types": [
+    "exact_product",
+    "cheapest_feasible",
+    "highest_reliability_supplier",
+    "no_feasible_product"
+  ],
+  "world_count": 108
+}

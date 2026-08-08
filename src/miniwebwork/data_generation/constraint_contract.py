@@ -96,4 +96,23 @@ def compute_unique_answer(products: list, suppliers: list, constraints: dict, ob
                 "expected_product_id": top[0]["product_id"],
                 "feasible_count": len(feasible)}
 
+    if objective == "highest_reliability_supplier":
+        supplier_by_id = {supplier["supplier_id"]: supplier for supplier in suppliers}
+        ranked = sorted(
+            feasible,
+            key=lambda product: (
+                -float(supplier_by_id[product["supplier_id"]]["delivery_reliability"]),
+                float(product["price"]),
+                product["product_id"],
+            ),
+        )
+        if len(ranked) > 1:
+            first = supplier_by_id[ranked[0]["supplier_id"]]["delivery_reliability"]
+            second = supplier_by_id[ranked[1]["supplier_id"]]["delivery_reliability"]
+            if first == second and ranked[0]["price"] == ranked[1]["price"]:
+                return None
+        return {"expected_decision_type": "select_product",
+                "expected_product_id": ranked[0]["product_id"],
+                "feasible_count": len(feasible)}
+
     return None

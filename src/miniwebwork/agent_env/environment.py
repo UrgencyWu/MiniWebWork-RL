@@ -909,6 +909,7 @@ class ProcurementBrowserEnv:
             self._episode_id,
             self._db_path,
             task_dir=self._task_dir,
+            workflow_trace=(self._trajectory.steps if self._trajectory is not None else None),
         )
         verification_dict = verification.to_dict()
 

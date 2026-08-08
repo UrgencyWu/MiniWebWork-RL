@@ -11,6 +11,7 @@ from .models import (
     OBJECTIVE_CHEAPEST_FEASIBLE,
     OBJECTIVE_EXACT_PRODUCT,
     OBJECTIVE_HIGHEST_RATING_SUPPLIER,
+    OBJECTIVE_HIGHEST_RELIABILITY_SUPPLIER,
     OBJECTIVE_NO_FEASIBLE_PRODUCT,
     TaskConstraints,
 )
@@ -174,6 +175,10 @@ def compute_optimal_product(oracle: dict, feasible: list):
     if objective == OBJECTIVE_HIGHEST_RATING_SUPPLIER:
         max_rating = max(row["rating"] for row in feasible)
         top = [row for row in feasible if row["rating"] == max_rating]
+        return min(top, key=lambda row: (row["price"], row["product_id"]))
+    if objective == OBJECTIVE_HIGHEST_RELIABILITY_SUPPLIER:
+        maximum = max(row["delivery_reliability"] for row in feasible)
+        top = [row for row in feasible if row["delivery_reliability"] == maximum]
         return min(top, key=lambda row: (row["price"], row["product_id"]))
     return None
 

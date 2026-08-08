@@ -1,0 +1,510 @@
+# MiniWebWork-RL 长程智能体强化学习收缩方案
+
+> 状态：2026-08-08 批准的正式范围；前置实现与门禁验证进行中。
+>
+> 本文档取代 `M4_RLVR_STUDY_PROTOCOL.md` 中“五算法 × 三随机种子”的正式
+> 矩阵。旧协议、旧提交和既有 v3 工件仅保留为诊断与工程演进证据。本文档
+> 不是正式训练已经完成的声明；所有实现、性能 smoke test 和门禁通过后，
+> 才能冻结新的正式训练提交。
+>
+> 机器可读合同为 `data/m4_long_horizon_study_v1.json`。当前
+> `formal_submission_allowed=false`，因此任何正式 SFT、GRPO 或 step-aware
+> 训练作业都不得提交。逐项状态见 `M4_FORMAL_TRAINING_READINESS.md`。
+
+## 0. 当前前置实现快照
+
+当前已经建立独立的 `m4_long_horizon_v1` 数据版本，不复用或覆盖旧
+`m4_rlvr_v1`：
+
+- train/dev/test 分别为 240/72/120 个任务；
+- 每个 split 的 basic/medium/long 比例为 25%/50%/25%，即 75% 为
+  9–20 步的 medium/long 任务；
+- 四个任务族的确定性最短正确轨迹分别为 7/10/12/18 个环境动作；
+- world、product、supplier、constraint 和 answer signature 跨 split 零重叠；
+- 18 步任务要求访问所有可行供应商的公开详情页，终态 verifier 会核验该
+  工作流证据；直接猜中最终商品但跳过检查仍记为失败；
+- dataset manifest SHA256 为
+  `ade9302269232a44bf92d28e8d9a357ef8e377509df09e69fdcf3c7cfe46fa5f`，
+  seed manifest SHA256 为
+  `d5742a3af8588c235a1d81f623ad14b5f0d793d9c99ad2b8580becf2c52383fd`。
+
+Verified SFT 构建器会在真实浏览器环境逐 turn 回放 expert evidence，并要求
+实际动作序列、参考 trace SHA 和终态成功全部一致。小规模 train/dev 回放已经
+通过；完整 240/72 语料和精确 completion-label token 审计仍属于前置门禁，
+不能被描述为已完成的正式 SFT。
+
+## 1. 面试导向与一句话目标
+
+本项目不是算法数量展示，也不追求复现大模型实验规模。项目的面试目标是：
+
+> 构建一个可恢复、高吞吐、可审计的多轮浏览器 Agent 在线强化学习系统，
+> 并在相同 SFT 初始策略和 rollout 预算下，研究逐步信用分配能否优于把
+> 终态奖励广播到整条轨迹的 multi-turn GRPO，尤其是在较长交互任务上。
+
+项目必须同时体现：
+
+1. 对多轮 on-policy RL、组相对优势、信用分配、稀疏奖励和策略稳定性的理解；
+2. 对 GPU 推理/训练吞吐、连续批处理、资源调度和性能测量的工程能力；
+3. 对环境异常、24 小时 Slurm 中断、数据隔离和 adapter 血缘的系统治理；
+4. 对中性或负面实验结果的统计解释能力，而不是预设某种算法必须胜出。
+
+## 2. 为什么必须收缩和重构
+
+### 2.1 五算法矩阵不能形成清晰主线
+
+历史 M4 计划同时比较 SFT、RSFT、RLOO、GRPO 和 GSPO。它会产生 15 个训练
+模型、约 30 个训练作业和 7,200 条冻结测试轨迹，但无法突出一个核心问题。
+RLOO、GRPO 和 GSPO 的差异会把项目叙事变成优化器枚举，削弱对浏览器 Agent
+长轨迹信用分配和训练系统的深入分析。
+
+### 2.2 当前轨迹不足以直接声称“长程”
+
+对 job 1248 的 GRPO pass-1 正式候选工件进行只读统计：
+
+| 指标 | 结果 |
+|---|---:|
+| 有效/总轨迹记录 | 807 / 808 |
+| 模型轮次均值 | 5.71 |
+| 模型轮次 P50 / P75 / P90 / P95 / max | 3 / 9 / 11 / 11 / 17 |
+| 环境步数均值 | 3.31 |
+| 环境步数 P50 / P75 / P90 / P95 / max | 0 / 7 / 9 / 9 / 15 |
+
+现有系统已经是 multi-turn，但模型经常在真正环境交互前因输出失败结束。若不
+重新定义并验证任务 horizon，项目只能准确称为“多轮浏览器 Agent”，不能把
+“长程决策”作为主要结论。
+
+### 2.3 当前 GPU 作业主要在等待串行 rollout
+
+首波作业均申请 `1 GPU + 8 CPU + 64 GB`，但 Slurm 账单显示：
+
+| Job | 用途 | 墙钟时间 | 实际 TotalCPU | MaxRSS |
+|---|---|---:|---:|---:|
+| 1244 | SFT | 20:43:53 | 20:44:18 | 7.1 GB |
+| 1245 | RSFT collection | 21:00:33 | 20:41:22 | 4.9 GB |
+| 1246 | RLOO collection/update | 21:16:11 | 20:56:48 | 12.0 GB |
+| 1248 | GRPO collection/update | 21:27:46 | 21:08:51 | 16.6 GB |
+
+每个作业虽然分配了 8 个 CPU 核，实际平均只使用约 1 核。collector 对任务和
+K 条轨迹执行双层串行循环，Transformers `generate()` 的 batch 为 1；每次
+generation 后还额外 forward 一次以提取 policy log-prob。当前 v3 作业没有
+持续记录 GPU utilization、功耗、batch occupancy 或 tokens/s，因此不能声称
+GPU 被充分使用。
+
+### 2.4 当前在线更新没有充分利用采集数据
+
+job 1248 收集 202 个任务组和约 115,155 generated action token，但更新报告只
+选择 9 个组、4,513 action token，进入优化器的 token 比例约为 3.9%。大量组因
+raw/sampling log-prob 语义不一致或零奖励方差被排除。随后所有合格组只累积为
+一次 `optimizer.step()`。
+
+这个结果证明了门禁可以阻止不兼容数据进入梯度，但也证明当前流程不是真正高效
+的迭代式在线 RL。正式方案必须先解决采样分布语义、动态学习信号采样和更新频率，
+不能通过放宽 log-prob 阈值掩盖问题。
+
+### 2.5 当前 SFT 预算设计造成重复训练
+
+首波 SFT 以 `batch_size=1`、`gradient_accumulation=16`、始终开启 gradient
+checkpointing、`dataloader_num_workers=0` 运行。2,460 个唯一监督样本被重复
+5–6 次，以得到 12,639 条 occurrence 和 249,991 completion-label token。
+训练结束时 action/schema 指标已为 100%，loss 接近零。
+
+新的 SFT 阶段只承担 warm start，不再为与 RL “形式上对齐”而重复样本凑固定
+label-token 总量。监督 token 和在线生成 token 是不同成本口径，应分别记录。
+
+## 3. 当前公开研究位置
+
+项目采用“近期公开研究范式的小规模、可审计实现”，而不是宣称复现其规模：
+
+- [OpenWebRL](https://arxiv.org/abs/2606.02031) 采用 SFT warm start、在线真实
+  网站多轮 rollout、轨迹级成功判断、动态采样和 multi-turn GRPO，说明 GRPO
+  仍是浏览器 Agent 的有效基础算法；真正的变化是训练范式从单轮 completion
+  转向状态化、多轮、在线环境交互。
+- [GiGPO](https://arxiv.org/abs/2505.10978) 在完整 episode 组优势之外，为重复
+  anchor state 构造 step-level 组优势，直接针对长程任务的细粒度信用分配。
+- [Agent Lightning](https://arxiv.org/abs/2508.03680) 将 Agent 执行建模为可观测
+  transition，并解耦 Agent runtime 与 learner。MiniWebWork-RL 只借鉴其
+  tracing 和边界设计，不扩张为通用 Agent 框架。
+- [GSPO](https://arxiv.org/abs/2507.18071) 解决 sequence-level importance ratio
+  与 clipping 稳定性，但不直接解决多次环境交互之间的 step credit assignment，
+  因此不作为本项目主方法。
+
+## 4. 正式范围和非目标
+
+### 4.1 正式训练矩阵
+
+| 阶段/方法 | 角色 | 训练随机种子 | 正式模型数 |
+|---|---|---|---:|
+| Verified SFT warm start | 唯一共享初始策略和评测基线 | 1 个冻结 seed | 1 |
+| Multi-turn GRPO | 轨迹级信用分配基线 | 20260801/02/03 | 3 |
+| Step-aware group policy optimization | 主要方法；GiGPO-style 宏观+局部优势 | 20260801/02/03 | 3 |
+
+正式矩阵共 7 个模型。两个在线方法必须从同一个 SFT adapter SHA 开始，使用相同
+LoRA 容量、任务版本、prompt、采样分布、K、训练 action-token 预算和评测协议。
+
+### 4.2 非目标
+
+- 不运行 RLOO、RSFT、GSPO 的正式三种子矩阵；
+- 不做大规模算法 zoo 或网格超参数搜索；
+- 不以增加模型规模或训练任务数量作为主要贡献；
+- 不将环境 observation、prompt、padding 或工具输出当作可训练 action token；
+- 不在 final test 上选择 checkpoint、奖励、采样参数或信用分配公式；
+- 不要求 step-aware 方法必须取得正向结果。
+
+历史 RLOO/RSFT/GSPO 工件可以作为工程诊断证据，但不得进入正式表格、均值、
+置信区间或面试中的主结果。
+
+## 5. 数据与长程任务合同
+
+### 5.1 规模保持克制
+
+保留当前数量级：
+
+| Split | Tasks | 用途 | 可产生梯度 |
+|---|---:|---|---|
+| train | 240 | SFT demonstrations 和在线 rollout | 是 |
+| dev | 72 | 实现安全、吞吐、停止与固定配置选择 | 否 |
+| test | 120 | 一次性冻结评测 | 否 |
+
+训练、dev 和 test 必须继续保持 world、产品、供应商、约束签名和答案隔离。
+
+### 5.2 Horizon 必须由参考策略证明
+
+每个任务在构建时保存由确定性 scripted/oracle reference 产生的最短正确环境动作
+数，不能用失败模型的实际短轨迹定义任务难度。冻结数据至少包含三个 strata：
+
+| Horizon stratum | 最短正确环境动作数 | 研究作用 |
+|---|---:|---|
+| basic multi-turn | 6–8 | 格式、工具使用和基础导航 |
+| medium horizon | 9–12 | 多约束跟踪与中途状态选择 |
+| long horizon | 13–20 | 延迟奖励、早期决策影响和错误恢复 |
+
+至少三分之二的 train/dev/test 任务应处于 `medium` 或 `long`。三个 split 必须按
+horizon 和 task family 分层。若现有网站流程无法提供足够的 13–20 步任务，应
+在同一采购域内增加组合子目标或验证阶段，而不是引入新的业务网站和任务领域。
+
+## 6. Verified SFT warm start
+
+### 6.1 作用
+
+SFT 的目标是让 4B 策略进入可探索区域：稳定输出 JSON action、理解页面观察、
+执行基础导航和完成采购流程。它不是与 RL 等 token 成本的竞争算法。
+
+### 6.2 数据和停止规则
+
+- 只使用 train split 的唯一、验证成功的逐 turn expert evidence；
+- 每个样本保留真实 prompt/observation 和一个 action completion；
+- completion-only loss，zero-label sample 必须为 0；
+- 不通过重复完整数据排列机械凑 250k label token；
+- 使用固定 epoch 上限和 dev NLL/action/schema plateau 进行预注册停止；
+- 保存 unique sample count、监督 label token、总 forward token 和 GPU 成本。
+
+### 6.3 GPU 配置选择
+
+正式 SFT 前运行非正式 10–20 step microbatch benchmark：
+
+```text
+microbatch ∈ {1, 2, 4, 8}
+effective batch 固定
+序列长度分桶或 packing
+bf16
+```
+
+选择不 OOM 且保留至少 15% 显存余量的最大 microbatch。显存允许时关闭 gradient
+checkpointing；启用 dataloader workers/prefetch，并降低 checkpoint 保存频率。
+选择规则与结果必须写入 preflight artifact，正式训练后不得调整。
+
+## 7. 迭代式在线 Agent RL
+
+### 7.1 核心循环
+
+每个在线 seed 采用固定 250,000 generated action-token 预算。生成 token 包括被
+基础设施错误、无效组或无学习信号组消耗的实际 token；只有门禁通过的数据进入
+梯度。
+
+```text
+冻结 policy version N
+→ 按冻结任务流采集最多 32 个 task × K=4 的完整组
+→ 校验轨迹、组、分布和 adapter 身份
+→ 构造 macro / micro advantage
+→ 以多个 minibatch 完成固定 update epoch
+→ 保存 policy version N+1 和 optimizer/ledger
+→ 使用 N+1 采集下一 iteration
+```
+
+最后一个 iteration 在开始新 K=4 组前做最坏情况 token reserve；不得以不完整组
+填满预算。按照当前轨迹成本，250k token 预计产生约 10–14 个 policy iteration，
+实际数量由完整组边界决定，不作为结果调节参数。
+
+### 7.2 动态学习信号采样
+
+同一任务 K=4 全成功或全失败时，组相对优势为零。正式 sampler 使用预注册规则：
+
+1. 第一轮按 seed 对三个 horizon strata 做确定性、均衡排列；
+2. 后续轮次优先从历史成功率处于中间区间的任务 strata 采样；
+3. 全成功、全失败和基础设施尝试仍计入 rollout 成本；
+4. 不允许事后按某个算法的最终 test 表现修改 task stream；
+5. 两个在线方法使用相同规则、相同初始任务顺序和相同预算。
+
+该机制用于提高稀疏奖励下的有效梯度比例，而不是删除不利结果。
+
+## 8. 信用分配：项目的算法主线
+
+### 8.1 Multi-turn GRPO baseline
+
+对同一任务的 K=4 有效轨迹，用终态 verifier reward 计算组相对优势：
+
+```text
+A_episode_i = (r_i - mean(r_group)) / (std(r_group) + epsilon)
+```
+
+轨迹 `i` 每个 turn 的所有 action token 都接收同一个 `A_episode_i`。每个 turn
+按真实 observation-conditioned prompt 独立 replay；token loss 先在 turn 内平均，
+再在轨迹与组之间平均，避免长轨迹仅因 token 更多而获得更大权重。
+
+这个 baseline 明确暴露其局限：终态奖励不能指出成功或失败由哪个早期动作导致。
+
+### 8.2 Step-aware main method
+
+主方法采用 GiGPO-style 两层信用分配：
+
+1. **Macro advantage**：与 GRPO 相同，评价完整轨迹最终结果；
+2. **Anchor-state micro advantage**：在同一任务的 K 条轨迹中，找到访问过的相同
+   规范化公共环境状态，比较从该状态选择不同动作后的 outcome/return；
+3. **Turn advantage**：按冻结公式组合 macro 和 micro signal，并只应用到对应
+   turn 的 action token。
+
+Anchor-state signature 只能来自 policy 可见或环境公开状态，例如：
+
+```text
+task_id
+page/template identity
+normalized URL and visible query/filter state
+selected public product/supplier identity
+public workflow/submission state
+```
+
+不得使用 oracle answer、隐藏 verifier 字段或 test 信息构造 anchor。规范化函数、
+组合公式、无重复 anchor 的 fallback 和 formula version 必须在正式提交前通过单元
+测试并冻结。
+
+### 8.3 奖励边界
+
+主实验优先保持可验证终态奖励：
+
+```text
+verified success        = 1
+valid policy failure    = 0
+infrastructure failure  = null
+```
+
+JSON/schema 错误、无效浏览器动作、步数和中间子目标作为诊断字段。若需要 format
+penalty 或 process reward，必须作为单独、小规模 ablation，不能悄然并入主方法。
+
+## 9. On-policy 和策略稳定性知识合同
+
+每个 action token 必须保存：
+
+- behavior policy/version 和 adapter SHA；
+-真实 prompt/completion token IDs；
+-生成时采样分布 log-prob；
+-learner replay log-prob；
+-turn、trajectory、group 和 iteration identity。
+
+第一版正式采样保持：
+
+```text
+temperature = 1.0
+top_p = 1.0
+top_k = 0
+K = 4
+```
+
+当前 raw/sampling mismatch 必须从语义上修复。正式阈值应由固定 adapter、固定输入
+的 backend parity smoke test 得到并在训练前冻结；不得为了让更多组进入梯度而
+事后放宽。每次 update 报告：
+
+- behavior/replay 最大和分位 log-prob 差异；
+- importance ratio、clip fraction 和 approximate KL；
+- gradient norm、非零梯度参数和参数变化；
+- entropy、有效组和有效 action-token 比例；
+- policy version staleness，正式主实验要求 staleness 为 0。
+
+## 10. GPU 高吞吐实现
+
+### 10.1 集群边界
+
+当前节点提供 8 张 `NVIDIA RTX PRO 6000 Blackwell Server Edition`、112 CPU 和
+约 386 GB 系统内存。为避免挤占其他用户且避免 CPU/内存成为调度瓶颈，每波最多
+四个单 GPU 作业。
+
+4B LoRA 模型不使用多 GPU data parallel。单模型占多卡会减少独立 seed 并行度，
+且不能解决浏览器等待造成的 GPU 空闲。正确的优化目标是让每张已分配 GPU 持续
+拥有可生成或可训练的 batch。
+
+### 10.2 Rollout job
+
+当前 Conda 环境已有 `vllm==0.17.0`、`torch==2.10.0+cu128` 和
+`transformers==5.14.1`。实现采用一张 GPU 内的阶段式 runtime/learner 解耦：
+
+```text
+8 个 CPU browser workers
+        ↓ asynchronous requests
+vLLM continuous batching on 1 GPU
+        ↓ complete audited iteration
+unload inference engine
+        ↓
+HF/PEFT learner minibatches on the same GPU
+        ↓
+save next adapter and reload rollout engine
+```
+
+建议正式资源请求：
+
+| 作业 | GPU | CPU | 系统内存 | wall time |
+|---|---:|---:|---:|---:|
+| SFT | 1 | 4 | 32 GB | ≤24 h |
+| Online RL seed | 1 | 8 | 48 GB | ≤24 h |
+| Final evaluation | 1 | 8 | 48 GB | ≤24 h |
+
+如果 8 个 worker 的 profiler 表明 CPU 饱和或浏览器内存不足，只能依据 preflight
+artifact 调整。不得无测量地扩大 CPU 或内存申请。
+
+### 10.3 性能遥测与正式门禁
+
+每 5–10 秒记录：
+
+- GPU utilization、显存、功耗；
+- active/requested batch、生成 tokens/s；
+- browser worker busy/idle、环境等待和模型等待时间；
+- learner tokens/s、microbatch、gradient accumulation；
+- rollout/hour、成功 verifier/hour 和有效 optimizer token/hour。
+
+正式训练前的目标门禁：
+
+| 指标 | 目标 |
+|---|---:|
+| rollout 吞吐 | 至少为当前约 38 trajectories/hour 的 3 倍 |
+| generation 阶段 GPU utilization P50 | ≥60% |
+| learner 阶段 GPU utilization P50 | ≥80% |
+| 显存安全余量 | ≥15% |
+| 进入优化器的 action-token 比例 | 目标 ≥20%，必须原样报告 |
+| 每个在线 seed 的 optimizer iterations | 多次迭代；预计 10–14，按 token/group 边界结束 |
+
+若 GPU 指标未达标，应先优化 batching、worker 数和数据管线，不得直接启动六个
+正式在线 run。目标未达成可以保留为工程瓶颈结论，但不能声称“充分利用 GPU”。
+
+## 11. 24 小时中断恢复与原子性
+
+Slurm wall time 固定不超过 24 小时。恢复单位分两层：
+
+### 11.1 K=4 group 原子性
+
+- 每完成一条 trajectory 即写 append-only attempt journal，记录实际 token 成本；
+- 只有 K 条基础设施有效轨迹全部完成后才写 group commit marker；
+- 含 infra-invalid trajectory 的组整体不得进入正式 group；
+- 失败组和中断组的已生成 token 仍计入成本；
+- 恢复时从新的 deterministic attempt index 重采样整个未提交组。
+
+### 11.2 Policy iteration 原子性
+
+- iteration 记录输入 adapter SHA、任务流位置和所有 committed group SHA；
+- 中断发生在 collection 时，只恢复相同 policy version 的剩余组；
+- 中断发生在 update 时，丢弃未提交 optimizer 状态并从冻结 collection 重做；
+- 只有 adapter、optimizer ledger 和 iteration manifest 全部原子提交后，才能将
+  policy version 前移；
+- git、数据、prompt、采样分布、seed、policy version 或 task order 任一不匹配时
+  拒绝恢复。
+
+## 12. 正式调度顺序
+
+1. CPU 单元测试、数据/horizon 审计和 failure-injection recovery tests；
+2. 单 GPU 30–60 分钟 SFT microbatch 和 rollout concurrency preflight；
+3. 冻结源码、数据、prompt、奖励、信用分配公式和资源参数；
+4. 训练一个共享 SFT warm-start adapter并通过 dev 门禁；
+5. 第一波最多四个在线作业；
+6. 每个作业完成 artifact/adapter/telemetry gate 后，才补排剩余两个 seed；
+7. 六个在线模型全部合格后，才打开冻结 test；
+8. 最多四个评测作业并行；
+9. 汇总统计、成本、轨迹和失败分析。
+
+任何正式作业排队或运行期间，不修改 tracked 源码、协议或数据。
+
+## 13. 最终评测与项目成功标准
+
+7 个模型均在 120 个冻结 test 任务上运行 K=4，共 3,360 条轨迹。主要报告：
+
+### 13.1 能力指标
+
+- 每任务 K=4 平均 verifier success；
+- pass@1 和 task-level pass@4；
+- basic/medium/long 三个 horizon strata 的成功率；
+- no-solution、约束组合和 task family 分解；
+- 相对共享 SFT checkpoint 的提升或退化。
+
+### 13.2 信用分配与训练动力学
+
+- mixed-reward group 比例和零方差 group 比例；
+- macro/micro advantage 分布；
+- anchor-state coverage、每个 anchor 的动作多样性；
+- collected/update action-token 比例；
+- early/middle/late turn 梯度贡献；
+- policy KL、clip fraction、entropy 和每 iteration 成功率。
+
+### 13.3 可靠性和成本
+
+- JSON/schema、环境动作、提前结束、max-step、verifier 和 infra failure；
+- 模型轮次、环境步数和 action token 分布；
+- GPU hours、墙钟时间、tokens/s、rollout/hour、峰值显存和系统资源；
+- 所有结果到 git/data/prompt/adapter/trajectory 的可审计血缘。
+
+### 13.4 统计
+
+- 以 task 为聚类单位的 bootstrap 95% CI；
+- 预注册的 paired task-level 比较；
+- 三个在线训练 seed 的均值、标准差和 seed variability；
+- 不把同一任务的四条 rollout 当作四个独立任务；
+- 不因点估计有利而单独宣称显著性。
+
+项目成功不以 step-aware 方法必须超过 GRPO 为条件。以下任一可信结论都成立：
+
+1. step-aware credit assignment 显著改善 medium/long 任务；
+2. 总成功率相近，但有效梯度、样本效率或长轨迹稳定性改善；
+3. 方法无收益，并通过 anchor coverage、奖励稀疏性或策略漂移解释失败原因。
+
+## 14. 面试中明确体现的训练知识
+
+| 训练知识 | 代码/工件中的可见证据 |
+|---|---|
+| SFT warm start 与探索 | Base→SFT dev能力变化、结构化动作率、停止规则 |
+| On-policy 正确性 | behavior log-prob、replay parity、policy version 和 adapter SHA |
+| GRPO 与方差降低 | K=4同任务组、标准化优势、零方差组账本 |
+| 长程信用分配 | 轨迹 macro advantage、anchor-state micro advantage、per-turn token mask |
+| 稀疏奖励与动态采样 | mixed-reward yield、难度队列和所有无信号成本 |
+| Importance sampling/clipping/KL | ratio、clip fraction、approximate KL、staleness=0 |
+| 训练稳定性 | gradient norm、entropy、参数变化和逐 iteration 曲线 |
+| GPU 训练工程 | continuous batching、packing、microbatch benchmark 和完整遥测 |
+| 容错与可复现性 | trajectory journal、group/iteration commit、24h resume 和哈希血缘 |
+| 统计实验设计 | split隔离、共享初始化、三RL seed、task-cluster CI与配对检验 |
+
+## 15. 面试叙事
+
+推荐叙事不是“我跑了很多后训练算法”，而是：
+
+> 我最初完成了一个多算法 RLVR 框架，但通过工件审计发现成功退出的作业仍可能
+> 包含不完整 K=4 组，GPU 长时间被串行浏览器交互拖空，且 11.5 万 action token
+> 只有约 3.9% 真正进入一次优化器更新。我因此收缩问题，重新设计了异步多轮
+> rollout、严格 on-policy 证据、两层原子恢复和 step-aware credit assignment，
+> 并用共享 SFT→GRPO→细粒度信用分配的最小矩阵检验长程任务上的收益、代价和
+> 失败边界。
+
+这条主线同时展示算法理解、GPU 性能工程、分布式容错、实验治理和诚实分析。
+
+## 16. 迁移和旧结果处理
+
+- 当前提交 `21e65c94a96e8949e46f6ecd8a2d2068b8896300` 的 SFT、RSFT、RLOO、
+  GRPO 首波工件均保留为 diagnostic；
+- job 1248 的不完整 K=4 组和现有 collector 原子性缺口必须保留审计记录；
+- 旧五算法矩阵不续跑 pass-2，不提交 GSPO 或后续种子；
+- 新实现必须使用新的 study ID、schema version、输出根目录和冻结 git SHA；
+- 只有 preflight、单元测试、fault injection 和 GPU telemetry gate 全部通过后，
+  才允许提交本文档定义的正式训练。
