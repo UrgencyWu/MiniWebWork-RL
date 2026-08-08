@@ -281,8 +281,16 @@ def run_atomic_k4_group(
     group_id: str,
     task_id: str,
     worker: RolloutWorker,
+    maximum_workers: int = GROUP_SIZE,
 ) -> dict[str, Any]:
     """Run four candidates concurrently and commit only the exact valid set."""
+
+    _require(
+        isinstance(maximum_workers, int)
+        and not isinstance(maximum_workers, bool)
+        and 1 <= maximum_workers <= GROUP_SIZE,
+        "K4 worker count must be within 1..K",
+    )
 
     attempt_index = store.start_group(
         group_id=group_id,
@@ -303,7 +311,7 @@ def run_atomic_k4_group(
     ]
     task_results: dict[int, Mapping[str, Any]] = {}
     errors: list[str] = []
-    with ThreadPoolExecutor(max_workers=GROUP_SIZE) as executor:
+    with ThreadPoolExecutor(max_workers=maximum_workers) as executor:
         futures = {
             executor.submit(worker, rollout_index, writers[rollout_index]): rollout_index
             for rollout_index in range(GROUP_SIZE)

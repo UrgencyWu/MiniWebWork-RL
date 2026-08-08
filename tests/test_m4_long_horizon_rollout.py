@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import threading
+import time
 
 from miniwebwork.long_horizon_rl.contracts import RunIdentity
 from miniwebwork.long_horizon_rl.credit import CREDIT_FORMULA_VERSION
@@ -196,3 +198,38 @@ def test_budget_admission_reserves_every_concurrent_inflight_group():
     )
     assert second.allowed is False
     assert second.total_inflight_reserve == 20480
+
+
+def test_k4_group_can_profile_one_worker_without_changing_exact_k(tmp_path):
+    identity = _identity()
+    store = CollectionStore(tmp_path / "collection", identity)
+    lock = threading.Lock()
+    active = 0
+    maximum_active = 0
+
+    def worker(rollout_index, writer):
+        nonlocal active, maximum_active
+        with lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        try:
+            time.sleep(0.01)
+            turn = _raw_turn(rollout_index)
+            writer.on_turn_generated(turn)
+            writer.on_turn_completed(turn)
+            return _result(rollout_index, 0.0)
+        finally:
+            with lock:
+                active -= 1
+
+    result = run_atomic_k4_group(
+        store=store,
+        identity=identity,
+        group_id="group-0000",
+        task_id="TASK-1",
+        worker=worker,
+        maximum_workers=1,
+    )
+    assert result["committed"] is True
+    assert result["group"]["K"] == 4
+    assert maximum_active == 1

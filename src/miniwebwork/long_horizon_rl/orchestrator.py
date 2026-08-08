@@ -140,10 +140,11 @@ def _planned_groups(
     sampler: DeterministicSignalSampler,
     *,
     iteration_index: int,
+    maximum_tasks: int,
 ) -> tuple[PlannedGroup, ...]:
     selected = sampler.select(
         iteration_index=iteration_index,
-        limit=min(MAX_TASKS_PER_ITERATION, len(sampler.tasks)),
+        limit=min(maximum_tasks, len(sampler.tasks)),
     )
     return tuple(
         PlannedGroup(
@@ -201,6 +202,7 @@ def collect_iteration(
     group_runner: GroupRunner,
     global_generated_action_tokens_before: int,
     maximum_concurrent_groups: int = MAXIMUM_CONCURRENT_K4_GROUPS,
+    maximum_tasks: int = MAX_TASKS_PER_ITERATION,
     token_cap: int = ACTION_TOKEN_CAP,
 ) -> dict[str, Any]:
     """Resume or collect one frozen-policy iteration without exceeding the global cap."""
@@ -216,13 +218,23 @@ def collect_iteration(
         1 <= maximum_concurrent_groups <= MAXIMUM_CONCURRENT_K4_GROUPS,
         "concurrent K4 group count exceeds the runtime contract",
     )
+    _require(
+        isinstance(maximum_tasks, int)
+        and not isinstance(maximum_tasks, bool)
+        and 1 <= maximum_tasks <= MAX_TASKS_PER_ITERATION,
+        "iteration task count exceeds the runtime contract",
+    )
     _require(isinstance(token_cap, int) and token_cap > 0, "invalid action-token cap")
     sampler = restore_sampler(tasks, study_seed=identity.seed, state=initial_sampler_state)
     _require(
         sampler_task_order_sha256(tasks, study_seed=identity.seed) == identity.task_order_sha256,
         "sampler roster/run identity mismatch",
     )
-    plan = _planned_groups(sampler, iteration_index=identity.iteration_index)
+    plan = _planned_groups(
+        sampler,
+        iteration_index=identity.iteration_index,
+        maximum_tasks=maximum_tasks,
+    )
     store.recover_incomplete_attempts()
     rebuilt = _rebuild_current_iteration_signals(
         sampler=sampler,

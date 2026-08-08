@@ -10,6 +10,8 @@ import torch
 from miniwebwork.long_horizon_rl.learner import (
     TurnTrainingExample,
     audit_group_behavior_sampling_parity,
+    build_or_load_policy_optimizer,
+    create_bootstrap_optimizer_artifact,
     collate_turn_training_examples,
     extract_tail_completion_logprobs,
     hierarchical_clipped_policy_loss,
@@ -212,3 +214,27 @@ def test_shared_tensor_learner_skips_and_reports_zero_signal_group():
     assert report["effective_optimizer_action_tokens"] == 0
     assert report["parameter_change_norm"] == 0.0
     assert report["mean_ratio"] == 1.0
+
+
+def test_bootstrap_optimizer_marker_loads_fresh_and_binds_adapter(tmp_path):
+    identity = _identity("multi_turn_grpo")
+    path = tmp_path / "optimizer.pt"
+    created = create_bootstrap_optimizer_artifact(path=path, identity=identity)
+    assert created["payload"]["optimizer_state_dict"] is None
+    model = _TinyReplayModel()
+    optimizer = build_or_load_policy_optimizer(
+        model=model,
+        identity=identity,
+        optimizer_artifact=path,
+    )
+    assert optimizer.state_dict()["state"] == {}
+
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    payload["adapter_sha256"] = "f" * 64
+    torch.save(payload, path)
+    with pytest.raises(ValueError, match="adapter lineage"):
+        build_or_load_policy_optimizer(
+            model=model,
+            identity=identity,
+            optimizer_artifact=path,
+        )

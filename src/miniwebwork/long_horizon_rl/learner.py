@@ -711,8 +711,43 @@ def build_or_load_policy_optimizer(
             payload.get("adapter_sha256") == identity.input_adapter_sha256,
             "online optimizer/adapter lineage mismatch",
         )
-        optimizer.load_state_dict(payload["optimizer_state_dict"])
+        optimizer_state = payload.get("optimizer_state_dict")
+        if optimizer_state is not None:
+            optimizer.load_state_dict(optimizer_state)
     return optimizer
+
+
+def create_bootstrap_optimizer_artifact(
+    *,
+    path: Path,
+    identity: RunIdentity,
+) -> dict[str, Any]:
+    """Create an audited fresh-AdamW marker before the first collection."""
+
+    identity.validate()
+    destination = Path(path).expanduser().resolve()
+    _require(not destination.exists(), "bootstrap optimizer artifact already exists")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": LEARNER_OPTIMIZER_SCHEMA,
+        "input_identity_sha256": identity.sha256,
+        "adapter_sha256": identity.input_adapter_sha256,
+        "optimizer_state_dict": None,
+        "optimizer_steps": 0,
+        "initialization": "fresh_adamw_at_first_learner_phase",
+    }
+    torch.save(payload, destination)
+    descriptor = os.open(destination, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    directory_descriptor = os.open(destination.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+    return {"path": str(destination), "sha256": sha256_file(destination), "payload": payload}
 
 
 def save_policy_update_artifacts(
