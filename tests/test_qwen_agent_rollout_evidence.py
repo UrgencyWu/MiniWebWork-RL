@@ -29,6 +29,12 @@ class _Backend:
             generated_token_ids=self.generated_ids,
             logprobs=self.logprobs,
             sampling_logprobs=[],
+            request_id="request-1",
+            sampling_seed=123,
+            generation_backend="vllm_async",
+            queue_wait_ms=2.0,
+            first_token_latency_ms=3.0,
+            generation_time_ms=4.0,
             error="",
         )
 
@@ -57,6 +63,10 @@ def test_agent_retains_prompt_completion_and_policy_logprobs():
     assert attempt.generated_token_ids == [7, 8]
     assert attempt.token_logprobs == [-0.1, -0.2]
     assert attempt.prompt_hash == "prompt-hash"
+    assert attempt.request_id == "request-1"
+    assert attempt.sampling_seed == 123
+    assert attempt.generation_backend == "vllm_async"
+    assert attempt.queue_wait_ms == 2.0
 
 
 def test_agent_rejects_misaligned_completion_logprobs():

@@ -21,6 +21,7 @@ def run_model_episode(
     max_model_turns: int = 20,
     max_env_steps: int = 15,
     turn_generated_callback: Callable[[dict], None] | None = None,
+    turn_completed_callback: Callable[[dict], None] | None = None,
 ) -> dict:
     """Run one episode and return a structured evaluation trajectory.
 
@@ -68,6 +69,14 @@ def run_model_episode(
                 "generated_token_ids": attempt.generated_token_ids,
                 "token_logprobs": attempt.token_logprobs,
                 "sampling_logprobs": attempt.sampling_logprobs,
+                "request_id": getattr(attempt, "request_id", ""),
+                "sampling_seed": getattr(attempt, "sampling_seed", 0),
+                "generation_backend": getattr(attempt, "generation_backend", "unknown"),
+                "queue_wait_ms": getattr(attempt, "queue_wait_ms", 0.0),
+                "first_token_latency_ms": getattr(
+                    attempt, "first_token_latency_ms", 0.0
+                ),
+                "generation_time_ms": getattr(attempt, "generation_time_ms", 0.0),
                 "output_tokens": attempt.output_tokens,
                 "latency_ms": attempt.latency_ms,
                 "strict_json_success": attempt.strict_json_success,
@@ -97,6 +106,8 @@ def run_model_episode(
                     failure_origin="infrastructure",
                     termination_reason="model_backend_error",
                 )
+                if turn_completed_callback is not None:
+                    turn_completed_callback(copy.deepcopy(turn))
                 break
 
             if not attempt.schema_valid or attempt.action is None:
@@ -105,12 +116,18 @@ def run_model_episode(
                 # executed action and must not enter action-result history.
                 if consecutive_output_failures >= 3:
                     result["termination_reason"] = "model_output_failure_limit"
+                    if turn_completed_callback is not None:
+                        turn_completed_callback(copy.deepcopy(turn))
                     break
+                if turn_completed_callback is not None:
+                    turn_completed_callback(copy.deepcopy(turn))
                 continue
 
             consecutive_output_failures = 0
             if environment_steps >= max_env_steps:
                 result["termination_reason"] = "max_environment_steps"
+                if turn_completed_callback is not None:
+                    turn_completed_callback(copy.deepcopy(turn))
                 break
 
             step_result = env.step(attempt.action)
@@ -127,6 +144,8 @@ def run_model_episode(
             turn["reward"] = step_result.reward
             turn["terminated"] = step_result.terminated
             turn["truncated"] = step_result.truncated
+            if turn_completed_callback is not None:
+                turn_completed_callback(copy.deepcopy(turn))
 
             if step_result.observation is not None:
                 observation = step_result.observation

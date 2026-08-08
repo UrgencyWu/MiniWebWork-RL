@@ -28,6 +28,12 @@ class ModelActionAttempt:
     generated_token_ids: list[int] = field(default_factory=list)
     token_logprobs: list[float] = field(default_factory=list)
     sampling_logprobs: list[float] = field(default_factory=list)
+    request_id: str = ""
+    sampling_seed: int = 0
+    generation_backend: str = "unknown"
+    queue_wait_ms: float = 0.0
+    first_token_latency_ms: float = 0.0
+    generation_time_ms: float = 0.0
 
     def validate_rollout_evidence(self) -> None:
         """Raise when token-level evidence is internally inconsistent."""
@@ -107,6 +113,18 @@ class QwenBrowserAgent:
         attempt.generated_token_ids = list(getattr(generation, "generated_token_ids", []))
         attempt.token_logprobs = list(getattr(generation, "logprobs", []))
         attempt.sampling_logprobs = list(getattr(generation, "sampling_logprobs", []))
+        attempt.request_id = str(getattr(generation, "request_id", ""))
+        attempt.sampling_seed = int(getattr(generation, "sampling_seed", 0))
+        attempt.generation_backend = str(
+            getattr(generation, "generation_backend", "unknown")
+        )
+        attempt.queue_wait_ms = float(getattr(generation, "queue_wait_ms", 0.0))
+        attempt.first_token_latency_ms = float(
+            getattr(generation, "first_token_latency_ms", 0.0)
+        )
+        attempt.generation_time_ms = float(
+            getattr(generation, "generation_time_ms", 0.0)
+        )
 
         try:
             attempt.validate_rollout_evidence()

@@ -59,6 +59,12 @@ class GenerationResult:
     generated_token_ids: list[int] = field(default_factory=list)
     logprobs: list[float] = field(default_factory=list)
     sampling_logprobs: list[float] = field(default_factory=list)
+    request_id: str = ""
+    sampling_seed: int = 0
+    generation_backend: str = "transformers"
+    queue_wait_ms: float = 0.0
+    first_token_latency_ms: float = 0.0
+    generation_time_ms: float = 0.0
 
 
 STRICT_GENERATION_SCORE_TOLERANCE = 1e-6

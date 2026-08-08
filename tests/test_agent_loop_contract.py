@@ -112,3 +112,30 @@ def test_turn_journal_callback_failure_invalidates_rollout():
     assert result["failure_origin"] == "infrastructure"
     assert result["termination_reason"] == "environment_or_runner_error"
     assert "journal fsync failed" in result["error"]
+
+
+def test_completed_callback_runs_after_generated_callback_for_every_policy_turn():
+    environment = _Environment()
+    agent = _InvalidAgent()
+    events = []
+
+    result = run_model_episode(
+        "TASK",
+        environment,
+        agent,
+        turn_generated_callback=lambda turn: events.append(
+            ("generated", turn["model_turn_index"])
+        ),
+        turn_completed_callback=lambda turn: events.append(
+            ("completed", turn["model_turn_index"])
+        ),
+    )
+    assert result["model_turns"] == 3
+    assert events == [
+        ("generated", 1),
+        ("completed", 1),
+        ("generated", 2),
+        ("completed", 2),
+        ("generated", 3),
+        ("completed", 3),
+    ]
