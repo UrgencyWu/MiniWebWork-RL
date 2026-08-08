@@ -27,7 +27,7 @@ from .vllm_backend import (
     ThreadsafeVLLMBackend,
 )
 
-ALLOWED_BROWSER_WORKERS = (1, 2, 4, 8)
+ALLOWED_BROWSER_WORKERS = (1, 2, 4, 8, 16, 32)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -56,7 +56,7 @@ class BrowserWorkerPoolConfig:
 
     @property
     def concurrent_group_slots(self) -> int:
-        return 2 if self.total_workers == 8 else 1
+        return max(1, self.total_workers // GROUP_SIZE)
 
     @property
     def workers_per_group(self) -> int:
@@ -136,7 +136,7 @@ class PersistentBrowserLane:
 
 
 class VLLMBrowserWorkerPool:
-    """Lease disjoint persistent lanes to one or two concurrent exact-K groups."""
+    """Lease disjoint persistent lanes to concurrent exact-K groups."""
 
     def __init__(
         self,
@@ -215,11 +215,11 @@ class VLLMBrowserWorkerPool:
             for index in range(config.total_workers)
         ]
         self._available_slots: queue.Queue[tuple[int, ...]] = queue.Queue()
-        if config.total_workers == 8:
-            self._available_slots.put(tuple(range(0, 4)))
-            self._available_slots.put(tuple(range(4, 8)))
-        else:
+        if config.total_workers < GROUP_SIZE:
             self._available_slots.put(tuple(range(config.total_workers)))
+        else:
+            for start in range(0, config.total_workers, GROUP_SIZE):
+                self._available_slots.put(tuple(range(start, start + GROUP_SIZE)))
         self._closed = False
 
     def run_group(

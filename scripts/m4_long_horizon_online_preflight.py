@@ -26,7 +26,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=BASE_MODEL_MANIFEST_PATH,
     )
-    parser.add_argument("--browser-workers", type=int, choices=(1, 2, 4, 8), required=True)
+    parser.add_argument(
+        "--browser-workers",
+        type=int,
+        choices=(1, 2, 4, 8, 16, 32),
+        required=True,
+    )
     parser.add_argument("--maximum-tasks", type=int, required=True)
     parser.add_argument("--learner-microbatch-size", type=int, choices=(1, 2, 4, 8), default=1)
     parser.add_argument("--collection-only", action="store_true")

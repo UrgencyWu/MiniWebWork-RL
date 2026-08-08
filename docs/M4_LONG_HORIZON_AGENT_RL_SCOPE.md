@@ -415,8 +415,12 @@ P99.9≤0.5，并将脆弱的单点 `max≤0.5` 替换为灾难性
 `1.18677/10.12739/21.51204` 仍被多道门禁以数量级差距拒绝。v1–v3 失败均不追溯
 改判；v4 必须在全新 root 上完整通过后才可冻结。每次 update 报告：
 
-runtime v4 的 pre-commit 定向 CPU 回归 Job 1287 已得到 `49 passed`；它仍需新
-clean commit 的完整 CPU 回归和全新 GPU E2E，不能仅凭校准数据宣称通过。
+runtime v4 的 pre-commit 定向 CPU 回归 Job 1287 得到 `49 passed`，Job 1288 又在
+clean `909f4d85` 上得到 `417 passed, 10 deselected`。Job 1289 随后首次完整通过
+parity、2 次非零 optimizer update、原子 adapter/optimizer/manifest 提交、同卡
+wake 和更新后生成：初始 replay mean/P95/P99/P99.9/max-log-ratio 为
+`0.001754/0.000327/0.046423/0.295705/0.888659`，参数变化范数 `0.03717`，
+更新后 behavior/sampling 最大差异为 0。由此 v4 的 GRPO 正确性门禁关闭。
 
 - behavior/replay 最大和分位 log-prob 差异；
 - importance ratio、clip fraction 和 approximate KL；
@@ -442,7 +446,7 @@ clean commit 的完整 CPU 回归和全新 GPU E2E，不能仅凭校准数据宣
 `transformers==5.14.1`。实现采用一张 GPU 内的阶段式 runtime/learner 解耦：
 
 ```text
-8 个 CPU browser workers
+最多 32 个 browser lanes（仍只申请 8 CPU）
         ↓ asynchronous requests
 vLLM continuous batching on 1 GPU
         ↓ complete audited iteration
@@ -468,7 +472,7 @@ behavior/sampling 一致并落盘 phase event。该请求只计为前置 phase-s
 | Online RL seed | 1 | 8 | 48 GB | ≤24 h |
 | Final evaluation | 1 | 8 | 48 GB | ≤24 h |
 
-如果 8 个 worker 的 profiler 表明 CPU 饱和或浏览器内存不足，只能依据 preflight
+如果 32 个 lane 的 profiler 表明 CPU 饱和或浏览器内存不足，只能依据 preflight
 artifact 调整。不得无测量地扩大 CPU 或内存申请。
 
 ### 10.3 性能遥测与正式门禁
@@ -501,6 +505,20 @@ generation 显存余量 `15.49%` 也通过。但 generation GPU utilization P50 
 `11%`（mean `21.12%`、P95 `58%`），明确未通过 `60%`。因此在正确性 E2E 关闭后，
 下一轮性能工作必须在不增加 Slurm CPU 请求的前提下提高在途 browser/model 请求数，
 并用全新 preflight 复测；当前不能宣称 rollout 已充分利用 GPU。
+
+Job 1289 在正确性闭环后复现 generation P50=`11%`，同时暴露 post-wake 显存余量
+仅 `6.71%`。日志显示 vLLM 在 `gpu_memory_utilization=0.8` 下建立 553,344-token
+KV cache，而即使 32 个请求都达到 6144 上限也只需 196,608 token。runtime v5
+因此保持 1 GPU/8 CPU/48 GB 请求不变，把 KV 比例降为 `0.5`，并把 continuous
+batching 与 browser lane 上限扩至 32（8 个并发 K=4 group）。这不是增加调度资源，
+而是用已分配资源换取更多在途计算并恢复显存安全余量；仍须以 30 分钟 phase-window
+soak 和完整更新后 wake 实测通过，不能仅凭配置推断。
+
+runtime v5 候选合同 SHA256 为
+`4571ba3b89178cef607554708fbb8e6dc43863e61a2be36a9e525b5990e252df`。
+其 pre-commit Job 1290 首先通过失败测试发现 orchestrator 的旧 2-group 上限，修复后
+Job 1291 得到 `36 passed`，完整 Job 1292 得到 `418 passed, 10 deselected`；这些
+只证明候选代码自洽，仍不能替代 clean SHA 的 GPU 性能与恢复证据。
 
 ## 11. 24 小时中断恢复与原子性
 

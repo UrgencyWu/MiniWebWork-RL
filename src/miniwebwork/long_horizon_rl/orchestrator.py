@@ -21,7 +21,7 @@ from .rollout import admit_next_group
 from .sampler import DeterministicSignalSampler, TaskDescriptor, TaskSignal
 
 COLLECTION_ORCHESTRATOR_SCHEMA = "m4_long_horizon_collection_orchestrator_v1"
-MAXIMUM_CONCURRENT_K4_GROUPS = 2
+MAXIMUM_CONCURRENT_K4_GROUPS = 8
 MAXIMUM_ZERO_TOKEN_NO_PROGRESS_BATCHES = 3
 TRAIN_PUBLIC_PATH = DATASET_ROOT / "train" / "train_public.jsonl"
 

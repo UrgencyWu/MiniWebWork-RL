@@ -34,7 +34,8 @@ def test_vllm_engine_kwargs_freeze_raw_logprobs_same_gpu_lora_and_batching():
     assert kwargs["language_model_only"] is True
     assert kwargs["enable_lora"] is True
     assert kwargs["max_lora_rank"] == 16
-    assert kwargs["max_num_seqs"] == 8
+    assert kwargs["gpu_memory_utilization"] == 0.5
+    assert kwargs["max_num_seqs"] == 32
     assert kwargs["enable_prefix_caching"] is False
     assert kwargs["enable_chunked_prefill"] is True
     assert kwargs["enforce_eager"] is True
@@ -48,7 +49,7 @@ def test_vllm_engine_kwargs_freeze_raw_logprobs_same_gpu_lora_and_batching():
         ("max_model_len", 8192, "length"),
         ("max_new_tokens", 256, "token cap"),
         ("gpu_memory_utilization", 0.95, "memory"),
-        ("max_num_seqs", 16, "sequence"),
+        ("max_num_seqs", 8, "sequence"),
         ("enforce_eager", False, "eager"),
         ("adapter_semantic_sha256", "z" * 64, "semantic hash"),
     ],

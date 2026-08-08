@@ -24,7 +24,7 @@ M4_EXPECTED_GIT_SHA="${M4_EXPECTED_GIT_SHA:?set the frozen preflight commit SHA}
 
 run_name="${M4_PREFLIGHT_RUN_NAME:?set one stable preflight run name for resume}"
 initial_adapter="${M4_INITIAL_ADAPTER:?set the frozen disposable SFT adapter path}"
-browser_workers="${M4_BROWSER_WORKERS:?set 1, 2, 4, or 8 browser workers}"
+browser_workers="${M4_BROWSER_WORKERS:?set 1, 2, 4, 8, 16, or 32 browser workers}"
 maximum_tasks="${M4_MAXIMUM_TASKS:?set a preflight task count within 1..32}"
 learner_microbatch="${M4_LEARNER_MICROBATCH_SIZE:-1}"
 method="${M4_METHOD:-multi_turn_grpo}"

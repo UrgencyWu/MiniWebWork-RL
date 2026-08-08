@@ -238,3 +238,41 @@ def test_eight_workers_fill_two_disjoint_k4_slots_concurrently(tmp_path):
     assert activity["lanes"] == set(range(8))
     assert len(environments) == 8
     assert all(environment.closed for environment in environments)
+
+
+def test_thirty_two_workers_fill_eight_disjoint_k4_slots_concurrently(tmp_path):
+    tasks = tuple(
+        TaskDescriptor(f"TASK-{index}", f"family-{index}", "long")
+        for index in range(8)
+    )
+    identity = _identity(tasks)
+    store = CollectionStore(tmp_path / "collection", identity)
+    activity = {"lock": threading.Lock(), "active": 0, "maximum": 0, "lanes": set()}
+    pool, loop, environments = _pool(
+        tmp_path,
+        workers=32,
+        identity=identity,
+        activity=activity,
+    )
+    try:
+        report = collect_iteration(
+            store=store,
+            identity=identity,
+            tasks=tasks,
+            initial_sampler_state=None,
+            group_runner=lambda group_id, task: pool.run_group(
+                store=store,
+                group_id=group_id,
+                task=task,
+            ),
+            global_generated_action_tokens_before=0,
+            maximum_concurrent_groups=pool.config.concurrent_group_slots,
+        )
+    finally:
+        pool.close()
+        loop.close()
+    assert report["committed_group_count"] == 8
+    assert activity["maximum"] == 32
+    assert activity["lanes"] == set(range(32))
+    assert len(environments) == 32
+    assert all(environment.closed for environment in environments)

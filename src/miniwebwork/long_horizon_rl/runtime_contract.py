@@ -24,8 +24,8 @@ from .contracts import sha256_file
 from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
-RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v4"
-RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v4.json"
+RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v5"
+RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v5.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
     "run_identity_schema": "m4_long_horizon_run_identity_v3",
     "turn_schema": "m4_long_horizon_turn_evidence_v3",
@@ -130,6 +130,19 @@ PARITY_CALIBRATION = {
         "retain_mean_p95_p99_clip_fraction_and_mean_ratio;replace_batch_composition_sensitive_"
         "single_point_max_0_5_with_p999_0_5_plus_catastrophic_abs_log_ratio_ln10"
     ),
+    "runtime_v4_validation_job_id": 1289,
+    "runtime_v4_token_count": 4106,
+    "runtime_v4_mean_absolute_logprob_difference": 0.0017542248288511468,
+    "runtime_v4_p95_absolute_logprob_difference": 0.0003270015586167574,
+    "runtime_v4_p99_absolute_logprob_difference": 0.04642307758331299,
+    "runtime_v4_p999_absolute_logprob_difference": 0.29570549726486206,
+    "runtime_v4_maximum_absolute_log_ratio": 0.8886593580245972,
+    "runtime_v4_mean_importance_ratio": 0.9996992543473918,
+    "runtime_v4_initial_ratio_clip_count": 6,
+    "runtime_v4_initial_ratio_clip_fraction": 0.0014612761811982464,
+    "runtime_v4_optimizer_updates": 2,
+    "runtime_v4_parameter_change_norm": 0.037170038295178266,
+    "runtime_v4_post_wake_behavior_sampling_maximum_absolute_difference": 0.0,
 }
 
 
@@ -212,10 +225,22 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         "sampling distribution drift",
     )
     _require(
-        math.isclose(generation.get("gpu_memory_utilization"), 0.8),
+        math.isclose(generation.get("gpu_memory_utilization"), 0.5),
         "vLLM memory fraction drift",
     )
-    _require(generation.get("maximum_sequences") == 8, "vLLM maximum sequences drift")
+    _require(generation.get("maximum_sequences") == 32, "vLLM maximum sequences drift")
+    _require(
+        generation.get("maximum_full_length_kv_tokens_required") == 196_608,
+        "vLLM KV-capacity requirement drift",
+    )
+    _require(
+        generation.get("memory_calibration_job_id") == 1289,
+        "vLLM memory-calibration lineage drift",
+    )
+    _require(
+        generation.get("memory_calibration_observed_kv_tokens") == 553_344,
+        "vLLM observed KV capacity drift",
+    )
     _require(
         generation.get("enable_prefix_caching") is False,
         "experimental Qwen3.5 Mamba prefix caching re-enabled",
@@ -250,9 +275,12 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
     )
 
     rollout = payload.get("rollout_contract", {})
-    _require(rollout.get("browser_worker_candidates") == [1, 2, 4, 8], "worker candidates drift")
     _require(
-        rollout.get("maximum_concurrent_k4_groups") == 2,
+        rollout.get("browser_worker_candidates") == [1, 2, 4, 8, 16, 32],
+        "worker candidates drift",
+    )
+    _require(
+        rollout.get("maximum_concurrent_k4_groups") == 8,
         "concurrent K4 group count drift",
     )
     _require(rollout.get("persistent_browser_per_candidate") is True, "persistent browser disabled")
@@ -336,6 +364,12 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
 
     telemetry = payload.get("telemetry_contract", {})
     _require(telemetry.get("external_interval_seconds") == 5, "telemetry interval drift")
+    _require(telemetry.get("candidate_soak_minutes") == 30, "candidate soak drift")
+    _require(
+        telemetry.get("candidate_soak_scope")
+        == "aggregate_collection_phase_on_selected_worker_candidate",
+        "candidate soak scope drift",
+    )
     gates = telemetry.get("gates", {})
     _require(math.isclose(gates.get("rollout_trajectories_per_hour_minimum"), 114.0), "rollout gate drift")
     _require(math.isclose(gates.get("generation_gpu_utilization_p50_minimum"), 0.6), "generation utilization gate drift")
