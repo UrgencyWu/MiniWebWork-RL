@@ -25,7 +25,7 @@ M4_EXPECTED_GIT_SHA="${M4_EXPECTED_GIT_SHA:?set the frozen preflight commit SHA}
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-2}"
 export TOKENIZERS_PARALLELISM=false
 
-output_dir="$repo_root/data/sft/m4_long_horizon_verified_v1"
+output_dir="$repo_root/data/sft/m4_long_horizon_verified_v2"
 slurm_srun="/opt/slurm/slurm.25.05/bin/srun"
 echo "study=m4_long_horizon_credit_v1"
 echo "phase=preflight_sft_corpus"

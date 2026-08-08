@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -12,10 +13,10 @@ from ..m4_long_horizon_protocol import audit_horizon_dataset, classify_horizon
 from .constraint_contract import compute_unique_answer, filter_products
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "tasks" / "m4_long_horizon_v1"
-DEFAULT_SEED_DIR = PROJECT_ROOT / "data" / "seed_m4_long_horizon_v1"
-DATASET_ID = "m4_long_horizon_v1"
-SCHEMA_VERSION = "1.0"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "tasks" / "m4_long_horizon_v2"
+DEFAULT_SEED_DIR = PROJECT_ROOT / "data" / "seed_m4_long_horizon_v2"
+DATASET_ID = "m4_long_horizon_v2"
+SCHEMA_VERSION = "2.0"
 SPLIT_WORLD_COUNTS = {"train": 60, "dev": 18, "test": 30}
 TASK_TYPES = (
     "exact_product",
@@ -35,6 +36,10 @@ SPLIT_PURPOSES = {
 }
 SPLIT_MANIFEST_FILENAME = "m4_long_horizon_split_manifest.json"
 DATASET_MANIFEST_FILENAME = "dataset_manifest.json"
+FEASIBLE_SUPPLIER_ROLES = ("A", "B", "C")
+SUPPLIER_VISIT_ROLES = ("B", "A", "C")
+WINNER_ASSIGNMENT_VERSION = "split_balanced_sha256_permutation_v1"
+WINNER_ASSIGNMENT_SALT = "m4-long-horizon-v2-public-id-debias-20260808"
 
 
 def _sha256_bytes(content: bytes) -> str:
@@ -88,6 +93,57 @@ def _product_id(world_id: str, role: str) -> str:
     return f"M4-LH-PRD-{world_id}-{role}"
 
 
+def _world_split_offset(world_id: str) -> tuple[str, int]:
+    world_index = int(world_id[1:])
+    first_index = 1
+    for split, count in SPLIT_WORLD_COUNTS.items():
+        if first_index <= world_index < first_index + count:
+            return split, world_index - first_index
+        first_index += count
+    raise ValueError(f"world outside frozen split roster: {world_id}")
+
+
+@lru_cache(maxsize=None)
+def _balanced_winner_roles(split: str) -> tuple[str, ...]:
+    """Return an exactly balanced, non-periodic role roster for one split."""
+
+    if split not in SPLIT_WORLD_COUNTS:
+        raise ValueError(f"unknown split: {split}")
+    count = SPLIT_WORLD_COUNTS[split]
+    if count % len(FEASIBLE_SUPPLIER_ROLES):
+        raise ValueError(f"split cannot balance supplier roles exactly: {split}")
+    tokens = [
+        (role, occurrence)
+        for role in FEASIBLE_SUPPLIER_ROLES
+        for occurrence in range(count // len(FEASIBLE_SUPPLIER_ROLES))
+    ]
+    tokens.sort(
+        key=lambda token: hashlib.sha256(
+            (
+                f"{WINNER_ASSIGNMENT_SALT}|winner|{split}|"
+                f"{token[0]}|{token[1]}"
+            ).encode("utf-8")
+        ).digest()
+    )
+    return tuple(role for role, _ in tokens)
+
+
+def supplier_reliability_by_role(world_id: str) -> dict[str, float]:
+    """Assign a split-balanced optimum with no simple world-ID periodic rule."""
+
+    split, offset = _world_split_offset(world_id)
+    winner = _balanced_winner_roles(split)[offset]
+    remaining = sorted(
+        (role for role in FEASIBLE_SUPPLIER_ROLES if role != winner),
+        key=lambda role: hashlib.sha256(
+            (
+                f"{WINNER_ASSIGNMENT_SALT}|secondary|{world_id}|{role}"
+            ).encode("utf-8")
+        ).digest(),
+    )
+    return {winner: 0.99, remaining[0]: 0.93, remaining[1]: 0.88}
+
+
 def build_long_horizon_seed() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build four products and four private-to-world suppliers per world."""
 
@@ -99,10 +155,11 @@ def build_long_horizon_seed() -> tuple[list[dict[str, Any]], list[dict[str, Any]
         world_id = _world_id(index)
         category = _world_category(world_id)
         region = regions[(index - 1) % len(regions)]
+        reliability = supplier_reliability_by_role(world_id)
         supplier_specs = {
-            "E": ("Reference Systems", 4.60, 1, 0.93),
-            "C": ("Value Fabric", 4.20, 1, 0.88),
-            "R": ("Resilient Logistics", 4.95, 1, 0.99),
+            "A": ("Northbridge Supply", 4.60, 1, reliability["A"]),
+            "B": ("Lattice Supply", 4.20, 1, reliability["B"]),
+            "C": ("Harbor Supply", 4.95, 1, reliability["C"]),
             "D": ("Clearance Exchange", 3.50, 0, 0.65),
         }
         for role, (label, rating, certified, reliability) in supplier_specs.items():
@@ -130,9 +187,9 @@ def build_long_horizon_seed() -> tuple[list[dict[str, Any]], list[dict[str, Any]
             [
                 {
                     **common,
-                    "product_id": _product_id(world_id, "E"),
-                    "supplier_id": _supplier_id(world_id, "E"),
-                    "name": f"Atlas {world_id} Reference Node",
+                    "product_id": _product_id(world_id, "A"),
+                    "supplier_id": _supplier_id(world_id, "A"),
+                    "name": f"Atlas {world_id} A Node",
                     "price": float(base_price + 1_400),
                     "memory_gb": 64,
                     "delivery_days": 5,
@@ -142,27 +199,27 @@ def build_long_horizon_seed() -> tuple[list[dict[str, Any]], list[dict[str, Any]
                 },
                 {
                     **common,
-                    "product_id": _product_id(world_id, "C"),
-                    "supplier_id": _supplier_id(world_id, "C"),
-                    "name": f"Atlas {world_id} Value Node",
+                    "product_id": _product_id(world_id, "B"),
+                    "supplier_id": _supplier_id(world_id, "B"),
+                    "name": f"Atlas {world_id} B Node",
                     "price": float(base_price),
                     "memory_gb": 48,
                     "delivery_days": 7,
                     "stock": 15,
                     "warranty_months": 24,
-                    "model_number": f"M4-LH-{world_id}-CHEAP",
+                    "model_number": f"M4-LH-{world_id}-VALUE",
                 },
                 {
                     **common,
-                    "product_id": _product_id(world_id, "R"),
-                    "supplier_id": _supplier_id(world_id, "R"),
-                    "name": f"Atlas {world_id} Resilient Node",
+                    "product_id": _product_id(world_id, "C"),
+                    "supplier_id": _supplier_id(world_id, "C"),
+                    "name": f"Atlas {world_id} C Node",
                     "price": float(base_price + 3_800),
                     "memory_gb": 96,
                     "delivery_days": 12,
                     "stock": 7,
                     "warranty_months": 48,
-                    "model_number": f"M4-LH-{world_id}-RELIABLE",
+                    "model_number": f"M4-LH-{world_id}-EXTENDED",
                 },
                 {
                     **common,
@@ -219,9 +276,8 @@ def _task_spec(split: str, world_id: str, task_type: str) -> dict[str, Any]:
         }
         workflow_requirements = {
             "required_supplier_detail_ids": [
-                _supplier_id(world_id, "C"),
-                _supplier_id(world_id, "E"),
-                _supplier_id(world_id, "R"),
+                _supplier_id(world_id, role)
+                for role in SUPPLIER_VISIT_ROLES
             ]
         }
         instruction = (
@@ -413,6 +469,35 @@ def _world_records(
     return world_suppliers, world_products
 
 
+def _correct_supplier_visit_position(
+    spec: dict[str, Any],
+    answer: dict[str, Any],
+    world_products: list[dict[str, Any]],
+) -> int:
+    """Locate the hidden correct choice in the public inspection order."""
+
+    expected_product_id = answer.get("expected_product_id")
+    selected = next(
+        (
+            product
+            for product in world_products
+            if product["product_id"] == expected_product_id
+        ),
+        None,
+    )
+    if selected is None:
+        raise ValueError(f"expected product not found: {expected_product_id}")
+    required = spec.get("workflow_requirements", {}).get(
+        "required_supplier_detail_ids", []
+    )
+    try:
+        return required.index(selected["supplier_id"]) + 1
+    except ValueError as exc:
+        raise ValueError(
+            f"correct supplier missing from inspection order: {spec['task_id']}"
+        ) from exc
+
+
 def build_long_horizon_dataset(
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     *,
@@ -430,6 +515,11 @@ def build_long_horizon_dataset(
         split: {"public": [], "oracle": [], "audit": []}
         for split in SPLIT_WORLD_COUNTS
     }
+    decision_position_counts = {
+        split: Counter() for split in SPLIT_WORLD_COUNTS
+    }
+    winner_role_counts = {split: Counter() for split in SPLIT_WORLD_COUNTS}
+    modulo_agreement_counts = {split: 0 for split in SPLIT_WORLD_COUNTS}
     all_specs: list[dict[str, Any]] = []
     for spec in build_long_horizon_specs():
         world_suppliers, world_products = _world_records(
@@ -443,6 +533,7 @@ def build_long_horizon_dataset(
         )
         if answer is None:
             raise ValueError(f"task is not uniquely solvable: {spec['task_id']}")
+        correct_supplier_visit_position = None
         if spec["workflow_requirements"]:
             feasible = sorted(
                 filter_products(world_products, world_suppliers, spec["constraints"]),
@@ -453,6 +544,19 @@ def build_long_horizon_dataset(
                 "required_supplier_detail_ids"
             ]:
                 raise ValueError(f"workflow supplier order drift: {spec['task_id']}")
+            correct_supplier_visit_position = _correct_supplier_visit_position(
+                spec, answer, world_products
+            )
+            decision_position_counts[spec["split"]][
+                correct_supplier_visit_position
+            ] += 1
+            winner_role = answer["expected_product_id"].rsplit("-", 1)[-1]
+            winner_role_counts[spec["split"]][winner_role] += 1
+            simple_periodic_role = FEASIBLE_SUPPLIER_ROLES[
+                (int(spec["world_id"][1:]) - 1) % len(FEASIBLE_SUPPLIER_ROLES)
+            ]
+            if winner_role == simple_periodic_role:
+                modulo_agreement_counts[spec["split"]] += 1
         trace = build_reference_trace(spec, answer)
         stratum = classify_horizon(len(trace))
         public = _public_record(spec, len(trace), stratum)
@@ -483,6 +587,8 @@ def build_long_horizon_dataset(
                 }
             ),
         }
+        if correct_supplier_visit_position is not None:
+            audit["correct_supplier_visit_position"] = correct_supplier_visit_position
         records = split_records[spec["split"]]
         records["public"].append(public)
         records["oracle"].append(oracle)
@@ -552,6 +658,42 @@ def build_long_horizon_dataset(
             "constraint_signatures_disjoint_across_splits": True,
             "answer_signatures_disjoint_across_splits": True,
             "test_role": "frozen_final_evaluation",
+        },
+        "shortcut_audit": {
+            "contract": "correct long-task supplier must be balanced across visit positions 1,2,3",
+            "neutral_feasible_supplier_roles": list(FEASIBLE_SUPPLIER_ROLES),
+            "supplier_visit_roles": list(SUPPLIER_VISIT_ROLES),
+            "winner_assignment_version": WINNER_ASSIGNMENT_VERSION,
+            "winner_role_counts": {
+                split: {
+                    role: winner_role_counts[split][role]
+                    for role in FEASIBLE_SUPPLIER_ROLES
+                }
+                for split in SPLIT_WORLD_COUNTS
+            },
+            "correct_supplier_visit_position_counts": {
+                split: {
+                    str(position): decision_position_counts[split][position]
+                    for position in (1, 2, 3)
+                }
+                for split in SPLIT_WORLD_COUNTS
+            },
+            "balanced": all(
+                decision_position_counts[split][position]
+                == SPLIT_WORLD_COUNTS[split] // 3
+                for split in SPLIT_WORLD_COUNTS
+                for position in (1, 2, 3)
+            ),
+            "world_index_modulo3_agreement_counts": modulo_agreement_counts,
+            "world_index_modulo3_agreement_fraction": {
+                split: modulo_agreement_counts[split] / SPLIT_WORLD_COUNTS[split]
+                for split in SPLIT_WORLD_COUNTS
+            },
+            "maximum_allowed_modulo3_agreement_fraction": 0.5,
+            "non_periodic": all(
+                modulo_agreement_counts[split] / SPLIT_WORLD_COUNTS[split] <= 0.5
+                for split in SPLIT_WORLD_COUNTS
+            ),
         },
     }
     _atomic_write(output_dir / "spec.jsonl", spec_text)
@@ -629,6 +771,11 @@ def validate_long_horizon_dataset(
         errors.append("spec hash mismatch")
 
     rows_by_split = {split: [] for split in SPLIT_WORLD_COUNTS}
+    decision_position_counts = {
+        split: Counter() for split in SPLIT_WORLD_COUNTS
+    }
+    winner_role_counts = {split: Counter() for split in SPLIT_WORLD_COUNTS}
+    modulo_agreement_counts = {split: 0 for split in SPLIT_WORLD_COUNTS}
     for spec in specs:
         split = spec.get("split")
         if split not in rows_by_split:
@@ -653,6 +800,26 @@ def validate_long_horizon_dataset(
             )
         ):
             errors.append(f"answer does not recompute: {spec.get('task_id')}")
+        if answer is not None and spec.get("workflow_requirements"):
+            try:
+                position = _correct_supplier_visit_position(
+                    spec, answer, world_products
+                )
+                decision_position_counts[split][position] += 1
+                winner_role = answer["expected_product_id"].rsplit("-", 1)[-1]
+                winner_role_counts[split][winner_role] += 1
+                simple_periodic_role = FEASIBLE_SUPPLIER_ROLES[
+                    (int(spec["world_id"][1:]) - 1)
+                    % len(FEASIBLE_SUPPLIER_ROLES)
+                ]
+                if winner_role == simple_periodic_role:
+                    modulo_agreement_counts[split] += 1
+                if spec.get("correct_supplier_visit_position") != position:
+                    errors.append(
+                        f"correct supplier position drift: {spec.get('task_id')}"
+                    )
+            except ValueError as exc:
+                errors.append(str(exc))
         trace = build_reference_trace(spec, answer or {}) if answer else []
         if len(trace) != spec.get("oracle_min_env_actions"):
             errors.append(f"reference horizon drift: {spec.get('task_id')}")
@@ -663,6 +830,52 @@ def validate_long_horizon_dataset(
     except ValueError as exc:
         errors.append(str(exc))
         horizon_audit = None
+
+    expected_position_counts = {
+        split: {str(position): SPLIT_WORLD_COUNTS[split] // 3 for position in (1, 2, 3)}
+        for split in SPLIT_WORLD_COUNTS
+    }
+    actual_position_counts = {
+        split: {
+            str(position): decision_position_counts[split][position]
+            for position in (1, 2, 3)
+        }
+        for split in SPLIT_WORLD_COUNTS
+    }
+    if actual_position_counts != expected_position_counts:
+        errors.append("correct supplier visit positions are not balanced")
+    shortcut_audit = manifest.get("shortcut_audit", {})
+    if shortcut_audit.get("correct_supplier_visit_position_counts") != actual_position_counts:
+        errors.append("shortcut audit position counts mismatch")
+    if shortcut_audit.get("balanced") is not True:
+        errors.append("shortcut audit is not balanced")
+    expected_role_counts = {
+        split: {
+            role: SPLIT_WORLD_COUNTS[split] // len(FEASIBLE_SUPPLIER_ROLES)
+            for role in FEASIBLE_SUPPLIER_ROLES
+        }
+        for split in SPLIT_WORLD_COUNTS
+    }
+    actual_role_counts = {
+        split: {
+            role: winner_role_counts[split][role]
+            for role in FEASIBLE_SUPPLIER_ROLES
+        }
+        for split in SPLIT_WORLD_COUNTS
+    }
+    if actual_role_counts != expected_role_counts:
+        errors.append("winner roles are not balanced")
+    if shortcut_audit.get("winner_role_counts") != actual_role_counts:
+        errors.append("shortcut audit winner role counts mismatch")
+    if shortcut_audit.get("winner_assignment_version") != WINNER_ASSIGNMENT_VERSION:
+        errors.append("winner assignment version mismatch")
+    if shortcut_audit.get("world_index_modulo3_agreement_counts") != modulo_agreement_counts:
+        errors.append("shortcut audit modulo agreement counts mismatch")
+    if shortcut_audit.get("non_periodic") is not True or any(
+        modulo_agreement_counts[split] / SPLIT_WORLD_COUNTS[split] > 0.5
+        for split in SPLIT_WORLD_COUNTS
+    ):
+        errors.append("winner assignment retains a simple world-index modulo shortcut")
 
     for split, expected_worlds in SPLIT_WORLD_COUNTS.items():
         split_dir = output_dir / split

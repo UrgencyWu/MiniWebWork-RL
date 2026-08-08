@@ -16,10 +16,23 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-STUDY_SCHEMA = "m4_long_horizon_study_v1"
+STUDY_SCHEMA = "m4_long_horizon_study_v2"
 STUDY_ID = "m4_long_horizon_credit_v1"
-STUDY_MANIFEST_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_study_v1.json"
-PROMPT_CONTRACT = "browser_agent_v3_compact"
+STUDY_MANIFEST_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_study_v2.json"
+PROMPT_CONTRACT = "browser_agent_v4_long_memory"
+PROMPT_PATH = PROJECT_ROOT / "prompts" / f"{PROMPT_CONTRACT}.txt"
+PROMPT_CONTEXT_CONTRACT = {
+    "prompt_version": PROMPT_CONTRACT,
+    "max_visible_text_characters": 5000,
+    "history_window": 5,
+    "max_control_elements": 16,
+    "max_link_elements": 16,
+    "evidence_memory_contract": "public_observation_v1",
+    "max_evidence_entries": 8,
+    "max_evidence_text_characters_per_entry": 1000,
+    "evidence_page_types": ["product_detail", "supplier_detail"],
+    "current_url_contract": "path_only_without_origin_query_or_fragment",
+}
 FORMAL_METHODS = ("verified_sft", "multi_turn_grpo", "step_aware_gpo")
 ONLINE_METHODS = ("multi_turn_grpo", "step_aware_gpo")
 ONLINE_SEEDS = (20260801, 20260802, 20260803)
@@ -32,9 +45,9 @@ HORIZON_RANGES = {
     "long": (13, 20),
 }
 SPLIT_COUNTS = {"train": 240, "dev": 72, "test": 120}
-DATASET_ID = "m4_long_horizon_v1"
+DATASET_ID = "m4_long_horizon_v2"
 DATASET_ROOT = PROJECT_ROOT / "data" / "tasks" / DATASET_ID
-SEED_ROOT = PROJECT_ROOT / "data" / "seed_m4_long_horizon_v1"
+SEED_ROOT = PROJECT_ROOT / "data" / "seed_m4_long_horizon_v2"
 ISOLATION_FIELDS = (
     "world_signature",
     "product_signature",
@@ -76,6 +89,15 @@ def validate_study_manifest(payload: Mapping[str, Any]) -> None:
     _require(payload.get("lifecycle_state") == "preflight", "study must remain preflight")
     _require(payload.get("formal_submission_allowed") is False, "formal submission opened early")
     _require(payload.get("prompt_contract") == PROMPT_CONTRACT, "prompt contract drift")
+    _require(PROMPT_PATH.is_file(), "frozen prompt file is missing")
+    _require(
+        payload.get("prompt_system_sha256") == _sha256(PROMPT_PATH),
+        "prompt system hash drift",
+    )
+    _require(
+        payload.get("prompt_context_contract") == PROMPT_CONTEXT_CONTRACT,
+        "prompt context contract drift",
+    )
 
     matrix = payload.get("formal_matrix", {})
     shared_sft = matrix.get("shared_sft", {})
@@ -105,6 +127,27 @@ def validate_study_manifest(payload: Mapping[str, Any]) -> None:
     _require(dataset.get("horizon_strata") == {key: list(value) for key, value in HORIZON_RANGES.items()}, "horizon contract drift")
     _require(dataset.get("test_outcomes_available_during_preflight") is False, "test outcome gate opened")
     _require(tuple(dataset.get("split_isolation_fields", ())) == ISOLATION_FIELDS, "isolation field drift")
+    _require(
+        dataset.get("correct_supplier_visit_position_contract")
+        == "balanced across positions 1,2,3 in every split",
+        "long-task position shortcut contract drift",
+    )
+    _require(
+        dataset.get("winner_assignment")
+        == "split_balanced_sha256_permutation_v1",
+        "winner assignment contract drift",
+    )
+    _require(
+        dataset.get("identifier_or_name_fixed_optimum_allowed") is False,
+        "identifier shortcut was enabled",
+    )
+
+    sft = payload.get("sft_contract", {})
+    _require(
+        sft.get("prompt_evidence_memory")
+        == "bounded policy-visible supplier/product observations only",
+        "SFT evidence-memory contract drift",
+    )
 
     online = payload.get("online_contract", {})
     _require(online.get("group_size") == GROUP_SIZE, "K drift")
@@ -169,6 +212,26 @@ def assert_dataset_binding(manifest: Mapping[str, Any] | None = None) -> dict[st
     _require(dataset_manifest.get("dataset_id") == DATASET_ID, "checked dataset id mismatch")
     _require(dataset_manifest.get("split_task_counts") == SPLIT_COUNTS, "checked split count mismatch")
     _require(seed_manifest.get("seed_version") == DATASET_ID, "checked seed version mismatch")
+    shortcut_audit = dataset_manifest.get("shortcut_audit", {})
+    _require(shortcut_audit.get("balanced") is True, "checked dataset has a position shortcut")
+    _require(
+        shortcut_audit.get("winner_assignment_version")
+        == contract.get("winner_assignment"),
+        "checked winner assignment version drift",
+    )
+    _require(shortcut_audit.get("non_periodic") is True, "checked dataset has an ID-period shortcut")
+    expected_positions = {
+        split: {
+            str(position): task_count // 4 // 3
+            for position in (1, 2, 3)
+        }
+        for split, task_count in SPLIT_COUNTS.items()
+    }
+    _require(
+        shortcut_audit.get("correct_supplier_visit_position_counts")
+        == expected_positions,
+        "checked dataset position balance drift",
+    )
     return {
         "dataset_manifest_path": str(dataset_manifest_path),
         "dataset_manifest_sha256": contract["dataset_manifest_sha256"],

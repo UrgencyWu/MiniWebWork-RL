@@ -1,0 +1,30 @@
+{
+  "allowed_purposes": [
+    "development_evaluation",
+    "offline_training",
+    "online_training"
+  ],
+  "dataset_id": "m4_long_horizon_v2",
+  "horizon_counts": {
+    "basic": 60,
+    "long": 60,
+    "medium": 120
+  },
+  "may_update_model": true,
+  "medium_long_fraction": 0.75,
+  "oracle_sha256": "145289a7eaf91eeb8be3ee785900358fa137ff66a718e329c63caa30da348954",
+  "public_sha256": "2145541f59930d9b09c8af71c7e46afa35183af9cbb8cf825a3a1fe795771639",
+  "role": "optimizer_source",
+  "schema_version": "2.0",
+  "seed_products_sha256": "7d003b1101afcb3dfd202157e31faa88b0821699d613e6dcf3a3a4b195680dbb",
+  "seed_suppliers_sha256": "a8de49b9f983d5629138ea90bc01b4b4f6adc0adf2084ca71b7b223179415208",
+  "split": "train",
+  "task_count": 240,
+  "task_type_counts": {
+    "cheapest_feasible": 60,
+    "exact_product": 60,
+    "highest_reliability_supplier": 60,
+    "no_feasible_product": 60
+  },
+  "world_count": 60
+}

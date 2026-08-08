@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import uuid
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable
@@ -18,13 +19,14 @@ from ..data_generation.m4_long_horizon import (
     SPLIT_MANIFEST_FILENAME,
     assert_long_horizon_split_purpose,
 )
+from ..m4_long_horizon_protocol import PROMPT_CONTRACT
 from ..model_agent import prompt_builder
 from ..tasks import get_oracle, load_public_tasks
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "sft" / "m4_long_horizon_verified_v1"
-SFT_DATASET_ID = "m4_long_horizon_verified_sft_v1"
-SFT_SCHEMA = "m4_long_horizon_verified_sft_v1"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "data" / "sft" / "m4_long_horizon_verified_v2"
+SFT_DATASET_ID = "m4_long_horizon_verified_sft_v2"
+SFT_SCHEMA = "m4_long_horizon_verified_sft_v2"
 
 
 def _sha256(path: Path) -> str:
@@ -194,7 +196,10 @@ def build_verified_sft_split(
     task_summaries: list[dict[str, Any]] = []
     with ProcurementBrowserEnv(
         max_steps=max_steps,
-        run_id=f"m4_long_horizon_sft_{sample_split}",
+        run_id=(
+            f"m4_long_horizon_sft_v2_{sample_split}_"
+            f"{uuid.uuid4().hex[:12]}"
+        ),
         headless=True,
         keep_db=False,
         task_dir=task_dir,
@@ -209,10 +214,21 @@ def build_verified_sft_split(
             observation = environment.reset(task_id)
             expert = OracleExpertProcurementAgent(oracle, max_steps=max_steps)
             history: list[dict[str, Any]] = []
+            evidence_memory: list[dict[str, Any]] = []
             normalized_trace: list[dict[str, Any]] = []
             terminal = None
             for turn_index in range(1, max_steps + 1):
-                messages = prompt_builder.build_messages(observation, history)
+                prompt_builder.update_evidence_memory(
+                    evidence_memory,
+                    observation,
+                    version=PROMPT_CONTRACT,
+                )
+                messages = prompt_builder.build_messages(
+                    observation,
+                    history,
+                    version=PROMPT_CONTRACT,
+                    evidence_memory=evidence_memory,
+                )
                 action_object = expert.act(observation)
                 action = action_object.to_dict()
                 normalized_trace.append(
@@ -306,14 +322,15 @@ def build_verified_sft_split(
         "duplicate_sample_count": 0,
         "all_reference_trajectories_verified": True,
         "max_steps": max_steps,
-        "prompt_contract": prompt_builder.PROMPT_VERSION,
-        "prompt_system_sha256": prompt_builder.prompt_sha256(),
-        "context_contract": prompt_builder.context_contract(),
+        "prompt_contract": PROMPT_CONTRACT,
+        "prompt_system_sha256": prompt_builder.prompt_sha256(PROMPT_CONTRACT),
+        "context_contract": prompt_builder.context_contract(PROMPT_CONTRACT),
         "task_split_manifest_sha256": _sha256(task_dir / SPLIT_MANIFEST_FILENAME),
         "seed_manifest_sha256": _sha256(seed_dir / "manifest.json"),
         "output_filename": output_filename,
         "records_sha256": hashlib.sha256(records_text.encode("utf-8")).hexdigest(),
         "completion_label_contract": "one assistant action completion per unique turn; no repeated packing",
+        "runtime_database_contract": "fresh unique run_id; runtime identifiers excluded from v4 prompts",
         "task_summaries": task_summaries,
     }
     _atomic_write(output_dir / output_filename, records_text)
@@ -362,9 +379,9 @@ def build_verified_sft_corpus(
         "task_source_dataset_id": TASK_DATASET_ID,
         "task_dataset_manifest_sha256": _sha256(task_root / "dataset_manifest.json"),
         "seed_manifest_sha256": _sha256(Path(seed_dir) / "manifest.json"),
-        "prompt_contract": prompt_builder.PROMPT_VERSION,
-        "prompt_system_sha256": prompt_builder.prompt_sha256(),
-        "context_contract": prompt_builder.context_contract(),
+        "prompt_contract": PROMPT_CONTRACT,
+        "prompt_system_sha256": prompt_builder.prompt_sha256(PROMPT_CONTRACT),
+        "context_contract": prompt_builder.context_contract(PROMPT_CONTRACT),
         "train": train,
         "dev": dev,
         "train_sha256": _sha256(output_dir / "train.jsonl"),
@@ -400,8 +417,16 @@ def validate_verified_sft_corpus(
         errors.append("SFT corpus schema or dataset id mismatch")
     if manifest.get("task_source_dataset_id") != TASK_DATASET_ID:
         errors.append("SFT task source dataset id mismatch")
-    if manifest.get("prompt_contract") != prompt_builder.PROMPT_VERSION:
+    if manifest.get("prompt_contract") != PROMPT_CONTRACT:
         errors.append("SFT prompt contract mismatch")
+    if manifest.get("prompt_system_sha256") != prompt_builder.prompt_sha256(
+        PROMPT_CONTRACT
+    ):
+        errors.append("SFT prompt system hash mismatch")
+    if manifest.get("context_contract") != prompt_builder.context_contract(
+        PROMPT_CONTRACT
+    ):
+        errors.append("SFT context contract mismatch")
     if manifest.get("repetition_policy") != "none":
         errors.append("SFT corpus repetition policy is not none")
     expected_task_manifest_hash = _sha256(task_root / "dataset_manifest.json")
@@ -446,6 +471,12 @@ def validate_verified_sft_corpus(
             for row in rows
         ):
             errors.append(f"{split} contains rows without one assistant completion")
+        if any(
+            len(row.get("messages", [])) < 2
+            or "## Public Evidence Memory" not in row["messages"][-2].get("content", "")
+            for row in rows
+        ):
+            errors.append(f"{split} contains rows outside the public evidence-memory prompt")
         task_ids = {row.get("task_id") for row in rows}
         split_task_ids[split] = task_ids
         split_manifest = manifest.get(split, {})
@@ -461,6 +492,24 @@ def validate_verified_sft_corpus(
             errors.append(f"{split} task coverage disagrees with rows")
         if require_full_roster and len(task_ids) != expected_tasks:
             errors.append(f"{split} does not cover the full {expected_tasks}-task roster")
+        long_task_ids = {
+            row.get("task_id")
+            for row in rows
+            if row.get("task_family") == "highest_reliability_supplier"
+        }
+        for task_id in long_task_ids:
+            maximum_supplier_memories = max(
+                (
+                    row["messages"][-2]["content"].count('"path": "/suppliers/')
+                    for row in rows
+                    if row.get("task_id") == task_id
+                ),
+                default=0,
+            )
+            if maximum_supplier_memories < 3:
+                errors.append(
+                    f"{task_id} never retains all three public supplier observations"
+                )
         oracle_rows = {
             row["task_id"]: row
             for row in [

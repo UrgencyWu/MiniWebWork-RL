@@ -92,6 +92,10 @@ def test_verified_sft_corpus_is_unique_successful_and_reference_exact(tmp_path):
         dev_task_limit=4,
     )
     assert manifest["repetition_policy"] == "none"
+    assert manifest["prompt_contract"] == "browser_agent_v4_long_memory"
+    assert manifest["context_contract"]["evidence_memory_contract"] == (
+        "public_observation_v1"
+    )
     assert manifest["train"]["task_count"] == 4
     assert manifest["dev"]["task_count"] == 4
     assert manifest["train"]["sample_count"] == 47
@@ -115,3 +119,17 @@ def test_verified_sft_corpus_is_unique_successful_and_reference_exact(tmp_path):
         assert len(rows) == len({row["sample_id"] for row in rows})
         assert all(row["messages"][-1]["role"] == "assistant" for row in rows)
         assert all(row["split"] == split_name for row in rows)
+        long_rows = [
+            row
+            for row in rows
+            if row["task_family"] == "highest_reliability_supplier"
+        ]
+        assert long_rows
+        richest_prompt = max(
+            (row["messages"][-2]["content"] for row in long_rows),
+            key=lambda content: content.count('"path": "/suppliers/'),
+        )
+        assert richest_prompt.count('"path": "/suppliers/') == 3
+        assert "88%" in richest_prompt
+        assert "93%" in richest_prompt
+        assert "99%" in richest_prompt

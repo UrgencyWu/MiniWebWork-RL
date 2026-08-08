@@ -1,0 +1,149 @@
+{
+  "dataset_id": "m4_long_horizon_v2",
+  "horizon_audit": {
+    "isolation": {
+      "answer_signature": 360,
+      "constraint_signature": 432,
+      "product_signature": 108,
+      "supplier_signature": 108,
+      "world_signature": 108
+    },
+    "splits": {
+      "dev": {
+        "horizon_counts": {
+          "basic": 18,
+          "long": 18,
+          "medium": 36
+        },
+        "medium_long_fraction": 0.75,
+        "task_count": 72
+      },
+      "test": {
+        "horizon_counts": {
+          "basic": 30,
+          "long": 30,
+          "medium": 60
+        },
+        "medium_long_fraction": 0.75,
+        "task_count": 120
+      },
+      "train": {
+        "horizon_counts": {
+          "basic": 60,
+          "long": 60,
+          "medium": 120
+        },
+        "medium_long_fraction": 0.75,
+        "task_count": 240
+      }
+    },
+    "valid": true
+  },
+  "isolation_contract": {
+    "answer_signatures_disjoint_across_splits": true,
+    "constraint_signatures_disjoint_across_splits": true,
+    "product_ids_disjoint_across_splits": true,
+    "supplier_ids_disjoint_across_splits": true,
+    "test_role": "frozen_final_evaluation",
+    "worlds_disjoint_across_splits": true
+  },
+  "schema_version": "2.0",
+  "seed_manifest_sha256": "ee5124cd36fd66e932447c2d04b53b9f08caf3f9361739e11beba3af17c1bc9f",
+  "shortcut_audit": {
+    "balanced": true,
+    "contract": "correct long-task supplier must be balanced across visit positions 1,2,3",
+    "correct_supplier_visit_position_counts": {
+      "dev": {
+        "1": 6,
+        "2": 6,
+        "3": 6
+      },
+      "test": {
+        "1": 10,
+        "2": 10,
+        "3": 10
+      },
+      "train": {
+        "1": 20,
+        "2": 20,
+        "3": 20
+      }
+    },
+    "maximum_allowed_modulo3_agreement_fraction": 0.5,
+    "neutral_feasible_supplier_roles": [
+      "A",
+      "B",
+      "C"
+    ],
+    "non_periodic": true,
+    "supplier_visit_roles": [
+      "B",
+      "A",
+      "C"
+    ],
+    "winner_assignment_version": "split_balanced_sha256_permutation_v1",
+    "winner_role_counts": {
+      "dev": {
+        "A": 6,
+        "B": 6,
+        "C": 6
+      },
+      "test": {
+        "A": 10,
+        "B": 10,
+        "C": 10
+      },
+      "train": {
+        "A": 20,
+        "B": 20,
+        "C": 20
+      }
+    },
+    "world_index_modulo3_agreement_counts": {
+      "dev": 5,
+      "test": 8,
+      "train": 17
+    },
+    "world_index_modulo3_agreement_fraction": {
+      "dev": 0.2777777777777778,
+      "test": 0.26666666666666666,
+      "train": 0.2833333333333333
+    }
+  },
+  "spec_sha256": "d4c77e2c5ba0bb92094f53d3b1fd42f25943b936eec336151ac97955795922ec",
+  "split_files": {
+    "dev": {
+      "oracle_sha256": "50d66c8c44ae5232569fc0fd4e0c3440ac647f45fe8d4a9fd95be297cf01bdc0",
+      "public_sha256": "04a6fd8bdaff0e6abf1d13a848672e17580c583caacb6349b6c377a590cdf322",
+      "split_manifest_sha256": "eca683108b2f3f639cb7632722fb10fdb5b095118f8d40c0072ce837eca60d6d"
+    },
+    "test": {
+      "oracle_sha256": "d2a294bdc125d8eba08648ae4c88e56259e0faa72c6f0fe9595b0ecff67acf0e",
+      "public_sha256": "79ed99317eafe2656865f52535ba54527495c637164ead1f7737c7449d0c90f7",
+      "split_manifest_sha256": "2c034a995b49678ca9884526bef62ba2769479a8f699e16c1a9e692e2f08a475"
+    },
+    "train": {
+      "oracle_sha256": "145289a7eaf91eeb8be3ee785900358fa137ff66a718e329c63caa30da348954",
+      "public_sha256": "2145541f59930d9b09c8af71c7e46afa35183af9cbb8cf825a3a1fe795771639",
+      "split_manifest_sha256": "6147d54dac110a828bc9fec70ccd050ae763a158bc6b1b8637cb93404530e25c"
+    }
+  },
+  "split_task_counts": {
+    "dev": 72,
+    "test": 120,
+    "train": 240
+  },
+  "split_world_counts": {
+    "dev": 18,
+    "test": 30,
+    "train": 60
+  },
+  "task_count": 432,
+  "task_types": [
+    "exact_product",
+    "cheapest_feasible",
+    "highest_reliability_supplier",
+    "no_feasible_product"
+  ],
+  "world_count": 108
+}

@@ -7,13 +7,13 @@
 > 不是正式训练已经完成的声明；所有实现、性能 smoke test 和门禁通过后，
 > 才能冻结新的正式训练提交。
 >
-> 机器可读合同为 `data/m4_long_horizon_study_v1.json`。当前
+> 机器可读合同为 `data/m4_long_horizon_study_v2.json`。当前
 > `formal_submission_allowed=false`，因此任何正式 SFT、GRPO 或 step-aware
 > 训练作业都不得提交。逐项状态见 `M4_FORMAL_TRAINING_READINESS.md`。
 
 ## 0. 当前前置实现快照
 
-当前已经建立独立的 `m4_long_horizon_v1` 数据版本，不复用或覆盖旧
+当前已经建立独立的 `m4_long_horizon_v2` 数据版本，不复用或覆盖旧
 `m4_rlvr_v1`：
 
 - train/dev/test 分别为 240/72/120 个任务；
@@ -23,10 +23,25 @@
 - world、product、supplier、constraint 和 answer signature 跨 split 零重叠；
 - 18 步任务要求访问所有可行供应商的公开详情页，终态 verifier 会核验该
   工作流证据；直接猜中最终商品但跳过检查仍记为失败；
+- 三个可行供应商使用中性标识，可靠性最优角色由各 split 独立、严格均衡的
+  SHA-256 排列决定，不使用可从 world 编号外推的周期；正确供应商在
+  访问位置 1/2/3 上分别为 train 20/20/20、dev 6/6/6、test 10/10/10，禁止
+  通过固定后缀、名称或“最后访问项”解题；
+- 正式 prompt 为 `browser_agent_v4_long_memory`：除最近 5 个动作外，最多保留
+  8 个曾实际观察到的 supplier/product 公开页面摘要；摘要只取公开 path、
+  title 和 visible text，不读取 oracle、verifier、expected answer 或运行 ID；
+- prompt system SHA256 为
+  `239139aeb9f34af4c6f3460d86531f78c0d484983636e9743e69578b4eecf6f7`，上述
+  history/evidence/URL 限额同时写入 study manifest 并按字节 fail-closed；
 - dataset manifest SHA256 为
-  `ade9302269232a44bf92d28e8d9a357ef8e377509df09e69fdcf3c7cfe46fa5f`，
+  `a714e5cb8bec4c8a767087574d1d39baf9934b7cf70ee8df2eb49511f627c6a0`，
   seed manifest SHA256 为
-  `d5742a3af8588c235a1d81f623ad14b5f0d793d9c99ad2b8580becf2c52383fd`。
+  `938b25a643259e6724255fd6fe14d4808558c99eedf83ab2127d44133a49bfde`。
+
+`m4_long_horizon_v1` 与 `browser_agent_v3_compact` 已被前置审计判定为无效的
+正式候选：train/dev 的 78 个 long task 中，正确供应商全部固定为第三个访问项，
+而 prompt history 又不保留供应商页的可靠性证据。Job 1260 因此被主动取消；
+它只能作为“发现并阻断 shortcut”的诊断证据，不能进入 SFT 或在线训练血缘。
 
 Verified SFT 构建器会在真实浏览器环境逐 turn 回放 expert evidence，并要求
 实际动作序列、参考 trace SHA 和终态成功全部一致。小规模 train/dev 回放已经

@@ -22,6 +22,13 @@ def test_focused_manifest_is_preflight_only_and_excludes_algorithm_zoo():
     loaded = load_study_manifest()
     payload = loaded["payload"]
     assert payload["formal_submission_allowed"] is False
+    assert payload["prompt_contract"] == "browser_agent_v4_long_memory"
+    assert payload["prompt_system_sha256"] == (
+        "239139aeb9f34af4c6f3460d86531f78c0d484983636e9743e69578b4eecf6f7"
+    )
+    assert payload["prompt_context_contract"]["max_evidence_entries"] == 8
+    assert payload["dataset_contract"]["dataset_id"] == "m4_long_horizon_v2"
+    assert payload["dataset_contract"]["identifier_or_name_fixed_optimum_allowed"] is False
     assert FORMAL_METHODS == ("verified_sft", "multi_turn_grpo", "step_aware_gpo")
     assert ONLINE_METHODS == ("multi_turn_grpo", "step_aware_gpo")
     assert set(payload["formal_matrix"]["excluded_formal_algorithms"]) == {"rsft", "rloo", "gspo"}
@@ -31,10 +38,10 @@ def test_focused_manifest_is_preflight_only_and_excludes_algorithm_zoo():
 def test_study_manifest_binds_exact_checked_dataset_and_seed():
     binding = assert_dataset_binding()
     assert binding["dataset_manifest_sha256"] == (
-        "ade9302269232a44bf92d28e8d9a357ef8e377509df09e69fdcf3c7cfe46fa5f"
+        "a714e5cb8bec4c8a767087574d1d39baf9934b7cf70ee8df2eb49511f627c6a0"
     )
     assert binding["seed_manifest_sha256"] == (
-        "d5742a3af8588c235a1d81f623ad14b5f0d793d9c99ad2b8580becf2c52383fd"
+        "938b25a643259e6724255fd6fe14d4808558c99eedf83ab2127d44133a49bfde"
     )
 
 

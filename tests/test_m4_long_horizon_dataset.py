@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from contextlib import closing
 from pathlib import Path
 
@@ -77,6 +78,61 @@ def test_reference_traces_are_7_10_12_18_and_long_requires_three_supplier_visits
         step.get("target_testid", "").startswith("supplier-link-")
         for step in long_task["reference_trace"]
     ) == 3
+
+
+def test_long_task_correct_supplier_has_no_fixed_role_or_visit_position(tmp_path: Path):
+    task_root, _, manifest = _build(tmp_path)
+    assert manifest["shortcut_audit"] == {
+        "contract": "correct long-task supplier must be balanced across visit positions 1,2,3",
+        "neutral_feasible_supplier_roles": ["A", "B", "C"],
+        "supplier_visit_roles": ["B", "A", "C"],
+        "winner_assignment_version": "split_balanced_sha256_permutation_v1",
+        "winner_role_counts": {
+            "train": {"A": 20, "B": 20, "C": 20},
+            "dev": {"A": 6, "B": 6, "C": 6},
+            "test": {"A": 10, "B": 10, "C": 10},
+        },
+        "correct_supplier_visit_position_counts": {
+            "train": {"1": 20, "2": 20, "3": 20},
+            "dev": {"1": 6, "2": 6, "3": 6},
+            "test": {"1": 10, "2": 10, "3": 10},
+        },
+        "balanced": True,
+        "world_index_modulo3_agreement_counts": {
+            "train": 17,
+            "dev": 5,
+            "test": 8,
+        },
+        "world_index_modulo3_agreement_fraction": {
+            "train": 17 / 60,
+            "dev": 5 / 18,
+            "test": 8 / 30,
+        },
+        "maximum_allowed_modulo3_agreement_fraction": 0.5,
+        "non_periodic": True,
+    }
+
+    train_oracle = [
+        json.loads(line)
+        for line in (task_root / "train" / "train_oracle.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    positions = Counter()
+    winning_roles = Counter()
+    modulo_agreements = 0
+    for row in train_oracle:
+        if row["task_type"] != "highest_reliability_supplier":
+            continue
+        supplier_id = row["expected_product_id"].replace("PRD", "SUP", 1)
+        required = row["workflow_requirements"]["required_supplier_detail_ids"]
+        positions[required.index(supplier_id) + 1] += 1
+        winning_roles[supplier_id.rsplit("-", 1)[-1]] += 1
+        simple_role = ("A", "B", "C")[(int(row["world_id"][1:]) - 1) % 3]
+        modulo_agreements += supplier_id.endswith(f"-{simple_role}")
+    assert positions == Counter({1: 20, 2: 20, 3: 20})
+    assert winning_roles == Counter({"A": 20, "B": 20, "C": 20})
+    assert modulo_agreements == 17
 
 
 def test_supplier_and_world_ids_are_disjoint_across_splits(tmp_path: Path):

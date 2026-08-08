@@ -52,17 +52,20 @@ class ModelActionAttempt:
 class QwenBrowserAgent:
     """Build a canonical prompt, invoke Qwen, and parse one JSON action."""
 
-    def __init__(self, backend, prompt_builder, output_parser):
+    def __init__(self, backend, prompt_builder, output_parser, *, prompt_version: str | None = None):
         self._backend = backend
         self._prompt_builder = prompt_builder
         self._parser = output_parser
+        self._prompt_version = prompt_version
         self._history: list[dict] = []
+        self._evidence_memory: list[dict] = []
         self._model_turn = 0
         self._task_id = ""
         self._instruction = ""
 
     def reset(self, task_id: str, instruction: str) -> None:
         self._history = []
+        self._evidence_memory = []
         self._model_turn = 0
         self._task_id = task_id
         self._instruction = instruction
@@ -72,7 +75,27 @@ class QwenBrowserAgent:
         self._model_turn += 1
         attempt = ModelActionAttempt(model_turn_index=self._model_turn)
 
-        messages = self._prompt_builder.build_messages(observation, self._history)
+        if self._prompt_version is None:
+            # Preserve the historical constructor and byte-level v3 prompt
+            # behavior for all existing evaluation and diagnostic callers.
+            messages = self._prompt_builder.build_messages(observation, self._history)
+        else:
+            updater = getattr(self._prompt_builder, "update_evidence_memory", None)
+            if not callable(updater):
+                raise AttributeError(
+                    "versioned prompt builder must implement update_evidence_memory"
+                )
+            updater(
+                self._evidence_memory,
+                observation,
+                version=self._prompt_version,
+            )
+            messages = self._prompt_builder.build_messages(
+                observation,
+                self._history,
+                version=self._prompt_version,
+                evidence_memory=self._evidence_memory,
+            )
         attempt.prompt_hash = self._prompt_builder.compute_message_hash(messages)
 
         generation = self._backend.generate(messages)
@@ -171,3 +194,13 @@ class QwenBrowserAgent:
     def history(self) -> tuple[dict, ...]:
         """Read-only view for diagnostics and tests."""
         return tuple(self._history)
+
+    @property
+    def evidence_memory(self) -> tuple[dict, ...]:
+        """Read-only public evidence retained by an explicit prompt version."""
+
+        return tuple(dict(entry) for entry in self._evidence_memory)
+
+    @property
+    def prompt_version(self) -> str | None:
+        return self._prompt_version

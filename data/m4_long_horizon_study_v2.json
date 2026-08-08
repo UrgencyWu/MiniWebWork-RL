@@ -1,11 +1,27 @@
 {
-  "schema_version": "m4_long_horizon_study_v1",
+  "schema_version": "m4_long_horizon_study_v2",
   "study_id": "m4_long_horizon_credit_v1",
   "lifecycle_state": "preflight",
   "formal_submission_allowed": false,
   "authoritative_protocol": "docs/M4_LONG_HORIZON_AGENT_RL_SCOPE.md",
   "research_question": "Under the same verified SFT initialization, task stream, K=4 sampling distribution, and 250000 generated action-token budget per seed, does turn-level macro plus anchor-state micro credit assignment improve over terminal-advantage-broadcast multi-turn GRPO, especially on medium and long browser tasks?",
-  "prompt_contract": "browser_agent_v3_compact",
+  "prompt_contract": "browser_agent_v4_long_memory",
+  "prompt_system_sha256": "239139aeb9f34af4c6f3460d86531f78c0d484983636e9743e69578b4eecf6f7",
+  "prompt_context_contract": {
+    "prompt_version": "browser_agent_v4_long_memory",
+    "max_visible_text_characters": 5000,
+    "history_window": 5,
+    "max_control_elements": 16,
+    "max_link_elements": 16,
+    "evidence_memory_contract": "public_observation_v1",
+    "max_evidence_entries": 8,
+    "max_evidence_text_characters_per_entry": 1000,
+    "evidence_page_types": [
+      "product_detail",
+      "supplier_detail"
+    ],
+    "current_url_contract": "path_only_without_origin_query_or_fragment"
+  },
   "output_contract": {
     "root": "outputs/m4_long_horizon_credit_v1",
     "preflight_root": "outputs/m4_long_horizon_credit_v1/preflight",
@@ -42,11 +58,11 @@
     ]
   },
   "dataset_contract": {
-    "dataset_id": "m4_long_horizon_v1",
-    "task_root": "data/tasks/m4_long_horizon_v1",
-    "dataset_manifest_sha256": "ade9302269232a44bf92d28e8d9a357ef8e377509df09e69fdcf3c7cfe46fa5f",
-    "seed_root": "data/seed_m4_long_horizon_v1",
-    "seed_manifest_sha256": "d5742a3af8588c235a1d81f623ad14b5f0d793d9c99ad2b8580becf2c52383fd",
+    "dataset_id": "m4_long_horizon_v2",
+    "task_root": "data/tasks/m4_long_horizon_v2",
+    "dataset_manifest_sha256": "a714e5cb8bec4c8a767087574d1d39baf9934b7cf70ee8df2eb49511f627c6a0",
+    "seed_root": "data/seed_m4_long_horizon_v2",
+    "seed_manifest_sha256": "938b25a643259e6724255fd6fe14d4808558c99eedf83ab2127d44133a49bfde",
     "split_counts": {
       "train": 240,
       "dev": 72,
@@ -79,6 +95,9 @@
       "constraint_signature",
       "answer_signature"
     ],
+    "correct_supplier_visit_position_contract": "balanced across positions 1,2,3 in every split",
+    "winner_assignment": "split_balanced_sha256_permutation_v1",
+    "identifier_or_name_fixed_optimum_allowed": false,
     "test_outcomes_available_during_preflight": false,
     "frozen_test_rollouts_per_task": 4
   },
@@ -88,6 +107,7 @@
     "completion_only_loss": true,
     "maximum_zero_label_fraction": 0.0,
     "repeat_examples_to_reach_token_target": false,
+    "prompt_evidence_memory": "bounded policy-visible supplier/product observations only",
     "selection_rule": "maximum non-OOM microbatch from 1,2,4,8 with fixed effective batch and at least 15 percent VRAM headroom",
     "stopping_rule": "preregistered epoch cap plus dev NLL/action/schema plateau"
   },
