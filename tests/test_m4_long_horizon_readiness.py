@@ -4,6 +4,7 @@ import pytest
 
 from miniwebwork.long_horizon_rl.readiness import (
     JobEvidence,
+    _relative_path,
     _percentile,
     collect_one_job_evidence,
     parse_sacct_record,
@@ -13,6 +14,13 @@ from miniwebwork.long_horizon_rl.readiness import (
 def test_percentile_uses_linear_interpolation():
     assert _percentile([0, 10, 20, 30], 0.5) == 15
     assert _percentile([0, 100], 0.95) == 95
+
+
+def test_relative_path_accepts_loader_string_paths(tmp_path):
+    path = tmp_path / "data" / "contract.json"
+    path.parent.mkdir()
+    path.write_text("{}", encoding="utf-8")
+    assert _relative_path(str(path), tmp_path) == "data/contract.json"
 
 
 def test_percentile_fails_closed_on_empty_samples():

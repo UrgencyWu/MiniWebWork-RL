@@ -93,6 +93,10 @@ def _run(command: Sequence[str], *, cwd: Path) -> str:
     ).stdout
 
 
+def _relative_path(value: str | Path, root: Path) -> str:
+    return str(Path(value).resolve().relative_to(root.resolve()))
+
+
 def tracked_file_manifest(repo_root: Path) -> dict[str, Any]:
     raw = subprocess.run(
         ["git", "ls-files", "-z"],
@@ -421,9 +425,9 @@ def build_readiness_manifest(
             **tracked,
         },
         "contracts": {
-            "study_manifest_path": str(study["path"].relative_to(root)),
+            "study_manifest_path": _relative_path(study["path"], root),
             "study_manifest_sha256": study["sha256"],
-            "runtime_manifest_path": str(runtime["path"].relative_to(root)),
+            "runtime_manifest_path": _relative_path(runtime["path"], root),
             "runtime_manifest_sha256": runtime["sha256"],
             "prompt_contract": PROMPT_CONTRACT,
             "prompt_sha256": sha256_file(PROMPT_PATH),
