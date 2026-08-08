@@ -34,6 +34,13 @@ EXPECTED_EVIDENCE_SCHEMAS = {
     "journal_schema": "m4_long_horizon_attempt_journal_v2",
     "iteration_schema": "m4_long_horizon_iteration_v1",
 }
+PARITY_THRESHOLDS = {
+    "behavior_sampling_maximum_absolute_difference": 1e-7,
+    "replay_mean_absolute_difference": 0.02,
+    "replay_p95_absolute_difference": 0.08,
+    "replay_maximum_absolute_difference": 0.18,
+    "mean_importance_ratio_absolute_deviation": 0.02,
+}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -83,8 +90,10 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
 
     generation = payload.get("generation_contract", {})
     _require(generation.get("backend") == "vllm_async", "generation backend drift")
+    _require(generation.get("request_output_kind") == "final_only", "generation output-kind drift")
     _require(generation.get("raw_logprobs_required") is True, "raw logprobs disabled")
     _require(generation.get("sampling_logprobs_required") is True, "sampling logprobs disabled")
+    _require(generation.get("flat_logprobs") is True, "flat logprobs disabled")
     _require(
         {
             "temperature": generation.get("temperature"),
@@ -94,12 +103,27 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         == {"temperature": 1.0, "top_p": 1.0, "top_k": 0},
         "sampling distribution drift",
     )
+    _require(
+        math.isclose(generation.get("gpu_memory_utilization"), 0.8),
+        "vLLM memory fraction drift",
+    )
     _require(generation.get("maximum_sequences") == 8, "vLLM maximum sequences drift")
+    _require(generation.get("enable_prefix_caching") is True, "prefix caching disabled")
+    _require(generation.get("enable_chunked_prefill") is True, "chunked prefill disabled")
     _require(generation.get("enable_sleep_mode") is True, "same-GPU sleep mode disabled")
     _require(generation.get("generation_during_learner") is False, "stale generation enabled")
 
     rollout = payload.get("rollout_contract", {})
     _require(rollout.get("browser_worker_candidates") == [1, 2, 4, 8], "worker candidates drift")
+    _require(
+        rollout.get("maximum_concurrent_k4_groups") == 2,
+        "concurrent K4 group count drift",
+    )
+    _require(rollout.get("persistent_browser_per_candidate") is True, "persistent browser disabled")
+    _require(
+        rollout.get("worker_bridge") == "threadsafe_sync_browser_to_main_asyncio_loop",
+        "browser worker bridge drift",
+    )
     _require(rollout.get("group_size") == GROUP_SIZE, "runtime K drift")
     _require(rollout.get("maximum_tasks_per_iteration") == MAX_TASKS_PER_ITERATION, "iteration task cap drift")
     _require(
@@ -112,6 +136,15 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         "group token reserve drift",
     )
     _require(
+        rollout.get("maximum_zero_token_no_progress_batches") == 3,
+        "zero-token retry limit drift",
+    )
+    _require(
+        rollout.get("zero_token_no_progress_failure")
+        == "fail_closed_job_exit_without_collection_freeze",
+        "zero-token failure policy drift",
+    )
+    _require(
         rollout.get("incomplete_or_invalid_group")
         == "retain_generated_token_cost_and_resample_entire_group",
         "invalid-group cost semantics drift",
@@ -122,6 +155,18 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         _require(learner.get(field) == expected, f"learner {field} drift")
     _require(learner.get("behavior_policy_staleness") == 0, "on-policy staleness drift")
     _require(learner.get("zero_advantage_group") == "skip_and_report", "zero-signal accounting drift")
+
+    parity = payload.get("parity_contract", {})
+    _require(
+        parity.get("thresholds_frozen_before_gpu_observation") is True,
+        "parity thresholds were not preregistered",
+    )
+    for field, expected in PARITY_THRESHOLDS.items():
+        _require(math.isclose(parity.get(field), expected), f"parity {field} drift")
+    _require(
+        parity.get("failure") == "fail_closed_before_optimizer_step",
+        "parity failure policy drift",
+    )
 
     evidence = payload.get("evidence_contract", {})
     for field, expected in EXPECTED_EVIDENCE_SCHEMAS.items():

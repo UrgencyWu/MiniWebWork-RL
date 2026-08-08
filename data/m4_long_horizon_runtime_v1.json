@@ -57,7 +57,9 @@
     "maximum_tasks_per_iteration": 32,
     "action_token_budget_per_method_seed": 250000,
     "budget_boundary": "before_starting_new_complete_group",
-    "maximum_group_token_reserve": 10240
+    "maximum_group_token_reserve": 10240,
+    "maximum_zero_token_no_progress_batches": 3,
+    "zero_token_no_progress_failure": "fail_closed_job_exit_without_collection_freeze"
   },
   "learner_contract": {
     "backend": "transformers_peft_same_gpu",
@@ -72,6 +74,16 @@
     "behavior_policy_staleness": 0,
     "effective_optimizer_token_numerator": "unique_generated_action_tokens_with_nonzero_advantage",
     "optimizer_token_fraction_denominator": "all_generated_action_tokens_including_invalid_and_zero_signal"
+  },
+  "parity_contract": {
+    "thresholds_frozen_before_gpu_observation": true,
+    "behavior_sampling_maximum_absolute_difference": 0.0000001,
+    "replay_mean_absolute_difference": 0.02,
+    "replay_p95_absolute_difference": 0.08,
+    "replay_maximum_absolute_difference": 0.18,
+    "mean_importance_ratio_absolute_deviation": 0.02,
+    "rationale": "initial replay must remain inside the PPO clip trust region; backend versus sampling is identity under the frozen no-warp sampler",
+    "failure": "fail_closed_before_optimizer_step"
   },
   "evidence_contract": {
     "run_identity_schema": "m4_long_horizon_run_identity_v2",

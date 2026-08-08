@@ -350,9 +350,13 @@ top_k = 0
 K = 4
 ```
 
-当前 raw/sampling mismatch 必须从语义上修复。正式阈值应由固定 adapter、固定输入
-的 backend parity smoke test 得到并在训练前冻结；不得为了让更多组进入梯度而
-事后放宽。每次 update 报告：
+当前 raw/sampling mismatch 必须从语义上修复。为避免观察 GPU 结果后选择门槛，
+正式阈值在首次 GPU parity smoke 前预注册为：behavior/sampling 最大绝对
+log-prob 差 `1e-7`；vLLM behavior 对 HF replay 的 mean/P95/max 绝对
+log-prob 差分别不超过 `0.02/0.08/0.18`；mean importance ratio 相对 1 的
+偏差不超过 `0.02`。其中 max `0.18` 小于 PPO `clip_epsilon=0.2` 对应的正向
+log-ratio 边界 `log(1.2)`；任一项失败均在 optimizer step 前 fail closed，必须
+修复 backend/tokenizer/adapter 语义，不得事后放宽。每次 update 报告：
 
 - behavior/replay 最大和分位 log-prob 差异；
 - importance ratio、clip fraction 和 approximate KL；
