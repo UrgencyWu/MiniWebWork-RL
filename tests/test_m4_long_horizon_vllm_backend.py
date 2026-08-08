@@ -34,6 +34,7 @@ def test_vllm_engine_kwargs_freeze_raw_logprobs_same_gpu_lora_and_batching():
     assert kwargs["max_num_seqs"] == 8
     assert kwargs["enable_prefix_caching"] is True
     assert kwargs["enable_chunked_prefill"] is True
+    assert kwargs["enforce_eager"] is True
     assert kwargs["enable_sleep_mode"] is True
     assert kwargs["generation_config"] == "vllm"
 
@@ -45,6 +46,7 @@ def test_vllm_engine_kwargs_freeze_raw_logprobs_same_gpu_lora_and_batching():
         ("max_new_tokens", 256, "token cap"),
         ("gpu_memory_utilization", 0.95, "memory"),
         ("max_num_seqs", 16, "sequence"),
+        ("enforce_eager", False, "eager"),
     ],
 )
 def test_vllm_config_rejects_resource_or_sampling_contract_drift(field, value, error):

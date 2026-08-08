@@ -15,6 +15,10 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
     assert payload["formal_submission_allowed"] is False
     assert payload["generation_contract"]["backend"] == "vllm_async"
     assert payload["generation_contract"]["generation_during_learner"] is False
+    assert payload["generation_contract"]["execution_mode"] == (
+        "eager_due_vllm017_qwen35_packed_lora_warmup_incompatibility"
+    )
+    assert payload["generation_contract"]["cuda_graphs_enabled"] is False
     assert payload["generation_contract"]["cuda_allocator_environment"] == (
         "pytorch_allocator_aliases_unset_for_vllm_cumem_sleep"
     )
@@ -48,6 +52,8 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
         ("generation_contract", "temperature", 0.7, "sampling"),
         ("generation_contract", "generation_during_learner", True, "stale"),
         ("generation_contract", "cuda_allocator_environment", "expandable", "allocator"),
+        ("generation_contract", "execution_mode", "cuda_graph", "execution-mode"),
+        ("generation_contract", "cuda_graphs_enabled", True, "CUDA graphs"),
         ("rollout_contract", "group_size", 8, "K drift"),
         ("rollout_contract", "action_token_budget_per_method_seed", 200000, "budget"),
         ("rollout_contract", "maximum_concurrent_k4_groups", 3, "concurrent"),

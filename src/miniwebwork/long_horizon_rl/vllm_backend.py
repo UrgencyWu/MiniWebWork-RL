@@ -56,6 +56,7 @@ class VLLMBackendConfig:
     max_new_tokens: int = MAX_NEW_TOKENS
     gpu_memory_utilization: float = 0.8
     max_num_seqs: int = 8
+    enforce_eager: bool = True
     adapter_id: int = 1
     stream_interval: int = 8
 
@@ -72,6 +73,7 @@ class VLLMBackendConfig:
         _require(self.max_new_tokens == MAX_NEW_TOKENS, "vLLM turn token cap drift")
         _require(math.isclose(self.gpu_memory_utilization, 0.8), "vLLM memory fraction drift")
         _require(self.max_num_seqs == 8, "vLLM maximum sequence count drift")
+        _require(self.enforce_eager is True, "vLLM Qwen3.5 LoRA eager gate disabled")
         _require(self.adapter_id == 1, "vLLM adapter id drift")
         _require(self.stream_interval == 8, "vLLM stream interval drift")
         if check_adapter_files:
@@ -89,6 +91,11 @@ class VLLMBackendConfig:
             "max_model_len": self.max_model_len,
             "gpu_memory_utilization": self.gpu_memory_utilization,
             "max_num_seqs": self.max_num_seqs,
+            # vLLM 0.17 dummy-LoRA CUDA-graph warm-up treats Qwen3.5's four
+            # in_proj_qkvz slices as the two logical HF checkpoint modules and
+            # fails before engine startup. Eager mode bypasses only that graph
+            # capture; real LoRA loading, async batching, and sleep/wake remain.
+            "enforce_eager": self.enforce_eager,
             "max_logprobs": 1,
             "logprobs_mode": "raw_logprobs",
             "language_model_only": True,

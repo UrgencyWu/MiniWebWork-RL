@@ -129,6 +129,12 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
     _require(generation.get("maximum_sequences") == 8, "vLLM maximum sequences drift")
     _require(generation.get("enable_prefix_caching") is True, "prefix caching disabled")
     _require(generation.get("enable_chunked_prefill") is True, "chunked prefill disabled")
+    _require(
+        generation.get("execution_mode")
+        == "eager_due_vllm017_qwen35_packed_lora_warmup_incompatibility",
+        "vLLM execution-mode drift",
+    )
+    _require(generation.get("cuda_graphs_enabled") is False, "vLLM CUDA graphs re-enabled")
     _require(generation.get("enable_sleep_mode") is True, "same-GPU sleep mode disabled")
     _require(
         generation.get("cuda_allocator_environment")
