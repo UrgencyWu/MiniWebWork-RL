@@ -12,6 +12,7 @@ from typing import Any, Mapping, Sequence
 import torch
 
 from ..m4_long_horizon_protocol import GROUP_SIZE, MAX_SEQUENCE_LENGTH, ONLINE_LEARNER_CONFIG
+from .adapter_view import build_vllm_adapter_view
 from .contracts import (
     RunIdentity,
     directory_sha256,
@@ -610,7 +611,7 @@ def train_policy_groups(
     )
     denominator = max(1, metric_tokens)
     return {
-        "schema_version": "m4_long_horizon_learner_report_v1",
+        "schema_version": "m4_long_horizon_learner_report_v2",
         "identity_sha256": identity.sha256,
         "collection_sha256": collection_sha256,
         "method": method,
@@ -711,6 +712,16 @@ def build_or_load_policy_optimizer(
             payload.get("adapter_sha256") == identity.input_adapter_sha256,
             "online optimizer/adapter lineage mismatch",
         )
+        _require(
+            payload.get("rollout_adapter_sha256")
+            == identity.input_rollout_adapter_sha256,
+            "online optimizer/rollout-adapter lineage mismatch",
+        )
+        _require(
+            payload.get("adapter_semantic_sha256")
+            == identity.input_adapter_semantic_sha256,
+            "online optimizer/adapter-semantic lineage mismatch",
+        )
         optimizer_state = payload.get("optimizer_state_dict")
         if optimizer_state is not None:
             optimizer.load_state_dict(optimizer_state)
@@ -732,6 +743,8 @@ def create_bootstrap_optimizer_artifact(
         "schema_version": LEARNER_OPTIMIZER_SCHEMA,
         "input_identity_sha256": identity.sha256,
         "adapter_sha256": identity.input_adapter_sha256,
+        "rollout_adapter_sha256": identity.input_rollout_adapter_sha256,
+        "adapter_semantic_sha256": identity.input_adapter_semantic_sha256,
         "optimizer_state_dict": None,
         "optimizer_steps": 0,
         "initialization": "fresh_adamw_at_first_learner_phase",
@@ -758,32 +771,63 @@ def save_policy_update_artifacts(
     identity: RunIdentity,
     learner_report: Mapping[str, Any],
     output_adapter: Path,
+    output_rollout_adapter: Path,
     output_optimizer: Path,
+    base_model: Path,
     input_adapter: Path,
     input_optimizer: Path,
 ) -> dict[str, Any]:
     """Write learner outputs inside an uncommitted iteration stage."""
 
     adapter_destination = Path(output_adapter).expanduser().resolve()
+    rollout_adapter_destination = Path(output_rollout_adapter).expanduser().resolve()
     optimizer_destination = Path(output_optimizer).expanduser().resolve()
     _require(not adapter_destination.exists(), "output adapter path already exists")
+    _require(
+        not rollout_adapter_destination.exists(),
+        "output rollout adapter path already exists",
+    )
     _require(not optimizer_destination.exists(), "output optimizer path already exists")
     updates = int(learner_report.get("optimizer_updates", -1))
     if updates == 0:
         shutil.copytree(Path(input_adapter).expanduser().resolve(), adapter_destination)
+    else:
+        model.save_pretrained(adapter_destination, safe_serialization=True)
+        tokenizer.save_pretrained(adapter_destination)
+    rollout_audit = build_vllm_adapter_view(
+        source_adapter=adapter_destination,
+        destination=rollout_adapter_destination,
+        base_model=Path(base_model).expanduser().resolve(),
+    )
+    artifact_audit = {
+        "output_adapter_sha256": directory_sha256(adapter_destination),
+        "output_rollout_adapter_sha256": rollout_audit[
+            "view_directory_sha256"
+        ],
+        "output_adapter_semantic_sha256": rollout_audit[
+            "semantic_tensor_sha256"
+        ],
+    }
+    if updates == 0:
         source_optimizer = Path(input_optimizer).expanduser().resolve()
         if source_optimizer.is_dir():
             shutil.copytree(source_optimizer, optimizer_destination)
         else:
             shutil.copy2(source_optimizer, optimizer_destination)
     else:
-        model.save_pretrained(adapter_destination, safe_serialization=True)
-        tokenizer.save_pretrained(adapter_destination)
         payload = {
             "schema_version": LEARNER_OPTIMIZER_SCHEMA,
             "input_identity_sha256": identity.sha256,
-            "adapter_sha256": directory_sha256(adapter_destination),
-            "learner_report_sha256": sha256_json(dict(learner_report)),
+            "adapter_sha256": artifact_audit["output_adapter_sha256"],
+            "rollout_adapter_sha256": artifact_audit[
+                "output_rollout_adapter_sha256"
+            ],
+            "adapter_semantic_sha256": artifact_audit[
+                "output_adapter_semantic_sha256"
+            ],
+            "learner_report_sha256": sha256_json(
+                dict(learner_report) | artifact_audit
+            ),
             "optimizer_state_dict": optimizer.state_dict(),
         }
         torch.save(payload, optimizer_destination)
@@ -798,7 +842,7 @@ def save_policy_update_artifacts(
         finally:
             os.close(directory_descriptor)
     return {
-        "output_adapter_sha256": directory_sha256(adapter_destination),
+        **artifact_audit,
         "output_optimizer_sha256": (
             directory_sha256(optimizer_destination)
             if optimizer_destination.is_dir()

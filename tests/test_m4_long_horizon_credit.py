@@ -38,6 +38,8 @@ def _identity(method: str = STEP_AWARE_METHOD) -> RunIdentity:
         base_model_manifest_sha256="8" * 64,
         runtime_contract_sha256="9" * 64,
         input_adapter_sha256="6" * 64,
+        input_rollout_adapter_sha256="a" * 64,
+        input_adapter_semantic_sha256="b" * 64,
     )
 
 
@@ -94,6 +96,8 @@ def _turn(identity: RunIdentity, rollout_index: int, turn_index: int, *, shared:
         "sampling_seed": 2026080100 + rollout_index * 20 + turn_index,
         "generation_backend": "vllm_async",
         "adapter_sha256": identity.input_adapter_sha256,
+        "rollout_adapter_sha256": identity.input_rollout_adapter_sha256,
+        "adapter_semantic_sha256": identity.input_adapter_semantic_sha256,
         "rendered_prompt_sha256": "7" * 64,
         "prompt_token_ids": prompt_ids,
         "prompt_token_sha256": token_ids_sha256(prompt_ids),
@@ -128,6 +132,8 @@ def _group(method: str, rewards=(1.0, 0.0, 1.0, 0.0)) -> dict:
             "task_id": "TASK-1",
             "policy_version": "policy_0000",
             "adapter_sha256": identity.input_adapter_sha256,
+            "rollout_adapter_sha256": identity.input_rollout_adapter_sha256,
+            "adapter_semantic_sha256": identity.input_adapter_semantic_sha256,
             "rollout_index": rollout_index,
             "rollout_valid": True,
             "success": reward == 1.0,

@@ -19,11 +19,11 @@ from ..m4_long_horizon_protocol import (
     STUDY_ID,
 )
 
-RUN_IDENTITY_SCHEMA = "m4_long_horizon_run_identity_v2"
-TURN_SCHEMA = "m4_long_horizon_turn_evidence_v2"
-TRAJECTORY_SCHEMA = "m4_long_horizon_trajectory_v2"
-GROUP_SCHEMA = "m4_long_horizon_group_v2"
-COLLECTION_SCHEMA = "m4_long_horizon_collection_v2"
+RUN_IDENTITY_SCHEMA = "m4_long_horizon_run_identity_v3"
+TURN_SCHEMA = "m4_long_horizon_turn_evidence_v3"
+TRAJECTORY_SCHEMA = "m4_long_horizon_trajectory_v3"
+GROUP_SCHEMA = "m4_long_horizon_group_v3"
+COLLECTION_SCHEMA = "m4_long_horizon_collection_v3"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 GIT_OBJECT_ID_PATTERN = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 POLICY_VERSION_PATTERN = re.compile(r"^policy_[0-9]{4,}$")
@@ -237,6 +237,8 @@ class RunIdentity:
     base_model_manifest_sha256: str
     runtime_contract_sha256: str
     input_adapter_sha256: str
+    input_rollout_adapter_sha256: str
+    input_adapter_semantic_sha256: str
     group_size: int = GROUP_SIZE
     temperature: float = 1.0
     top_p: float = 1.0
@@ -268,6 +270,14 @@ class RunIdentity:
         _require_sha256(self.base_model_manifest_sha256, "base_model_manifest_sha256")
         _require_sha256(self.runtime_contract_sha256, "runtime_contract_sha256")
         _require_sha256(self.input_adapter_sha256, "input_adapter_sha256")
+        _require_sha256(
+            self.input_rollout_adapter_sha256,
+            "input_rollout_adapter_sha256",
+        )
+        _require_sha256(
+            self.input_adapter_semantic_sha256,
+            "input_adapter_semantic_sha256",
+        )
         _require(self.group_size == GROUP_SIZE, "run group size drift")
         _require(math.isclose(self.temperature, 1.0, abs_tol=1e-12), "temperature drift")
         _require(math.isclose(self.top_p, 1.0, abs_tol=1e-12), "top_p drift")
@@ -318,6 +328,14 @@ def validate_turn_evidence(turn: Mapping[str, Any], identity: RunIdentity | None
     ):
         _require_int(turn.get(field), field)
     _require_sha256(turn.get("adapter_sha256"), "turn adapter_sha256")
+    _require_sha256(
+        turn.get("rollout_adapter_sha256"),
+        "turn rollout_adapter_sha256",
+    )
+    _require_sha256(
+        turn.get("adapter_semantic_sha256"),
+        "turn adapter_semantic_sha256",
+    )
     _require_sha256(turn.get("rendered_prompt_sha256"), "rendered_prompt_sha256")
     prompt_ids = turn.get("prompt_token_ids")
     generated_ids = turn.get("generated_token_ids")
@@ -354,6 +372,16 @@ def validate_turn_evidence(turn: Mapping[str, Any], identity: RunIdentity | None
             "turn/identity policy mismatch",
         )
         _require(turn["adapter_sha256"] == identity.input_adapter_sha256, "turn/identity adapter mismatch")
+        _require(
+            turn["rollout_adapter_sha256"]
+            == identity.input_rollout_adapter_sha256,
+            "turn/identity rollout adapter mismatch",
+        )
+        _require(
+            turn["adapter_semantic_sha256"]
+            == identity.input_adapter_semantic_sha256,
+            "turn/identity adapter semantic mismatch",
+        )
     return dict(turn)
 
 
@@ -365,7 +393,17 @@ def validate_trajectory_evidence(
 ) -> dict[str, Any]:
     _require(isinstance(trajectory, Mapping), "trajectory must be a mapping")
     _require(trajectory.get("schema_version") == TRAJECTORY_SCHEMA, "trajectory schema drift")
-    for field in ("study_id", "method", "trajectory_id", "group_id", "task_id", "policy_version", "adapter_sha256"):
+    for field in (
+        "study_id",
+        "method",
+        "trajectory_id",
+        "group_id",
+        "task_id",
+        "policy_version",
+        "adapter_sha256",
+        "rollout_adapter_sha256",
+        "adapter_semantic_sha256",
+    ):
         _require(isinstance(trajectory.get(field), str) and trajectory[field], f"trajectory lacks {field}")
     _require(trajectory["study_id"] == STUDY_ID, "trajectory study id drift")
     _require(trajectory["method"] in ONLINE_METHODS, "trajectory method drift")
@@ -373,6 +411,14 @@ def validate_trajectory_evidence(
     _require_int(trajectory.get("iteration_index"), "trajectory iteration_index")
     _require_int(trajectory.get("attempt_index"), "trajectory attempt_index")
     _require_sha256(trajectory["adapter_sha256"], "trajectory adapter_sha256")
+    _require_sha256(
+        trajectory["rollout_adapter_sha256"],
+        "trajectory rollout_adapter_sha256",
+    )
+    _require_sha256(
+        trajectory["adapter_semantic_sha256"],
+        "trajectory adapter_semantic_sha256",
+    )
     _require_int(trajectory.get("rollout_index"), "trajectory rollout_index")
     rollout_valid = trajectory.get("rollout_valid") is True
     if require_infra_valid:
@@ -400,10 +446,24 @@ def validate_trajectory_evidence(
         _require(turn["rollout_index"] == trajectory["rollout_index"], "turn rollout index mismatch")
         _require(turn["policy_version"] == trajectory["policy_version"], "turn/trajectory policy mismatch")
         _require(turn["adapter_sha256"] == trajectory["adapter_sha256"], "turn/trajectory adapter mismatch")
+        _require(
+            turn["rollout_adapter_sha256"]
+            == trajectory["rollout_adapter_sha256"],
+            "turn/trajectory rollout adapter mismatch",
+        )
+        _require(
+            turn["adapter_semantic_sha256"]
+            == trajectory["adapter_semantic_sha256"],
+            "turn/trajectory adapter semantic mismatch",
+        )
         _require(turn["turn_index"] == index, "trajectory turn indices are not contiguous")
     expected_tokens = sum(len(turn["generated_token_ids"]) for turn in turns)
     _require(trajectory.get("generated_action_tokens") == expected_tokens, "trajectory token count mismatch")
     if identity is not None:
+        identity.validate()
+        _require(trajectory["study_id"] == identity.study_id, "trajectory/identity study mismatch")
+        _require(trajectory["method"] == identity.method, "trajectory/identity method mismatch")
+        _require(trajectory["seed"] == identity.seed, "trajectory/identity seed mismatch")
         _require(
             trajectory["iteration_index"] == identity.iteration_index,
             "trajectory/identity iteration mismatch",
@@ -411,6 +471,20 @@ def validate_trajectory_evidence(
         _require(
             trajectory["policy_version"] == identity.policy_version,
             "trajectory/identity policy mismatch",
+        )
+        _require(
+            trajectory["adapter_sha256"] == identity.input_adapter_sha256,
+            "trajectory/identity adapter mismatch",
+        )
+        _require(
+            trajectory["rollout_adapter_sha256"]
+            == identity.input_rollout_adapter_sha256,
+            "trajectory/identity rollout adapter mismatch",
+        )
+        _require(
+            trajectory["adapter_semantic_sha256"]
+            == identity.input_adapter_semantic_sha256,
+            "trajectory/identity adapter semantic mismatch",
         )
     return dict(trajectory)
 
@@ -433,6 +507,14 @@ def validate_committed_group(
     _require_int(group.get("iteration_index"), "group iteration_index")
     _require_int(group.get("attempt_index"), "group attempt_index")
     _require_sha256(group.get("adapter_sha256"), "group adapter_sha256")
+    _require_sha256(
+        group.get("rollout_adapter_sha256"),
+        "group rollout_adapter_sha256",
+    )
+    _require_sha256(
+        group.get("adapter_semantic_sha256"),
+        "group adapter_semantic_sha256",
+    )
     _require(group.get("K") == GROUP_SIZE, "committed group K drift")
     trajectories = group.get("trajectories")
     _require(isinstance(trajectories, list) and len(trajectories) == GROUP_SIZE, "committed group requires exactly K trajectories")
@@ -443,11 +525,15 @@ def validate_committed_group(
     for field in (
         "study_id", "method", "seed", "iteration_index", "attempt_index", "group_id",
         "task_id", "policy_version", "adapter_sha256",
+        "rollout_adapter_sha256", "adapter_semantic_sha256",
     ):
         values = {trajectory[field] for trajectory in trajectories}
         _require(values == {group.get(field)}, f"committed group {field} mismatch")
     if identity is not None:
         _require(group.get("identity_sha256") == identity.sha256, "group run identity mismatch")
+        _require(group.get("study_id") == identity.study_id, "group/identity study mismatch")
+        _require(group.get("method") == identity.method, "group/identity method mismatch")
+        _require(group.get("seed") == identity.seed, "group/identity seed mismatch")
         _require(
             group.get("iteration_index") == identity.iteration_index,
             "group/identity iteration mismatch",
@@ -455,6 +541,20 @@ def validate_committed_group(
         _require(
             group.get("policy_version") == identity.policy_version,
             "group/identity policy mismatch",
+        )
+        _require(
+            group.get("adapter_sha256") == identity.input_adapter_sha256,
+            "group/identity adapter mismatch",
+        )
+        _require(
+            group.get("rollout_adapter_sha256")
+            == identity.input_rollout_adapter_sha256,
+            "group/identity rollout adapter mismatch",
+        )
+        _require(
+            group.get("adapter_semantic_sha256")
+            == identity.input_adapter_semantic_sha256,
+            "group/identity adapter semantic mismatch",
         )
     expected_tokens = sum(trajectory["generated_action_tokens"] for trajectory in trajectories)
     _require(group.get("generated_action_tokens") == expected_tokens, "group token count mismatch")

@@ -75,7 +75,7 @@ def admit_next_group(
 
 
 class RolloutEvidenceWriter:
-    """Convert one browser episode's two callbacks into immutable v2 evidence."""
+    """Convert one browser episode's two callbacks into immutable v3 evidence."""
 
     def __init__(
         self,
@@ -118,6 +118,20 @@ class RolloutEvidenceWriter:
             isinstance(turn.get("sampling_seed"), int) and turn["sampling_seed"] >= 0,
             "turn sampling seed is invalid",
         )
+        _require(
+            turn.get("adapter_sha256") == self.identity.input_adapter_sha256,
+            "raw rollout canonical adapter mismatch",
+        )
+        _require(
+            turn.get("rollout_adapter_sha256")
+            == self.identity.input_rollout_adapter_sha256,
+            "raw rollout adapter view mismatch",
+        )
+        _require(
+            turn.get("adapter_semantic_sha256")
+            == self.identity.input_adapter_semantic_sha256,
+            "raw rollout adapter semantic mismatch",
+        )
         return turn_index
 
     def on_turn_generated(self, raw_turn: Mapping[str, Any]) -> dict[str, Any]:
@@ -137,6 +151,8 @@ class RolloutEvidenceWriter:
             sampling_seed=turn["sampling_seed"],
             policy_version=self.identity.policy_version,
             adapter_sha256=self.identity.input_adapter_sha256,
+            rollout_adapter_sha256=self.identity.input_rollout_adapter_sha256,
+            adapter_semantic_sha256=self.identity.input_adapter_semantic_sha256,
             generated_token_ids=generated_ids,
         )
         self._charged_turns.add(turn_index)
@@ -185,6 +201,8 @@ class RolloutEvidenceWriter:
             "sampling_seed": turn["sampling_seed"],
             "generation_backend": turn["generation_backend"],
             "adapter_sha256": self.identity.input_adapter_sha256,
+            "rollout_adapter_sha256": self.identity.input_rollout_adapter_sha256,
+            "adapter_semantic_sha256": self.identity.input_adapter_semantic_sha256,
             "rendered_prompt_sha256": turn["rendered_prompt_sha256"],
             "prompt_token_ids": list(prompt_ids),
             "prompt_token_sha256": token_ids_sha256(prompt_ids),
@@ -242,6 +260,8 @@ class RolloutEvidenceWriter:
             "task_id": self.task_id,
             "policy_version": self.identity.policy_version,
             "adapter_sha256": self.identity.input_adapter_sha256,
+            "rollout_adapter_sha256": self.identity.input_rollout_adapter_sha256,
+            "adapter_semantic_sha256": self.identity.input_adapter_semantic_sha256,
             "rollout_index": self.rollout_index,
             "rollout_valid": True,
             "success": reward == 1.0,

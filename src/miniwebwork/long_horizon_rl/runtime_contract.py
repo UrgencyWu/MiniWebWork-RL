@@ -27,14 +27,41 @@ from .sft_selection import SFT_SELECTION_PATH
 RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v1"
 RUNTIME_CONTRACT_PATH = PROJECT_ROOT / "data" / "m4_long_horizon_runtime_v1.json"
 EXPECTED_EVIDENCE_SCHEMAS = {
-    "run_identity_schema": "m4_long_horizon_run_identity_v2",
-    "turn_schema": "m4_long_horizon_turn_evidence_v2",
-    "trajectory_schema": "m4_long_horizon_trajectory_v2",
-    "group_schema": "m4_long_horizon_group_v2",
-    "collection_schema": "m4_long_horizon_collection_v2",
-    "journal_schema": "m4_long_horizon_attempt_journal_v2",
-    "iteration_schema": "m4_long_horizon_iteration_v1",
+    "run_identity_schema": "m4_long_horizon_run_identity_v3",
+    "turn_schema": "m4_long_horizon_turn_evidence_v3",
+    "trajectory_schema": "m4_long_horizon_trajectory_v3",
+    "group_schema": "m4_long_horizon_group_v3",
+    "collection_schema": "m4_long_horizon_collection_v3",
+    "journal_schema": "m4_long_horizon_attempt_journal_v3",
+    "iteration_schema": "m4_long_horizon_iteration_v2",
 }
+EXPECTED_ADAPTER_VIEW_CONTRACT = {
+    "schema": "m4_qwen35_vllm_adapter_view_v1",
+    "mapping_contract": "qwen35_peft_model_layers_to_conditional_language_model_v1",
+    "canonical_namespace": "base_model.model.model.",
+    "rollout_namespace": "base_model.model.model.language_model.",
+    "expected_tensor_count": 256,
+    "expected_module_count": 128,
+    "normalized_semantic_sha256_required": True,
+    "atomic_derived_view_required": True,
+}
+EXPECTED_TURN_LINEAGE = [
+    "group_id",
+    "attempt_index",
+    "trajectory_id",
+    "rollout_index",
+    "turn_index",
+    "request_id",
+    "sampling_seed",
+    "policy_version",
+    "adapter_sha256",
+    "rollout_adapter_sha256",
+    "adapter_semantic_sha256",
+    "prompt_token_ids",
+    "generated_token_ids",
+    "behavior_logprobs",
+    "sampling_logprobs",
+]
 PARITY_THRESHOLDS = {
     "behavior_sampling_maximum_absolute_difference": 1e-7,
     "replay_mean_absolute_difference": 0.02,
@@ -143,6 +170,11 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
     )
     _require(generation.get("generation_during_learner") is False, "stale generation enabled")
 
+    _require(
+        payload.get("adapter_view_contract") == EXPECTED_ADAPTER_VIEW_CONTRACT,
+        "adapter-view contract drift",
+    )
+
     rollout = payload.get("rollout_contract", {})
     _require(rollout.get("browser_worker_candidates") == [1, 2, 4, 8], "worker candidates drift")
     _require(
@@ -202,6 +234,10 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
     for field, expected in EXPECTED_EVIDENCE_SCHEMAS.items():
         _require(evidence.get(field) == expected, f"{field} drift")
     _require(evidence.get("turn_charge_before_full_artifact") is True, "turn cost durability disabled")
+    _require(
+        evidence.get("required_turn_lineage") == EXPECTED_TURN_LINEAGE,
+        "required turn lineage drift",
+    )
 
     recovery = payload.get("recovery_contract", {})
     _require(recovery.get("identity_mismatch") == "fail_closed", "recovery identity gate weakened")

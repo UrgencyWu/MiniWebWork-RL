@@ -24,6 +24,9 @@ def test_vllm_engine_kwargs_freeze_raw_logprobs_same_gpu_lora_and_batching():
         base_model="/data/share/model/Qwen3.5-4B",
         adapter_path="/tmp/adapter",
         adapter_sha256="a" * 64,
+        rollout_adapter_path="/tmp/rollout-adapter",
+        rollout_adapter_sha256="b" * 64,
+        adapter_semantic_sha256="c" * 64,
         seed=20260801,
     )
     kwargs = config.engine_kwargs()
@@ -47,6 +50,7 @@ def test_vllm_engine_kwargs_freeze_raw_logprobs_same_gpu_lora_and_batching():
         ("gpu_memory_utilization", 0.95, "memory"),
         ("max_num_seqs", 16, "sequence"),
         ("enforce_eager", False, "eager"),
+        ("adapter_semantic_sha256", "z" * 64, "semantic hash"),
     ],
 )
 def test_vllm_config_rejects_resource_or_sampling_contract_drift(field, value, error):
@@ -54,6 +58,9 @@ def test_vllm_config_rejects_resource_or_sampling_contract_drift(field, value, e
         "base_model": "/data/share/model/Qwen3.5-4B",
         "adapter_path": "/tmp/adapter",
         "adapter_sha256": "a" * 64,
+        "rollout_adapter_path": "/tmp/rollout-adapter",
+        "rollout_adapter_sha256": "b" * 64,
+        "adapter_semantic_sha256": "c" * 64,
         "seed": 20260801,
         field: value,
     }
@@ -114,6 +121,8 @@ class _FakeAsyncEngine:
     def __init__(self):
         self.config = SimpleNamespace(base_model="base")
         self._adapter_sha256 = "a" * 64
+        self._rollout_adapter_sha256 = "b" * 64
+        self._adapter_semantic_sha256 = "c" * 64
 
     async def generate_messages(self, messages, *, request_id, sampling_seed):
         await asyncio.sleep(0.01)
@@ -128,6 +137,9 @@ class _FakeAsyncEngine:
             request_id=request_id,
             sampling_seed=sampling_seed,
             generation_backend=GENERATION_BACKEND,
+            adapter_sha256=self._adapter_sha256,
+            rollout_adapter_sha256=self._rollout_adapter_sha256,
+            adapter_semantic_sha256=self._adapter_semantic_sha256,
         )
 
 
@@ -166,6 +178,9 @@ def test_threadsafe_browser_bridges_share_one_async_loop_without_request_collisi
         assert len({result.request_id for result in results}) == 4
         assert len({result.sampling_seed for result in results}) == 4
         assert all(result.generation_backend == GENERATION_BACKEND for result in results)
+        assert all(result.adapter_sha256 == "a" * 64 for result in results)
+        assert all(result.rollout_adapter_sha256 == "b" * 64 for result in results)
+        assert all(result.adapter_semantic_sha256 == "c" * 64 for result in results)
         assert all(not result.error for result in results)
         assert all(math.isfinite(result.logprobs[0]) for result in results)
     finally:

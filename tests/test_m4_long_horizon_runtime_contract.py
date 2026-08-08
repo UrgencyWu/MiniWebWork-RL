@@ -3,6 +3,9 @@ import copy
 import pytest
 
 from miniwebwork.long_horizon_rl.runtime_contract import (
+    EXPECTED_ADAPTER_VIEW_CONTRACT,
+    EXPECTED_EVIDENCE_SCHEMAS,
+    EXPECTED_TURN_LINEAGE,
     PARITY_THRESHOLDS,
     load_online_runtime_contract,
     validate_online_runtime_contract,
@@ -22,9 +25,15 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
     assert payload["generation_contract"]["cuda_allocator_environment"] == (
         "pytorch_allocator_aliases_unset_for_vllm_cumem_sleep"
     )
+    assert payload["adapter_view_contract"] == EXPECTED_ADAPTER_VIEW_CONTRACT
     assert payload["rollout_contract"]["browser_worker_candidates"] == [1, 2, 4, 8]
     assert payload["rollout_contract"]["maximum_group_token_reserve"] == 10240
     assert payload["learner_contract"]["behavior_policy_staleness"] == 0
+    assert {
+        key: payload["evidence_contract"][key]
+        for key in EXPECTED_EVIDENCE_SCHEMAS
+    } == EXPECTED_EVIDENCE_SCHEMAS
+    assert payload["evidence_contract"]["required_turn_lineage"] == EXPECTED_TURN_LINEAGE
     assert payload["model_contract"]["base_model_manifest_sha256"] == (
         "290ecd9ec4eaa1f5ac6927b10e9cb4c600d22aec78a6d743baa8a01d72c1b7a3"
     )
@@ -59,6 +68,9 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
         ("rollout_contract", "maximum_concurrent_k4_groups", 3, "concurrent"),
         ("learner_contract", "behavior_policy_staleness", 1, "staleness"),
         ("parity_contract", "replay_maximum_absolute_difference", 0.5, "parity"),
+        ("adapter_view_contract", "expected_tensor_count", 255, "adapter-view"),
+        ("evidence_contract", "run_identity_schema", "legacy", "schema"),
+        ("evidence_contract", "required_turn_lineage", [], "turn lineage"),
         ("evidence_contract", "turn_charge_before_full_artifact", False, "durability"),
         ("recovery_contract", "identity_mismatch", "warn", "identity"),
         (

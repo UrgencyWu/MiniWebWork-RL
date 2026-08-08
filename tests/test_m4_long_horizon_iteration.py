@@ -24,7 +24,13 @@ def _artifact(path: Path, content: str) -> str:
     return directory_sha256(path)
 
 
-def _identity(adapter_sha: str, iteration=0, policy="policy_0000") -> RunIdentity:
+def _identity(
+    adapter_sha: str,
+    rollout_adapter_sha: str = "a" * 64,
+    adapter_semantic_sha: str = "b" * 64,
+    iteration=0,
+    policy="policy_0000",
+) -> RunIdentity:
     return RunIdentity(
         study_id="m4_long_horizon_credit_v1",
         git_sha="1" * 40,
@@ -41,6 +47,8 @@ def _identity(adapter_sha: str, iteration=0, policy="policy_0000") -> RunIdentit
         base_model_manifest_sha256="8" * 64,
         runtime_contract_sha256="9" * 64,
         input_adapter_sha256=adapter_sha,
+        input_rollout_adapter_sha256=rollout_adapter_sha,
+        input_adapter_semantic_sha256=adapter_semantic_sha,
     )
 
 
@@ -64,7 +72,16 @@ def _collection(identity: RunIdentity, *, all_tokens=120, committed_tokens=100):
     return payload
 
 
-def _learner_report(identity, collection, *, updates=2, effective_tokens=80):
+def _learner_report(
+    identity,
+    collection,
+    *,
+    updates=2,
+    effective_tokens=80,
+    output_adapter_sha="c" * 64,
+    output_rollout_adapter_sha="d" * 64,
+    output_adapter_semantic_sha="e" * 64,
+):
     return {
         "schema_version": LEARNER_REPORT_SCHEMA,
         "identity_sha256": identity.sha256,
@@ -74,6 +91,9 @@ def _learner_report(identity, collection, *, updates=2, effective_tokens=80):
         "optimizer_updates": updates,
         "effective_optimizer_action_tokens": effective_tokens,
         "all_generated_action_tokens": collection["all_generated_action_tokens"],
+        "output_adapter_sha256": output_adapter_sha,
+        "output_rollout_adapter_sha256": output_rollout_adapter_sha,
+        "output_adapter_semantic_sha256": output_adapter_semantic_sha,
         "mean_ratio": 1.0,
         "clip_fraction": 0.0,
         "approx_kl": 0.001,
@@ -85,14 +105,18 @@ def _learner_report(identity, collection, *, updates=2, effective_tokens=80):
 
 def _initialized_store(tmp_path):
     adapter = tmp_path / "bootstrap_adapter"
+    rollout_adapter = tmp_path / "bootstrap_rollout_adapter"
     optimizer = tmp_path / "bootstrap_optimizer"
     adapter_sha = _artifact(adapter, "adapter-v0")
+    rollout_adapter_sha = _artifact(rollout_adapter, "rollout-adapter-v0")
     _artifact(optimizer, "optimizer-v0")
-    identity = _identity(adapter_sha)
+    identity = _identity(adapter_sha, rollout_adapter_sha)
     store = IterationStore(tmp_path / "run")
     store.initialize(
         identity=identity,
         input_adapter_path=adapter,
+        input_rollout_adapter_path=rollout_adapter,
+        input_adapter_semantic_sha256=identity.input_adapter_semantic_sha256,
         input_optimizer_path=optimizer,
         task_sampler_state={"cursor": 0},
     )
@@ -104,15 +128,25 @@ def test_iteration_commit_atomically_advances_adapter_optimizer_tokens_and_sampl
     collection = _collection(identity)
     paths = store.begin_update(identity=identity, collection_manifest=collection)
     output_adapter_sha = _artifact(Path(paths["output_adapter"]), "adapter-v1")
+    output_rollout_adapter_sha = _artifact(
+        Path(paths["output_rollout_adapter"]), "rollout-adapter-v1"
+    )
     output_optimizer_sha = _artifact(Path(paths["output_optimizer"]), "optimizer-v1")
     result = store.commit_update(
         identity=identity,
-        learner_report=_learner_report(identity, collection),
+        learner_report=_learner_report(
+            identity,
+            collection,
+            output_adapter_sha=output_adapter_sha,
+            output_rollout_adapter_sha=output_rollout_adapter_sha,
+        ),
     )
     state = result["state"]
     assert state["current_iteration_index"] == 1
     assert state["current_policy_version"] == "policy_0001"
     assert state["current_adapter"]["sha256"] == output_adapter_sha
+    assert state["current_rollout_adapter"]["sha256"] == output_rollout_adapter_sha
+    assert state["current_adapter_semantic_sha256"] == "e" * 64
     assert state["current_optimizer"]["sha256"] == output_optimizer_sha
     assert state["global_generated_action_tokens"] == 120
     assert state["task_sampler_state"] == {"cursor": 2}
@@ -125,6 +159,9 @@ def test_crash_after_directory_commit_reconciles_forward_without_relearning(tmp_
     collection = _collection(identity)
     paths = store.begin_update(identity=identity, collection_manifest=collection)
     output_adapter_sha = _artifact(Path(paths["output_adapter"]), "adapter-v1")
+    output_rollout_adapter_sha = _artifact(
+        Path(paths["output_rollout_adapter"]), "rollout-adapter-v1"
+    )
     _artifact(Path(paths["output_optimizer"]), "optimizer-v1")
 
     def crash(point):
@@ -134,7 +171,12 @@ def test_crash_after_directory_commit_reconciles_forward_without_relearning(tmp_
     with pytest.raises(RuntimeError, match="intentional fault"):
         store.commit_update(
             identity=identity,
-            learner_report=_learner_report(identity, collection),
+            learner_report=_learner_report(
+                identity,
+                collection,
+                output_adapter_sha=output_adapter_sha,
+                output_rollout_adapter_sha=output_rollout_adapter_sha,
+            ),
             fault_injector=crash,
         )
     assert store.load_state()["current_iteration_index"] == 0
@@ -143,6 +185,10 @@ def test_crash_after_directory_commit_reconciles_forward_without_relearning(tmp_
     assert reconciled["reconciled_iterations"] == 1
     assert reconciled["state"]["current_iteration_index"] == 1
     assert reconciled["state"]["current_adapter"]["sha256"] == output_adapter_sha
+    assert (
+        reconciled["state"]["current_rollout_adapter"]["sha256"]
+        == output_rollout_adapter_sha
+    )
     assert reconciled["state"]["global_generated_action_tokens"] == 120
 
 
@@ -177,8 +223,59 @@ def test_effective_optimizer_tokens_are_unique_and_never_multiplied_by_policy_ep
     store, identity = _initialized_store(tmp_path)
     collection = _collection(identity, all_tokens=120, committed_tokens=100)
     paths = store.begin_update(identity=identity, collection_manifest=collection)
-    _artifact(Path(paths["output_adapter"]), "adapter-v1")
+    output_adapter_sha = _artifact(Path(paths["output_adapter"]), "adapter-v1")
+    output_rollout_adapter_sha = _artifact(
+        Path(paths["output_rollout_adapter"]), "rollout-adapter-v1"
+    )
     _artifact(Path(paths["output_optimizer"]), "optimizer-v1")
-    report = _learner_report(identity, collection, effective_tokens=200)
+    report = _learner_report(
+        identity,
+        collection,
+        effective_tokens=200,
+        output_adapter_sha=output_adapter_sha,
+        output_rollout_adapter_sha=output_rollout_adapter_sha,
+    )
     with pytest.raises(ValueError, match="effective optimizer-token"):
         store.commit_update(identity=identity, learner_report=report)
+
+
+def test_learner_report_rejects_non_hex_adapter_semantic_identity(tmp_path):
+    store, identity = _initialized_store(tmp_path)
+    collection = _collection(identity)
+    store.begin_update(identity=identity, collection_manifest=collection)
+    report = _learner_report(
+        identity,
+        collection,
+        output_adapter_semantic_sha="z" * 64,
+    )
+    with pytest.raises(ValueError, match="semantic"):
+        store.commit_update(identity=identity, learner_report=report)
+
+
+def test_zero_update_preserves_canonical_rollout_and_semantic_policy_identity(tmp_path):
+    store, identity = _initialized_store(tmp_path)
+    state = store.load_state()
+    collection = _collection(identity)
+    paths = store.begin_update(identity=identity, collection_manifest=collection)
+    output_adapter_sha = _artifact(Path(paths["output_adapter"]), "adapter-v0")
+    output_rollout_adapter_sha = _artifact(
+        Path(paths["output_rollout_adapter"]), "rollout-adapter-v0"
+    )
+    _artifact(Path(paths["output_optimizer"]), "optimizer-v0")
+    assert output_adapter_sha == state["current_adapter"]["sha256"]
+    assert output_rollout_adapter_sha == state["current_rollout_adapter"]["sha256"]
+    result = store.commit_update(
+        identity=identity,
+        learner_report=_learner_report(
+            identity,
+            collection,
+            updates=0,
+            effective_tokens=0,
+            output_adapter_sha=output_adapter_sha,
+            output_rollout_adapter_sha=output_rollout_adapter_sha,
+            output_adapter_semantic_sha=identity.input_adapter_semantic_sha256,
+        ),
+    )
+    assert result["state"]["current_adapter_semantic_sha256"] == (
+        identity.input_adapter_semantic_sha256
+    )

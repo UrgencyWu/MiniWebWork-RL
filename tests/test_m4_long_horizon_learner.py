@@ -216,7 +216,19 @@ def test_shared_tensor_learner_skips_and_reports_zero_signal_group():
     assert report["mean_ratio"] == 1.0
 
 
-def test_bootstrap_optimizer_marker_loads_fresh_and_binds_adapter(tmp_path):
+@pytest.mark.parametrize(
+    ("lineage_field", "error"),
+    [
+        ("adapter_sha256", "adapter lineage"),
+        ("rollout_adapter_sha256", "rollout-adapter lineage"),
+        ("adapter_semantic_sha256", "adapter-semantic lineage"),
+    ],
+)
+def test_bootstrap_optimizer_marker_loads_fresh_and_binds_policy_lineage(
+    tmp_path,
+    lineage_field,
+    error,
+):
     identity = _identity("multi_turn_grpo")
     path = tmp_path / "optimizer.pt"
     created = create_bootstrap_optimizer_artifact(path=path, identity=identity)
@@ -230,9 +242,9 @@ def test_bootstrap_optimizer_marker_loads_fresh_and_binds_adapter(tmp_path):
     assert optimizer.state_dict()["state"] == {}
 
     payload = torch.load(path, map_location="cpu", weights_only=False)
-    payload["adapter_sha256"] = "f" * 64
+    payload[lineage_field] = "f" * 64
     torch.save(payload, path)
-    with pytest.raises(ValueError, match="adapter lineage"):
+    with pytest.raises(ValueError, match=error):
         build_or_load_policy_optimizer(
             model=model,
             identity=identity,

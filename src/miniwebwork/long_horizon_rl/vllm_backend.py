@@ -18,7 +18,8 @@ from ..m4_long_horizon_protocol import (
     SFT_LORA_CONFIG,
 )
 from ..model_agent.model_backend import GenerationResult
-from .contracts import directory_sha256
+from .adapter_view import validate_vllm_adapter_view
+from .contracts import SHA256_PATTERN, directory_sha256
 
 SAFE_REQUEST_COMPONENT = re.compile(r"^[A-Za-z0-9_.-]+$")
 GENERATION_BACKEND = "vllm_async"
@@ -50,6 +51,9 @@ class VLLMBackendConfig:
     base_model: str
     adapter_path: str
     adapter_sha256: str
+    rollout_adapter_path: str
+    rollout_adapter_sha256: str
+    adapter_semantic_sha256: str
     seed: int
     dtype: str = "bfloat16"
     max_model_len: int = MAX_SEQUENCE_LENGTH
@@ -64,9 +68,19 @@ class VLLMBackendConfig:
         _require(Path(self.base_model).is_absolute(), "vLLM base model path must be absolute")
         _require(Path(self.adapter_path).is_absolute(), "vLLM adapter path must be absolute")
         _require(
-            isinstance(self.adapter_sha256, str) and len(self.adapter_sha256) == 64,
-            "vLLM adapter hash drift",
+            Path(self.rollout_adapter_path).is_absolute(),
+            "vLLM rollout adapter path must be absolute",
         )
+        for field in (
+            "adapter_sha256",
+            "rollout_adapter_sha256",
+            "adapter_semantic_sha256",
+        ):
+            value = getattr(self, field)
+            _require(
+                isinstance(value, str) and SHA256_PATTERN.fullmatch(value) is not None,
+                f"vLLM {field.replace('_sha256', '').replace('_', ' ')} hash drift",
+            )
         _require(isinstance(self.seed, int) and self.seed >= 0, "vLLM seed drift")
         _require(self.dtype == "bfloat16", "vLLM dtype drift")
         _require(self.max_model_len == MAX_SEQUENCE_LENGTH, "vLLM model length drift")
@@ -80,6 +94,20 @@ class VLLMBackendConfig:
             path = Path(self.adapter_path).expanduser().resolve()
             _require(path.is_dir(), "vLLM adapter directory is missing")
             _require(directory_sha256(path) == self.adapter_sha256, "vLLM adapter hash mismatch")
+            view = Path(self.rollout_adapter_path).expanduser().resolve()
+            audit = validate_vllm_adapter_view(
+                source_adapter=path,
+                view_directory=view,
+                base_model=Path(self.base_model),
+            )
+            _require(
+                audit["view_directory_sha256"] == self.rollout_adapter_sha256,
+                "vLLM rollout adapter view hash mismatch",
+            )
+            _require(
+                audit["semantic_tensor_sha256"] == self.adapter_semantic_sha256,
+                "vLLM adapter semantic hash mismatch",
+            )
 
     def engine_kwargs(self) -> dict[str, Any]:
         self.validate(check_adapter_files=False)
@@ -188,6 +216,9 @@ class AsyncVLLMGenerationEngine:
         self._inflight = 0
         self._adapter_path = config.adapter_path
         self._adapter_sha256 = config.adapter_sha256
+        self._rollout_adapter_path = config.rollout_adapter_path
+        self._rollout_adapter_sha256 = config.rollout_adapter_sha256
+        self._adapter_semantic_sha256 = config.adapter_semantic_sha256
 
     @classmethod
     async def create(cls, config: VLLMBackendConfig) -> "AsyncVLLMGenerationEngine":
@@ -203,26 +234,73 @@ class AsyncVLLMGenerationEngine:
         )
         engine = AsyncLLM.from_engine_args(AsyncEngineArgs(**config.engine_kwargs()))
         instance = cls(config=config, engine=engine, tokenizer=tokenizer)
-        await instance._add_adapter(config.adapter_path, config.adapter_sha256)
+        await instance._add_adapter(
+            adapter_path=config.adapter_path,
+            adapter_sha256=config.adapter_sha256,
+            rollout_adapter_path=config.rollout_adapter_path,
+            rollout_adapter_sha256=config.rollout_adapter_sha256,
+            adapter_semantic_sha256=config.adapter_semantic_sha256,
+        )
         return instance
 
-    def _lora_request(self, path: str, sha256: str):
+    def _lora_request(
+        self,
+        path: str,
+        rollout_sha256: str,
+        adapter_sha256: str,
+    ):
         from vllm.lora.request import LoRARequest
 
         return LoRARequest(
-            lora_name=f"policy-{sha256[:12]}",
+            lora_name=(
+                f"policy-{adapter_sha256[:12]}-view-{rollout_sha256[:12]}"
+            ),
             lora_int_id=self.config.adapter_id,
             lora_path=path,
         )
 
-    async def _add_adapter(self, path: str, sha256: str) -> None:
-        resolved = Path(path).expanduser().resolve()
-        _require(resolved.is_dir(), "vLLM adapter directory is missing")
-        _require(directory_sha256(resolved) == sha256, "vLLM adapter swap hash mismatch")
-        loaded = await self._engine.add_lora(self._lora_request(str(resolved), sha256))
+    async def _add_adapter(
+        self,
+        *,
+        adapter_path: str,
+        adapter_sha256: str,
+        rollout_adapter_path: str,
+        rollout_adapter_sha256: str,
+        adapter_semantic_sha256: str,
+    ) -> None:
+        resolved = Path(adapter_path).expanduser().resolve()
+        view = Path(rollout_adapter_path).expanduser().resolve()
+        _require(resolved.is_dir(), "vLLM canonical adapter directory is missing")
+        _require(
+            directory_sha256(resolved) == adapter_sha256,
+            "vLLM canonical adapter swap hash mismatch",
+        )
+        audit = validate_vllm_adapter_view(
+            source_adapter=resolved,
+            view_directory=view,
+            base_model=Path(self.config.base_model),
+        )
+        _require(
+            audit["view_directory_sha256"] == rollout_adapter_sha256,
+            "vLLM rollout adapter swap hash mismatch",
+        )
+        _require(
+            audit["semantic_tensor_sha256"] == adapter_semantic_sha256,
+            "vLLM adapter swap semantic hash mismatch",
+        )
+        loaded = await self._engine.add_lora(
+            self._lora_request(
+                str(view),
+                rollout_adapter_sha256,
+                adapter_sha256,
+            )
+        )
         _require(loaded is True, "vLLM refused the requested LoRA adapter")
         self._adapter_path = str(resolved)
-        self._adapter_sha256 = sha256
+        self._adapter_sha256 = adapter_sha256
+        self._rollout_adapter_path = str(view)
+        self._rollout_adapter_sha256 = rollout_adapter_sha256
+        self._adapter_semantic_sha256 = adapter_semantic_sha256
 
     async def generate_messages(
         self,
@@ -271,7 +349,8 @@ class AsyncVLLMGenerationEngine:
                 sampling,
                 request_id,
                 lora_request=self._lora_request(
-                    self._adapter_path,
+                    self._rollout_adapter_path,
+                    self._rollout_adapter_sha256,
                     self._adapter_sha256,
                 ),
             ):
@@ -308,6 +387,9 @@ class AsyncVLLMGenerationEngine:
             request_id=request_id,
             sampling_seed=sampling_seed,
             generation_backend=GENERATION_BACKEND,
+            adapter_sha256=self._adapter_sha256,
+            rollout_adapter_sha256=self._rollout_adapter_sha256,
+            adapter_semantic_sha256=self._adapter_semantic_sha256,
             queue_wait_ms=queue_wait_ms,
             first_token_latency_ms=float(metrics.first_token_latency) * 1000,
             generation_time_ms=generation_time_ms,
@@ -322,15 +404,32 @@ class AsyncVLLMGenerationEngine:
         self._phase = "learner"
         return {"phase": self._phase, "adapter_removed": True, "sleep_level": 2}
 
-    async def switch_to_generation(self, *, adapter_path: str, adapter_sha256: str) -> dict[str, Any]:
+    async def switch_to_generation(
+        self,
+        *,
+        adapter_path: str,
+        adapter_sha256: str,
+        rollout_adapter_path: str,
+        rollout_adapter_sha256: str,
+        adapter_semantic_sha256: str,
+    ) -> dict[str, Any]:
         _require(self._phase == "learner", "vLLM is not in learner phase")
         await self._engine.wake_up()
-        await self._add_adapter(adapter_path, adapter_sha256)
+        await self._add_adapter(
+            adapter_path=adapter_path,
+            adapter_sha256=adapter_sha256,
+            rollout_adapter_path=rollout_adapter_path,
+            rollout_adapter_sha256=rollout_adapter_sha256,
+            adapter_semantic_sha256=adapter_semantic_sha256,
+        )
         self._phase = "generation"
         return {
             "phase": self._phase,
             "adapter_path": self._adapter_path,
             "adapter_sha256": self._adapter_sha256,
+            "rollout_adapter_path": self._rollout_adapter_path,
+            "rollout_adapter_sha256": self._rollout_adapter_sha256,
+            "adapter_semantic_sha256": self._adapter_semantic_sha256,
         }
 
     def shutdown(self) -> None:
@@ -397,6 +496,13 @@ class ThreadsafeVLLMBackend:
                 request_id=request_id,
                 sampling_seed=sampling_seed,
                 generation_backend=GENERATION_BACKEND,
+                adapter_sha256=self._engine._adapter_sha256,
+                rollout_adapter_sha256=(
+                    self._engine._rollout_adapter_sha256
+                ),
+                adapter_semantic_sha256=(
+                    self._engine._adapter_semantic_sha256
+                ),
             )
 
     def get_model_info(self) -> dict[str, Any]:
@@ -404,5 +510,7 @@ class ThreadsafeVLLMBackend:
             "backend": GENERATION_BACKEND,
             "base_model": self._engine.config.base_model,
             "adapter_sha256": self._engine._adapter_sha256,
+            "rollout_adapter_sha256": self._engine._rollout_adapter_sha256,
+            "adapter_semantic_sha256": self._engine._adapter_semantic_sha256,
             "sampling": {"temperature": 1.0, "top_p": 1.0, "top_k": 0},
         }

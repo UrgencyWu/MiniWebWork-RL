@@ -30,6 +30,8 @@ def _identity():
         base_model_manifest_sha256="8" * 64,
         runtime_contract_sha256="9" * 64,
         input_adapter_sha256="6" * 64,
+        input_rollout_adapter_sha256="a" * 64,
+        input_adapter_semantic_sha256="b" * 64,
     )
 
 
@@ -62,6 +64,9 @@ def _raw_turn(rollout_index):
         "request_id": f"request-{rollout_index}",
         "sampling_seed": 100 + rollout_index,
         "generation_backend": "vllm_async",
+        "adapter_sha256": "6" * 64,
+        "rollout_adapter_sha256": "a" * 64,
+        "adapter_semantic_sha256": "b" * 64,
         "latency_ms": 10.0,
         "queue_wait_ms": 1.0,
         "first_token_latency_ms": 2.0,

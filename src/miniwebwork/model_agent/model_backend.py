@@ -62,6 +62,9 @@ class GenerationResult:
     request_id: str = ""
     sampling_seed: int = 0
     generation_backend: str = "transformers"
+    adapter_sha256: str = ""
+    rollout_adapter_sha256: str = ""
+    adapter_semantic_sha256: str = ""
     queue_wait_ms: float = 0.0
     first_token_latency_ms: float = 0.0
     generation_time_ms: float = 0.0

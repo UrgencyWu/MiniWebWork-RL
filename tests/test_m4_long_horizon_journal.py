@@ -38,6 +38,8 @@ def _identity(adapter="6" * 64):
         base_model_manifest_sha256="8" * 64,
         runtime_contract_sha256="9" * 64,
         input_adapter_sha256=adapter,
+        input_rollout_adapter_sha256="a" * 64,
+        input_adapter_semantic_sha256="b" * 64,
     )
 
 
@@ -73,6 +75,8 @@ def _turn(identity, rollout_index, attempt_index=1):
         "sampling_seed": 2026080100 + rollout_index,
         "generation_backend": "vllm_async",
         "adapter_sha256": identity.input_adapter_sha256,
+        "rollout_adapter_sha256": identity.input_rollout_adapter_sha256,
+        "adapter_semantic_sha256": identity.input_adapter_semantic_sha256,
         "rendered_prompt_sha256": "7" * 64,
         "prompt_token_ids": prompt_ids,
         "prompt_token_sha256": token_ids_sha256(prompt_ids),
@@ -99,6 +103,8 @@ def _trajectory(identity, rollout_index, reward, attempt_index=1):
         "task_id": "TASK-1",
         "policy_version": "policy_0000",
         "adapter_sha256": identity.input_adapter_sha256,
+        "rollout_adapter_sha256": identity.input_rollout_adapter_sha256,
+        "adapter_semantic_sha256": identity.input_adapter_semantic_sha256,
         "rollout_index": rollout_index,
         "rollout_valid": True,
         "success": reward == 1.0,
@@ -125,6 +131,8 @@ def test_partial_group_cost_survives_restart_and_entire_group_is_resampled(tmp_p
         sampling_seed=2026080199,
         policy_version=identity.policy_version,
         adapter_sha256=identity.input_adapter_sha256,
+        rollout_adapter_sha256=identity.input_rollout_adapter_sha256,
+        adapter_semantic_sha256=identity.input_adapter_semantic_sha256,
         generated_token_ids=[1, 2, 3],
     )
     store.mark_group_invalid(group_id="group-0000", attempt_index=attempt, reason="worker crashed")
@@ -149,6 +157,8 @@ def test_partial_group_cost_survives_restart_and_entire_group_is_resampled(tmp_p
             sampling_seed=turn["sampling_seed"],
             policy_version=identity.policy_version,
             adapter_sha256=identity.input_adapter_sha256,
+            rollout_adapter_sha256=identity.input_rollout_adapter_sha256,
+            adapter_semantic_sha256=identity.input_adapter_semantic_sha256,
             generated_token_ids=turn["generated_token_ids"],
         )
         resumed.write_turn_artifact(turn)
@@ -256,6 +266,8 @@ def test_journal_serializes_concurrent_turn_events_without_losing_tokens(tmp_pat
             sampling_seed=index,
             policy_version=journal.identity.policy_version,
             adapter_sha256=journal.identity.input_adapter_sha256,
+            rollout_adapter_sha256=journal.identity.input_rollout_adapter_sha256,
+            adapter_semantic_sha256=journal.identity.input_adapter_semantic_sha256,
             generated_token_ids=[index + 1],
         )
 
@@ -285,6 +297,8 @@ def test_full_turn_artifact_requires_exactly_one_prior_durable_charge(tmp_path):
         sampling_seed=turn["sampling_seed"],
         policy_version=identity.policy_version,
         adapter_sha256=identity.input_adapter_sha256,
+        rollout_adapter_sha256=identity.input_rollout_adapter_sha256,
+        adapter_semantic_sha256=identity.input_adapter_semantic_sha256,
         generated_token_ids=turn["generated_token_ids"],
     )
     assert "generated_token_ids" not in charge["payload"]
@@ -303,6 +317,8 @@ def test_full_turn_artifact_requires_exactly_one_prior_durable_charge(tmp_path):
             sampling_seed=turn["sampling_seed"],
             policy_version=identity.policy_version,
             adapter_sha256=identity.input_adapter_sha256,
+            rollout_adapter_sha256=identity.input_rollout_adapter_sha256,
+            adapter_semantic_sha256=identity.input_adapter_semantic_sha256,
             generated_token_ids=turn["generated_token_ids"],
         )
 
@@ -323,6 +339,8 @@ def test_resume_invalidates_and_archives_charged_incomplete_attempt(tmp_path):
         sampling_seed=20260801,
         policy_version=identity.policy_version,
         adapter_sha256=identity.input_adapter_sha256,
+        rollout_adapter_sha256=identity.input_rollout_adapter_sha256,
+        adapter_semantic_sha256=identity.input_adapter_semantic_sha256,
         generated_token_ids=[4, 5, 6],
     )
 

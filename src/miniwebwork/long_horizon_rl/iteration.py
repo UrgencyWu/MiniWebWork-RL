@@ -13,6 +13,7 @@ from typing import Any, Callable, Mapping
 from ..m4_long_horizon_protocol import ONLINE_LEARNER_CONFIG, STUDY_ID
 from .contracts import (
     COLLECTION_SCHEMA,
+    SHA256_PATTERN,
     RunIdentity,
     atomic_write_json,
     bounded_file_sentinel,
@@ -22,9 +23,9 @@ from .contracts import (
     sha256_json,
 )
 
-RUN_STATE_SCHEMA = "m4_long_horizon_run_state_v1"
-ITERATION_SCHEMA = "m4_long_horizon_iteration_v1"
-LEARNER_REPORT_SCHEMA = "m4_long_horizon_learner_report_v1"
+RUN_STATE_SCHEMA = "m4_long_horizon_run_state_v2"
+ITERATION_SCHEMA = "m4_long_horizon_iteration_v2"
+LEARNER_REPORT_SCHEMA = "m4_long_horizon_learner_report_v2"
 ITERATION_LEDGER_EVENT_SCHEMA = "m4_long_horizon_iteration_ledger_event_v1"
 POLICY_VERSION_PATTERN = re.compile(r"^policy_([0-9]{4,})$")
 
@@ -196,7 +197,11 @@ class IterationStore:
             and state["global_generated_action_tokens"] >= 0,
             "run-state token ledger drift",
         )
-        for field in ("current_adapter", "current_optimizer"):
+        for field in (
+            "current_adapter",
+            "current_rollout_adapter",
+            "current_optimizer",
+        ):
             artifact = state.get(field, {})
             _require(artifact.get("kind") in {"file", "directory"}, f"run-state {field} kind drift")
             _require(
@@ -210,6 +215,13 @@ class IterationStore:
             actual = _artifact_descriptor(artifact_path)
             _require(actual["kind"] == artifact["kind"], f"run-state {field} kind mismatch")
             _require(actual["sha256"] == artifact["sha256"], f"run-state {field} artifact drift")
+        _require(
+            isinstance(state.get("current_adapter_semantic_sha256"), str)
+            and SHA256_PATTERN.fullmatch(
+                state["current_adapter_semantic_sha256"]
+            ) is not None,
+            "run-state adapter semantic hash drift",
+        )
         return dict(state)
 
     def load_state(self) -> dict[str, Any]:
@@ -221,6 +233,8 @@ class IterationStore:
         *,
         identity: RunIdentity,
         input_adapter_path: Path,
+        input_rollout_adapter_path: Path,
+        input_adapter_semantic_sha256: str,
         input_optimizer_path: Path,
         task_sampler_state: Mapping[str, Any],
     ) -> dict[str, Any]:
@@ -230,10 +244,21 @@ class IterationStore:
         _require(not self.state_path.exists(), "run state is already initialized")
         _require(not self.ledger.events, "cannot initialize with a non-empty iteration ledger")
         adapter = _artifact_descriptor(input_adapter_path)
+        rollout_adapter = _artifact_descriptor(input_rollout_adapter_path)
         optimizer = _artifact_descriptor(input_optimizer_path)
         _require(
             adapter["sha256"] == identity.input_adapter_sha256,
             "bootstrap adapter/identity hash mismatch",
+        )
+        _require(
+            rollout_adapter["sha256"]
+            == identity.input_rollout_adapter_sha256,
+            "bootstrap rollout adapter/identity hash mismatch",
+        )
+        _require(
+            input_adapter_semantic_sha256
+            == identity.input_adapter_semantic_sha256,
+            "bootstrap adapter semantic/identity hash mismatch",
         )
         state = {
             "schema_version": RUN_STATE_SCHEMA,
@@ -251,6 +276,8 @@ class IterationStore:
             "current_iteration_index": 0,
             "current_policy_version": "policy_0000",
             "current_adapter": adapter,
+            "current_rollout_adapter": rollout_adapter,
+            "current_adapter_semantic_sha256": input_adapter_semantic_sha256,
             "current_optimizer": optimizer,
             "global_generated_action_tokens": 0,
             "task_sampler_state": dict(task_sampler_state),
@@ -265,6 +292,8 @@ class IterationStore:
                 "identity_sha256": identity.sha256,
                 "state_sha256": state["state_sha256"],
                 "adapter_sha256": adapter["sha256"],
+                "rollout_adapter_sha256": rollout_adapter["sha256"],
+                "adapter_semantic_sha256": input_adapter_semantic_sha256,
                 "optimizer_sha256": optimizer["sha256"],
             },
         )
@@ -293,6 +322,16 @@ class IterationStore:
         _require(
             state["current_adapter"]["sha256"] == identity.input_adapter_sha256,
             "run-state/identity adapter mismatch",
+        )
+        _require(
+            state["current_rollout_adapter"]["sha256"]
+            == identity.input_rollout_adapter_sha256,
+            "run-state/identity rollout adapter mismatch",
+        )
+        _require(
+            state["current_adapter_semantic_sha256"]
+            == identity.input_adapter_semantic_sha256,
+            "run-state/identity adapter semantic mismatch",
         )
         return state
 
@@ -355,6 +394,7 @@ class IterationStore:
         return {
             "stage": str(stage),
             "output_adapter": str(stage / "output_adapter"),
+            "output_rollout_adapter": str(stage / "output_rollout_adapter"),
             "output_optimizer": str(stage / "output_optimizer"),
             "learner_report": str(stage / "learner_report.json"),
         }
@@ -390,6 +430,16 @@ class IterationStore:
         _require(all_tokens == collection["all_generated_action_tokens"], "learner all-token ledger drift")
         _require((updates == 0) is (effective_tokens == 0), "optimizer updates/effective tokens mismatch")
         for field in (
+            "output_adapter_sha256",
+            "output_rollout_adapter_sha256",
+            "output_adapter_semantic_sha256",
+        ):
+            _require(
+                isinstance(payload.get(field), str)
+                and SHA256_PATTERN.fullmatch(payload[field]) is not None,
+                f"learner {field} drift",
+            )
+        for field in (
             "mean_ratio",
             "clip_fraction",
             "approx_kl",
@@ -419,17 +469,57 @@ class IterationStore:
         report = self._validate_learner_report(learner_report, identity, collection)
         learner_report_file_sha256 = atomic_write_json(stage / "learner_report.json", report)
         output_adapter = _artifact_descriptor(stage / "output_adapter")
+        output_rollout_adapter = _artifact_descriptor(
+            stage / "output_rollout_adapter"
+        )
         output_optimizer = _artifact_descriptor(stage / "output_optimizer")
+        _require(
+            report["output_adapter_sha256"] == output_adapter["sha256"],
+            "learner/output adapter hash mismatch",
+        )
+        _require(
+            report["output_rollout_adapter_sha256"]
+            == output_rollout_adapter["sha256"],
+            "learner/output rollout adapter hash mismatch",
+        )
         updates = report["optimizer_updates"]
         if updates == 0:
             _require(
                 output_adapter["sha256"] == state["current_adapter"]["sha256"],
                 "zero-update iteration changed adapter",
             )
+            _require(
+                output_rollout_adapter["sha256"]
+                == state["current_rollout_adapter"]["sha256"],
+                "zero-update iteration changed rollout adapter",
+            )
+            _require(
+                report["output_adapter_semantic_sha256"]
+                == state["current_adapter_semantic_sha256"],
+                "zero-update iteration changed adapter semantics",
+            )
+            _require(
+                output_optimizer["sha256"] == state["current_optimizer"]["sha256"],
+                "zero-update iteration changed optimizer artifact",
+            )
         else:
             _require(
                 output_adapter["sha256"] != state["current_adapter"]["sha256"],
                 "optimizer update did not change adapter artifact",
+            )
+            _require(
+                report["output_adapter_semantic_sha256"]
+                != state["current_adapter_semantic_sha256"],
+                "optimizer update did not change adapter tensor semantics",
+            )
+            _require(
+                output_rollout_adapter["sha256"]
+                != state["current_rollout_adapter"]["sha256"],
+                "optimizer update did not change rollout adapter artifact",
+            )
+            _require(
+                output_optimizer["sha256"] != state["current_optimizer"]["sha256"],
+                "optimizer update did not change optimizer artifact",
             )
         next_index = identity.iteration_index + 1
         final = self.iterations_dir / f"iteration-{identity.iteration_index:04d}"
@@ -445,6 +535,12 @@ class IterationStore:
             "identity": identity.to_dict(),
             "identity_sha256": identity.sha256,
             "input_adapter_sha256": state["current_adapter"]["sha256"],
+            "input_rollout_adapter_sha256": state[
+                "current_rollout_adapter"
+            ]["sha256"],
+            "input_adapter_semantic_sha256": state[
+                "current_adapter_semantic_sha256"
+            ],
             "input_optimizer_sha256": state["current_optimizer"]["sha256"],
             "output_adapter": {
                 "kind": output_adapter["kind"],
@@ -460,6 +556,16 @@ class IterationStore:
                 ),
                 "sha256": output_optimizer["sha256"],
             },
+            "output_rollout_adapter": {
+                "kind": output_rollout_adapter["kind"],
+                "relative_path": str(
+                    (final / "output_rollout_adapter").relative_to(self.root)
+                ),
+                "sha256": output_rollout_adapter["sha256"],
+            },
+            "output_adapter_semantic_sha256": report[
+                "output_adapter_semantic_sha256"
+            ],
             "collection_sha256": collection["collection_sha256"],
             "collection_group_set_sha256": collection["group_set_sha256"],
             "collection_group_count": collection["group_count"],
@@ -513,7 +619,11 @@ class IterationStore:
             manifest.get("iteration_manifest_sha256") == _iteration_content_sha256(manifest),
             "iteration manifest hash drift",
         )
-        for field in ("output_adapter", "output_optimizer"):
+        for field in (
+            "output_adapter",
+            "output_rollout_adapter",
+            "output_optimizer",
+        ):
             descriptor = manifest[field]
             artifact_path = self.root / descriptor["relative_path"]
             actual = _artifact_descriptor(artifact_path)
@@ -564,6 +674,16 @@ class IterationStore:
             "iteration/run-state adapter mismatch",
         )
         _require(
+            manifest["input_rollout_adapter_sha256"]
+            == state["current_rollout_adapter"]["sha256"],
+            "iteration/run-state rollout adapter mismatch",
+        )
+        _require(
+            manifest["input_adapter_semantic_sha256"]
+            == state["current_adapter_semantic_sha256"],
+            "iteration/run-state adapter semantic mismatch",
+        )
+        _require(
             manifest["input_optimizer_sha256"] == state["current_optimizer"]["sha256"],
             "iteration/run-state optimizer mismatch",
         )
@@ -581,6 +701,14 @@ class IterationStore:
                 "path": manifest["output_adapter"]["relative_path"],
                 "sha256": manifest["output_adapter"]["sha256"],
             },
+            current_rollout_adapter={
+                "kind": manifest["output_rollout_adapter"]["kind"],
+                "path": manifest["output_rollout_adapter"]["relative_path"],
+                "sha256": manifest["output_rollout_adapter"]["sha256"],
+            },
+            current_adapter_semantic_sha256=manifest[
+                "output_adapter_semantic_sha256"
+            ],
             current_optimizer={
                 "kind": manifest["output_optimizer"]["kind"],
                 "path": manifest["output_optimizer"]["relative_path"],

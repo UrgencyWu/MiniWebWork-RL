@@ -28,6 +28,10 @@ from ..m4_long_horizon_protocol import (
     assert_preflight_output,
     load_study_manifest,
 )
+from .adapter_view import (
+    VLLM_ADAPTER_MAPPING_CONTRACT,
+    build_vllm_adapter_view,
+)
 from .browser_pool import BrowserWorkerPoolConfig, VLLMBrowserWorkerPool
 from .contracts import (
     RunIdentity,
@@ -57,10 +61,10 @@ from .runtime_contract import PARITY_THRESHOLDS, load_online_runtime_contract
 from .sft_selection import load_sft_preflight_selection
 from .vllm_backend import AsyncVLLMGenerationEngine, VLLMBackendConfig
 
-ONLINE_PREFLIGHT_RUN_CONFIG_SCHEMA = "m4_long_horizon_online_preflight_run_v1"
-ONLINE_PREFLIGHT_REPORT_SCHEMA = "m4_long_horizon_online_preflight_report_v1"
+ONLINE_PREFLIGHT_RUN_CONFIG_SCHEMA = "m4_long_horizon_online_preflight_run_v2"
+ONLINE_PREFLIGHT_REPORT_SCHEMA = "m4_long_horizon_online_preflight_report_v2"
 ONLINE_PREFLIGHT_RECOVERY_REPORT_SCHEMA = (
-    "m4_long_horizon_online_preflight_recovery_report_v1"
+    "m4_long_horizon_online_preflight_recovery_report_v2"
 )
 TARGET_ITERATION_INDEX = 0
 
@@ -126,6 +130,12 @@ def identity_from_run_state(state: Mapping[str, Any]) -> RunIdentity:
         base_model_manifest_sha256=state["base_model_manifest_sha256"],
         runtime_contract_sha256=state["runtime_contract_sha256"],
         input_adapter_sha256=state["current_adapter"]["sha256"],
+        input_rollout_adapter_sha256=state["current_rollout_adapter"][
+            "sha256"
+        ],
+        input_adapter_semantic_sha256=state[
+            "current_adapter_semantic_sha256"
+        ],
     )
 
 
@@ -220,6 +230,8 @@ def _initialize_or_load_state(
     root: Path,
     run_config: Mapping[str, Any],
     initial_adapter: Path,
+    initial_rollout_adapter: Path,
+    initial_adapter_semantic_sha256: str,
 ) -> tuple[IterationStore, dict[str, Any]]:
     tasks = load_frozen_train_roster()
     store = IterationStore(Path(root) / "state")
@@ -240,6 +252,12 @@ def _initialize_or_load_state(
             base_model_manifest_sha256=run_config["base_model_manifest_sha256"],
             runtime_contract_sha256=run_config["runtime_contract_sha256"],
             input_adapter_sha256=run_config["initial_adapter_sha256"],
+            input_rollout_adapter_sha256=run_config[
+                "initial_rollout_adapter_sha256"
+            ],
+            input_adapter_semantic_sha256=run_config[
+                "initial_adapter_semantic_sha256"
+            ],
         )
         bootstrap_optimizer = Path(root) / "bootstrap" / "optimizer.pt"
         create_bootstrap_optimizer_artifact(path=bootstrap_optimizer, identity=identity)
@@ -247,6 +265,8 @@ def _initialize_or_load_state(
         store.initialize(
             identity=identity,
             input_adapter_path=initial_adapter,
+            input_rollout_adapter_path=initial_rollout_adapter,
+            input_adapter_semantic_sha256=initial_adapter_semantic_sha256,
             input_optimizer_path=bootstrap_optimizer,
             task_sampler_state=sampler.audit_dict(),
         )
@@ -312,6 +332,12 @@ def prepare_online_preflight(
         "base model/runtime contract drift",
     )
     git_sha = _assert_git_clean()
+    initial_rollout_adapter = root / "bootstrap" / "rollout_adapter_view"
+    adapter_view = build_vllm_adapter_view(
+        source_adapter=adapter,
+        destination=initial_rollout_adapter,
+        base_model=base_model,
+    )
     tasks = load_frozen_train_roster()
     payload = {
         "schema_version": ONLINE_PREFLIGHT_RUN_CONFIG_SCHEMA,
@@ -333,6 +359,14 @@ def prepare_online_preflight(
         "runtime_contract_sha256": runtime["sha256"],
         "initial_adapter_path": str(adapter),
         "initial_adapter_sha256": adapter_sha,
+        "initial_rollout_adapter_path": str(initial_rollout_adapter),
+        "initial_rollout_adapter_sha256": adapter_view[
+            "view_directory_sha256"
+        ],
+        "initial_adapter_semantic_sha256": adapter_view[
+            "semantic_tensor_sha256"
+        ],
+        "adapter_mapping_contract": VLLM_ADAPTER_MAPPING_CONTRACT,
         "browser_workers": browser_workers,
         "maximum_concurrent_k4_groups": worker_config.concurrent_group_slots,
         "maximum_tasks": maximum_tasks,
@@ -345,6 +379,10 @@ def prepare_online_preflight(
         root=root,
         run_config=run_config,
         initial_adapter=adapter,
+        initial_rollout_adapter=initial_rollout_adapter,
+        initial_adapter_semantic_sha256=adapter_view[
+            "semantic_tensor_sha256"
+        ],
     )
     return {
         "root": root,
@@ -418,17 +456,20 @@ def execute_learner_update(
         report["optimizer_evaluated_action_tokens_per_second"] = (
             report["optimizer_evaluated_action_tokens"] / elapsed
         )
-        save_policy_update_artifacts(
+        artifact_audit = save_policy_update_artifacts(
             model=model,
             tokenizer=tokenizer,
             optimizer=optimizer,
             identity=identity,
             learner_report=report,
             output_adapter=Path(paths["output_adapter"]),
+            output_rollout_adapter=Path(paths["output_rollout_adapter"]),
             output_optimizer=Path(paths["output_optimizer"]),
+            base_model=base_model,
             input_adapter=input_adapter,
             input_optimizer=input_optimizer,
         )
+        report.update(artifact_audit)
         committed = state_store.commit_update(
             identity=identity,
             learner_report=report,
@@ -471,6 +512,12 @@ async def run_online_preflight_once(prepared: Mapping[str, Any]) -> dict[str, An
             "current_iteration_index": state["current_iteration_index"],
             "current_policy_version": state["current_policy_version"],
             "current_adapter_sha256": state["current_adapter"]["sha256"],
+            "current_rollout_adapter_sha256": state[
+                "current_rollout_adapter"
+            ]["sha256"],
+            "current_adapter_semantic_sha256": state[
+                "current_adapter_semantic_sha256"
+            ],
             "last_iteration_manifest_sha256": state[
                 "last_iteration_manifest_sha256"
             ],
@@ -496,13 +543,30 @@ async def run_online_preflight_once(prepared: Mapping[str, Any]) -> dict[str, An
         identity,
     )
     current_adapter = _resolve_state_artifact(state_store, state, "current_adapter")
+    current_rollout_adapter = _resolve_state_artifact(
+        state_store,
+        state,
+        "current_rollout_adapter",
+    )
     engine_config = VLLMBackendConfig(
         base_model=run_config["base_model_path"],
         adapter_path=str(current_adapter),
         adapter_sha256=identity.input_adapter_sha256,
+        rollout_adapter_path=str(current_rollout_adapter),
+        rollout_adapter_sha256=identity.input_rollout_adapter_sha256,
+        adapter_semantic_sha256=identity.input_adapter_semantic_sha256,
         seed=identity.seed,
     )
-    _phase_event(root, "engine_starting", {"identity_sha256": identity.sha256})
+    _phase_event(
+        root,
+        "engine_starting",
+        {
+            "identity_sha256": identity.sha256,
+            "adapter_sha256": identity.input_adapter_sha256,
+            "rollout_adapter_sha256": identity.input_rollout_adapter_sha256,
+            "adapter_semantic_sha256": identity.input_adapter_semantic_sha256,
+        },
+    )
     engine = await AsyncVLLMGenerationEngine.create(engine_config)
     engine_in_learner_phase = False
     collection_started = time.monotonic()
@@ -579,17 +643,35 @@ async def run_online_preflight_once(prepared: Mapping[str, Any]) -> dict[str, An
         )
         new_state = update["commit"]["state"]
         next_adapter = _resolve_state_artifact(state_store, new_state, "current_adapter")
+        next_rollout_adapter = _resolve_state_artifact(
+            state_store,
+            new_state,
+            "current_rollout_adapter",
+        )
         _phase_event(
             root,
             "learner_committed",
             {
                 "output_policy_version": new_state["current_policy_version"],
                 "output_adapter_sha256": new_state["current_adapter"]["sha256"],
+                "output_rollout_adapter_sha256": new_state[
+                    "current_rollout_adapter"
+                ]["sha256"],
+                "output_adapter_semantic_sha256": new_state[
+                    "current_adapter_semantic_sha256"
+                ],
             },
         )
         wake_result = await engine.switch_to_generation(
             adapter_path=str(next_adapter),
             adapter_sha256=new_state["current_adapter"]["sha256"],
+            rollout_adapter_path=str(next_rollout_adapter),
+            rollout_adapter_sha256=new_state["current_rollout_adapter"][
+                "sha256"
+            ],
+            adapter_semantic_sha256=new_state[
+                "current_adapter_semantic_sha256"
+            ],
         )
         engine_in_learner_phase = False
         _phase_event(root, "vllm_wake_complete", wake_result)

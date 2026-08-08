@@ -32,6 +32,9 @@ class _Backend:
             request_id="request-1",
             sampling_seed=123,
             generation_backend="vllm_async",
+            adapter_sha256="a" * 64,
+            rollout_adapter_sha256="b" * 64,
+            adapter_semantic_sha256="c" * 64,
             queue_wait_ms=2.0,
             first_token_latency_ms=3.0,
             generation_time_ms=4.0,
@@ -66,6 +69,9 @@ def test_agent_retains_prompt_completion_and_policy_logprobs():
     assert attempt.request_id == "request-1"
     assert attempt.sampling_seed == 123
     assert attempt.generation_backend == "vllm_async"
+    assert attempt.adapter_sha256 == "a" * 64
+    assert attempt.rollout_adapter_sha256 == "b" * 64
+    assert attempt.adapter_semantic_sha256 == "c" * 64
     assert attempt.queue_wait_ms == 2.0
 
 

@@ -25,8 +25,8 @@ from .contracts import (
     validate_trajectory_evidence,
 )
 
-JOURNAL_SCHEMA = "m4_long_horizon_attempt_journal_v2"
-JOURNAL_EVENT_SCHEMA = "m4_long_horizon_attempt_event_v2"
+JOURNAL_SCHEMA = "m4_long_horizon_attempt_journal_v3"
+JOURNAL_EVENT_SCHEMA = "m4_long_horizon_attempt_event_v3"
 SAFE_ARTIFACT_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -225,6 +225,8 @@ class AppendOnlyAttemptJournal:
         sampling_seed: int,
         policy_version: str,
         adapter_sha256: str,
+        rollout_adapter_sha256: str,
+        adapter_semantic_sha256: str,
         generated_token_ids: Sequence[int],
     ) -> dict[str, Any]:
         token_ids = [int(token_id) for token_id in generated_token_ids]
@@ -236,6 +238,10 @@ class AppendOnlyAttemptJournal:
             raise ValueError("turn charge policy/identity mismatch")
         if adapter_sha256 != self.identity.input_adapter_sha256:
             raise ValueError("turn charge adapter/identity mismatch")
+        if rollout_adapter_sha256 != self.identity.input_rollout_adapter_sha256:
+            raise ValueError("turn charge rollout adapter/identity mismatch")
+        if adapter_semantic_sha256 != self.identity.input_adapter_semantic_sha256:
+            raise ValueError("turn charge adapter semantic/identity mismatch")
         if attempt_index < 0 or rollout_index < 0 or turn_index <= 0 or sampling_seed < 0:
             raise ValueError("turn charge indices and sampling seed must be non-negative")
         if not request_id:
@@ -257,6 +263,8 @@ class AppendOnlyAttemptJournal:
                     "sampling_seed": sampling_seed,
                     "policy_version": policy_version,
                     "adapter_sha256": adapter_sha256,
+                    "rollout_adapter_sha256": rollout_adapter_sha256,
+                    "adapter_semantic_sha256": adapter_semantic_sha256,
                     "generated_token_ids_sha256": sha256_json(token_ids),
                     "generated_action_tokens": len(token_ids),
                 },
@@ -304,6 +312,12 @@ class CollectionStore:
                 "attempt_index": attempt_index,
                 "policy_version": self.identity.policy_version,
                 "adapter_sha256": self.identity.input_adapter_sha256,
+                "rollout_adapter_sha256": (
+                    self.identity.input_rollout_adapter_sha256
+                ),
+                "adapter_semantic_sha256": (
+                    self.identity.input_adapter_semantic_sha256
+                ),
                 "token_total_before_attempt": self.journal.generated_action_tokens,
             },
         )
@@ -360,6 +374,8 @@ class CollectionStore:
             "sampling_seed",
             "policy_version",
             "adapter_sha256",
+            "rollout_adapter_sha256",
+            "adapter_semantic_sha256",
         ):
             if charge.get(field) != validated.get(field):
                 raise ValueError(f"turn artifact/charge {field} mismatch")
@@ -787,6 +803,8 @@ def build_committed_group(
         "task_id": task_id,
         "policy_version": policy_version,
         "adapter_sha256": identity.input_adapter_sha256,
+        "rollout_adapter_sha256": identity.input_rollout_adapter_sha256,
+        "adapter_semantic_sha256": identity.input_adapter_semantic_sha256,
         "K": identity.group_size,
         "trajectories": [dict(trajectory) for trajectory in trajectories],
         "generated_action_tokens": sum(int(trajectory["generated_action_tokens"]) for trajectory in trajectories),

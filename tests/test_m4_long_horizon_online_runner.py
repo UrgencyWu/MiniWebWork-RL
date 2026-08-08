@@ -79,11 +79,15 @@ def test_identity_reconstruction_binds_current_policy_and_adapter():
         "base_model_manifest_sha256": "8" * 64,
         "runtime_contract_sha256": "9" * 64,
         "current_adapter": {"sha256": "6" * 64},
+        "current_rollout_adapter": {"sha256": "7" * 64},
+        "current_adapter_semantic_sha256": "a" * 64,
     }
     identity = identity_from_run_state(state)
     assert identity.iteration_index == 3
     assert identity.policy_version == "policy_0003"
     assert identity.input_adapter_sha256 == "6" * 64
+    assert identity.input_rollout_adapter_sha256 == "7" * 64
+    assert identity.input_adapter_semantic_sha256 == "a" * 64
 
 
 def test_recovered_commit_without_complete_report_fails_same_gpu_gate(tmp_path):
@@ -91,6 +95,8 @@ def test_recovered_commit_without_complete_report_fails_same_gpu_gate(tmp_path):
         "current_iteration_index": 1,
         "current_policy_version": "policy_0001",
         "current_adapter": {"sha256": "a" * 64},
+        "current_rollout_adapter": {"sha256": "c" * 64},
+        "current_adapter_semantic_sha256": "d" * 64,
         "last_iteration_manifest_sha256": "b" * 64,
     }
 
@@ -115,5 +121,7 @@ def test_recovered_commit_without_complete_report_fails_same_gpu_gate(tmp_path):
     )
     assert recovery["result"] == "RECOVERED_COMMITTED_UPDATE_PHASE_GATE_FAILED"
     assert recovery["recovered_after_committed_update"] is True
+    assert recovery["current_rollout_adapter_sha256"] == "c" * 64
+    assert recovery["current_adapter_semantic_sha256"] == "d" * 64
     assert recovery["same_gpu_phase_switch"]["passed"] is False
     assert recovery["complete"] is False

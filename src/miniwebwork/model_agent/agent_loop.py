@@ -72,6 +72,13 @@ def run_model_episode(
                 "request_id": getattr(attempt, "request_id", ""),
                 "sampling_seed": getattr(attempt, "sampling_seed", 0),
                 "generation_backend": getattr(attempt, "generation_backend", "unknown"),
+                "adapter_sha256": getattr(attempt, "adapter_sha256", ""),
+                "rollout_adapter_sha256": getattr(
+                    attempt, "rollout_adapter_sha256", ""
+                ),
+                "adapter_semantic_sha256": getattr(
+                    attempt, "adapter_semantic_sha256", ""
+                ),
                 "queue_wait_ms": getattr(attempt, "queue_wait_ms", 0.0),
                 "first_token_latency_ms": getattr(
                     attempt, "first_token_latency_ms", 0.0

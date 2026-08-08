@@ -31,6 +31,9 @@ class ModelActionAttempt:
     request_id: str = ""
     sampling_seed: int = 0
     generation_backend: str = "unknown"
+    adapter_sha256: str = ""
+    rollout_adapter_sha256: str = ""
+    adapter_semantic_sha256: str = ""
     queue_wait_ms: float = 0.0
     first_token_latency_ms: float = 0.0
     generation_time_ms: float = 0.0
@@ -117,6 +120,13 @@ class QwenBrowserAgent:
         attempt.sampling_seed = int(getattr(generation, "sampling_seed", 0))
         attempt.generation_backend = str(
             getattr(generation, "generation_backend", "unknown")
+        )
+        attempt.adapter_sha256 = str(getattr(generation, "adapter_sha256", ""))
+        attempt.rollout_adapter_sha256 = str(
+            getattr(generation, "rollout_adapter_sha256", "")
+        )
+        attempt.adapter_semantic_sha256 = str(
+            getattr(generation, "adapter_semantic_sha256", "")
         )
         attempt.queue_wait_ms = float(getattr(generation, "queue_wait_ms", 0.0))
         attempt.first_token_latency_ms = float(

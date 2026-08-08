@@ -47,6 +47,16 @@
     "adapter_swap_protocol": "remove_lora_then_sleep_level_2_then_same_gpu_hf_learner_then_wake_and_add_lora",
     "generation_during_learner": false
   },
+  "adapter_view_contract": {
+    "schema": "m4_qwen35_vllm_adapter_view_v1",
+    "mapping_contract": "qwen35_peft_model_layers_to_conditional_language_model_v1",
+    "canonical_namespace": "base_model.model.model.",
+    "rollout_namespace": "base_model.model.model.language_model.",
+    "expected_tensor_count": 256,
+    "expected_module_count": 128,
+    "normalized_semantic_sha256_required": true,
+    "atomic_derived_view_required": true
+  },
   "rollout_contract": {
     "browser_worker_candidates": [
       1,
@@ -92,13 +102,13 @@
     "failure": "fail_closed_before_optimizer_step"
   },
   "evidence_contract": {
-    "run_identity_schema": "m4_long_horizon_run_identity_v2",
-    "turn_schema": "m4_long_horizon_turn_evidence_v2",
-    "trajectory_schema": "m4_long_horizon_trajectory_v2",
-    "group_schema": "m4_long_horizon_group_v2",
-    "collection_schema": "m4_long_horizon_collection_v2",
-    "journal_schema": "m4_long_horizon_attempt_journal_v2",
-    "iteration_schema": "m4_long_horizon_iteration_v1",
+    "run_identity_schema": "m4_long_horizon_run_identity_v3",
+    "turn_schema": "m4_long_horizon_turn_evidence_v3",
+    "trajectory_schema": "m4_long_horizon_trajectory_v3",
+    "group_schema": "m4_long_horizon_group_v3",
+    "collection_schema": "m4_long_horizon_collection_v3",
+    "journal_schema": "m4_long_horizon_attempt_journal_v3",
+    "iteration_schema": "m4_long_horizon_iteration_v2",
     "turn_charge_before_full_artifact": true,
     "required_turn_lineage": [
       "group_id",
@@ -110,6 +120,8 @@
       "sampling_seed",
       "policy_version",
       "adapter_sha256",
+      "rollout_adapter_sha256",
+      "adapter_semantic_sha256",
       "prompt_token_ids",
       "generated_token_ids",
       "behavior_logprobs",
