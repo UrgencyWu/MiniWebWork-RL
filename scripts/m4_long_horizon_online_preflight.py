@@ -8,6 +8,7 @@ import asyncio
 import json
 from pathlib import Path
 
+from miniwebwork.long_horizon_rl.browser_pool import ALLOWED_BROWSER_WORKERS
 from miniwebwork.long_horizon_rl.model_manifest import BASE_MODEL_MANIFEST_PATH
 from miniwebwork.long_horizon_rl.online_runner import (
     prepare_online_preflight,
@@ -29,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--browser-workers",
         type=int,
-        choices=(1, 2, 4, 8, 16, 32),
+        choices=ALLOWED_BROWSER_WORKERS,
         required=True,
     )
     parser.add_argument("--maximum-tasks", type=int, required=True)

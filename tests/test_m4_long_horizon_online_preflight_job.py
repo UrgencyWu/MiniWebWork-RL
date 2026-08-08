@@ -26,4 +26,5 @@ def test_online_preflight_python_entrypoint_exposes_no_formal_mode():
     script = (root / "scripts" / "m4_long_horizon_online_preflight.py").read_text()
     assert "--collection-only" in script
     assert "--browser-workers" in script
+    assert "choices=ALLOWED_BROWSER_WORKERS" in script
     assert "--formal" not in script

@@ -566,6 +566,12 @@ runtime v7 定向 Job 1303 得到 `41 passed, 2 failed`：两项旧并发测试�
 槽位测试显式设为零错峰、同时保留独立错峰时序测试后，Job 1304 得到 `43 passed`。
 完整非浏览器 Job 1305 随后得到 `422 passed, 10 deselected`。
 
+提交后 clean Job 1306 再次得到 `422 passed, 10 deselected`。Job 1307 在 3 秒内、
+模型加载前失败：Python CLI 的 browser-worker choices 仍独立硬编码到 32，拒绝了
+合同允许的 64；没有 collection 或训练工件。入口现直接复用
+`ALLOWED_BROWSER_WORKERS`，并增加防重复硬编码测试，修复后必须重新冻结 clean SHA。
+定向 Job 1308 得到 `27 passed`，完整 Job 1309 得到 `422 passed, 10 deselected`。
+
 ## 11. 24 小时中断恢复与原子性
 
 Slurm wall time 固定不超过 24 小时。恢复单位分两层：

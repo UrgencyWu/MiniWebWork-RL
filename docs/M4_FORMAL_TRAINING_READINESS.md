@@ -263,6 +263,10 @@ wall time                 <=24h per Slurm job
 | 1303 | pre-commit working tree（基于 `613ae81e`） | runtime v7 64-lane/错峰定向回归 | 2 CPU / 8 GB / 24 h 上限 | `FAILED 1:0`；`41 passed, 2 failed`，旧并发测试的 40ms fake episode 短于新 250ms 默认错峰，故只能观测到 4 lanes；生产代码未失败，促成测试尺度隔离 |
 | 1304 | pre-commit working tree（基于 `613ae81e`） | runtime v7 修正后定向回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`43 passed`；8/32/64-lane 槽位测试显式关闭错峰，独立测试验证确定性错峰，PASS |
 | 1305 | pre-commit working tree（基于 `613ae81e`） | runtime v7 完整非浏览器 CPU 回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`422 passed, 10 deselected`；PASS，仍需提交后 clean SHA 回归 |
+| 1306 | `2e53c7ad3a9615fecd592af95aa01275af4ba88f` | runtime v7 clean 非浏览器 CPU 回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`422 passed, 10 deselected`；PASS |
+| 1307 | `2e53c7ad3a9615fecd592af95aa01275af4ba88f` | runtime v7 64-lane GRPO E2E 启动 | 1 GPU / 8 CPU / 48 GB / 24 h 上限 | `FAILED 2:0`，0:03；Python CLI 的 browser-worker choices 仍重复硬编码到 32，在模型加载/collection 前拒绝 64；无训练工件，促成入口改为复用单一合同常量 |
+| 1308 | pre-commit working tree（基于 `2e53c7a`） | runtime v7 CLI 单一来源定向回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`27 passed`；入口复用 `ALLOWED_BROWSER_WORKERS`，PASS |
+| 1309 | pre-commit working tree（基于 `2e53c7a`） | runtime v7 CLI 修复后完整非浏览器回归 | 2 CPU / 8 GB / 24 h 上限 | `COMPLETED 0:0`；`422 passed, 10 deselected`；PASS，仍需新 clean SHA 回归 |
 
 Jobs 1272–1277、1281 与 1286 的脚本和安装均位于已失败 run 的 `diagnostics/` 输出空间，没有写入
 tracked 路径、共享 Conda 或正式输出根目录。这些作业只回答 backend parity 的
