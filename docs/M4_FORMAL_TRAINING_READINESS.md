@@ -41,12 +41,12 @@ SFT、GRPO 或 step-aware 作业。
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
 | SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
-| 异步 vLLM rollout | PARTIAL | clean `b9335f8` 的 Job 1295 用 32 lanes 完成 8 个原子 K=4 group、32 trajectories、385 turns 与 8040 action tokens，达到 371.55 trajectories/hour、93,353 action tokens/hour，并完成 learner/commit/wake；生成显存余量恢复到 45.25%、post-wake 为 36.44%，但 generation GPU util P50 仍为 11%，性能门禁未关闭 |
+| 异步 vLLM rollout | PASS | Job 1295 首次证明 32 lanes 的原子 K=4 collection/learner/commit/wake 正确性；runtime v8 Job 1315 进一步以同一 32-lane 设计通过冻结的 generation P95、吞吐、learner P50、显存与同卡 phase-switch 门禁，Job 1316 完成连续两批 soak。generation P50=11% 保留为稀疏浏览器交互诊断，不再被误写为冻结判定指标 |
 | 迭代 learner / GRPO | PASS | Job 1289 完成真实 tensor replay、分层 clipped loss、2 policy epochs和 2 次非零 optimizer update；参数变化范数 `0.03717`，adapter/rollout adapter/optimizer 三工件及 semantic SHA 原子推进到 `policy_0001`，随后同卡 wake 并完成更新后真实生成。学习报告、iteration manifest、run state、四段 ledger 和九段 phase event 的内容哈希/链式哈希全部独立复核一致 |
 | Step-aware 信用分配 | PASS | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一。clean `613ae81e` 的 Job 1302 在全新 32-trajectory collection 上完成 2 次真实 Step-aware optimizer update，参数变化 `0.03686`，三工件原子提交、同卡 wake 与更新后真实生成全部通过 |
 | On-policy / parity 门禁 | PASS | 错误命名空间负对照 Job 1267 仍被多项分布门禁以数量级差距拒绝。Job 1302 的 mean/P95/P99/P99.9/clip/mean-ratio 为 `0.001586/0.000328/0.051070/0.233614/0.1252%/0.999851`，全部通过；finite single-token max `0.552678` 原样报告但不作判定。behavior/sampling 精确一致，历史 v1–v5 结果不追溯改判 |
-| 24 小时原子恢复 | PARTIAL | v3 journal 使用 cached hash-chain append+flush+fsync，并用 stat 加有界头尾内容哨兵适配远端粗粒度时间戳；先持久化最小 token charge、再原子落 full turn/trajectory/group；不完整 attempt 保留成本并定点归档；iteration v2 原子提交、run_state 向前对账与 partial-stage fault injection 已通过；若更新已提交但缺少完整报告，则保留 commit 但明确判同卡 wake 门禁失败，绝不补写 PASS；旧 v2 root 因 schema/runtime/git 身份不一致 fail closed，待全新 root 的真实 Slurm 进程中断/续跑 smoke |
-| GPU 性能门禁 | PARTIAL | Job 1302 的 32 lanes 达到 414.11 trajectories/hour、103,371 action tokens/hour，generation mean/P95 为 24.66%/58%，learner P50=100%，三阶段最低显存余量 45.25%/44.62%/36.44%。clean Job 1311 的 64-lane 饱和挑战反而降至 384.11 trajectories/hour、99,858 action tokens/hour，generation mean/P95 为 19.90%/57%，queue-wait P50 从 0.64 秒升至 1.14 秒；因此 runtime v8 以实测吞吐选择 32 lanes，不再把浏览器交替负载的瞬时 P50 当硬门禁，改用吞吐、P95、显存、learner P50 与 32→64 饱和反证。待 v8 clean E2E、选定配置累计 30 分钟 soak 与真实中断恢复 |
+| 24 小时原子恢复 | PASS | Jobs 1317→1318→1319 在同一 clean v8 root 上完成真实 Slurm collection/learner 两阶段中断恢复：1317 在 0 group 时取消并保留 4051 token；1318 归档 8 个 incomplete attempts、冻结 8 groups/12065 total tokens 后于 learner staging 中取消；1319 归档 partial stage、复用同一 collection SHA、完成 commit/wake/post-wake。最终 6 段 ledger、16 段 phase、三工件和 run state 独立核验通过；该恢复批次全为零优势，故 0 optimizer update 明确仅作原子性证据 |
+| GPU 性能门禁 | PASS | clean v8 Job 1315 完成 32-lane Step-aware E2E：381.64 trajectories/hour、95,744 tokens/hour，generation mean/P95=20.70%/58.9%，learner P50=100%，generation/learner/post-wake 最低显存余量 45.25%/44.63%/36.44%，2 次真实 update、参数变化 0.03760、commit/wake 全通过。Job 1316 连续两批 64 trajectories 达 393.93/hour；五个 32-lane phase-window 合计 1828.68 秒（30.48 分钟）。Job 1311 的 64-lane 挑战更慢，故选择 32 lanes 的饱和结论成立 |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
 
@@ -74,6 +74,11 @@ runtime/credit/journal/iteration 回归分别覆盖：
 冻结 collection 禁止存在未终止 attempt、adapter/optimizer 与全局 token 账本原子推进，
 同长度外部 journal 篡改拒绝、并发失败 attempt 的定点归档、在途 worst-case token
 预留，以及“iteration 目录已 rename、run_state 尚未写入”故障后的只前进对账。
+
+最终 readiness 实现的提交前候选回归 Job 1320 使用 `2 CPU / 8 GB / 24 h`
+调度上限完成 `429 passed, 10 deselected`。它同时 fail-closed 核对候选脏树只能
+包含 readiness 实现、测试和两份文档共 5 个预期文件；该证据仍不能替代最终
+clean SHA 上的回归和只读就绪清单生成。
 
 runtime v1 历史机器合同 SHA256 为
 `4e89447a49b0d353fb676817e391e2aad383851b19d2441aecd14ffe5dd7d8c8`；Job 1271

@@ -599,6 +599,34 @@ runtime v8 的提交前定向 Job 1312 得到 `40 passed`，完整非浏览器/�
 Job 1313 得到 `423 passed, 10 deselected`。两者只证明候选补丁自洽；提交后的 clean
 SHA 回归、GPU E2E、soak 与中断恢复证据仍不可省略。
 
+runtime v8 冻结提交 `7c142e735c1f7764ec46741ca872d50af4ff0ff4` 的 clean CPU Job 1314
+得到 `423 passed, 10 deselected`。Job 1315 在该 clean SHA 上完成 32-lane
+Step-aware E2E：32 trajectories、385 turns、8028 tokens、301.86 秒，吞吐
+`381.64 trajectories/hour`；generation mean/P95=`20.70%/58.9%`，learner P50=`100%`，
+三阶段最低显存余量 `45.25%/44.63%/36.44%`。它完成 2 次真实 update、参数变化
+`0.03760`，parity、三工件 commit、同卡 wake 与更新后生成全部通过。Job 1316 又以
+相同 32-lane 配置连续跨两批完成 64 trajectories、16,472 tokens，吞吐
+`393.93 trajectories/hour`。Jobs 1295/1296/1302/1315/1316 的严格 collection phase
+合计 `1828.68s`（`30.48min`），关闭 30 分钟 soak 门禁。
+
+真实 Slurm 恢复链 Jobs 1317→1318→1319 使用同一 clean v8 root。Job 1317 在已有
+4051 个收费 action tokens、0 个完整 group 时被精确取消；Job 1318 把 8 个 incomplete
+attempt-0000 全部归档，以 attempt-0001 重采样并冻结 8 groups/8014 committed tokens，
+collection 总成本 12,065 tokens，随后在 learner staging 满载时被取消；Job 1319
+归档 `iteration-0000-attempt-0000` partial stage，保持 collection SHA
+`c715366b96d6768b7cff2eefb3b425edf705c7ea22a61a518e45c663c54e4164` 不变，完成
+iteration commit、run-state 前移、同卡 wake 和更新后生成。最终 ledger 顺序为
+initialize→stage→interrupted-stage-archived→stage→directory-commit→state-advance，
+16 个 phase 与三工件实物哈希均独立复核。该恢复批次 8 个 group 恰好全为零优势，
+因此最终 learner 合法执行 0 次 optimizer update、adapter 保持不变；此结果只用于证明
+中断原子性，不宣称学习增益。非中断 Job 1315 已独立证明非零 Step-aware 更新。
+
+在上述 GPU 和真实中断工件冻结后，readiness 候选 Job 1320 以 `2 CPU / 8 GB /
+24 h` 上限完成 `429 passed, 10 deselected`，并在测试前精确核对候选工作区只含
+5 个预期文件。最终仍需把这组 readiness 实现提交到新的 clean SHA，完成提交后
+回归并生成 fail-closed `READY` manifest；这一步只开放“可提交”判断，不会启动
+正式训练。
+
 ## 11. 24 小时中断恢复与原子性
 
 Slurm wall time 固定不超过 24 小时。恢复单位分两层：
