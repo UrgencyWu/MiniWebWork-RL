@@ -1,0 +1,74 @@
+{
+  "base_model": "/data/share/model/Qwen3.5-4B",
+  "corpus_manifest_sha256": "5f5b2e253594dc7fa58c9ab1e8f653558f69a2a98885f0f0487179b185bb4df0",
+  "dataset_id": "m4_long_horizon_verified_sft_v2",
+  "label_tokenization_contract": "full chat template minus generation prompt prefix, including assistant terminator, then right truncate",
+  "max_length": 6144,
+  "passed": true,
+  "repetition_policy": "none",
+  "schema_version": "m4_long_horizon_sft_token_audit_v1",
+  "splits": {
+    "dev": {
+      "completion_label_tokens_by_horizon": {
+        "basic": 2808,
+        "long": 6642,
+        "medium": 8712
+      },
+      "completion_label_tokens_by_task_family": {
+        "cheapest_feasible": 4788,
+        "exact_product": 2808,
+        "highest_reliability_supplier": 6642,
+        "no_feasible_product": 3924
+      },
+      "duplicate_sample_count": 0,
+      "effective_completion_label_tokens": 18162,
+      "maximum_completion_label_tokens": 31,
+      "maximum_forward_sequence_tokens": 5495,
+      "maximum_untruncated_forward_sequence_tokens": 5495,
+      "minimum_completion_label_tokens": 8,
+      "sample_count": 846,
+      "total_forward_tokens": 3148254,
+      "total_untruncated_forward_tokens": 3148254,
+      "truncated_sample_count": 0,
+      "unique_sample_count": 846,
+      "untruncated_completion_label_tokens": 18162,
+      "zero_completion_label_sample_count": 0,
+      "zero_completion_label_sample_fraction": 0.0
+    },
+    "train": {
+      "completion_label_tokens_by_horizon": {
+        "basic": 9360,
+        "long": 22140,
+        "medium": 29040
+      },
+      "completion_label_tokens_by_task_family": {
+        "cheapest_feasible": 15960,
+        "exact_product": 9360,
+        "highest_reliability_supplier": 22140,
+        "no_feasible_product": 13080
+      },
+      "duplicate_sample_count": 0,
+      "effective_completion_label_tokens": 60540,
+      "maximum_completion_label_tokens": 31,
+      "maximum_forward_sequence_tokens": 5494,
+      "maximum_untruncated_forward_sequence_tokens": 5494,
+      "minimum_completion_label_tokens": 8,
+      "sample_count": 2820,
+      "total_forward_tokens": 10492517,
+      "total_untruncated_forward_tokens": 10492517,
+      "truncated_sample_count": 0,
+      "unique_sample_count": 2820,
+      "untruncated_completion_label_tokens": 60540,
+      "zero_completion_label_sample_count": 0,
+      "zero_completion_label_sample_fraction": 0.0
+    }
+  },
+  "tokenizer_file_sha256": {
+    "merges.txt": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d",
+    "tokenizer.json": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "tokenizer_config.json": "316230d6a809701f4db5ea8f8fc862bc3a6f3229c937c174e674ff3ca0a64ac8",
+    "vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+  },
+  "train_sha256": "f962e84fd4bd7a58b73c3ed30ee21f6b05ea867b68718498182fea2de097a94c",
+  "valid_sha256": "5e9d43aab308fd8720f0f6df849e6f2f299d8c1a0595bc1b7cd0dc5d2074f2b3"
+}

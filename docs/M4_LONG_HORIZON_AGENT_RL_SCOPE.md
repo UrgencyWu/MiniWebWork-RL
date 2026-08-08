@@ -44,9 +44,11 @@
 它只能作为“发现并阻断 shortcut”的诊断证据，不能进入 SFT 或在线训练血缘。
 
 Verified SFT 构建器会在真实浏览器环境逐 turn 回放 expert evidence，并要求
-实际动作序列、参考 trace SHA 和终态成功全部一致。小规模 train/dev 回放已经
-通过；完整 240/72 语料和精确 completion-label token 审计仍属于前置门禁，
-不能被描述为已完成的正式 SFT。
+实际动作序列、参考 trace SHA 和终态成功全部一致。CPU Slurm Job 1261 已在
+clean `95d7c2607a4d279196aa760b1f56723332020792` 上完成完整 240/72 回放与精确
+token 审计：train/dev 分别包含 2820/846 个唯一 turn、60,540/18,162 个有效
+completion-label token，重复、零标签、6144 截断和 runtime DB 残留均为 0。
+这只证明监督语料可训练，不代表共享 SFT adapter 已经训练。
 
 ## 1. 面试导向与一句话目标
 

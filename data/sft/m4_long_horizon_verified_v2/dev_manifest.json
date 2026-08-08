@@ -1,0 +1,616 @@
+{
+  "all_reference_trajectories_verified": true,
+  "builder_git_sha": "95d7c2607a4d279196aa760b1f56723332020792",
+  "completion_label_contract": "one assistant action completion per unique turn; no repeated packing",
+  "context_contract": {
+    "current_url_contract": "path_only_without_origin_query_or_fragment",
+    "evidence_memory_contract": "public_observation_v1",
+    "evidence_page_types": [
+      "product_detail",
+      "supplier_detail"
+    ],
+    "history_window": 5,
+    "max_control_elements": 16,
+    "max_evidence_entries": 8,
+    "max_evidence_text_characters_per_entry": 1000,
+    "max_link_elements": 16,
+    "max_visible_text_characters": 5000,
+    "prompt_version": "browser_agent_v4_long_memory"
+  },
+  "dataset_id": "m4_long_horizon_verified_sft_v2",
+  "duplicate_sample_count": 0,
+  "max_steps": 20,
+  "output_filename": "valid.jsonl",
+  "prompt_contract": "browser_agent_v4_long_memory",
+  "prompt_system_sha256": "239139aeb9f34af4c6f3460d86531f78c0d484983636e9743e69578b4eecf6f7",
+  "purpose": "model_selection",
+  "records_sha256": "5e9d43aab308fd8720f0f6df849e6f2f299d8c1a0595bc1b7cd0dc5d2074f2b3",
+  "runtime_database_contract": "fresh unique run_id; runtime identifiers excluded from v4 prompts",
+  "sample_count": 846,
+  "sample_split": "dev",
+  "schema_version": "m4_long_horizon_verified_sft_v2",
+  "seed_manifest_sha256": "938b25a643259e6724255fd6fe14d4808558c99eedf83ab2127d44133a49bfde",
+  "task_count": 72,
+  "task_source_dataset_id": "m4_long_horizon_v2",
+  "task_split": "dev",
+  "task_split_manifest_sha256": "b9547d2857a772075a1acef28e971d09cb58221e6bf02ee12bbccb34d5e7fc1b",
+  "task_summaries": [
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "4cd3b11fb0454be6e1bcbef4b909966e9431c0f367b302eb2f333aaac17abdf2",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W061-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "a140132768378abe0ef55bc00847fb67f19f6f17436c61d5cb26260401a9a15a",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W061-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "6fbb7c7d536caf2bec76bb9f2c8ab16c7a72dae90c1e316e7fce169ad6903c50",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W061-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "ba77544b3ca7075d72e355ea1b0aca0eb7d8fcb9dc3ef8c2124929850ee831ba",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W061-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "9fcc92d264851a68194ea5187980d6b98b500cb65e74af83b40f5550977299ee",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W062-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "1d866db16fb46ef78db4fbc30985d74f4b961806c6b891ab4767927dc492db60",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W062-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "193a4884c9a244e62af31591119cdbcb9cfe11f001f517e7f1042745a5efaa06",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W062-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "9dae6aae871a7add9213e4c7a012b81ebdbc79ad2a63d4880de25c9aaba77979",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W062-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "ea82f21632a0fdf2506df6becabcc3439986b6784aa268323bddd6bb28e60a95",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W063-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "a58aebdda9419631700d5ed1e13a2f6b4d66fb770fa70a1034bdbb0cd8aabbfe",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W063-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "a4877830d8ac1678754c6f19870276826a5bd3beef202c8946f39608e1dad78e",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W063-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "f8745c15847e799fc690a04d3543b439ce0f05c4c5c937cbcf975d52a9b20fcc",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W063-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "afff5ed7fdba0cab8b54b460ae6bc6298c5e38ed4efd7ff34c00db01c48ff8ac",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W064-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "855b076a8b7c75a775eb25231b4e37f99fabac5f9283e1601c19e3babd785617",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W064-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "bce91dbbdc347356193dc469650dfcadd665c7b08f0fddf83ea7d7e73f5c3acd",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W064-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "b55bb6d5dded1b9159240cbb848423666027108950c6c1cd25e1d2160b64f55c",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W064-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "f172ded1b330a481db45940109065ff1e4f96cc256deda117efc0365f93a52a2",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W065-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "b38268a2669e35efd82457762408fbfd375d9fde7a99e6b0aca9a60920a53a19",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W065-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "94a5682f18f923cd08a3f5e39c24ba16794fd6323c6c7d620c4fbf09abfb252e",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W065-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "a8db8cac18fa8790f7befc7cd1020b26cb4dbcef395a2e6cc9ebbfde744827f7",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W065-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "88f11ad4567b31ecfebc8273885bfe6217afe7aab7cc762fd1fec7cf53c0a82b",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W066-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "a3a09c8847cb8ad3ac8e1142451fd05937b756c1b155f9d877335f312a338406",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W066-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "d7eb29e70f8fe81700d5c5a330d38e08aaad72e91b8eb4038a3eb57a9c715c12",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W066-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "7c924e461a62526003138063ee9e5aac8dbd0ea46cef9db134f6449fb26cc1e2",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W066-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "b7299d0b92dfbffd0809b5a8e5c6c1b69399a32d008a82da865ec715982a7077",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W067-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "229792abc75c6fb96bf6d807acb56773e64da966a5d79fcca2d9d5a7875a95cc",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W067-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "1b14f059be9aba757646ec76e7ea9140584cc9b64c7401e3c575d7942c091eb2",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W067-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "29cfebc4fce5de4ea17720ff0e44762e5217f0b23bd582d7fa83a15f8658f2f5",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W067-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "1a278d540c818176ead8a18a1af6bc1076f928ed89196949c625fdfa91d1b99e",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W068-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "1efd465b804db50ae7f9511a935ffc7094e41a6c76898934bf15ab28dd0d77aa",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W068-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "2ba824538f0fa33cfe423e4bc0015d7f147dbfb9df8fb49e7c275ec1cdbed16f",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W068-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "5a3ec403604a5f37ef26201a59435290374241efc01991dce22599131cc4f84c",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W068-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "a027244c4de9744a1ad88ed3b03d3b0cf21984221eead079d105d6d683fe654d",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W069-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "f4bc8ffcc85877abfca2874f0b75b2b9428fd2b58a5291457c119945f82a2500",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W069-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "8b0779dce43bb98d416ae6055ea65a2c90d49358d9f87f32d68f4b79bd6e2f99",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W069-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "9d9d2a0f5cea8000c2b87cd7c64adbb060f59c43c1cfa74ca32b0683912059f0",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W069-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "14c5fc6cdb4e4ffca323837fd771e6728ffcd4eda7050ca0c36afc18cf908bdf",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W070-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "582408bafe96c358334963d6507202f24321dec4c1c0770e09d86508bff203b1",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W070-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "09150404c13306cd43e3d3714c4a25b2a7bf7bc9d7b69331208d2efd53c3be28",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W070-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "8322975b0051e0070ae65b2acca2fd9d638b275df68d262bb4ec062ff31d5680",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W070-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "fafe8932209f6055f74fa9ed72bf8cddccd3b3aeca4aa9a483fada2e8f1c6d6e",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W071-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "33b546bebb46fd0551edf244db296761092ff66c0123b2f17ba234ab4448a4b5",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W071-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "ccc91780a6e658579d24f238d108c81911d2db319277a58b8f7bc289091e78df",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W071-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "c2fdb8b3e44f330126d31fba514bf59bc90aa9a0a441b9609527be47cb3c9960",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W071-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "a66a6a04482eab5ea124450e08b371f5917ff22895bce3a667440afc9925c56b",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W072-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "68e4ad1d5247bae896bed3e7077b87b5832520405f758890612ec94550ecc1c1",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W072-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "f142eef9d58ef3547c06d63c1e5650d9efb7d409e2920789feb4a288965e1937",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W072-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "0e0c5c00e6c860c49ffc8df96b26cffcedfbb3387d693ca5c9d4d51ffbe057a4",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W072-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "014bd2b51d50710b3d472a2d6c0450f6e239249a8d9519b238bc5ea5d48cf3bf",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W073-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "0e67b6c330e21e27a1c4b1c0e6993b737e043b89bd2371cdc3ad262854e3213a",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W073-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "9532d904a1a01fafaa1462e7ba3a49c1ec5aa6770ac3a8aa8de07ba324bb2b23",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W073-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "6a876b6457ad487751ebd8132ece397bc601b241bd163cb67d66eea82eb35ed1",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W073-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "73f3401d27b6535c6deeb44e6cb1b2e23a2d8178b0ff62e1ea062617a0568865",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W074-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "c40f950d847acd2624ad470b39213673f356b6818a78d26c7c2eafe7dc57d353",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W074-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "2cd5367628952f553e2b119c63f37e951ef9118d99ca87190aba8aeafba44a8d",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W074-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "0b3b5a967377bf359f8663b1595beb3306c4155844725f331a630e0ee14db771",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W074-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "9f67f225015fb06d9653aed4bec068ddcfe51e71bdb3964b5c9cc617b5ba50f5",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W075-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "67f9bd03816785ad661779ed2402b555af122fc0ddaa8f72678ff8887c88ae5d",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W075-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "07fbbf9ed714f08cdd5fb9f92861a4878fb024f7b447ed176a15611776a08a73",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W075-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "5d63019c6baf3b02722d780d53683b6f10cb8974fc8dab36b7ae1fcf63fa3ebb",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W075-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "f919b1d5eff4827eb626840fd59c1e0019230386c4d8a35784f2f6be41fc2102",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W076-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "72216df2c2838958c08c63da216cdedf598810168382d6992b3e965151dadadc",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W076-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "cb8d830c926937af9ac838eb3ac527738469526a814252d7117500a5fb0843aa",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W076-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "830d787a0c305edbe1b0d2dfd8968acb7e8da3336c395024b40dbb7e6263e197",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W076-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "1d2224ab4556d926246795ff292973eafe5e2a072ca54bcbb9d8fbc345f8763f",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W077-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "1e06f63d09edc13c6a4320ced0992b740e414b9ebc5e5a879ca2ed20589ee3c2",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W077-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "b12865da0e9bdc6f31aafa502b14145ac2aa9d41e8c51436ffd9c1828e5c15d6",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W077-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "f48d1a84e2d1999a22b7071ae6444b662cc44514248bc373fd4f7d3a4e7b104b",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W077-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "024a31bc1d07aa3f82ce2d889daedd0e7ff9ef92c418b63ee1a6845db515a72f",
+      "task_family": "cheapest_feasible",
+      "task_id": "M4-LH-DEV-W078-CHEAPEST_FEASIBLE",
+      "turn_count": 12,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "basic",
+      "oracle_trace_sha256": "8a2d3d7e99f6ec11082312e13fa2be29b84ed9d8746f98790c2629aa09b609a6",
+      "task_family": "exact_product",
+      "task_id": "M4-LH-DEV-W078-EXACT_PRODUCT",
+      "turn_count": 7,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "long",
+      "oracle_trace_sha256": "8e402728c87ac2b2d9c4a25cef40d06345179508c4d03ee378d25b3a58d929e4",
+      "task_family": "highest_reliability_supplier",
+      "task_id": "M4-LH-DEV-W078-HIGHEST_RELIABILITY_SUPPLIER",
+      "turn_count": 18,
+      "verifier_success": true
+    },
+    {
+      "horizon_stratum": "medium",
+      "oracle_trace_sha256": "9b3d66791243c479de9ff69856092e8b51637c7c49e1a284fb9bc6433ccfba3c",
+      "task_family": "no_feasible_product",
+      "task_id": "M4-LH-DEV-W078-NO_FEASIBLE_PRODUCT",
+      "turn_count": 10,
+      "verifier_success": true
+    }
+  ],
+  "unique_sample_count": 846
+}

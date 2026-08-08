@@ -37,8 +37,8 @@ SFT、GRPO 或 step-aware 作业。
 | Split 隔离 | PASS | world/product/supplier/constraint/answer signature 跨 split 零重叠 |
 | 真实浏览器与 verifier 工作流 | PASS | 18 步成功；跳过供应商检查即使答案正确也失败；旧 M4 流程兼容 |
 | Prompt / 公开证据合同 | PASS | `browser_agent_v4_long_memory` 只保留有界、模型可见的 supplier/product 页面摘要；移除 origin/query/episode ID；oracle 属性泄漏测试与三供应商真实页面记忆回放通过 |
-| Verified SFT 构建器 | PARTIAL | v2 小规模 train/dev 唯一逐 turn 回放通过；每次使用 fresh unique runtime DB，避免中断遗留 DB 跨版本混入；完整 240/72 尚未构建 |
-| SFT 精确 token/零标签审计 | PENDING | 待 CPU Slurm 语料作业产生完整 manifest 与 tokenizer audit |
+| Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
+| SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
 | SFT trainer 与 dev 停止规则 | PENDING | 需实现 completion-only loss、microbatch benchmark 和 plateau 工件 |
 | 异步 vLLM rollout | PENDING | 需实现多 browser worker、连续批处理和完整采样 log-prob |
 | 迭代 learner / GRPO | PENDING | 需实现多 iteration/minibatch、有效组账本和 250k token cap |
@@ -114,6 +114,7 @@ wall time                 <=24h per Slurm job
 |---:|---|---|---|---|
 | 1259 | `b3d96dc4b83ceeae5e232698d03a8bd4f4461bd8` | 完整 Verified SFT 语料与 token 审计 | 2 CPU / 8 GB / 4 h | `FAILED 127:0`，1 秒内退出；批处理 PATH 中找不到裸 `srun`，第一个构建命令未执行，输出目录不存在；不得重用为研究工件 |
 | 1260 | `e9dd16441c5974332e289a1fb02620cf31eab2ef` | 完整 Verified SFT v1 语料 | 2 CPU / 8 GB / 4 h | `CANCELLED`，运行 35:48 后主动停止；train/dev 的 78 个 long task 中正确供应商 78/78 固定为第三个访问项，且 v3 prompt 不保留前三个供应商页的可靠性证据；该设计会教授位置捷径，所有部分产物均禁止进入正式血缘 |
+| 1261 | `95d7c2607a4d279196aa760b1f56723332020792` | 完整 Verified SFT v2 语料、token 审计与最终验证 | 2 CPU / 8 GB / 4 h | `COMPLETED 0:0`，58:37；240/72 任务、2820/846 唯一 turn；zero-label/duplicate/truncation 均为 0；runtime DB 零残留；PASS |
 
 job 1259 的 stdout/stderr SHA256 分别为
 `6f8ea5b13cf84336a7f46352970fb7babb875d0201e306a94d5a971fc0e39e70` 和
@@ -123,6 +124,25 @@ job 1260 的 stdout/stderr SHA256 分别为
 `e0695093f5cb8ed2594212fa01ed3be3c8c704ad5e5403cc08b0d7e2528b0e46`；
 取消时尚未写出 corpus 文件，不能将 runtime DB 或日志误认为可续跑语料。
 1259 的 `srun` 路径问题已在 1260 前做最小修复；1260 进一步暴露的是数据与
-prompt 的语义门禁，而非基础设施故障。下一次语料重试必须绑定 v2 数据、v4
-公开证据记忆、全新 clean Git SHA、全新 JobID 和空的 v2 输出目录；不得续接
+prompt 的语义门禁，而非基础设施故障。Job 1261 已按要求绑定 v2 数据、v4
+公开证据记忆、全新 clean Git SHA、全新 JobID 和空的 v2 输出目录；它没有续接
 1260 的进度或复用其样本。
+
+Job 1261 的 stdout/stderr SHA256 分别为
+`c96e04904b5e0ddaabbea39ae2b477d971846908ea13fe3b8b959f3bd8c5313c` 和
+空文件哈希 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`。
+正式语料目录 `data/sft/m4_long_horizon_verified_v2` 的关键 SHA256 为：
+
+```text
+manifest.json        5f5b2e253594dc7fa58c9ab1e8f653558f69a2a98885f0f0487179b185bb4df0
+token_audit.json     61e38e0b3feca7b0f72b602354ea7fd2a6919d56c3b8a6c55c24dda94501c001
+train.jsonl          f962e84fd4bd7a58b73c3ed30ee21f6b05ea867b68718498182fea2de097a94c
+valid.jsonl          5e9d43aab308fd8720f0f6df849e6f2f299d8c1a0595bc1b7cd0dc5d2074f2b3
+train_manifest.json  2b75b7bb6a8d37044dba8b7247866acbd7c1fd848d76de2c6c026feee93ed595
+dev_manifest.json    6a315c3524a1ae240d362e9748468a58a52d501612544a510221d1209399543a
+```
+
+独立复核确认 train/dev sample ID 各自唯一、task ID 零重叠、split 标签和 assistant
+completion 角色无错误；dataset、seed 和 prompt 哈希仍分别为 `a714e5cb...`、
+`938b25a...` 与 `239139ae...`。该 PASS 只关闭数据与监督 token 门禁，不代表已
+训练共享 SFT adapter。
