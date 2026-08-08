@@ -17,6 +17,9 @@
   },
   "model_contract": {
     "base_model_path": "/data/share/model/Qwen3.5-4B",
+    "base_model_manifest_path": "data/m4_long_horizon_base_model_manifest_v1.json",
+    "base_model_manifest_sha256": "290ecd9ec4eaa1f5ac6927b10e9cb4c600d22aec78a6d743baa8a01d72c1b7a3",
+    "base_model_functional_file_set_sha256": "6b2cdb9cf894cec7eb1dcef2a57682a9d73e22f2a81a58ef3b1f32854f031b85",
     "language_model_only": true,
     "maximum_model_length": 6144,
     "maximum_new_tokens_per_turn": 128,

@@ -21,6 +21,7 @@ from ..m4_long_horizon_protocol import (
     STUDY_MANIFEST_PATH,
 )
 from .contracts import sha256_file
+from .model_manifest import BASE_MODEL_MANIFEST_PATH, validate_base_model_manifest
 from .sft_selection import SFT_SELECTION_PATH
 
 RUNTIME_CONTRACT_SCHEMA = "m4_long_horizon_runtime_v1"
@@ -78,6 +79,24 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
 
     model = payload.get("model_contract", {})
     _require(model.get("base_model_path") == "/data/share/model/Qwen3.5-4B", "base model drift")
+    _require(
+        model.get("base_model_manifest_path")
+        == str(BASE_MODEL_MANIFEST_PATH.relative_to(PROJECT_ROOT)),
+        "base model manifest path drift",
+    )
+    _require(
+        model.get("base_model_manifest_sha256") == sha256_file(BASE_MODEL_MANIFEST_PATH),
+        "base model manifest hash drift",
+    )
+    checked_model = validate_base_model_manifest(
+        BASE_MODEL_MANIFEST_PATH,
+        verify_files=False,
+    )
+    _require(
+        model.get("base_model_functional_file_set_sha256")
+        == checked_model["payload"]["functional_file_set_sha256"],
+        "base model functional file-set drift",
+    )
     _require(model.get("language_model_only") is True, "language-model-only gate disabled")
     _require(model.get("maximum_model_length") == MAX_SEQUENCE_LENGTH, "model length drift")
     _require(model.get("maximum_new_tokens_per_turn") == MAX_NEW_TOKENS, "turn token cap drift")

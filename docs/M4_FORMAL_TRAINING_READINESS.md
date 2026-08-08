@@ -37,6 +37,7 @@ SFT、GRPO 或 step-aware 作业。
 | Split 隔离 | PASS | world/product/supplier/constraint/answer signature 跨 split 零重叠 |
 | 真实浏览器与 verifier 工作流 | PASS | 18 步成功；跳过供应商检查即使答案正确也失败；旧 M4 流程兼容 |
 | Prompt / 公开证据合同 | PASS | `browser_agent_v4_long_memory` 只保留有界、模型可见的 supplier/product 页面摘要；移除 origin/query/episode ID；oracle 属性泄漏测试与三供应商真实页面记忆回放通过 |
+| 基础模型血缘 | PASS | `/data/share/model/Qwen3.5-4B` 共 16 个实体文件、9,342,906,882 bytes；逐文件 SHA-256 manifest 为 `data/m4_long_horizon_base_model_manifest_v1.json`，manifest SHA `290ecd9ec4eaa1f5ac6927b10e9cb4c600d22aec78a6d743baa8a01d72c1b7a3`，二次全量复核一致 |
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
 | SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
@@ -73,7 +74,7 @@ learner、双 K4 collector 与原子 iteration state 后，完整非 GPU 回归�
 预留，以及“iteration 目录已 rename、run_state 尚未写入”故障后的只前进对账。
 
 在线 runtime 机器合同 SHA256 为
-`db8691ff45d8ff0057b540ccdf8f49e675e2144851225441fb370faf85f869d3`；
+`897169ce7beaad89c83be2c0d7c1c4b0cefe42166bf5d67c95e84b5eda1d31a5`；
 它固定 Python 3.11.14、PyTorch 2.10.0+cu128、Transformers 5.14.1、PEFT
 0.19.1、vLLM 0.17.0 与 Playwright 1.61.0，并继续保持
 `formal_submission_allowed=false`。该合同只冻结实现边界，不代表 GPU 门禁通过。

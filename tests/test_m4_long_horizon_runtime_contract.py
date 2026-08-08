@@ -18,6 +18,12 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
     assert payload["rollout_contract"]["browser_worker_candidates"] == [1, 2, 4, 8]
     assert payload["rollout_contract"]["maximum_group_token_reserve"] == 10240
     assert payload["learner_contract"]["behavior_policy_staleness"] == 0
+    assert payload["model_contract"]["base_model_manifest_sha256"] == (
+        "290ecd9ec4eaa1f5ac6927b10e9cb4c600d22aec78a6d743baa8a01d72c1b7a3"
+    )
+    assert payload["model_contract"]["base_model_functional_file_set_sha256"] == (
+        "6b2cdb9cf894cec7eb1dcef2a57682a9d73e22f2a81a58ef3b1f32854f031b85"
+    )
     assert {
         key: payload["parity_contract"][key]
         for key in PARITY_THRESHOLDS
