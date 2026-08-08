@@ -59,6 +59,9 @@ from .vllm_backend import AsyncVLLMGenerationEngine, VLLMBackendConfig
 
 ONLINE_PREFLIGHT_RUN_CONFIG_SCHEMA = "m4_long_horizon_online_preflight_run_v1"
 ONLINE_PREFLIGHT_REPORT_SCHEMA = "m4_long_horizon_online_preflight_report_v1"
+ONLINE_PREFLIGHT_RECOVERY_REPORT_SCHEMA = (
+    "m4_long_horizon_online_preflight_recovery_report_v1"
+)
 TARGET_ITERATION_INDEX = 0
 
 
@@ -454,19 +457,37 @@ async def run_online_preflight_once(prepared: Mapping[str, Any]) -> dict[str, An
     state_store.reconcile_committed_iterations()
     state = state_store.load_state()
     if state["current_iteration_index"] > TARGET_ITERATION_INDEX:
-        report = {
-            "schema_version": ONLINE_PREFLIGHT_REPORT_SCHEMA,
+        _require(
+            state["current_iteration_index"] == TARGET_ITERATION_INDEX + 1,
+            "single-iteration preflight advanced beyond its target",
+        )
+        recovery_report = {
+            "schema_version": ONLINE_PREFLIGHT_RECOVERY_REPORT_SCHEMA,
             "study_id": STUDY_ID,
             "formal_training": False,
             "run_config_sha256": run_config["run_config_sha256"],
-            "result": "PASS",
+            "result": "RECOVERED_COMMITTED_UPDATE_PHASE_GATE_FAILED",
             "recovered_after_committed_update": True,
             "current_iteration_index": state["current_iteration_index"],
             "current_policy_version": state["current_policy_version"],
-            "complete": True,
+            "current_adapter_sha256": state["current_adapter"]["sha256"],
+            "last_iteration_manifest_sha256": state[
+                "last_iteration_manifest_sha256"
+            ],
+            "same_gpu_phase_switch": {
+                "passed": False,
+                "reason": (
+                    "iteration committed without a durable complete preflight report; "
+                    "the prior process may have stopped before vLLM wake/add-adapter"
+                ),
+            },
+            "complete": False,
         }
-        atomic_write_json(completion_path, report)
-        return report
+        atomic_write_json(root / "recovered_committed_update.json", recovery_report)
+        raise RuntimeError(
+            "committed update recovered, but same-GPU sleep/wake was not proven; "
+            "use a new preflight run root for the phase-switch gate"
+        )
 
     identity = identity_from_run_state(state)
     state_store.assert_identity_matches_state(identity)

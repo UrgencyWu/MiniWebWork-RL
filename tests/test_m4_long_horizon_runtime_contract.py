@@ -51,6 +51,12 @@ def test_online_runtime_contract_is_focused_same_gpu_and_preflight_only():
         ("parity_contract", "replay_maximum_absolute_difference", 0.5, "parity"),
         ("evidence_contract", "turn_charge_before_full_artifact", False, "durability"),
         ("recovery_contract", "identity_mismatch", "warn", "identity"),
+        (
+            "recovery_contract",
+            "post_update_commit_pre_wake",
+            "claim_pass",
+            "post-commit phase",
+        ),
     ],
 )
 def test_online_runtime_contract_fails_closed_on_research_relevant_drift(

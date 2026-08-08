@@ -199,6 +199,11 @@ def validate_online_runtime_contract(payload: Mapping[str, Any]) -> None:
         == "archive_partial_stage_and_replay_frozen_collection",
         "interrupted-update recovery drift",
     )
+    _require(
+        recovery.get("post_update_commit_pre_wake")
+        == "preserve_commit_but_fail_same_gpu_phase_gate",
+        "post-commit phase recovery drift",
+    )
 
     telemetry = payload.get("telemetry_contract", {})
     _require(telemetry.get("external_interval_seconds") == 5, "telemetry interval drift")

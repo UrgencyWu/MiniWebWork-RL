@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from miniwebwork.long_horizon_rl.online_runner import (
     _load_or_write_run_config,
     identity_from_run_state,
+    run_online_preflight_once,
     summarize_collection_performance,
 )
 
@@ -82,3 +84,36 @@ def test_identity_reconstruction_binds_current_policy_and_adapter():
     assert identity.iteration_index == 3
     assert identity.policy_version == "policy_0003"
     assert identity.input_adapter_sha256 == "6" * 64
+
+
+def test_recovered_commit_without_complete_report_fails_same_gpu_gate(tmp_path):
+    state = {
+        "current_iteration_index": 1,
+        "current_policy_version": "policy_0001",
+        "current_adapter": {"sha256": "a" * 64},
+        "last_iteration_manifest_sha256": "b" * 64,
+    }
+
+    class AdvancedStateStore:
+        def reconcile_committed_iterations(self):
+            return {"reconciled_iterations": 1, "state": state}
+
+        def load_state(self):
+            return dict(state)
+
+    prepared = {
+        "root": tmp_path,
+        "run_config": {"run_config_sha256": "c" * 64},
+        "state_store": AdvancedStateStore(),
+    }
+    with pytest.raises(RuntimeError, match="same-GPU sleep/wake was not proven"):
+        asyncio.run(run_online_preflight_once(prepared))
+
+    assert not (tmp_path / "preflight_report.json").exists()
+    recovery = json.loads(
+        (tmp_path / "recovered_committed_update.json").read_text(encoding="utf-8")
+    )
+    assert recovery["result"] == "RECOVERED_COMMITTED_UPDATE_PHASE_GATE_FAILED"
+    assert recovery["recovered_after_committed_update"] is True
+    assert recovery["same_gpu_phase_switch"]["passed"] is False
+    assert recovery["complete"] is False

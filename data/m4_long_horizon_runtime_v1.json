@@ -120,6 +120,7 @@
     "interrupted_update": "archive_partial_stage_and_replay_frozen_collection",
     "iteration_commit": "atomic_directory_rename_then_atomic_run_state_advance",
     "post_rename_pre_state_crash": "verify_manifest_and_reconcile_forward",
+    "post_update_commit_pre_wake": "preserve_commit_but_fail_same_gpu_phase_gate",
     "identity_mismatch": "fail_closed"
   },
   "telemetry_contract": {

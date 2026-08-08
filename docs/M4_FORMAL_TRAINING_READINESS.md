@@ -45,7 +45,7 @@ SFT、GRPO 或 step-aware 作业。
 | 迭代 learner / GRPO | PARTIAL | 已实现真实 tensor replay、分层 PPO clipped loss、2 policy epochs、零信号跳过、PEFT/AdamW artifact 保存，以及 adapter/optimizer/token/sampler 原子 iteration 提交；目录提交后状态推进前可向前对账，partial learner stage 从同一 frozen collection 重做；待同卡 GPU 更新 smoke |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一，并已接入共享 tensor learner；CPU 单测通过，待真实 collection 的同卡 GPU smoke |
 | On-policy / parity 门禁 | PARTIAL | v2 run identity 绑定 base-model/runtime hash、iteration/policy；turn 绑定 attempt/request/sampling seed、adapter、prompt/completion IDs 与 behavior/sampling log-prob；首次 GPU 观测前已预注册 behavior/sampling `1e-7` 及 replay mean/P95/max `0.02/0.08/0.18`、mean ratio 偏差 `0.02`，待 vLLM↔HF GPU smoke 实测 |
-| 24 小时原子恢复 | PARTIAL | v2 journal 使用 cached hash-chain append+flush+fsync，并用 stat 加有界头尾内容哨兵适配远端粗粒度时间戳；先持久化最小 token charge、再原子落 full turn/trajectory/group；不完整 attempt 保留成本并定点归档；iteration 原子提交、run_state 向前对账与 partial-stage fault injection 已通过；待真实 Slurm 进程中断/续跑 smoke |
+| 24 小时原子恢复 | PARTIAL | v2 journal 使用 cached hash-chain append+flush+fsync，并用 stat 加有界头尾内容哨兵适配远端粗粒度时间戳；先持久化最小 token charge、再原子落 full turn/trajectory/group；不完整 attempt 保留成本并定点归档；iteration 原子提交、run_state 向前对账与 partial-stage fault injection 已通过；若更新已提交但缺少完整报告，则保留 commit 但明确判同卡 wake 门禁失败，绝不补写 PASS；待真实 Slurm 进程中断/续跑 smoke |
 | GPU 性能门禁 | PARTIAL | SFT 单卡门禁已通过：microbatch=8 为 1122.89 forward tok/s，外部遥测 GPU util P50=100%、显存余量 50.58%；仍需 rollout concurrency、同卡 learner 与 phase-specific 门禁 |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
@@ -74,7 +74,7 @@ learner、双 K4 collector 与原子 iteration state 后，完整非 GPU 回归�
 预留，以及“iteration 目录已 rename、run_state 尚未写入”故障后的只前进对账。
 
 在线 runtime 机器合同 SHA256 为
-`897169ce7beaad89c83be2c0d7c1c4b0cefe42166bf5d67c95e84b5eda1d31a5`；
+`0d2a77e44a11e27e7c94112c1084c0e6ac28caf6cbc51e547263597e7d47ca1d`；
 它固定 Python 3.11.14、PyTorch 2.10.0+cu128、Transformers 5.14.1、PEFT
 0.19.1、vLLM 0.17.0 与 Playwright 1.61.0，并继续保持
 `formal_submission_allowed=false`。该合同只冻结实现边界，不代表 GPU 门禁通过。
