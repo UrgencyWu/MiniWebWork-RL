@@ -41,12 +41,12 @@ SFT、GRPO 或 step-aware 作业。
 | Verified SFT 构建器 | PASS | Job 1261 在 clean `95d7c26` 上完成 240/72 全 roster 真实浏览器回放；train/dev 为 2820/846 个唯一 turn，任务零重叠，全部参考轨迹/verifier 通过，临时数据库零残留 |
 | SFT 精确 token/零标签审计 | PASS | Qwen3.5 tokenizer 精确审计：train/dev completion-label token 为 60,540/18,162；forward token 为 10,492,517/3,148,254；重复、零标签和截断均为 0；最大序列 5494/5495 < 6144 |
 | SFT trainer 与 dev 停止规则 | PASS | Job 1264 在 clean `3a0acb4` 上完成全部 microbatch 候选与精确 20-update disposable smoke；选择 microbatch=8、grad accumulation=2，reserved-VRAM 余量 51.02%，完整 846-turn dev NLL/action/schema 为 0.03441/0.84634/0.93972；adapter 全部 256 tensors 非零且有限，机器选择合同见 `data/m4_long_horizon_sft_preflight_selection_v1.json` |
-| 异步 vLLM rollout | PARTIAL | `data/m4_long_horizon_runtime_v1.json` 已冻结单 GPU AsyncLLM、1/2/4/8 browser workers、最多 2 个并发 K=4 group、同卡 sleep/wake adapter swap、CuMem allocator、Qwen3.5 LoRA eager 兼容模式与完整 raw/sampling log-prob 合同；prefix cache、chunked prefill 和异步 batching 保留，CUDA graph 关闭的性能影响必须由 GPU telemetry 实测；待真实浏览器并发和 GPU smoke |
+| 异步 vLLM rollout | PARTIAL | Job 1267 已真实完成 8-worker、2 个并发 K=4 group、8 trajectories、41 turns 和 1667 action tokens，147.22 秒内达到 195.63 trajectories/hour，并成功执行 vLLM level-2 sleep；但首次 learner replay 前发现 Qwen3.5 conditional wrapper 的 LoRA 命名空间错配，1267 按门禁失败。已完成 128-module/256-tensor 语义等价 vLLM view 的 CPU 审计，仍待修复后 GPU parity、wake 与 phase telemetry |
 | 迭代 learner / GRPO | PARTIAL | 已实现真实 tensor replay、分层 PPO clipped loss、2 policy epochs、零信号跳过、PEFT/AdamW artifact 保存，以及 adapter/optimizer/token/sampler 原子 iteration 提交；目录提交后状态推进前可向前对账，partial learner stage 从同一 frozen collection 重做；待同卡 GPU 更新 smoke |
 | Step-aware 信用分配 | PARTIAL | 已冻结 `public_anchor_macro_micro_v1`：公共 observation+prompt-token context、gamma=0.95、omega=1、first-visit、macro fallback 与三层长度归一，并已接入共享 tensor learner；CPU 单测通过，待真实 collection 的同卡 GPU smoke |
-| On-policy / parity 门禁 | PARTIAL | v2 run identity 绑定 base-model/runtime hash、iteration/policy；turn 绑定 attempt/request/sampling seed、adapter、prompt/completion IDs 与 behavior/sampling log-prob；首次 GPU 观测前已预注册 behavior/sampling `1e-7` 及 replay mean/P95/max `0.02/0.08/0.18`、mean ratio 偏差 `0.02`，待 vLLM↔HF GPU smoke 实测 |
+| On-policy / parity 门禁 | PARTIAL | Job 1267 的 behavior/sampling 差异为 0，但 vLLM↔HF replay mean/P95/max 为 1.18677/10.12739/21.51204，首次 optimizer step 前被预注册阈值拒绝；根因定位为原 PEFT 键被 vLLM 解析到 `model.layers`，而 conditional wrapper 实际需要 `language_model.model.layers`。阈值未放宽、无 optimizer update；待命名视图接入完整血缘后重跑 GPU parity |
 | 24 小时原子恢复 | PARTIAL | v2 journal 使用 cached hash-chain append+flush+fsync，并用 stat 加有界头尾内容哨兵适配远端粗粒度时间戳；先持久化最小 token charge、再原子落 full turn/trajectory/group；不完整 attempt 保留成本并定点归档；iteration 原子提交、run_state 向前对账与 partial-stage fault injection 已通过；若更新已提交但缺少完整报告，则保留 commit 但明确判同卡 wake 门禁失败，绝不补写 PASS；待真实 Slurm 进程中断/续跑 smoke |
-| GPU 性能门禁 | PARTIAL | SFT 单卡门禁已通过：microbatch=8 为 1122.89 forward tok/s，外部遥测 GPU util P50=100%、显存余量 50.58%；仍需 rollout concurrency、同卡 learner 与 phase-specific 门禁 |
+| GPU 性能门禁 | PARTIAL | SFT 单卡门禁已通过：microbatch=8 为 1122.89 forward tok/s，外部遥测 GPU util P50=100%、显存余量 50.58%。Job 1267 的真实 rollout 为 195.63 trajectories/hour，已超过当前约 38/h 的 3 倍门槛；仍需修复后 generation/learner phase GPU-util、learner throughput、有效 optimizer-token 比例与 wake 门禁 |
 | 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
 | 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
 
@@ -170,6 +170,53 @@ wall time                 <=24h per Slurm job
 | 1264 | `3a0acb44f69b46f05efb4d7650ee88aee1931af1` | 完整 SFT microbatch 选择与 20-update disposable GPU preflight | 1 GPU / 4 CPU / 32 GB / 24 h 上限 | `COMPLETED 0:0`，41:23；四候选均通过，选择 microbatch=8、grad accumulation=2；reserved-VRAM 余量 51.02%，外部遥测余量 50.58%，GPU util P50=100%；完整 dev 与 adapter 审计通过；PASS |
 | 1265 | `2501b9980547cd7caaeefa345c2df24a342227ec` | 首次 8-worker online E2E preflight | 1 GPU / 8 CPU / 48 GB / 24 h 上限 | `FAILED 1:0`，0:38；vLLM CuMem sleep pool 在模型载入前拒绝 `expandable_segments:True`；仅创建 journal identity，generated token、trajectory、learner update 与 PASS report 均为 0；旧 run root 冻结为失败诊断且不得续用 |
 | 1266 | `9191b2e71b5ab114a2feb06458279e250c679b6c` | allocator 修复后的 8-worker online E2E preflight | 1 GPU / 8 CPU / 48 GB / 24 h 上限 | `FAILED 1:0`，1:37；allocator 门禁已通过、8.06 GiB 模型载入和 66.48 GiB KV cache 建立成功，但 vLLM 0.17 dummy-LoRA CUDA graph warm-up 将 Qwen3.5 四个 `in_proj_qkvz` slice 与两个逻辑 checkpoint module 错配并 `IndexError`；仍未进入 collection，旧 root 不得续用 |
+| 1267 | `e7f397e5b81d5c36db5a62f3b1cc1c07c386f7e2` | eager Qwen3.5 LoRA 的 8-worker online E2E preflight | 1 GPU / 8 CPU / 48 GB / 24 h 上限 | `FAILED 1:0`，4:02；真实 collection、K=4 原子提交、吞吐和 level-2 sleep 均成功；首次 optimizer step 前 replay parity fail-closed，未产生 update/iteration commit/wake/PASS。定位为 vLLM conditional wrapper 与 canonical text-only PEFT adapter 的模块前缀错配；旧 root 冻结为失败诊断且不得续用 |
+| 1268 | pre-commit working tree（基于 `e7f397e`） | adapter-view 实现后的完整非 GPU 回归 | 2 CPU / 8 GB / 1 h 上限 | `COMPLETED 0:0`，3:42；`412 passed, 2 warnings`，无 GPU。用于开发回归；因提交时 worktree 非 clean，不能替代最终冻结 SHA 的 clean-room 回归 |
+
+Job 1267 绑定 runtime SHA256
+`45158a21efaa6976dc4e0994d27e1fbf342ec60db2204e6f8047f43b7ae988b6`。
+它完成 2 个 K=4 group、8 条 trajectory、41 个 model turn、1667 个 action
+token；collection 用时 147.2167 秒，吞吐为 195.6299 trajectories/hour、
+1002.603 model turns/hour 和 40,764.38 action tokens/hour。attempt journal 共
+96 个事件，token charge 与 turn artifact 一一配对；vLLM level-2 sleep 释放
+76.03 GiB，仅保留 4.56 GiB 后，同卡 HF/PEFT learner 成功加载。
+
+1267 在首次 optimizer step 前得到 behavior/sampling 最大差异 `0`，但初始
+vLLM/HF replay 的 mean/P95/max 绝对 log-prob 差异为
+`1.1867697 / 10.1273904 / 21.5120354`；mean importance ratio 为
+`0.9912768`。因此预注册 replay 门禁正确拒绝该作业；optimizer update、adapter
+变化、iteration commit、vLLM wake 和 PASS report 均为 0，不能作为成功工件。
+stdout/stderr/GPU telemetry/run-config SHA256 分别为
+`b9ff4e20ef5f1d0e43f11a5e8a562224a3094a9ddb611d7c976b21810f5e861a`、
+`cdc8c32ba91a7a1511e4e25e34ede24497d4bcee932266c8f7a9864707fc5ea3`、
+`50919b8c8b49f6409fcb40068583572113ae7e9798076091a46973424be975dc` 和
+`4b0cf42b9b895bf4416e35e051fbbb461d6b200e33d6a3bc0db582b52e7455b3`。
+journal/collection/group-0/group-1/run-identity SHA256 分别为
+`9dabeb270692ecdd245612868d163078c5ea3d679b1d97b30a30fc156053a1d2`、
+`50902b2758febf004f99f24cc5cbbda849b6fefe3c7f8de1b3f912cee5298659`、
+`287e0a0b7d2e39589fee4732c3c3a7b508e1cbdb5cfd0bee6e3df692846944d1`、
+`3fcc2f0160bb76a3e19b43c9ea12bfaaf0a32ef8086a474243bcb37a667821af` 和
+`a57872529c85e8dccf8bed4146af92e7c8b559c4f43acca993081947a52edbe7`。
+
+CPU 根因审计证明 canonical adapter 的 256 个 tensor 被 vLLM 0.17 解析为
+128 个 `model.layers.*` 模块，而 Qwen3.5 conditional wrapper 的实际语言层为
+`language_model.model.layers.*`。诊断视图只插入该命名空间，不改变 tensor；它
+覆盖 32 层 MLP 与第 3/7/11/15/19/23/27/31 层 full-attention，共 128 模块、
+256 tensor。源 adapter 与视图的规范化语义 tensor SHA256 均为
+`0ebd0dbc5013ba2c687e52ec106622749112f5177c3a5d86f2f6c5e5cf654528`；
+诊断视图目录 SHA256 为
+`cc93243cec3a048344fc61d59ef68c370f9d38edb6b7d05021fe6184bc1c805f`，
+manifest 内容 SHA256 为
+`ee96d8cdeb9aabcf8387acfefe1af93b7198002eb5c274ae1ade6ae13a503f74`，
+manifest 文件 SHA256 为
+`0899adc43d8312cbfabe0b3b52ad3c3090fd32c04b5bb258aef49317440631b4`。
+该 CPU 证据只证明结构/字节语义等价，不能替代修复后的 GPU parity smoke。
+
+Job 1268 的 stdout/stderr SHA256 分别为
+`fe39404d731b0ccc8dd99ab4d697d0d0b81415e848f879e6d33f6648c80f7ea4` 和
+`ad8eec64037d25f853723e6dbb6f005db017ab18a003d41c48296ef3df33cc41`。
+它验证新增 adapter-view 测试在内的 412 项非 GPU 回归，但明确保留
+`pre-commit working tree` 标记；最终 readiness 只能引用 clean 冻结提交上的重跑。
 
 Job 1266 绑定的 runtime SHA256 为
 `0f3cac765032cc369f510c40fb0efb14ad54bb0176bff4da49077ad4ec93174a`；
