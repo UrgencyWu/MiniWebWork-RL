@@ -151,6 +151,26 @@ def collect_job_evidence(repo_root: Path, sacct_path: Path) -> list[dict[str, An
     return records
 
 
+def collect_one_job_evidence(
+    repo_root: Path,
+    sacct_path: Path,
+    job: JobEvidence,
+) -> dict[str, Any]:
+    text = _run(
+        [str(sacct_path), "-j", str(job.job_id), "--format=JobIDRaw,State,ExitCode,Elapsed,AllocCPUS,ReqMem", "-n", "-P"],
+        cwd=repo_root,
+    )
+    record = parse_sacct_record(text, job)
+    for label, configured in (("stdout", job.stdout_path), ("stderr", job.stderr_path)):
+        path = Path(configured)
+        if not path.is_absolute():
+            path = repo_root / path
+        _require(path.is_file(), f"Job {job.job_id} {label} log missing")
+        record[f"{label}_path"] = configured
+        record[f"{label}_sha256"] = sha256_file(path)
+    return record
+
+
 def _event_map(root: Path) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     events = [_json(path) for path in sorted((root / "phase_events").glob("*.json"))]
     for index, event in enumerate(events):
@@ -338,6 +358,7 @@ def build_readiness_manifest(
     *,
     repo_root: Path = PROJECT_ROOT,
     expected_git_sha: str,
+    clean_regression_job: JobEvidence,
     sacct_path: Path = Path("/opt/slurm/slurm.25.05/bin/sacct"),
 ) -> dict[str, Any]:
     root = repo_root.resolve()
@@ -363,6 +384,10 @@ def build_readiness_manifest(
     preflight_root = root / study["payload"]["output_contract"]["preflight_root"]
     tracked = tracked_file_manifest(root)
     jobs = collect_job_evidence(root, sacct_path)
+    clean_regression = collect_one_job_evidence(root, sacct_path, clean_regression_job)
+    _require(clean_regression["state"] == "COMPLETED", "final clean regression did not complete")
+    _require(clean_regression["allocated_cpus"] == 2, "final clean regression CPU request drift")
+    jobs.append(clean_regression)
     selected = selected_e2e_evidence(preflight_root)
     soak = soak_evidence(preflight_root)
     recovery = recovery_evidence(preflight_root)

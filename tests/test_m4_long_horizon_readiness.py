@@ -5,6 +5,7 @@ import pytest
 from miniwebwork.long_horizon_rl.readiness import (
     JobEvidence,
     _percentile,
+    collect_one_job_evidence,
     parse_sacct_record,
 )
 
@@ -53,3 +54,18 @@ def test_parse_sacct_record_fails_closed_when_top_level_record_missing():
     job = JobEvidence(7, "recovery", "CANCELLED", "0:0", "out", "err")
     with pytest.raises(ValueError, match="missing sacct"):
         parse_sacct_record("7.batch|CANCELLED|0:15|00:02:39|8|\n", job)
+
+
+def test_collect_one_job_evidence_binds_logs_and_hashes(tmp_path, monkeypatch):
+    stdout = tmp_path / "clean.out"
+    stderr = tmp_path / "clean.err"
+    stdout.write_text("429 passed\n", encoding="utf-8")
+    stderr.write_text("", encoding="utf-8")
+    job = JobEvidence(9, "clean", "COMPLETED", "0:0", str(stdout), str(stderr))
+    monkeypatch.setattr(
+        "miniwebwork.long_horizon_rl.readiness._run",
+        lambda command, cwd: "9|COMPLETED|0:0|00:00:18|2|8G\n",
+    )
+    record = collect_one_job_evidence(tmp_path, tmp_path / "sacct", job)
+    assert record["allocated_cpus"] == 2
+    assert record["stdout_sha256"] != record["stderr_sha256"]
