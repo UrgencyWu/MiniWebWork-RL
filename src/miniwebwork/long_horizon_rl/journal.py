@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -748,6 +749,37 @@ class CollectionStore:
                 key: value for key, value in existing.items() if key != "collection_sha256"
             }):
                 raise ValueError("frozen collection manifest hash mismatch")
+            frozen_events = [event for event in events if event["event_type"] == "collection_frozen"]
+            if len(frozen_events) != 1 or events[-1]["event_type"] != "collection_frozen":
+                raise ValueError("collection_frozen event is not the unique journal tail")
+            raw_lines = self.journal.path.read_bytes().splitlines(keepends=True)
+            if len(raw_lines) != len(events):
+                raise ValueError("frozen collection journal line count drift")
+            prefix_sha256 = hashlib.sha256(b"".join(raw_lines[:-1])).hexdigest()
+            if prefix_sha256 != existing.get("attempt_journal_prefix_sha256"):
+                raise ValueError("frozen collection journal prefix hash drift")
+            tail = events[-1]["payload"]
+            expected_tail = {
+                "iteration_index": iteration_index,
+                "collection_sha256": existing["collection_sha256"],
+                "group_count": existing["group_count"],
+                "all_generated_action_tokens": existing["all_generated_action_tokens"],
+                "journal_prefix_sha256": existing["attempt_journal_prefix_sha256"],
+            }
+            if tail != expected_tail:
+                raise ValueError("frozen collection journal tail/manifest drift")
+            if self.journal.generated_action_tokens != existing["all_generated_action_tokens"]:
+                raise ValueError("frozen collection generated-token ledger drift")
+            groups = self.load_committed_groups()
+            group_hashes = [group["group_sha256"] for group in groups]
+            if (
+                existing.get("group_count") != len(groups)
+                or existing.get("group_sha256") != group_hashes
+                or existing.get("group_set_sha256") != sha256_json(group_hashes)
+                or existing.get("committed_group_action_tokens")
+                != sum(group["generated_action_tokens"] for group in groups)
+            ):
+                raise ValueError("frozen collection group ledger drift")
             return existing
         groups = self.load_committed_groups()
         group_hashes = [group["group_sha256"] for group in groups]

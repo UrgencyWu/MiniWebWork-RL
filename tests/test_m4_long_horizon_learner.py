@@ -294,6 +294,10 @@ def test_shared_tensor_learner_updates_each_nonzero_k4_group_per_policy_epoch():
     assert report["parameter_change_norm"] > 0
     assert report["behavior_policy_staleness"] == 0
     assert report["initial_replay_parity"]["passed"] is True
+    assert report["credit_assignment"]["mixed_reward_group_count"] == 1
+    assert report["credit_assignment"]["zero_variance_group_count"] == 0
+    assert report["credit_assignment"]["nonzero_turn_advantage_count"] == 8
+    assert sum(item["action_tokens"] for item in report["credit_assignment"]["turn_position"].values()) == 16
 
 
 def test_shared_tensor_learner_skips_and_reports_zero_signal_group():
@@ -318,6 +322,8 @@ def test_shared_tensor_learner_skips_and_reports_zero_signal_group():
     assert report["effective_optimizer_action_tokens"] == 0
     assert report["parameter_change_norm"] == 0.0
     assert report["mean_ratio"] == 1.0
+    assert report["credit_assignment"]["mixed_reward_group_count"] == 0
+    assert report["credit_assignment"]["zero_variance_group_count"] == 1
 
 
 @pytest.mark.parametrize(

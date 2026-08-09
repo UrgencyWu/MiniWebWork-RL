@@ -656,6 +656,31 @@ class IterationStore:
         )
         return manifest
 
+    def load_committed_iteration_manifests(self) -> tuple[dict[str, Any], ...]:
+        """Return every committed iteration after full artifact validation."""
+
+        paths = sorted(
+            path for path in self.iterations_dir.iterdir()
+            if path.is_dir() and path.name.startswith("iteration-")
+        )
+        manifests = tuple(self._load_iteration_manifest(path) for path in paths)
+        _require(
+            [manifest["iteration_index"] for manifest in manifests]
+            == list(range(len(manifests))),
+            "committed iteration sequence is not contiguous from zero",
+        )
+        for before, after in zip(manifests, manifests[1:]):
+            _require(
+                before["output_policy_version"] == after["input_policy_version"],
+                "committed iteration policy chain drift",
+            )
+            _require(
+                before["global_generated_action_tokens_after"]
+                == after["global_generated_action_tokens_before"],
+                "committed iteration token chain drift",
+            )
+        return manifests
+
     @staticmethod
     def _state_after_manifest(
         state: Mapping[str, Any],

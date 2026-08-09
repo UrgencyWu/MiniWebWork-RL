@@ -203,6 +203,7 @@ def audit_post_wake_generation(
     expected_adapter_sha256: str,
     expected_rollout_adapter_sha256: str,
     expected_adapter_semantic_sha256: str,
+    cost_scope: str = "preflight_phase_switch_diagnostic_not_formal_training",
 ) -> dict[str, Any]:
     """Prove that the updated adapter can generate after the same-GPU wake."""
 
@@ -253,7 +254,7 @@ def audit_post_wake_generation(
         "queue_wait_ms": result.queue_wait_ms,
         "first_token_latency_ms": result.first_token_latency_ms,
         "generation_time_ms": result.generation_time_ms,
-        "cost_scope": "preflight_phase_switch_diagnostic_not_formal_training",
+        "cost_scope": cost_scope,
         "passed": True,
     }
 

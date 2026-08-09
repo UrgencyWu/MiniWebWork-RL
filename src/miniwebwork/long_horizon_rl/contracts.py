@@ -13,8 +13,8 @@ from typing import Any, Mapping, Sequence
 from urllib.parse import urlsplit
 
 from ..m4_long_horizon_protocol import (
+    FORMAL_METHODS,
     GROUP_SIZE,
-    ONLINE_METHODS,
     PROMPT_CONTRACT,
     STUDY_ID,
 )
@@ -248,7 +248,7 @@ class RunIdentity:
     def validate(self) -> None:
         _require(self.schema_version == RUN_IDENTITY_SCHEMA, "run identity schema drift")
         _require(self.study_id == STUDY_ID, "run study id drift")
-        _require(self.method in ONLINE_METHODS, "unsupported focused online method")
+        _require(self.method in FORMAL_METHODS, "unsupported focused formal method")
         _require_int(self.seed, "seed")
         _require(
             isinstance(self.git_sha, str)
@@ -313,7 +313,7 @@ def validate_turn_evidence(turn: Mapping[str, Any], identity: RunIdentity | None
     ):
         _require(isinstance(turn.get(field), str) and turn[field], f"turn lacks {field}")
     _require(turn["study_id"] == STUDY_ID, "turn study id drift")
-    _require(turn["method"] in ONLINE_METHODS, "turn method drift")
+    _require(turn["method"] in FORMAL_METHODS, "turn method drift")
     _require(
         POLICY_VERSION_PATTERN.fullmatch(turn["policy_version"]) is not None,
         "turn policy_version drift",
@@ -406,7 +406,7 @@ def validate_trajectory_evidence(
     ):
         _require(isinstance(trajectory.get(field), str) and trajectory[field], f"trajectory lacks {field}")
     _require(trajectory["study_id"] == STUDY_ID, "trajectory study id drift")
-    _require(trajectory["method"] in ONLINE_METHODS, "trajectory method drift")
+    _require(trajectory["method"] in FORMAL_METHODS, "trajectory method drift")
     _require_int(trajectory.get("seed"), "trajectory seed")
     _require_int(trajectory.get("iteration_index"), "trajectory iteration_index")
     _require_int(trajectory.get("attempt_index"), "trajectory attempt_index")
@@ -502,7 +502,7 @@ def validate_committed_group(
     _require(isinstance(group, Mapping), "group must be a mapping")
     _require(group.get("schema_version") == GROUP_SCHEMA, "group schema drift")
     _require(group.get("study_id") == STUDY_ID, "group study id drift")
-    _require(group.get("method") in ONLINE_METHODS, "group method drift")
+    _require(group.get("method") in FORMAL_METHODS, "group method drift")
     _require_int(group.get("seed"), "group seed")
     _require_int(group.get("iteration_index"), "group iteration_index")
     _require_int(group.get("attempt_index"), "group attempt_index")

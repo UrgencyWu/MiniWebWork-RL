@@ -252,6 +252,26 @@ def validate_study_manifest(payload: Mapping[str, Any]) -> None:
     _require(resources.get("maximum_concurrent_gpu_jobs") == 4, "GPU concurrency drift")
     _require(resources.get("gpus_per_job") == 1, "GPU-per-job drift")
     _require(resources.get("wall_time") == "24:00:00", "Slurm wall-time drift")
+    _require(resources.get("sft") == {"cpus": 4, "memory_gb": 32}, "SFT resource drift")
+    _require(resources.get("online") == {"cpus": 8, "memory_gb": 48}, "online resource drift")
+    _require(resources.get("final_eval") == {"cpus": 8, "memory_gb": 48}, "evaluation resource drift")
+
+    # Preserve the exact historical preregistration.  Formal execution uses a
+    # separately versioned gate resolution, but neither file may rewrite what
+    # the original preflight proposed after results are known.
+    _require(
+        payload.get("preflight_gates")
+        == {
+            "rollout_trajectories_per_hour_minimum": 114.0,
+            "generation_gpu_utilization_p50_minimum": 0.6,
+            "learner_gpu_utilization_p50_minimum": 0.8,
+            "vram_headroom_minimum": 0.15,
+            "optimizer_action_token_fraction_target": 0.2,
+            "telemetry_interval_seconds": [5, 10],
+            "real_slurm_resume_smoke_required": True,
+        },
+        "historical preflight gate drift",
+    )
 
     outputs = payload.get("output_contract", {})
     roots = [

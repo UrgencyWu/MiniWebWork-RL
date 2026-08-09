@@ -191,6 +191,13 @@ def test_partial_group_cost_survives_restart_and_entire_group_is_resampled(tmp_p
         stopped_for_token_budget=False,
         task_sampler_state={"sampler_version": "test"},
     ) == manifest
+    resumed.journal.append("unexpected_after_freeze", {"reason": "tamper simulation"})
+    with pytest.raises(ValueError, match="unique journal tail"):
+        resumed.freeze_collection(
+            iteration_index=0,
+            stopped_for_token_budget=False,
+            task_sampler_state={"sampler_version": "test"},
+        )
 
 
 def test_group_commit_requires_durable_exact_k_trajectory_events(tmp_path):

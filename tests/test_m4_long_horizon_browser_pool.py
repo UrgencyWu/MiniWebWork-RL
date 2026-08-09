@@ -4,6 +4,8 @@ import asyncio
 import threading
 import time
 
+from miniwebwork.m4_long_horizon_protocol import DATASET_ROOT
+
 from miniwebwork.long_horizon_rl.browser_pool import (
     BrowserWorkerPoolConfig,
     VLLMBrowserWorkerPool,
@@ -16,6 +18,16 @@ from miniwebwork.long_horizon_rl.orchestrator import (
     sampler_task_order_sha256,
 )
 from miniwebwork.long_horizon_rl.sampler import TaskDescriptor
+
+
+def test_browser_pool_opens_test_only_through_explicit_frozen_split():
+    config = BrowserWorkerPoolConfig(
+        total_workers=32,
+        task_dir=DATASET_ROOT / "test",
+        split="test",
+    )
+    config.validate()
+    assert config.concurrent_group_slots == 8
 
 
 def _tasks():

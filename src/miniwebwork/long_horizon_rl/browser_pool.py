@@ -39,6 +39,7 @@ def _require(condition: bool, message: str) -> None:
 class BrowserWorkerPoolConfig:
     total_workers: int
     task_dir: Path = DATASET_ROOT / "train"
+    split: str = "train"
     seed_dir: Path = SEED_ROOT
     headless: bool = True
     generation_timeout_seconds: float = 900.0
@@ -47,9 +48,13 @@ class BrowserWorkerPoolConfig:
         _require(self.total_workers in ALLOWED_BROWSER_WORKERS, "browser worker count drift")
         task_dir = Path(self.task_dir).expanduser().resolve()
         seed_dir = Path(self.seed_dir).expanduser().resolve()
-        _require(task_dir == (DATASET_ROOT / "train").resolve(), "browser pool may read only train tasks")
+        _require(self.split in {"train", "test"}, "browser pool split must be train or frozen test")
+        _require(
+            task_dir == (DATASET_ROOT / self.split).resolve(),
+            "browser pool task directory/split mismatch",
+        )
         _require(seed_dir == SEED_ROOT.resolve(), "browser pool seed root drift")
-        _require(task_dir.is_dir(), "browser pool train task directory is missing")
+        _require(task_dir.is_dir(), "browser pool task directory is missing")
         _require(seed_dir.is_dir(), "browser pool seed directory is missing")
         _require(self.headless is True, "formal browser workers must be headless")
         _require(self.generation_timeout_seconds > 0, "browser generation timeout is invalid")

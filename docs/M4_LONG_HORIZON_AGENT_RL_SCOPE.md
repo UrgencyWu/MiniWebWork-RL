@@ -1,16 +1,17 @@
 # MiniWebWork-RL 长程智能体强化学习收缩方案
 
-> 状态：2026-08-08 批准的正式范围；2026-08-09 完成 parity 合同版本化校准，
-> 前置实现与门禁验证仍在进行中。
+> 状态：2026-08-08 批准正式范围；2026-08-09 完成 parity 校准与独立正式执行层。
+> 正式作业只在最终 clean SHA 的 readiness-v2 给出 `READY` 后启动。
 >
 > 本文档取代 `M4_RLVR_STUDY_PROTOCOL.md` 中“五算法 × 三随机种子”的正式
 > 矩阵。旧协议、旧提交和既有 v3 工件仅保留为诊断与工程演进证据。本文档
 > 不是正式训练已经完成的声明；所有实现、性能 smoke test 和门禁通过后，
 > 才能冻结新的正式训练提交。
 >
-> 机器可读合同为 `data/m4_long_horizon_study_v2.json`。当前
-> `formal_submission_allowed=false`，因此任何正式 SFT、GRPO 或 step-aware
-> 训练作业都不得提交。逐项状态见 `M4_FORMAL_TRAINING_READINESS.md`。
+> 历史机器可读合同 `data/m4_long_horizon_study_v2.json` 与 runtime-v8 继续保持
+> preflight/`formal_submission_allowed=false`，以保护原始证据。当前正式授权另由
+> `data/m4_long_horizon_formal_authorization_v1.json` 给出；它不改写历史合同，并
+> 仍要求 `M4_FORMAL_TRAINING_READINESS.md` 所述 readiness-v2 fail-closed 门禁。
 
 ## 0. 当前前置实现快照
 

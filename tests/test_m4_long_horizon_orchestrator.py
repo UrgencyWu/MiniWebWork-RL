@@ -345,4 +345,5 @@ def test_no_group_starts_when_global_budget_cannot_reserve_one_complete_k4(tmp_p
     assert calls == 0
     assert report["ready_for_update"] is False
     assert report["stopped_for_token_budget"] is True
-    assert report["collection_manifest"] is None
+    assert report["collection_manifest"]["group_count"] == 0
+    assert report["collection_manifest"]["stopped_for_token_budget"] is True

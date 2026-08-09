@@ -337,6 +337,17 @@ def collect_iteration(
             zero_token_no_progress_batches = 0
 
     if not committed:
+        terminal_manifest = None
+        if stopped_for_token_budget:
+            # Invalid attempts are still chargeable.  Persist their exact cost
+            # even when no K=4 group survived to enter the learner; the formal
+            # runner can then close the global budget without fabricating a
+            # zero-group optimizer update or losing those generated tokens.
+            terminal_manifest = store.freeze_collection(
+                iteration_index=identity.iteration_index,
+                stopped_for_token_budget=True,
+                task_sampler_state=sampler.audit_dict(),
+            )
         return {
             "schema_version": COLLECTION_ORCHESTRATOR_SCHEMA,
             "identity_sha256": identity.sha256,
@@ -346,7 +357,7 @@ def collect_iteration(
             "infra_invalid_attempt_count": rebuilt["invalid_attempts"],
             "stopped_for_token_budget": stopped_for_token_budget,
             "ready_for_update": False,
-            "collection_manifest": None,
+            "collection_manifest": terminal_manifest,
         }
     manifest = store.freeze_collection(
         iteration_index=identity.iteration_index,

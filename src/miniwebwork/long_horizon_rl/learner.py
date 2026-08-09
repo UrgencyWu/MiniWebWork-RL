@@ -527,6 +527,63 @@ def _parameter_change_norm(model: Any, before: Mapping[str, torch.Tensor]) -> fl
     return math.sqrt(squared)
 
 
+def summarize_credit_assignment(prepared_groups: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Expose the credit signal and its horizon position without changing loss."""
+
+    _require(bool(prepared_groups), "credit summary requires prepared groups")
+    position = {
+        name: {"turn_count": 0, "action_tokens": 0, "effective_action_tokens": 0, "absolute_advantage_sum": 0.0}
+        for name in ("early", "middle", "late")
+    }
+    macro_values: list[float] = []
+    micro_values: list[float] = []
+    turn_values: list[float] = []
+    shared_anchors = informative_anchors = informative_micro_turns = 0
+    mixed_reward_groups = 0
+    unique_anchors: set[str] = set()
+    for prepared in prepared_groups:
+        credit = prepared["credit"]
+        rewards = [float(value) for value in credit["rewards"]]
+        mixed_reward_groups += len(set(rewards)) > 1
+        macro_values.extend(float(value) for value in credit["macro_advantages"])
+        metrics = credit["metrics"]
+        shared_anchors += metrics["shared_anchor_count"]
+        informative_anchors += metrics["informative_anchor_count"]
+        informative_micro_turns += metrics["informative_micro_turn_count"]
+        credit_turns = tuple(entry for trajectory in credit["turn_credit"] for entry in trajectory)
+        _require(len(credit_turns) == len(prepared["examples"]), "credit summary turn/example drift")
+        for example, item in zip(prepared["examples"], credit_turns):
+            micro = float(item["micro_advantage"])
+            advantage = float(item["turn_advantage"])
+            micro_values.append(micro)
+            turn_values.append(advantage)
+            unique_anchors.add(item["anchor_signature"])
+            slot = min(2, ((example.turn_index - 1) * 3) // example.turns_in_trajectory)
+            bucket = ("early", "middle", "late")[slot]
+            summary = position[bucket]
+            summary["turn_count"] += 1
+            summary["action_tokens"] += example.completion_tokens
+            summary["effective_action_tokens"] += example.completion_tokens if abs(advantage) > 0 else 0
+            summary["absolute_advantage_sum"] += abs(advantage)
+    for summary in position.values():
+        turns = summary["turn_count"]
+        summary["mean_absolute_turn_advantage"] = summary.pop("absolute_advantage_sum") / turns if turns else 0.0
+    return {
+        "group_count": len(prepared_groups),
+        "mixed_reward_group_count": mixed_reward_groups,
+        "zero_variance_group_count": len(prepared_groups) - mixed_reward_groups,
+        "unique_public_anchor_count": len(unique_anchors),
+        "shared_anchor_count": shared_anchors,
+        "informative_anchor_count": informative_anchors,
+        "informative_micro_turn_count": informative_micro_turns,
+        "mean_absolute_macro_advantage": sum(abs(value) for value in macro_values) / len(macro_values),
+        "mean_absolute_micro_advantage": sum(abs(value) for value in micro_values) / len(micro_values),
+        "mean_absolute_turn_advantage": sum(abs(value) for value in turn_values) / len(turn_values),
+        "nonzero_turn_advantage_count": sum(abs(value) > 0 for value in turn_values),
+        "turn_position": position,
+    }
+
+
 def train_policy_groups(
     *,
     model: Any,
@@ -555,6 +612,7 @@ def train_policy_groups(
         prepare_group_training_examples(group, method, identity=identity)
         for group in ordered_groups
     ]
+    credit_assignment = summarize_credit_assignment(prepared_groups)
     committed_tokens = sum(item["generated_action_tokens"] for item in prepared_groups)
     _require(
         all_generated_action_tokens >= committed_tokens,
@@ -643,6 +701,7 @@ def train_policy_groups(
         "turn_microbatch_size": microbatch_size,
         "group_count": len(prepared_groups),
         "zero_advantage_group_count": zero_advantage_groups,
+        "credit_assignment": credit_assignment,
         "optimizer_updates": optimizer_updates,
         "committed_group_action_tokens": committed_tokens,
         "effective_optimizer_action_tokens": effective_unique_tokens,

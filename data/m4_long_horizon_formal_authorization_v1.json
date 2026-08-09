@@ -1,0 +1,138 @@
+{
+  "schema_version": "m4_long_horizon_formal_authorization_v1",
+  "study_id": "m4_long_horizon_credit_v1",
+  "lifecycle_state": "formal_ready",
+  "formal_submission_allowed": true,
+  "authorization_scope": "shared_sft_then_two_online_methods_three_seeds_then_frozen_test_only",
+  "immutable_preflight_contracts": {
+    "study_manifest_path": "data/m4_long_horizon_study_v2.json",
+    "study_manifest_sha256": "50ef68b4506f4c04750db631f57d47c9d45d964f1bbb0ef6e09a5bbb4c534bc7",
+    "study_lifecycle_state": "preflight",
+    "study_formal_submission_allowed": false,
+    "runtime_manifest_path": "data/m4_long_horizon_runtime_v8.json",
+    "runtime_manifest_sha256": "06670a7caef86158dc849ac8a79d092267544b023c7b2fe45142089a48cdf6c4",
+    "runtime_lifecycle_state": "preflight",
+    "runtime_formal_submission_allowed": false
+  },
+  "gate_resolution": {
+    "resolution_version": "runtime_v8_formal_gate_resolution_v1",
+    "reason": "The study-v2 generation P50 threshold and optimizer-token fraction were preregistered targets. Runtime-v8 GPU evidence established a bursty same-GPU phase-switched workload, so the already-frozen runtime-v8 P95 utilization gate is the formal hard generation gate while P50 and optimizer-token fraction remain disclosed diagnostics.",
+    "hard_gates": {
+      "rollout_trajectories_per_hour_minimum": 114.0,
+      "generation_gpu_utilization_p95_minimum": 0.5,
+      "learner_gpu_utilization_p50_minimum": 0.8,
+      "vram_headroom_minimum": 0.15,
+      "selected_browser_workers": 32,
+      "saturation_challenger_browser_workers": 64,
+      "saturation_challenger_throughput_improvement_maximum": 1.1,
+      "real_slurm_resume_smoke_required": true,
+      "post_wake_generation_smoke_required": true
+    },
+    "diagnostics": {
+      "generation_gpu_utilization_p50": {
+        "historical_target": 0.6,
+        "selected_e2e_observed": 0.11,
+        "hard_gate": false
+      },
+      "optimizer_action_token_fraction": {
+        "target": 0.2,
+        "selected_e2e_observed": 0.137643,
+        "selected_e2e_zero_advantage_groups": 7,
+        "selected_e2e_total_groups": 8,
+        "hard_gate": false
+      }
+    }
+  },
+  "formal_matrix": {
+    "shared_sft": {
+      "method": "verified_sft",
+      "seed": 20260801,
+      "model_count": 1
+    },
+    "online_methods": [
+      "multi_turn_grpo",
+      "step_aware_gpo"
+    ],
+    "online_seeds": [
+      20260801,
+      20260802,
+      20260803
+    ],
+    "online_model_count": 6,
+    "total_model_count": 7,
+    "generated_action_token_cap_per_online_run": 250000,
+    "group_size": 4,
+    "frozen_test_tasks": 120,
+    "frozen_test_rollouts_per_task": 4
+  },
+  "output_contract": {
+    "formal_root": "outputs/m4_long_horizon_credit_v1/formal",
+    "shared_sft_root": "outputs/m4_long_horizon_credit_v1/formal/shared_sft/seed_20260801",
+    "online_root_template": "outputs/m4_long_horizon_credit_v1/formal/online/{method}/seed_{seed}",
+    "evaluation_root": "outputs/m4_long_horizon_credit_v1/formal/frozen_test",
+    "analysis_root": "outputs/m4_long_horizon_credit_v1/formal/analysis",
+    "readiness_manifest": "outputs/m4_long_horizon_credit_v1/readiness/readiness_manifest_v2.json"
+  },
+  "entrypoint_contract": {
+    "shared_sft": "scripts/m4_long_horizon_formal_sft.py",
+    "online": "scripts/m4_long_horizon_formal_online.py",
+    "evaluation": "scripts/m4_long_horizon_formal_eval.py",
+    "analysis": "scripts/m4_long_horizon_formal_analyze.py",
+    "readiness": "scripts/m4_long_horizon_readiness_v2.py",
+    "shared_sft_slurm": "scripts/run_m4_long_horizon_formal_sft_job.sh",
+    "online_slurm": "scripts/run_m4_long_horizon_formal_online_job.sh",
+    "evaluation_slurm": "scripts/run_m4_long_horizon_formal_eval_job.sh",
+    "analysis_slurm": "scripts/run_m4_long_horizon_formal_analysis_job.sh",
+    "clean_regression_slurm": "scripts/run_m4_long_horizon_formal_clean_regression_job.sh",
+    "readiness_slurm": "scripts/run_m4_long_horizon_readiness_v2_job.sh"
+  },
+  "resource_contract": {
+    "maximum_concurrent_gpu_jobs": 4,
+    "gpus_per_job": 1,
+    "wall_time": "24:00:00",
+    "shared_sft": {
+      "cpus": 4,
+      "memory_gb": 32
+    },
+    "online": {
+      "cpus": 8,
+      "memory_gb": 48
+    },
+    "evaluation": {
+      "cpus": 8,
+      "memory_gb": 48
+    },
+    "analysis": {
+      "cpus": 2,
+      "memory_gb": 8,
+      "gpus": 0
+    },
+    "clean_regression": {
+      "cpus": 2,
+      "memory_gb": 8,
+      "gpus": 0
+    },
+    "readiness": {
+      "cpus": 2,
+      "memory_gb": 8,
+      "gpus": 0
+    }
+  },
+  "ordering_contract": {
+    "readiness_v2_before_any_formal_submission": true,
+    "shared_sft_before_online": true,
+    "shared_sft_artifact_audit_before_online": true,
+    "all_six_online_artifact_audits_before_frozen_test": true,
+    "all_seven_frozen_test_artifact_audits_before_analysis": true,
+    "maximum_first_wave_online_jobs": 4
+  },
+  "recovery_contract": {
+    "rerun_same_command_and_output_root": true,
+    "shared_sft_interruption": "archive_incomplete_attempt_then_deterministically_restart_from_frozen_base",
+    "online_collection_interruption": "resume_same_policy_version_from_durable_attempt_journal",
+    "online_learner_interruption": "replay_frozen_committed_collection",
+    "online_post_commit_interruption": "reconcile_committed_iteration_then_require_post_restart_generation_probe",
+    "evaluation_interruption": "resume_missing_task_rollout_indices_only",
+    "identity_or_hash_mismatch": "fail_closed"
+  }
+}

@@ -64,6 +64,18 @@ def test_manifest_rejects_early_formal_opening():
         validate_study_manifest(payload)
 
 
+def test_manifest_rejects_historical_gate_or_resource_rewrite():
+    payload = load_study_manifest()["payload"]
+    payload["preflight_gates"]["generation_gpu_utilization_p50_minimum"] = 0.1
+    with pytest.raises(ValueError, match="preflight gate"):
+        validate_study_manifest(payload)
+
+    payload = load_study_manifest()["payload"]
+    payload["resource_contract"]["online"]["cpus"] = 32
+    with pytest.raises(ValueError, match="resource"):
+        validate_study_manifest(payload)
+
+
 def test_manifest_rejects_credit_sampler_or_sft_stopping_drift():
     payload = load_study_manifest()["payload"]
     payload["credit_assignment_contract"]["micro_return_gamma"] = 1.0

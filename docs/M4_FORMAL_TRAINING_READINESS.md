@@ -2,9 +2,12 @@
 
 > Study：`m4_long_horizon_credit_v1`
 >
-> 当前阶段：`preflight`
+> 当前阶段：正式实现候选；等待最终 clean SHA 上的 `readiness_manifest_v2.json`
 >
-> 正式提交开关：**关闭**（`formal_submission_allowed=false`）
+> 有效授权：`data/m4_long_horizon_formal_authorization_v1.json` 将范围收紧为
+> 1 个共享 SFT + 2 个在线方法 × 3 seeds，并允许在 readiness-v2 全部门禁通过后提交。
+> 历史 study-v2/runtime-v8 中的 `formal_submission_allowed=false` 保持原字节不变，
+> 它们是不可追溯改写的 preflight 记录，不再被误读为当前执行开关。
 >
 > 本文档记录“可以开始正式训练之前”的必要证据。通过一项测试不等于完成
 > 训练，更不等于形成正式研究结果。
@@ -24,15 +27,15 @@
    冻结提交；
 9. 就绪审计明确给出 `READY`，且没有正式训练作业已经被提前提交。
 
-完成本清单后，正式训练仍需一次独立的开启决策。前置 goal 不会自行提交正式
-SFT、GRPO 或 step-aware 作业。
+任何训练入口都会同时验证：独立正式授权、最终 clean Git SHA、readiness-v2
+自哈希、数据/prompt/base-model 哈希与固定输出根。任一不一致即拒绝创建训练状态。
 
 ## 2. 当前状态（2026-08-09）
 
 | 门禁 | 状态 | 当前证据 / 缺口 |
 |---|---|---|
 | 聚焦研究问题与 7 模型矩阵 | PASS | `M4_LONG_HORIZON_AGENT_RL_SCOPE.md`；只保留共享 SFT、GRPO、step-aware GPO |
-| 机器可读 study/output 合同 | PASS | `data/m4_long_horizon_study_v2.json`；正式开关关闭，旧输出根目录被排除 |
+| 机器可读 study/output 合同 | PASS | immutable study-v2/runtime-v8 保持 preflight；独立 `m4_long_horizon_formal_authorization_v1.json` 承担当前窄范围授权；旧输出根目录被排除 |
 | 独立长程数据集 | PASS | v2 为 240/72/120；7/10/12/18 步；75% medium/long；正确供应商在访问位置 1/2/3 按 split 严格均衡；最佳角色采用 split 独立 SHA-256 排列，world-index mod-3 一致率仅 26.7%–28.3% |
 | Split 隔离 | PASS | world/product/supplier/constraint/answer signature 跨 split 零重叠 |
 | 真实浏览器与 verifier 工作流 | PASS | 18 步成功；跳过供应商检查即使答案正确也失败；旧 M4 流程兼容 |
@@ -47,10 +50,34 @@ SFT、GRPO 或 step-aware 作业。
 | On-policy / parity 门禁 | PASS | 错误命名空间负对照 Job 1267 仍被多项分布门禁以数量级差距拒绝。Job 1302 的 mean/P95/P99/P99.9/clip/mean-ratio 为 `0.001586/0.000328/0.051070/0.233614/0.1252%/0.999851`，全部通过；finite single-token max `0.552678` 原样报告但不作判定。behavior/sampling 精确一致，历史 v1–v5 结果不追溯改判 |
 | 24 小时原子恢复 | PASS | Jobs 1317→1318→1319 在同一 clean v8 root 上完成真实 Slurm collection/learner 两阶段中断恢复：1317 在 0 group 时取消并保留 4051 token；1318 归档 8 个 incomplete attempts、冻结 8 groups/12065 total tokens 后于 learner staging 中取消；1319 归档 partial stage、复用同一 collection SHA、完成 commit/wake/post-wake。最终 6 段 ledger、16 段 phase、三工件和 run state 独立核验通过；该恢复批次全为零优势，故 0 optimizer update 明确仅作原子性证据 |
 | GPU 性能门禁 | PASS | clean v8 Job 1315 完成 32-lane Step-aware E2E：381.64 trajectories/hour、95,744 tokens/hour，generation mean/P95=20.70%/58.9%，learner P50=100%，generation/learner/post-wake 最低显存余量 45.25%/44.63%/36.44%，2 次真实 update、参数变化 0.03760、commit/wake 全通过。Job 1316 连续两批 64 trajectories 达 393.93/hour；五个 32-lane phase-window 合计 1828.68 秒（30.48 分钟）。Job 1311 的 64-lane 挑战更慢，故选择 32 lanes 的饱和结论成立 |
-| 最终冻结 manifest | PENDING | 待所有实现和工件完成后绑定最终 clean Git SHA |
-| 正式训练就绪总审计 | PENDING | 只有所有上项通过后才能生成 `READY` 结论 |
+| 最终冻结 manifest | 动态硬门禁 | `readiness_manifest_v2.json` 必须由最终 clean SHA 的 2 CPU Slurm 全回归生成并自哈希；旧 readiness-v1 不授权训练 |
+| 正式训练就绪总审计 | 动态硬门禁 | 只有 v2 计算得到 `READY`、`unmet_gates=[]` 且正式根仍为空，训练入口才接受提交 |
 
-`PARTIAL` 和 `PENDING` 均禁止打开正式训练提交开关。
+`PARTIAL`、`PENDING`、`NOT_READY` 或 readiness-v2 缺失均禁止正式训练。
+
+## 2.1 正式执行层（v1）
+
+正式执行不复用任何 preflight、`outputs/m4_invalidated`、`outputs/m4_v2_runs`
+或 `outputs/m4_v3_runs` 的 adapter/轨迹。唯一允许的顺序为：
+
+1. 2 CPU / 8 GB / 24h clean 回归；
+2. 2 CPU / 8 GB / 24h readiness-v2，只计算门禁、不训练；
+3. 1 GPU / 4 CPU / 32 GB / 24h 共享 SFT；每个 epoch 只遍历一次 2820 个
+   唯一 train turn，不用重复样本伪造 250k SFT label-token 预算；
+4. SFT adapter、vLLM view、训练报告和 invocation 血缘通过后，最多并行 4 个
+   1 GPU / 8 CPU / 48 GB / 24h 在线作业；每个 method/seed 独立累计恰好不超过
+   250,000 个实际 generated action tokens；
+5. 六个在线结果全部通过后，才运行 7 个 120-task × K4 冻结测试；
+6. 2 CPU / 8 GB / 24h 分析作业重新验证原始训练轨迹、credit、adapter、评测
+   roster、Slurm `sacct` 与日志哈希，再输出统计和成本报告。
+
+所有 GPU 作业每项只申请 1 GPU；SFT 只申请 4 CPU，在线/评测只申请 8 CPU，
+避免因 CPU/GPU 过度请求阻塞四卡并行。SFT 中断会保留并归档未完成 attempt；
+在线 collection 从 durable K4 journal 恢复，learner 从冻结 collection 重放，
+commit 后缺失的 generation probe 会在下一作业先恢复验证；评测只补缺失 task group。
+SFT、在线训练和冻结评测均把唯一可见 GPU 的 5 秒利用率、显存和功耗遥测绑定到
+Slurm invocation；最终分析要求每个模型根至少存在一个 `COMPLETED 0:0` 且 runner
+闭合的作业，并对 stdout、stderr、遥测和 invocation 逐项哈希。
 
 本次 v2/v4 修复在提交前的验证快照为：完整非浏览器 CPU 回归
 `297 passed, 10 deselected`；全量真实浏览器回归
