@@ -15,7 +15,7 @@ clean M5 preflight SHA
        ↓ all three pass
 shared WebShop service (8 CPU, renewable 24h)
        ↓
-verified SFT corpus + tokenizer audit (2 CPU)
+verified SFT corpus + tokenizer audit (4 CPU / 4 workers)
        ↓
 SFT microbatch/short-train preflight (1 GPU)
        ↓
@@ -76,7 +76,10 @@ scripts/run_m5_webshop_sft_corpus_job.sh
   阻断 Git smart HTTP，只允许退到同一提交的 GitHub codeload 归档，且归档
   SHA-256、字节数、member 数和 `recipes/webshop` 内容树 hash 均已写入机器合同；
   完整 178-file 源码树也独立锁定；部分 Git checkout 移入可恢复 quarantine，绝不
-  退回浮动分支或未审计代码。服务禁写 bytecode，防止源码树在 allocation 间漂移。
+  退回浮动分支或未审计代码。内容树使用已版本化的 repository-relative
+  path/size/file-SHA256 记录算法，服务禁写 bytecode，防止源码树在 allocation 间漂移；
+- SFT corpus collector 申请 4 CPU 且只开 4 个 worker；不在 2-CPU allocation 中
+  隐式启动 8 路线程，也不为一次性数据生成过量申请 CPU。
 
 ## 停止条件
 

@@ -9,6 +9,7 @@ import pytest
 from miniwebwork.m5_webshop_protocol import (
     PROTOCOL_PATH,
     SPLIT_EXCLUSIONS_PATH,
+    content_tree_audit,
     deterministic_candidate_order,
     deterministic_selection,
     eligible_goal_indices,
@@ -53,6 +54,8 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
     agent_r1 = protocol["payload"]["upstream_sources"]["agent_r1_code"]
     assert agent_r1["archive_size"] == 1628704
     assert agent_r1["archive_sha256"] == "07e6a35a159e7ed148d1e4b2b47d5e0158e3b8f60a71e5626f911477dfc7d57b"
+    assert agent_r1["source_content_tree_sha256"] == "f45b0e09e4a500c3c9915159c7e395952a16d12378924c5f99ce8d42d55ecd9a"
+    assert agent_r1["webshop_content_tree_sha256"] == "bf79abafad937aa6da0a5cbec69766f3bd1bd5420407e38a58e17d1b36b51c1f"
     assert protocol["payload"]["slurm"]["shared_environment_service"]["renewal_mechanism"] == (
         "sbatch_successor_afterany"
     )
@@ -60,6 +63,12 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
         "git_attempts": 2,
         "git_attempt_timeout_seconds": 60,
         "locked_archive_attempts": 4,
+    }
+    assert protocol["payload"]["slurm"]["sft_corpus"] == {
+        "gpus": 0,
+        "cpus": 4,
+        "memory_gib": 8,
+        "workers": 4,
     }
 
 
@@ -77,6 +86,9 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert 'git_fetch_timeout_seconds=60' in setup
     assert '--kill-after=10s "${git_fetch_timeout_seconds}s"' in setup
     assert "scripts/m5_agent_r1_source.py" in setup
+    sft_corpus = (root / "scripts" / "run_m5_webshop_sft_corpus_job.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --cpus-per-task=4" in sft_corpus
+    assert "--workers 4" in sft_corpus
     for name in (
         "run_m5_webshop_cpu_regression_job.sh",
         "run_m5_webshop_data_preflight_job.sh",
@@ -88,6 +100,25 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     ):
         script = (root / "scripts" / name).read_text(encoding="utf-8")
         assert 'export CUDA_VISIBLE_DEVICES=""' in script
+
+
+def test_content_tree_hash_contract_is_fixed_and_rejects_directory_symlinks(tmp_path: Path):
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "alpha.txt").write_bytes(b"a")
+    (tmp_path / "nested" / "beta.bin").write_bytes(b"\x00\x01")
+    assert content_tree_audit(tmp_path, "") == {
+        "prefix": ".",
+        "sha256": "8a6217414aa226759912dd87192a5de083a6356550e0c5003ef2f499be24b283",
+        "file_count": 2,
+        "total_bytes": 3,
+    }
+    link = tmp_path / "linked-directory"
+    try:
+        link.symlink_to(tmp_path / "nested", target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable on this platform")
+    with pytest.raises(ValueError, match="symlink"):
+        content_tree_audit(tmp_path, "")
 
 
 def test_split_roles_are_exhaustive_and_task_ids_are_canonical():

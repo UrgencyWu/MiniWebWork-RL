@@ -44,8 +44,9 @@ Agent-R1 源码优先用 Git fetch 获取该 40 位提交；最多两次、每�
 超时 60 秒。针对校园出口对 Git smart HTTP 偶发超时，唯一备用路径是同一提交
 的 GitHub codeload 归档；其当前精确大小
 `1,628,704` bytes、SHA-256 `07e6a35a...7d57b`、226 个 members 以及 WebShop
-recipe 内容树 SHA-256 `46523f50...07a58` 全部冻结；完整 178-file 源码树另锁为
-`04fc3146...1daed`。归档逐 member 拒绝绝对路径、`..`、symlink/hardlink，安全
+recipe 内容树 SHA-256 `bf79abaf...51c1f` 全部冻结；完整 178-file 源码树另锁为
+`f45b0e09...ecd9a`。内容树算法明确冻结为 repository-relative path、byte size 与
+逐文件 SHA-256 的有序记录。归档逐 member 拒绝绝对路径、`..`、symlink/hardlink，安全
 展开后仍重算两层内容树；服务禁写 bytecode，因此备用路径不放宽源码身份。
 
 其他候选的处理如下：
@@ -200,6 +201,7 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 | training runtime 修复/审计 | 0 | 2 | 8 GiB |
 | server 环境安装 | 0 | 2 | 20 GiB |
 | shared WebShop service（初始 4 workers） | 0 | 8 | 48 GiB |
+| verified SFT corpus（4 workers） | 0 | 4 | 8 GiB |
 | SFT | 1 | 4 | 32 GiB |
 | 每个 online run | 1 | 4 | 24 GiB |
 | 每个 frozen eval | 1 | 3 | 20 GiB |

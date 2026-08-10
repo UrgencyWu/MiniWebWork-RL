@@ -47,10 +47,11 @@ def content_tree_audit(
     _require(tree_root.is_dir(), f"content tree is missing: {prefix}")
     files = []
     for path in tree_root.rglob("*"):
-        if not path.is_file():
-            continue
         relative = path.relative_to(source).as_posix()
         if any(relative == blocked or relative.startswith(f"{blocked}/") for blocked in excluded_prefixes):
+            continue
+        _require(not path.is_symlink(), f"content tree contains a symlink: {path}")
+        if not path.is_file():
             continue
         files.append(path)
     files.sort()
@@ -58,7 +59,6 @@ def content_tree_audit(
     digest = hashlib.sha256()
     total_bytes = 0
     for path in files:
-        _require(not path.is_symlink(), f"content tree contains a symlink: {path}")
         relative = path.relative_to(source).as_posix()
         size = path.stat().st_size
         file_sha = sha256_file(path)
@@ -215,15 +215,20 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(agent_r1_source.get("archive_size") == 1628704, "Agent-R1 archive size drift")
     _require(agent_r1_source.get("archive_member_count") == 226, "Agent-R1 archive roster drift")
     _require(
+        agent_r1_source.get("content_tree_contract")
+        == "SHA256 over sorted repository-relative regular-file records: UTF-8 path, NUL, decimal byte size, NUL, lowercase file SHA256, LF; symlinks forbidden; excluded control paths omitted before traversal checks",
+        "Agent-R1 content-tree algorithm drift",
+    )
+    _require(
         agent_r1_source.get("source_content_tree_sha256")
-        == "04fc3146c21857328350627a3cad9809dae45d6dcaf828abd492822a08a1daed",
+        == "f45b0e09e4a500c3c9915159c7e395952a16d12378924c5f99ce8d42d55ecd9a",
         "Agent-R1 source content-tree drift",
     )
     _require(agent_r1_source.get("source_content_tree_file_count") == 178, "Agent-R1 source file-count drift")
     _require(agent_r1_source.get("source_content_tree_bytes") == 2189338, "Agent-R1 source byte-count drift")
     _require(
         agent_r1_source.get("webshop_content_tree_sha256")
-        == "46523f50aeeb0e112afe761f42e16319aa5c5a28f5ff5f02f16f22d3bec07a58",
+        == "bf79abafad937aa6da0a5cbec69766f3bd1bd5420407e38a58e17d1b36b51c1f",
         "Agent-R1 WebShop content-tree drift",
     )
     dataset = protocol.get("dataset")
@@ -301,6 +306,10 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(
         slurm.get("training_runtime_setup") == {"gpus": 0, "cpus": 2, "memory_gib": 8},
         "M5 training runtime setup resource drift",
+    )
+    _require(
+        slurm.get("sft_corpus") == {"gpus": 0, "cpus": 4, "memory_gib": 8, "workers": 4},
+        "M5 SFT corpus resource drift",
     )
     _require(slurm.get("maximum_parallel_online_runs") == 6, "M5 online parallelism drift")
     _require(
