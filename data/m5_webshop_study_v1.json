@@ -61,7 +61,8 @@
     "task_id_format": "webshop_goal_{goal_index:05d}",
     "test_contract": "all unaltered official goals[0:500]; accessible before final evaluation only to a content-blind integrity and exact-duplicate isolation audit; never used for SFT, rollouts, tuning, checkpoint selection, or preflight metrics",
     "dev_contract": "499 eligible goals from official indices 500:1000 after canonical-first exact-instruction isolation; configuration and checkpoint selection only",
-    "train_contract": "10885 eligible goals from official indices 1000:12087 after canonical-first exact-instruction isolation; deterministic cold coverage then signal sampling"
+    "train_contract": "10885 eligible goals from official indices 1000:12087 after canonical-first exact-instruction isolation; deterministic cold coverage then signal sampling",
+    "public_action_normalization": "normalize whitespace, preserve first occurrence order, and stably deduplicate byte-identical executable commands before enforcing the 256-action bound; malformed non-string or empty actions remain fail-closed"
   },
   "sft": {
     "source": "deterministic verified oracle replay against official train/dev goals",

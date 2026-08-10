@@ -243,6 +243,21 @@ def test_public_action_bound_preserves_terminal_controls():
     assert "click[Buy Now]" in bounded
 
 
+def test_public_action_normalization_stably_deduplicates_identical_commands():
+    raw = [
+        "search[<your query>]",
+        "click[2 ounce (pack of 1)]",
+        "  click[2 ounce   (pack of 1)]  ",
+        "click[Buy Now]",
+        "click[Buy Now]",
+    ]
+    assert _bounded_public_actions(raw) == (
+        "search[<your query>]",
+        "click[2 ounce (pack of 1)]",
+        "click[Buy Now]",
+    )
+
+
 def test_environment_fails_closed_on_split_mismatch():
     server = FakeWebShopServer()
     environment = _environment(server)

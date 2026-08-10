@@ -100,6 +100,9 @@ M5 适配层因此采用 fail-closed 白名单：
 - `search[...]` 只在公开 search 模板存在时允许；每个 `click[...]` 必须逐字出现于
   当前经过上限约束的公开 action list；未列出的点击在客户端被记为 policy failure，
   不发送给上游 engine；
+- 上游部分商品会在两个 option 组里返回完全相同的 command 字符串；适配层先规范
+  空白，再按首次出现顺序稳定去重，之后才施加 256-action 上限。它不合并不同命令，
+  非字符串或空 command 仍 fail-closed；去重后的命令仍由官方 verifier 决定 reward；
 - credit anchor 只由动作前的 task-scoped 公开 MDP state 构成：task/instruction、
   page type、prompt 可见 observation、截断标记、最多 256 个公开动作和 terminal；
 - exact prompt-token SHA-256 单独绑定 behavior logprob 血缘，不能进入 credit group；

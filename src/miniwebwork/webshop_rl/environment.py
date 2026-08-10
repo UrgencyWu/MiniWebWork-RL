@@ -66,10 +66,13 @@ def goal_index_from_task_id(task_id: str) -> int:
 def _bounded_public_actions(raw: Any) -> tuple[str, ...]:
     _require(isinstance(raw, list), "WebShop response lacks available_actions")
     values = []
+    seen = set()
     for item in raw:
         _require(isinstance(item, str) and item.strip(), "WebShop available action is malformed")
         action = " ".join(item.strip().split())
-        _require(action not in values, "WebShop available actions contain a duplicate")
+        if action in seen:
+            continue
+        seen.add(action)
         values.append(action)
     if len(values) <= MAX_PUBLIC_ACTIONS:
         return tuple(values)

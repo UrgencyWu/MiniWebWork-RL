@@ -111,6 +111,12 @@ scripts/run_m5_webshop_sft_corpus_job.sh
 `missing_oracle_metadata` 排除。collector 现在无论成功或失败都会写带 Git/协议血缘
 的 split selection diagnostic。
 
+第二次 collector（Slurm 1408）在 goal 3134 的商品页发现 40 个原始 action 中只有
+29 个唯一 command；11 个 size command 因上游两个 option 组而重复。公开 API 重放
+确认按首次出现稳定去重后，目标 `flavor name` 与 `size` 均正确写入，最终
+reward/task_score 都为 1。适配层因此冻结为“空白规范化 → 稳定去重 → 256 上限”，
+而不是删除该任务；不同 command 不合并，非法 action 仍 fail-closed。
+
 ## 停止条件
 
 出现下列任一情况立即停在 preflight，并新建协议版本，而不是原地修改已绑定工件：

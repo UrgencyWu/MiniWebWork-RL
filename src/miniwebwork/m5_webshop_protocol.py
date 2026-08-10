@@ -259,6 +259,11 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(isinstance(dedup, Mapping), "M5 dedup contract is missing")
     _require(dedup.get("lock_path") == "data/m5_webshop_split_exclusions_v1.json", "M5 dedup lock drift")
     load_split_exclusions(PROJECT_ROOT / dedup["lock_path"])
+    _require(
+        dataset.get("public_action_normalization")
+        == "normalize whitespace, preserve first occurrence order, and stably deduplicate byte-identical executable commands before enforcing the 256-action bound; malformed non-string or empty actions remain fail-closed",
+        "M5 public-action normalization drift",
+    )
     sft = protocol.get("sft")
     _require(isinstance(sft, Mapping), "M5 SFT contract is missing")
     _require(sft.get("external_trajectory_data") is False, "external trajectory data entered formal M5 SFT")
