@@ -117,6 +117,13 @@ scripts/run_m5_webshop_sft_corpus_job.sh
 reward/task_score 都为 1。适配层因此冻结为“空白规范化 → 稳定去重 → 256 上限”，
 而不是删除该任务；不同 command 不合并，非法 action 仍 fail-closed。
 
+第三次 collector（Slurm 1416）已成功生成 4,000 train / 400 dev、18,141 个 verified
+turn，但首次 token audit 揭示 Qwen3.5 默认 generation prompt 以开放 `<think>` 开头，
+与 action-only 完整样本自动插入的空 thinking block 不是严格前缀。显式
+`enable_thinking=false` 后对全 corpus 复算：train 每 epoch 339,925 个有效标签 token、
+zero-label=0、截断=0、最大序列 4,576。协议因此冻结 non-thinking chat template，并将
+SFT 收紧为 1–2 epochs：第一轮已超过 250k，只有 dev/base-signal gate 不足才跑第二轮。
+
 ## 停止条件
 
 出现下列任一情况立即停在 preflight，并新建协议版本，而不是原地修改已绑定工件：

@@ -272,6 +272,8 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         sft.get("maximum_teacher_query_characters") == 200 and sft.get("maximum_oracle_turns") == 15,
         "M5 SFT teacher bound drift",
     )
+    _require(sft.get("chat_template_kwargs") == {"enable_thinking": False}, "M5 SFT chat template drift")
+    _require(sft.get("minimum_epochs") == 1 and sft.get("maximum_epochs") == 2, "M5 SFT epoch bound drift")
     _require(sft.get("minimum_effective_completion_label_token_exposure") == 250000, "M5 SFT token exposure drift")
     _require(sft.get("maximum_zero_label_fraction") == 0.0, "M5 SFT zero-label gate drift")
     online = protocol.get("online")

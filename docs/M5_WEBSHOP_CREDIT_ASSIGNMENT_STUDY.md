@@ -146,11 +146,12 @@ search[sanitize(goal.name)[:200]]
 4,000 个 verified train 任务与前 400 个 verified dev 任务。每个 action turn 是一个
 completion-only 样本；completion 只有 `{"command":"..."}`，无 CoT、理由或隐藏字段。
 
-训练合同：Qwen3.5-4B、LoRA `r=16/alpha=32`、LR `2e-4`、effective batch 16、
-max sequence 8192、2–3 epochs。微批只在 `[1,2,4,8]` 中选择满足至少 15% VRAM
-余量的最大值。累计有效 completion-label token exposure 必须达到 250,000，
-zero-label 比例必须为 0；三轮仍达不到则 fail，不复制样本伪造数据量。checkpoint
-选择只使用 dev NLL、teacher-forced schema/exact action 和 64-task closed-loop dev。
+训练合同：Qwen3.5-4B、`enable_thinking=false`、LoRA `r=16/alpha=32`、LR `2e-4`、
+effective batch 16、max sequence 8192、1–2 epochs。微批只在 `[1,2,4,8]` 中选择
+满足至少 15% VRAM 余量的最大值。累计有效 completion-label token exposure 必须达到
+250,000，zero-label 比例必须为 0；第一轮后运行 dev NLL、teacher-forced
+schema/exact action、64-task closed-loop dev 和冻结 train K4 base-signal gate，全部通过
+即停止，只有不足时才允许第二轮。这样避免共享 SFT 过强而抹掉在线信用分配信号。
 
 ## 6. 在线训练的唯一受控变量
 

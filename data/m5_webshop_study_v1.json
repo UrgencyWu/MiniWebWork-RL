@@ -77,6 +77,7 @@
     "maximum_oracle_turns": 15,
     "missing_title_policy": "the one pinned goal with an empty product title is retained in the official dataset audit but deterministically policy-excluded from verified SFT collection as missing_oracle_metadata",
     "completion_contract": "action-only compact JSON; completion-only loss; no hidden goal fields in prompts; no chain of thought",
+    "chat_template_kwargs": {"enable_thinking": false},
     "maximum_sequence_tokens": 8192,
     "minimum_effective_completion_label_token_exposure": 250000,
     "maximum_zero_label_fraction": 0.0,
@@ -91,9 +92,9 @@
       "dropout": 0.0,
       "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
     },
-    "maximum_epochs": 3,
-    "minimum_epochs": 2,
-    "plateau_selection": "after at least two epochs and 250000 cumulative completion-label token exposures: dev NLL, schema-valid rate, exact action match, and 64-task closed-loop dev success; fail if three epochs cannot reach the token floor"
+    "maximum_epochs": 2,
+    "minimum_epochs": 1,
+    "plateau_selection": "after epoch one and at least 250000 cumulative completion-label token exposures, run dev NLL, schema-valid rate, exact action match, 64-task closed-loop dev success, and the frozen train K4 base-signal gate; stop at epoch one when all gates pass, otherwise permit exactly one additional epoch and fail if the gates still do not pass"
   },
   "online": {
     "group_size": 4,

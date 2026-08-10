@@ -53,6 +53,7 @@ def _audit_split(
     *,
     max_length: int,
     git_sha: str,
+    chat_template_kwargs: dict[str, Any],
 ) -> dict[str, Any]:
     sample_ids = []
     labels = []
@@ -94,7 +95,12 @@ def _audit_split(
                 f"invalid {hash_field}: {sample_id}",
             )
         messages = prompt_messages + [{"role": "assistant", "content": row["completion"]}]
-        statistics = completion_only_token_statistics(tokenizer, messages, max_length=max_length)
+        statistics = completion_only_token_statistics(
+            tokenizer,
+            messages,
+            chat_template_kwargs=chat_template_kwargs,
+            max_length=max_length,
+        )
         labels.append(int(statistics["effective_completion_label_tokens"]))
         forwards.append(int(statistics["forward_tokens"]))
         untruncated_forwards.append(int(statistics["untruncated_forward_tokens"]))
@@ -135,6 +141,7 @@ def main() -> None:
     protocol = load_protocol()
     sft = protocol["payload"]["sft"]
     max_length = int(sft["maximum_sequence_tokens"])
+    chat_template_kwargs = dict(sft["chat_template_kwargs"])
     corpus_audit_path = data_root / "corpus_audit.json"
     _require(corpus_audit_path.is_file(), "M5 SFT corpus audit is missing")
     corpus_audit = json.loads(corpus_audit_path.read_text(encoding="utf-8"))
@@ -157,6 +164,7 @@ def main() -> None:
             tokenizer,
             max_length=max_length,
             git_sha=protocol["git_sha"],
+            chat_template_kwargs=chat_template_kwargs,
         )
         for split in ("train", "dev")
     }
@@ -179,6 +187,7 @@ def main() -> None:
         "base_model": str(base_model),
         "tokenizer_file_sha256": _tokenizer_hashes(base_model),
         "maximum_sequence_tokens": max_length,
+        "chat_template_kwargs": chat_template_kwargs,
         "minimum_completion_label_token_exposure": token_floor,
         "label_tokenization_contract": "full chat template minus generation-prompt prefix, including assistant terminator, then right truncate",
         "splits": splits,
