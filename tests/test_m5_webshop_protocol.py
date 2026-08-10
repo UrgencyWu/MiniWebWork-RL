@@ -69,9 +69,18 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
     }
     assert protocol["payload"]["slurm"]["sft_corpus"] == {
         "gpus": 0,
-        "cpus": 4,
-        "memory_gib": 8,
-        "workers": 4,
+        "cpus": 8,
+        "memory_gib": 16,
+        "workers": 8,
+    }
+    assert protocol["payload"]["server_runtime"]["request_concurrency"]["mode"] == (
+        "process_serialized_asgi_v1"
+    )
+    assert protocol["payload"]["slurm"]["service_stress"] == {
+        "gpus": 0,
+        "cpus": 8,
+        "memory_gib": 16,
+        "episodes_per_lane": 4,
     }
 
 
@@ -81,6 +90,10 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert "scontrol" not in service
     assert "sbatch --parsable" in service
     assert 'afterany:${SLURM_JOB_ID}' in service
+    assert "#SBATCH --cpus-per-task=24" in service
+    assert "#SBATCH --mem=96G" in service
+    assert "miniwebwork.webshop_rl.serialized_service:app" in service
+    assert 'export PYTHONPATH="$repo_root/src:$upstream_root"' in service
     assert '--reference-audit "$data_audit"' in service
     assert '--reference-audit "$environment_audit"' in service
     environment_audit = 'scripts/m5_webshop_server_preflight.py environment'
@@ -102,14 +115,27 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert "status --porcelain --untracked-files=all --ignored" in setup
     assert setup.index(exact_git_reuse) < setup.index("fetched=0")
     sft_corpus = (root / "scripts" / "run_m5_webshop_sft_corpus_job.sh").read_text(encoding="utf-8")
-    assert "#SBATCH --cpus-per-task=4" in sft_corpus
-    assert "--workers 4" in sft_corpus
+    assert "#SBATCH --cpus-per-task=8" in sft_corpus
+    assert "#SBATCH --mem=16G" in sft_corpus
+    assert "--workers 8" in sft_corpus
+    health = (root / "scripts" / "run_m5_webshop_service_health_job.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --cpus-per-task=2" in health
+    assert "#SBATCH --mem=8G" in health
+    health_preflight = (root / "scripts" / "m5_webshop_server_preflight.py").read_text(encoding="utf-8")
+    assert 'headers={"Connection": "close"}' in health_preflight
+    assert "ThreadPoolExecutor(max_workers=expected_workers * 2)" in health_preflight
+    assert '"request_concurrency_mode"' in health_preflight
+    stress = (root / "scripts" / "run_m5_webshop_concurrency_preflight_job.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --cpus-per-task=8" in stress
+    assert "#SBATCH --mem=16G" in stress
+    assert 'case "$M5_STRESS_LANES" in 32|64)' in stress
     for name in (
         "run_m5_webshop_cpu_regression_job.sh",
         "run_m5_webshop_data_preflight_job.sh",
         "run_m5_webshop_server_setup_job.sh",
         "run_m5_webshop_service_job.sh",
         "run_m5_webshop_service_health_job.sh",
+        "run_m5_webshop_concurrency_preflight_job.sh",
         "run_m5_webshop_sft_corpus_job.sh",
         "run_m5_training_runtime_setup_job.sh",
     ):

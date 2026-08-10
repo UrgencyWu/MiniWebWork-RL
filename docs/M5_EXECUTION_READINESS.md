@@ -13,9 +13,9 @@ clean M5 preflight SHA
 ├─ CPU training-runtime repair + audit (2 CPU)
 └─ CPU server-env setup + upstream pin (2 CPU)
        ↓ all three pass
-shared WebShop service (8 CPU, renewable 24h)
+shared WebShop service (24 CPU, 8/16 serialized workers, renewable 24h)
        ↓
-verified SFT corpus + tokenizer audit (4 CPU / 4 workers)
+verified SFT corpus + tokenizer audit (8 CPU / 8 workers)
        ↓
 SFT microbatch/short-train preflight (1 GPU)
        ↓
@@ -42,7 +42,7 @@ formal SFT → six parallel online runs → eight frozen evaluations → analysi
 | 8192 token/250k exposure audit | PENDING | 依赖 corpus + Qwen tokenizer |
 | SFT GPU preflight | PENDING | 正式 SFT 禁止 |
 | K4 signal/credit/optimizer gate | PENDING | 含非初始状态汇合率；正式 online 禁止 |
-| 32/64 lanes 与 GPU telemetry | PENDING | 最低够用 CPU 原则 |
+| 8/16 workers、32/64 lanes 与 GPU telemetry | PENDING | 充分供给 CPU；HTTP 5xx 必须为零 |
 | 真实 24h 中断恢复 | PENDING | 必须至少一次 scheduler 级恢复 |
 | clean-SHA readiness | PENDING | 必须 self-hashed 且无 unmet gate |
 | 正式 authorization | CLOSED | preflight 通过后另行生成 |
@@ -56,6 +56,7 @@ scripts/run_m5_webshop_server_setup_job.sh
 scripts/run_m5_training_runtime_setup_job.sh
 scripts/run_m5_webshop_service_job.sh
 scripts/run_m5_webshop_service_health_job.sh
+scripts/run_m5_webshop_concurrency_preflight_job.sh
 scripts/run_m5_webshop_sft_corpus_job.sh
 ```
 
@@ -82,11 +83,16 @@ scripts/run_m5_webshop_sft_corpus_job.sh
 - 已存在的 Agent-R1 Git 源只有在 HEAD 精确等于冻结提交，且 tracked、untracked
   与 ignored 状态均为空时才无网络复用；随后仍执行完整源码树与 WebShop 子树 hash
   审计。重复 preflight 因而不依赖 GitHub 可用性，也不会接受本地残留；
-- SFT corpus collector 申请 4 CPU 且只开 4 个 worker；不在 2-CPU allocation 中
-  隐式启动 8 路线程，也不为一次性数据生成过量申请 CPU；
-- runtime、data、server environment、health、逐任务 SFT record、corpus 和 token
-  audit 都同时嵌入当前 clean 40 位 Git SHA 与协议 SHA-256；不能只靠 Slurm 日志
-  反推代码血缘。
+- 真实并发审计发现冻结上游在每个 worker 内共享一个 SQLite connection、Lucene
+  searcher 与 mutable cache，而 FastAPI 会把同步 endpoint 放入线程池；同 worker
+  并发可令 SQLite 查询返回损坏值并产生 HTTP 500。上游源码 hash 保持不变，仓库
+  ASGI 包装只在 worker 内串行 HTTP 请求，8/16 个 worker 之间仍并行；健康探针用
+  connection-closing 并发波覆盖每个 PID，压力门槛要求 HTTP 5xx 比例严格为零；
+- SFT corpus collector 申请 8 CPU 且开 8 个 worker；共享服务申请 24 CPU/96 GiB，
+  可在 8/16 process worker 间做吞吐选择，不让 CPU 服务拖慢 6 个 GPU run；
+- runtime、data、server environment、health、service-stress、逐任务 SFT record、
+  corpus 和 token audit 都同时嵌入当前 clean 40 位 Git SHA 与协议 SHA-256；不能
+  只靠 Slurm 日志反推代码血缘。
 
 ## 停止条件
 

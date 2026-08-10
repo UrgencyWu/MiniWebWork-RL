@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Shared WebShop service for SFT verification, preflight and formal rollouts.
-# One 8-CPU service avoids multiplying CPU requests across six GPU jobs.
+# One 24-CPU service avoids multiplying CPU requests across six GPU jobs.
 #SBATCH --job-name=m5-webshop-env
 #SBATCH --partition=compute
 #SBATCH --time=24:00:00
 #SBATCH --requeue
 #SBATCH --signal=B:USR1@300
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=48G
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=96G
 #SBATCH --output=logs/m5_webshop_env_%j.out
 #SBATCH --error=logs/m5_webshop_env_%j.err
 
@@ -28,7 +28,7 @@ data_audit="$study_root/preflight/data/runtime_audit.json"
 environment_audit="$study_root/preflight/server/environment_audit.json"
 launch_audit_root="$study_root/preflight/server_launch/${SLURM_JOB_ID:-manual}_${SLURM_RESTART_COUNT:-0}"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
-workers="${M5_WEBSHOP_WORKERS:-4}"
+workers="${M5_WEBSHOP_WORKERS:-8}"
 export CUDA_VISIBLE_DEVICES=""
 export JAVA_HOME="$environment_root"
 export JVM_PATH="$environment_root/lib/jvm/lib/server/libjvm.so"
@@ -36,8 +36,8 @@ export PATH="$JAVA_HOME/bin:$PATH"
 export PYTHONDONTWRITEBYTECODE=1
 
 case "$workers" in
-  2|4|8) ;;
-  *) echo "M5_WEBSHOP_WORKERS must be one of 2, 4, 8" >&2; exit 2 ;;
+  8|16) ;;
+  *) echo "M5_WEBSHOP_WORKERS must be one of 8, 16" >&2; exit 2 ;;
 esac
 
 test -s "$data_audit"
@@ -56,7 +56,7 @@ mkdir -p "$launch_audit_root"
   --output "$launch_audit_root/environment_audit.json" \
   --reference-audit "$environment_audit"
 
-export PYTHONPATH="$upstream_root"
+export PYTHONPATH="$repo_root/src:$upstream_root"
 export WEBSHOP_DATASET_MODE=full
 export WEBSHOP_DATA_DIR="$runtime_root"
 export WEBSHOP_INDEX_DIR="$runtime_root"
@@ -105,7 +105,7 @@ trap stop_service TERM INT
 "$environment_root/bin/gunicorn" \
   -w "$workers" \
   -k uvicorn.workers.UvicornWorker \
-  recipes.webshop.env.server:app \
+  miniwebwork.webshop_rl.serialized_service:app \
   -b 127.0.0.1:44151 \
   --timeout 120 \
   --graceful-timeout 60 \

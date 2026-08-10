@@ -200,17 +200,20 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 | 数据下载/字节审计 | 0 | 1 | 8 GiB |
 | training runtime 修复/审计 | 0 | 2 | 8 GiB |
 | server 环境安装 | 0 | 2 | 20 GiB |
-| shared WebShop service（初始 4 workers） | 0 | 8 | 48 GiB |
-| verified SFT corpus（4 workers） | 0 | 4 | 8 GiB |
-| SFT | 1 | 4 | 32 GiB |
-| 每个 online run | 1 | 4 | 24 GiB |
-| 每个 frozen eval | 1 | 3 | 20 GiB |
+| shared WebShop service（初始 8 workers） | 0 | 24 | 96 GiB |
+| service health | 0 | 2 | 8 GiB |
+| service 32/64-lane stress | 0 | 8 | 16 GiB |
+| verified SFT corpus（8 workers） | 0 | 8 | 16 GiB |
+| SFT | 1 | 8 | 48 GiB |
+| 每个 online run | 1 | 8 | 32 GiB |
+| 每个 frozen eval | 1 | 6 | 24 GiB |
 
-六个 online run 可以并行：合计 6 GPU/24 CPU/144 GiB；加共享服务后是
-6 GPU/32 CPU/192 GiB。相比为每个 GPU job 启动独立 8-CPU server，这一设计同时
-保留 GPU 并行和 CPU 调度余量。Lucene/JVM 与 SQLite cache 是 per-process 成本，
-因此不预设 16 workers；先用 4，随后在相同 8 CPU/48 GiB 内比较 2/4/8 workers 与
-32/64 lanes，正式值取稳定且更快者；
+六个 online run 可以并行：合计 6 GPU/48 CPU/192 GiB；加共享服务后是
+6 GPU/72 CPU/288 GiB。在当前 112 CPU/377 GiB 节点上仍保留 40 CPU/89 GiB
+余量。共享服务固定获得 24 CPU/96 GiB，比较 8/16 workers 与每 run 32/64 lanes，
+正式值取零 HTTP 5xx 且更快者。冻结上游的 SQLite connection、Lucene searcher 和
+mutable cache 是 per-process 共享对象，而 FastAPI 同步 endpoint 使用线程池；因此
+服务入口在每个 worker 内只允许一个 in-flight HTTP 请求，worker 之间继续并行。
 generation 阶段 GPU 利用率中位数要求至少 60%，learner 阶段至少 80%。
 
 service 同样受 24 小时上限约束。集群的 `scontrol` 对普通用户禁权，因此到期前
@@ -219,8 +222,8 @@ service 同样受 24 小时上限约束。集群的 `scontrol` 对普通用户�
 8.37 GB runtime 与隔离环境，并要求审计 content hash 与初始冻结工件完全一致。客户端
 将重启窗口记为 infrastructure failure 并重采整个原子 K4 group，不能把服务中断
 写成 reward=0。所有 CPU-only 作业显式隐藏 GPU。runtime、data、environment、
-health、逐任务 SFT record、corpus 与 token-audit 工件均同时写入 clean 40 位 Git SHA
-和协议 SHA-256，不能只靠 Slurm 日志反推代码血缘。
+health、service-stress、逐任务 SFT record、corpus 与 token-audit 工件均同时写入
+clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码血缘。
 
 逻辑 GPU 工作量是 7 个训练 run（1 SFT + 6 online）和 8 个 eval run，共 15 个；
 24 小时恢复可能增加 Slurm allocation 数。稳定情况下预计 5–8 个自然日；给环境
@@ -241,7 +244,8 @@ health、逐任务 SFT record、corpus 与 token-audit 工件均同时写入 cle
    credit，且至少 5% 有效 K4 group 存在一个由不同轨迹共享的非初始状态；
 6. 两种 learner 均至少完成 2 次非零更新，loss/gradient 有限，有效 optimizer
    action-token 比例 ≥15%；
-7. 32/64 lanes benchmark、generation/learner GPU 利用率、VRAM 与 OOM 门槛通过；
+7. 8/16 workers × 32/64 lanes 的真实 reset/search benchmark 达到零 HTTP 5xx；
+   generation/learner GPU 利用率、VRAM 与 OOM 门槛通过；
 8. 真实 Slurm 中断后 same-root 恢复，token ledger、adapter、optimizer、sampler 和
    K4 原子组血缘不漂移；
 9. 最终 CPU 全回归在 clean Git SHA 上通过，生成 self-hashed readiness；

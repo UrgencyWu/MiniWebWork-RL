@@ -5,8 +5,8 @@
 #SBATCH --partition=compute
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=8G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
 #SBATCH --output=logs/m5_webshop_sft_data_%j.out
 #SBATCH --error=logs/m5_webshop_sft_data_%j.err
 
@@ -31,7 +31,7 @@ export CUDA_VISIBLE_DEVICES=""
   --goals "$runtime_root/goals.json" \
   --output-dir "$output_root" \
   --base-url "$base_url" \
-  --workers 4 \
+  --workers 8 \
   --health-audit "$health_audit"
 "$python_bin" scripts/audit_m5_webshop_sft_tokens.py \
   --data-dir "$output_root" \

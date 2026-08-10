@@ -308,8 +308,13 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(isinstance(gates, Mapping), "M5 preflight gates are missing")
     _require(
         gates.get("artifact_lineage")
-        == "every M5 runtime, data, environment, health, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
+        == "every M5 runtime, data, environment, health, service-stress, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
         "M5 artifact-lineage contract drift",
+    )
+    _require(
+        gates.get("throughput")
+        == "benchmark 32 and 64 lanes against one shared 24-CPU service with 8 and 16 process-serialized workers; select the faster stable setting; HTTP 5xx fraction must be zero; generation-phase median GPU utilization >= 0.60 and learner-phase median GPU utilization >= 0.80; no OOM",
+        "M5 throughput gate drift",
     )
     evaluation = protocol.get("evaluation")
     _require(isinstance(evaluation, Mapping), "M5 evaluation contract is missing")
@@ -331,19 +336,45 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         "M5 training runtime setup resource drift",
     )
     _require(
-        slurm.get("sft_corpus") == {"gpus": 0, "cpus": 4, "memory_gib": 8, "workers": 4},
+        slurm.get("sft_corpus") == {"gpus": 0, "cpus": 8, "memory_gib": 16, "workers": 8},
         "M5 SFT corpus resource drift",
     )
+    _require(
+        slurm.get("service_health") == {"gpus": 0, "cpus": 2, "memory_gib": 8},
+        "M5 service health resource drift",
+    )
+    _require(
+        slurm.get("service_stress") == {"gpus": 0, "cpus": 8, "memory_gib": 16, "episodes_per_lane": 4},
+        "M5 service stress resource drift",
+    )
+    _require(
+        slurm.get("sft") == {"gpus": 1, "cpus": 8, "memory_gib": 48},
+        "M5 SFT resource drift",
+    )
+    _require(
+        slurm.get("online_per_run") == {"gpus": 1, "cpus": 8, "memory_gib": 32},
+        "M5 online resource drift",
+    )
+    _require(
+        slurm.get("evaluation_per_run") == {"gpus": 1, "cpus": 6, "memory_gib": 24},
+        "M5 evaluation resource drift",
+    )
     _require(slurm.get("maximum_parallel_online_runs") == 6, "M5 online parallelism drift")
+    _require(
+        slurm.get("parallel_online_total") == {"gpus": 6, "cpus": 48, "memory_gib": 192}
+        and slurm.get("parallel_online_plus_service_total") == {"gpus": 6, "cpus": 72, "memory_gib": 288},
+        "M5 parallel resource totals drift",
+    )
     _require(
         slurm.get("shared_environment_service")
         == {
             "gpus": 0,
-            "cpus": 8,
-            "memory_gib": 48,
+            "cpus": 24,
+            "memory_gib": 96,
             "port": 44151,
-            "initial_workers": 4,
-            "worker_candidates": [2, 4, 8],
+            "initial_workers": 8,
+            "worker_candidates": [8, 16],
+            "request_concurrency": "one in-flight HTTP request per worker process",
             "renewable": True,
             "renewal_mechanism": "sbatch_successor_afterany",
             "cuda_visible_devices": "empty",
@@ -354,6 +385,16 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(isinstance(server_runtime, Mapping), "M5 server runtime contract is missing")
     _require(server_runtime.get("python") == "3.12.13", "M5 server Python drift")
     _require(server_runtime.get("java") == "21.0.10", "M5 server Java drift")
+    _require(
+        server_runtime.get("request_concurrency")
+        == {
+            "mode": "process_serialized_asgi_v1",
+            "reason": "the pinned upstream keeps one SQLite connection, Lucene searcher and mutable product cache per worker while FastAPI runs sync endpoints in a thread pool",
+            "health_probe": "concurrent connection-closing waves must cover every worker PID",
+            "maximum_http_5xx_fraction": 0.0,
+        },
+        "M5 server request-concurrency contract drift",
+    )
     _require(
         server_runtime.get("source_fetch_policy")
         == {

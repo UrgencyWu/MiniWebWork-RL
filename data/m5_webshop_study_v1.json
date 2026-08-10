@@ -148,9 +148,9 @@
     "base_signal": "at least 32 K4 train groups; infrastructure-valid >= 0.99; mixed-reward group fraction >= 0.20; success in [0.03, 0.70]",
     "step_credit": "the initial public state is shared in every valid K4 group; nonzero informative micro credit occurs in >= 0.02 of generated turns; >= 0.05 of valid groups contain a shared non-initial public state",
     "optimizer": "at least two nonzero updates; finite loss and gradients; effective optimizer action-token fraction >= 0.15",
-    "throughput": "benchmark 32 and 64 lanes against one shared 8-CPU service; select the faster stable setting; generation-phase median GPU utilization >= 0.60 and learner-phase median GPU utilization >= 0.80; no OOM",
+    "throughput": "benchmark 32 and 64 lanes against one shared 24-CPU service with 8 and 16 process-serialized workers; select the faster stable setting; HTTP 5xx fraction must be zero; generation-phase median GPU utilization >= 0.60 and learner-phase median GPU utilization >= 0.80; no OOM",
     "recovery": "real Slurm interruption and same-root recovery preserve exact cost and artifact lineage",
-    "artifact_lineage": "every M5 runtime, data, environment, health, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
+    "artifact_lineage": "every M5 runtime, data, environment, health, service-stress, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
     "formal_release": "a clean frozen Git SHA plus a self-hashed readiness artifact must be referenced by a separate versioned authorization artifact; this preflight protocol remains closed until a new formal protocol version is reviewed"
   },
   "slurm": {
@@ -159,14 +159,16 @@
     "data_preflight": {"gpus": 0, "cpus": 1, "memory_gib": 8},
     "server_setup": {"gpus": 0, "cpus": 2, "memory_gib": 20},
     "training_runtime_setup": {"gpus": 0, "cpus": 2, "memory_gib": 8},
-    "sft_corpus": {"gpus": 0, "cpus": 4, "memory_gib": 8, "workers": 4},
-    "shared_environment_service": {"gpus": 0, "cpus": 8, "memory_gib": 48, "port": 44151, "initial_workers": 4, "worker_candidates": [2, 4, 8], "renewable": true, "renewal_mechanism": "sbatch_successor_afterany", "cuda_visible_devices": "empty"},
-    "sft": {"gpus": 1, "cpus": 4, "memory_gib": 32},
-    "online_per_run": {"gpus": 1, "cpus": 4, "memory_gib": 24},
-    "evaluation_per_run": {"gpus": 1, "cpus": 3, "memory_gib": 20},
+    "sft_corpus": {"gpus": 0, "cpus": 8, "memory_gib": 16, "workers": 8},
+    "shared_environment_service": {"gpus": 0, "cpus": 24, "memory_gib": 96, "port": 44151, "initial_workers": 8, "worker_candidates": [8, 16], "request_concurrency": "one in-flight HTTP request per worker process", "renewable": true, "renewal_mechanism": "sbatch_successor_afterany", "cuda_visible_devices": "empty"},
+    "service_health": {"gpus": 0, "cpus": 2, "memory_gib": 8},
+    "service_stress": {"gpus": 0, "cpus": 8, "memory_gib": 16, "episodes_per_lane": 4},
+    "sft": {"gpus": 1, "cpus": 8, "memory_gib": 48},
+    "online_per_run": {"gpus": 1, "cpus": 8, "memory_gib": 32},
+    "evaluation_per_run": {"gpus": 1, "cpus": 6, "memory_gib": 24},
     "maximum_parallel_online_runs": 6,
-    "parallel_online_total": {"gpus": 6, "cpus": 24, "memory_gib": 144},
-    "parallel_online_plus_service_total": {"gpus": 6, "cpus": 32, "memory_gib": 192},
+    "parallel_online_total": {"gpus": 6, "cpus": 48, "memory_gib": 192},
+    "parallel_online_plus_service_total": {"gpus": 6, "cpus": 72, "memory_gib": 288},
     "logical_gpu_runs": {"formal_training": 7, "frozen_evaluation": 8, "total": 15},
     "resume_policy": "one logical run may require multiple 24h Slurm allocations; no fixed submission count is claimed"
   },
@@ -190,6 +192,12 @@
       "rank-bm25": "0.2.2"
     },
     "reward_changing_optional_packages_forbidden": ["spacy", "thefuzz"],
+    "request_concurrency": {
+      "mode": "process_serialized_asgi_v1",
+      "reason": "the pinned upstream keeps one SQLite connection, Lucene searcher and mutable product cache per worker while FastAPI runs sync endpoints in a thread pool",
+      "health_probe": "concurrent connection-closing waves must cover every worker PID",
+      "maximum_http_5xx_fraction": 0.0
+    },
     "allocation_consistency": "every service allocation audit content_sha256 must equal the setup audit"
   },
   "training_runtime": {

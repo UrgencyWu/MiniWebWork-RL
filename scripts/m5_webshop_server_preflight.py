@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -143,22 +144,36 @@ def environment_audit(
 
 def health_audit(*, base_url: str, output: Path, expected_workers: int) -> dict[str, Any]:
     protocol = load_protocol()
-    _require(expected_workers in {2, 4, 8}, "unexpected WebShop service worker count")
+    _require(expected_workers in {8, 16}, "unexpected WebShop service worker count")
     url = base_url.rstrip("/") + "/health"
     worker_health: dict[int, dict[str, Any]] = {}
-    for _ in range(expected_workers * 16):
-        with urllib.request.urlopen(url, timeout=120) as response:
-            health = json.loads(response.read().decode("utf-8"))
-        _require(health.get("status") == "ok", "WebShop service health status failed")
-        _require(health.get("dataset_mode") == "full", "WebShop service is not in full mode")
-        _require(health.get("num_products") == 1181430, "WebShop service product count drift")
-        _require(health.get("num_goals") == 12087, "WebShop service goal count drift")
-        _require(health.get("search_top_k") == 50, "WebShop service search depth drift")
-        pid = health.get("pid")
-        _require(isinstance(pid, int) and pid > 0, "WebShop service health lacks a worker PID")
-        worker_health[pid] = health
-        if len(worker_health) == expected_workers:
-            break
+    probe_requests = 0
+
+    def fetch_health(_: int) -> dict[str, Any]:
+        request = urllib.request.Request(url, headers={"Connection": "close"})
+        with urllib.request.urlopen(request, timeout=120) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        _require(isinstance(payload, dict), "WebShop service health response is malformed")
+        return payload
+
+    # Concurrent, connection-closing waves reliably exercise separate Gunicorn
+    # workers.  The process-local ASGI wrapper must make this safe even while a
+    # worker lazily initializes SQLite and Lucene state.
+    with ThreadPoolExecutor(max_workers=expected_workers * 2) as executor:
+        for _ in range(16):
+            batch = list(executor.map(fetch_health, range(expected_workers * 2)))
+            probe_requests += len(batch)
+            for health in batch:
+                _require(health.get("status") == "ok", "WebShop service health status failed")
+                _require(health.get("dataset_mode") == "full", "WebShop service is not in full mode")
+                _require(health.get("num_products") == 1181430, "WebShop service product count drift")
+                _require(health.get("num_goals") == 12087, "WebShop service goal count drift")
+                _require(health.get("search_top_k") == 50, "WebShop service search depth drift")
+                pid = health.get("pid")
+                _require(isinstance(pid, int) and pid > 0, "WebShop service health lacks a worker PID")
+                worker_health[pid] = health
+            if len(worker_health) >= expected_workers:
+                break
     _require(len(worker_health) == expected_workers, "not every WebShop worker passed warm health initialization")
     environment = WebShopHTTPEnvironment(base_url=base_url, split="train", timeout_seconds=120)
     try:
@@ -177,6 +192,9 @@ def health_audit(*, base_url: str, output: Path, expected_workers: int) -> dict[
         "base_url": base_url.rstrip("/"),
         "expected_workers": expected_workers,
         "worker_pids": sorted(worker_health),
+        "request_concurrency_mode": protocol["payload"]["server_runtime"]["request_concurrency"]["mode"],
+        "probe_mode": "concurrent_connection_close_waves_v1",
+        "probe_requests": probe_requests,
         "health": worker_health[sorted(worker_health)[0]],
         "adapter_smoke_task_id": "webshop_goal_01000",
         "target_metadata_absent_from_prompt": True,
