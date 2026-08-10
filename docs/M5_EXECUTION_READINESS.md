@@ -107,7 +107,9 @@ scripts/run_m5_webshop_sft_corpus_job.sh
 均匀 train 样本做只读 live diagnostic：`goal.query` 召回 0/100，清洗后的精确商品标题
 召回 95/100。修复后 oracle 只用标题构造公开 `search[...]` 动作、显式移除 ASIN、限制
 200 字符和 15 步；完整 4,000/400 corpus 与 token audit 仍须重跑通过后才能解锁 GPU
-训练。collector 现在无论成功或失败都会写带 Git/协议血缘的 split selection diagnostic。
+训练。官方仅 goal 6770 的标题为空，它保留在数据审计中，但从 SFT 选择中以
+`missing_oracle_metadata` 排除。collector 现在无论成功或失败都会写带 Git/协议血缘
+的 split selection diagnostic。
 
 ## 停止条件
 

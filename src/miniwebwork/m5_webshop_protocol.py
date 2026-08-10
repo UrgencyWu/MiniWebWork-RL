@@ -614,7 +614,6 @@ def audit_goals(goals_path: Path, protocol: Mapping[str, Any] | None = None) -> 
         _require(isinstance(goal.get("instruction"), str) and goal["instruction"].strip(), f"missing instruction: {index}")
         _require(isinstance(goal.get("asin"), str) and goal["asin"], f"missing ASIN: {index}")
         _require(isinstance(goal.get("query"), str) and goal["query"], f"missing query: {index}")
-        _require(isinstance(goal.get("name"), str) and goal["name"].strip(), f"missing product title: {index}")
         _require(goal.get("reward_mode") == "webshop_full", f"reward mode drift: {index}")
         normalized = normalized_instruction(goal["instruction"])
         instructions.setdefault(normalized, []).append(index)

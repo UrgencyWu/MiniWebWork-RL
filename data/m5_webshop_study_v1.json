@@ -74,6 +74,7 @@
     "teacher_query_rationale": "a 2026-08-10 evenly spaced 100-train-goal live diagnostic found 0/100 target recall for broad goal.query versus 95/100 for the sanitized exact product title; the title is used only to form an executable public teacher action and never enters the policy prompt as hidden metadata",
     "maximum_teacher_query_characters": 200,
     "maximum_oracle_turns": 15,
+    "missing_title_policy": "the one pinned goal with an empty product title is retained in the official dataset audit but deterministically policy-excluded from verified SFT collection as missing_oracle_metadata",
     "completion_contract": "action-only compact JSON; completion-only loss; no hidden goal fields in prompts; no chain of thought",
     "maximum_sequence_tokens": 8192,
     "minimum_effective_completion_label_token_exposure": 250000,

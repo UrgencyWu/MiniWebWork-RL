@@ -136,6 +136,8 @@ search[sanitize(goal.name)[:200]]
 结果已公开列出后才能被点击。2026-08-10 的 100 个均匀 train 抽样显示，原先宽泛的
 `goal.query` 对 target 的 top-50 召回为 0/100，清洗后的精确标题为 95/100，因此冻结
 方案采用标题搜索，并继续以最终 reward=1 verifier 作为唯一语料准入条件。
+官方 goal 6770 的标题字段为空；该行仍保留在官方数据完整性审计中，但会由 oracle
+以 `missing_oracle_metadata` 确定性排除，不会阻断其余 12,086 条 goal 的审计。
 
 正式语料按 seed `20260810` 对 eligible roster 做 SHA-256 排序，顺序扫描并保留前
 4,000 个 verified train 任务与前 400 个 verified dev 任务。每个 action turn 是一个

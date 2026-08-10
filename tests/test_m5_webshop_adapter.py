@@ -342,6 +342,8 @@ def test_oracle_title_query_is_bounded_sanitized_and_does_not_emit_target_asin()
     assert "[" not in query and "]" not in query
     assert "B000TARGET" not in query
     assert MAX_ORACLE_TURNS == 15
+    with pytest.raises(OraclePolicyFailure, match="missing_oracle_metadata"):
+        _oracle_title_query({"name": "", "asin": "B000TARGET"})
 
 
 def test_oracle_refuses_the_frozen_test_split_before_reset():
