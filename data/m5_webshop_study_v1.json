@@ -1,0 +1,165 @@
+{
+  "schema_version": "m5_webshop_study_v1",
+  "study_id": "m5_webshop_credit_assignment_v1",
+  "status": "preflight_only",
+  "formal_submission_allowed": false,
+  "research_question": "Under the same verified SFT initialization and online action-token budget, does public-anchor step credit improve WebShop learning efficiency over trajectory-broadcast multi-turn GRPO?",
+  "scope": {
+    "formal_benchmark": "WebShop full",
+    "base_model": "/data/share/model/Qwen3.5-4B",
+    "formal_models": 8,
+    "evaluation_only_baselines": ["raw_base_model"],
+    "shared_sft_models": 1,
+    "online_methods": ["multi_turn_grpo", "anchor_gigpo"],
+    "online_seeds": [20260801, 20260802, 20260803],
+    "excluded_formal_methods": ["rloo", "rsft", "gspo", "ppo", "steppo_with_critic"]
+  },
+  "upstream_sources": {
+    "webshop": {
+      "repository": "https://github.com/princeton-nlp/WebShop",
+      "revision": "64fa2a5c15c7daa698b9ac93f5bb5437b634c9bd",
+      "license": "MIT",
+      "role": "original benchmark, task semantics, product and reward provenance"
+    },
+    "agent_r1_code": {
+      "repository": "https://github.com/AgentR1/Agent-R1",
+      "revision": "b124aa46534cbf2fb8bc8af11405774984c42ac7",
+      "license": "MIT",
+      "role": "pinned WebShop FastAPI, SQLite and Lucene reference implementation"
+    },
+    "agent_r1_data": {
+      "repository": "https://www.modelscope.cn/datasets/Melmaphother/Agent-R1-data",
+      "revision": "1e624211d47dc1d66758a056fa8ee1017d72de6f",
+      "license": "inherits original benchmark terms; research use with attribution; artifacts are not redistributed",
+      "role": "official processed 1.18M-product runtime and 12087 task goals",
+      "lock_path": "data/m5_webshop_upstream_lock_v1.json"
+    }
+  },
+  "dataset": {
+    "products": 1181430,
+    "goals": 12087,
+    "split_contract": {
+      "test": {"start_inclusive": 0, "stop_exclusive": 500, "raw_count": 500, "eligible_count": 500, "may_update_model": false},
+      "dev": {"start_inclusive": 500, "stop_exclusive": 1000, "raw_count": 500, "eligible_count": 499, "may_update_model": false},
+      "train": {"start_inclusive": 1000, "stop_exclusive": 12087, "raw_count": 11087, "eligible_count": 10885, "may_update_model": true}
+    },
+    "dedup_contract": {
+      "lock_path": "data/m5_webshop_split_exclusions_v1.json",
+      "normalization": "unicode_preserving_lowercase_whitespace_collapse_v1",
+      "rule": "retain every frozen test row; for dev and train, exclude a row when its normalized instruction occurred at any lower goal_index",
+      "reason": "the pinned source contains 203 later duplicate rows and raw cross-role exact-instruction overlap"
+    },
+    "task_id_format": "webshop_goal_{goal_index:05d}",
+    "test_contract": "all unaltered official goals[0:500]; accessible before final evaluation only to a content-blind integrity and exact-duplicate isolation audit; never used for SFT, rollouts, tuning, checkpoint selection, or preflight metrics",
+    "dev_contract": "499 eligible goals from official indices 500:1000 after canonical-first exact-instruction isolation; configuration and checkpoint selection only",
+    "train_contract": "10885 eligible goals from official indices 1000:12087 after canonical-first exact-instruction isolation; deterministic cold coverage then signal sampling"
+  },
+  "sft": {
+    "source": "deterministic verified oracle replay against official train/dev goals",
+    "external_trajectory_data": false,
+    "train_task_count": 4000,
+    "dev_task_count": 400,
+    "selection_seed": 20260810,
+    "selection_contract": "scan the full eligible split in deterministic SHA256 order and retain the first requested number of public-action-valid, reward-1 oracle trajectories",
+    "expert_contract": "search goal.query; click goal.asin; select required goal_options; click Buy Now; retain only reward=1",
+    "completion_contract": "action-only compact JSON; completion-only loss; no hidden goal fields in prompts; no chain of thought",
+    "maximum_sequence_tokens": 8192,
+    "minimum_effective_completion_label_token_exposure": 250000,
+    "maximum_zero_label_fraction": 0.0,
+    "completion_only_loss": true,
+    "learning_rate": 0.0002,
+    "effective_batch_size": 16,
+    "microbatch_candidates": [1, 2, 4, 8],
+    "minimum_vram_headroom": 0.15,
+    "lora": {
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.0,
+      "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    },
+    "maximum_epochs": 3,
+    "minimum_epochs": 2,
+    "plateau_selection": "after at least two epochs and 250000 cumulative completion-label token exposures: dev NLL, schema-valid rate, exact action match, and 64-task closed-loop dev success; fail if three epochs cannot reach the token floor"
+  },
+  "online": {
+    "group_size": 4,
+    "maximum_environment_steps": 15,
+    "maximum_model_turns": 18,
+    "maximum_new_tokens_per_turn": 128,
+    "generated_action_token_cap_per_run": 500000,
+    "tasks_per_iteration": 32,
+    "initial_parallel_lanes": 32,
+    "candidate_parallel_lanes": [32, 64],
+    "sampling": {"temperature": 1.0, "top_p": 1.0, "top_k": 0},
+    "learner": {
+      "policy_epochs": 2,
+      "trajectory_minibatch_size": 4,
+      "learning_rate": 0.000005,
+      "clip_epsilon": 0.2,
+      "gradient_clip": 1.0,
+      "completion_only": true,
+      "behavior_policy_staleness": 0
+    },
+    "reward": {"success": 1.0, "valid_failure": 0.0, "infrastructure_failure": null},
+    "baseline_credit": "one standardized K=4 terminal advantage broadcast to all action turns",
+    "main_credit": "macro advantage plus first-visit standardized discounted return at exact task-scoped public-state anchors; exact macro fallback elsewhere",
+    "credit_formula_version": "webshop_public_state_macro_micro_v1",
+    "anchor_contract": {
+      "state_source": "exact task-scoped public MDP state before action: schema, task id, instruction, page type, prompt-visible observation text, truncation flag, bounded available actions and terminal flag",
+      "excluded_from_grouping": ["prompt tokens", "step index", "recent action history", "episode id", "runtime URL", "oracle target", "verifier output", "unknown fields"],
+      "policy_context_evidence": "exact prompt-token SHA256 is recorded separately and binds behavior logprobs but never changes the state group",
+      "group_scope": "same frozen task and same atomic K4 rollout group only"
+    },
+    "credit_parameters": {
+      "advantage_epsilon": 0.000001,
+      "micro_return_gamma": 0.95,
+      "micro_advantage_weight": 1.0,
+      "anchor_visit_policy": "first_visit_per_trajectory",
+      "advantage_normalization": "population standardization within the same task K4 group; exact zero when standard deviation is at most epsilon",
+      "loss_normalization": "token mean within turn; turn mean within trajectory; trajectory mean within K4 group"
+    },
+    "recovery": "fsync every generated turn and atomic K=4 group; commit adapter, rollout adapter, optimizer, sampler and token ledger per iteration; resume same root after 24h interruption"
+  },
+  "evaluation": {
+    "task_count": 500,
+    "rollouts_per_task": 4,
+    "models": 8,
+    "model_roster": ["raw_base_model", "shared_verified_sft", "multi_turn_grpo_seed_20260801", "multi_turn_grpo_seed_20260802", "multi_turn_grpo_seed_20260803", "anchor_gigpo_seed_20260801", "anchor_gigpo_seed_20260802", "anchor_gigpo_seed_20260803"],
+    "total_frozen_trajectories": 16000,
+    "primary_metric": "binary task success rate",
+    "secondary_metrics": ["WebShop dense task score", "success by category and constraint count", "generated tokens", "environment steps", "wall time", "invalid action rate"],
+    "statistics": "task-cluster bootstrap confidence intervals and paired seed-aware permutation tests",
+    "test_open_policy": "open exactly once after all seven adapter hashes and inference settings are frozen"
+  },
+  "preflight_gates": {
+    "upstream_hash_and_count": "all locked runtime files exact; 1181430 products; 12087 contiguous goals",
+    "split_isolation": "zero goal-index overlap and zero normalized exact-instruction overlap across the eligible train/dev rosters and the complete frozen test roster; exclusions must exactly match the versioned lock",
+    "expert_replay": "100 percent verifier success; zero invalid labels; zero test access; zero hidden-field prompt leakage",
+    "base_signal": "at least 32 K4 train groups; infrastructure-valid >= 0.99; mixed-reward group fraction >= 0.20; success in [0.03, 0.70]",
+    "step_credit": "the initial public state is shared in every valid K4 group; nonzero informative micro credit occurs in >= 0.02 of generated turns; >= 0.05 of valid groups contain a shared non-initial public state",
+    "optimizer": "at least two nonzero updates; finite loss and gradients; effective optimizer action-token fraction >= 0.15",
+    "throughput": "benchmark 32 and 64 lanes against one shared 8-CPU service; select the faster stable setting; generation-phase median GPU utilization >= 0.60 and learner-phase median GPU utilization >= 0.80; no OOM",
+    "recovery": "real Slurm interruption and same-root recovery preserve exact cost and artifact lineage",
+    "formal_release": "a clean frozen Git SHA plus a self-hashed readiness artifact must be referenced by a separate versioned authorization artifact; this preflight protocol remains closed until a new formal protocol version is reviewed"
+  },
+  "slurm": {
+    "wall_time_per_job": "24:00:00",
+    "data_preflight": {"gpus": 0, "cpus": 1, "memory_gib": 8},
+    "shared_environment_service": {"gpus": 0, "cpus": 8, "memory_gib": 48, "port": 44151, "initial_workers": 4, "worker_candidates": [2, 4, 8], "renewable": true},
+    "sft": {"gpus": 1, "cpus": 4, "memory_gib": 32},
+    "online_per_run": {"gpus": 1, "cpus": 4, "memory_gib": 24},
+    "evaluation_per_run": {"gpus": 1, "cpus": 3, "memory_gib": 20},
+    "maximum_parallel_online_runs": 6,
+    "parallel_online_total": {"gpus": 6, "cpus": 24, "memory_gib": 144},
+    "parallel_online_plus_service_total": {"gpus": 6, "cpus": 32, "memory_gib": 192},
+    "logical_gpu_runs": {"formal_training": 7, "frozen_evaluation": 8, "total": 15},
+    "resume_policy": "one logical run may require multiple 24h Slurm allocations; no fixed submission count is claimed"
+  },
+  "rejected_candidates": {
+    "WebArena": "recognized and closer to general websites, but the cluster has no Docker, Podman, Singularity or Apptainer; parallel mutable site stacks would dominate project scope and scheduler resources",
+    "Mind2Web": "useful offline imitation data but no executable online reward environment; action and state distribution mismatch does not repair RL signal",
+    "AgentInstruct_WebShop": "351 trajectories have no explicit dataset license in the pinned card and local audit found overlap with the frozen WebShop test indices; excluded from every formal artifact",
+    "CUA_Gym": "large recent visual CUA suite, but it changes model modality, action space and infrastructure simultaneously",
+    "MiniWebWork_v2": "retained only as an auditable data-regime failure diagnostic; it is not a formal M5 benchmark or training source"
+  }
+}

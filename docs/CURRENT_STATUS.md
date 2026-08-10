@@ -1,15 +1,32 @@
 # MiniWebWork-RL 当前实现状态
 
-> 权威状态页。最后更新：2026-08-01。
+> 权威状态页。最后更新：2026-08-10。
 
 ## 项目定位
 
-MiniWebWork-RL 是一个确定性采购网站上的文本浏览器 Agent 项目。Qwen3.5-4B 通过固定 JSON 动作空间执行多轮任务，终态由非 LLM Verifier 产生奖励。
+当前正式方向是公开 WebShop benchmark 上的文本 Agent 信用分配研究。原确定性采购
+网站实现保留为基础设施与失败诊断，不再承担 M5 正式效果结论。
 
 ```text
 Task → Browser Environment → Qwen Policy → Multi-turn Rollout
 → Deterministic Verifier → SFT / GRPO-style Update → Frozen Evaluation
 ```
+
+## M5 当前状态
+
+M5 已把范围冻结为一个 shared verified SFT、multi-turn GRPO 与 public-anchor
+GiGPO-style credit 各 3 seeds。数据源为固定 Agent-R1 WebShop full：1,181,430
+商品、12,087 goal。原始切分中的 203 个后出现重复 instruction 已通过
+canonical-first lock 隔离；测试 500 条保持完整，eligible dev/train 为 499/10,885。
+
+正式训练当前仍为 `NOT_READY`。已完成的是机器协议、上游文件 lock、重复隔离、
+目标字段白名单、未公开 ASIN 点击防护、verified oracle 和 CPU mock tests；待远端
+完成 8.37 GB 全文件审计、隔离 server、SFT corpus/token audit、GPU signal/optimizer/
+throughput/recovery preflight 与 clean-SHA readiness。
+
+权威方案见 [`M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md`](M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)，
+实时门禁见 [`M5_EXECUTION_READINESS.md`](M5_EXECUTION_READINESS.md)。下文 M1–M4
+状态均为历史证据，不授权 M5 正式训练。
 
 ## 阶段状态
 

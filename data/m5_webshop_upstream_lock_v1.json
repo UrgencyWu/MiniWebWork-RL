@@ -1,0 +1,37 @@
+{
+  "schema_version": "m5_webshop_upstream_lock_v1",
+  "source": {
+    "repository": "https://www.modelscope.cn/datasets/Melmaphother/Agent-R1-data",
+    "revision": "1e624211d47dc1d66758a056fa8ee1017d72de6f",
+    "runtime_root": "webshop_full",
+    "download_base_url": "https://www.modelscope.cn/datasets/Melmaphother/Agent-R1-data/resolve/1e624211d47dc1d66758a056fa8ee1017d72de6f/webshop_full"
+  },
+  "runtime_files": [
+    {"path": "goals.json", "sha256": "5ac4982eb019ff0167a8dbfe30cbcc13c2170438c7ba7abbc7ec24ea8b942170", "size": 9494074},
+    {"path": "lucene_index/_0.fdm", "sha256": "49d4849d11246a4921a0000a620a3d876cb17ed4accc58390b87c2b0bb931932", "size": 1125},
+    {"path": "lucene_index/_0.fdt", "sha256": "22070ac0386d31dac27b36f0bdd76b927a890e88d518b898a63ae757541cd7c8", "size": 1211597194},
+    {"path": "lucene_index/_0.fdx", "sha256": "e9eb200a8e582df0d5989474639d71fb207aee136dd52f3d5cfadd7321766bd4", "size": 72533},
+    {"path": "lucene_index/_0.fnm", "sha256": "2b7adec62f94306204a0257f32e7f44a8f94b6829169c1f9ffab3b1115a533eb", "size": 343},
+    {"path": "lucene_index/_0.nvd", "sha256": "0491841467953d01bda5dc1f0cbbfd1d690d8b282bb39a5289aff05c753a594b", "size": 1181489},
+    {"path": "lucene_index/_0.nvm", "sha256": "f1c611d47b12e9e4d11e2e6c1e01e7171a76f9a642ca14c167d2dc6882036b80", "size": 103},
+    {"path": "lucene_index/_0.si", "sha256": "196d759bbfbaf67e7d5565bf3265aff4d94a5e40e3d3fe5abe5650a9e9c10abd", "size": 513},
+    {"path": "lucene_index/_0.tvd", "sha256": "21fe14072a4e78d12835168b83b3fdd3872f3aff9f92b2ce912b0b0bcbb27ae1", "size": 917703901},
+    {"path": "lucene_index/_0.tvm", "sha256": "9d27ffe829c9a8b2822540fc78acdaca41fb6a1b6735d77399250cc80b690274", "size": 4910},
+    {"path": "lucene_index/_0.tvx", "sha256": "884d4257f0a86014f0a7766025951d34f69e7cd34cd977439486446e700dae4e", "size": 348039},
+    {"path": "lucene_index/_0_Lucene90_0.dvd", "sha256": "150bb3541632ac8ae4ccea728fa4fc1c749ec5ec4aed96e78496acf8d7168a79", "size": 11814373},
+    {"path": "lucene_index/_0_Lucene90_0.dvm", "sha256": "5524a402ac1dc300245c1631ec89e6042b84e3d2c5e2cf1bede8a3807cefe8f4", "size": 133},
+    {"path": "lucene_index/_0_Lucene99_0.doc", "sha256": "02680ecde977e7e1a29f5474f4f15acb79c72138eb9f10b7ab0bb74df00ffe88", "size": 204313808},
+    {"path": "lucene_index/_0_Lucene99_0.pos", "sha256": "42fb2af626616b1c298c334c627b93b7910fd977f6473a9b67414d39f8df1549", "size": 286014199},
+    {"path": "lucene_index/_0_Lucene99_0.tim", "sha256": "8856d4d42845c1a8b027caf74a8872f51acdd0c509a998d858bd877f1a285012", "size": 23422043},
+    {"path": "lucene_index/_0_Lucene99_0.tip", "sha256": "169516872c22e4428bbe359d78579da27d2ad2b38b0dcbcbcc07b16ab17799e5", "size": 589079},
+    {"path": "lucene_index/_0_Lucene99_0.tmd", "sha256": "458e7f36d73577f0a42e5d9fa249c377d6158d012f7440103cbf53ac5c3ca04c", "size": 318},
+    {"path": "lucene_index/segments_1", "sha256": "2515259980807e24080362548dd737bbad8ee5c1cc210dd07fb44f2b388fd69d", "size": 154},
+    {"path": "lucene_index/write.lock", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "size": 0},
+    {"path": "meta.json", "sha256": "b711df206cffd614056dae0b7d0f0d740c4062a0b51665e2d6b7f74c8d358251", "size": 458},
+    {"path": "products.sqlite", "sha256": "23712d6aeb8a5720b45d4890e91267abe1224c107ea2b9804d5813cec0de4ea7", "size": 5698150400},
+    {"path": "stats.json", "sha256": "75ddb604e277e99e2d9f987f0f17ba52673eb81e9dd67551da22946eee980a10", "size": 239},
+    {"path": "test.parquet", "sha256": "3abba46e5ba87356185b5d11f26fd234c139b2c4a46721ad5bd0b6b52511e4b0", "size": 116062},
+    {"path": "train.parquet", "sha256": "98b5b470b8328a5355c76078f4cc932abdbc67cc38716dbd67455cf825d77953", "size": 2325217}
+  ],
+  "total_runtime_bytes": 8367150707
+}

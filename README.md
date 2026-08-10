@@ -6,16 +6,16 @@ MiniWebWork-RL 是一个面向确定性采购调研流程的轻量浏览器 Agen
 
 ## 当前阶段
 
-当前主线已收缩到 **M4 长程信用分配研究**：一个共享 Verified SFT，随后在相同
-250k generated-action-token 预算下比较 multi-turn GRPO 与 step-aware GPO（各 3
-seeds），最后执行 7 模型 × 120 冻结任务 × K4。它强调长轨迹稀疏奖励下的信用
-分配、同卡 rollout/learner 切换、24 小时 Slurm 恢复、GPU 利用率和逐工件血缘，
-而不是继续扩充算法数量。
+当前主线是 **M5 WebShop 长程信用分配研究**：使用公开的 1.18M 商品/12,087 goal
+WebShop full benchmark，训练一个 shared verified SFT，然后在相同 500k
+generated-action-token 预算下比较 multi-turn GRPO 与 public-anchor GiGPO-style
+credit（各 3 seeds）。最后一次性评测 raw base、SFT 和六个 online adapter，共
+8 模型 × 500 frozen test tasks × K4。
 
-正式范围见 [`docs/M4_LONG_HORIZON_AGENT_RL_SCOPE.md`](docs/M4_LONG_HORIZON_AGENT_RL_SCOPE.md)，
-执行门禁见 [`docs/M4_FORMAL_TRAINING_READINESS.md`](docs/M4_FORMAL_TRAINING_READINESS.md)。
-历史 study/runtime 仍保留 preflight 关闭标记；独立正式授权与最终 clean-SHA
-readiness-v2 必须同时通过，任何训练入口才会接受提交。
+范围见 [`docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md`](docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)，
+执行门禁见 [`docs/M5_EXECUTION_READINESS.md`](docs/M5_EXECUTION_READINESS.md)。
+正式训练仍关闭；只有数据、server、SFT/K4 signal、optimizer、GPU throughput、
+真实 24h 恢复和 clean-SHA readiness 全部通过后，独立 authorization 才能开放。
 
 下列 M1–M3 状态是已经完成的历史基线：
 
