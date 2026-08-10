@@ -70,7 +70,8 @@ scripts/run_m5_webshop_sft_corpus_job.sh
 - 所有 CPU-only 入口显式设置空 `CUDA_VISIBLE_DEVICES`，即使隔离 server 的
   Pyserini 依赖树带有 Torch/CUDA wheel，也不能触碰未申请的 GPU；
 - 每个新 service allocation 不仅重算 runtime/environment 审计，还必须与初始冻结
-  audit 的 `content_sha256` 完全相同；
+  audit 的 `content_sha256` 完全相同；隔离 `JAVA_HOME`、`JVM_PATH`、`PATH` 与
+  禁写 bytecode 必须在 allocation 审计之前导出，不能依赖登录 shell；
 - 上游 Git fetch 使用固定提交、HTTP/1.1、两次有限重试，并对每次尝试施加 60 秒
   硬超时（含连接阶段）；若校园出口持续
   阻断 Git smart HTTP，只允许退到同一提交的 GitHub codeload 归档，且归档
@@ -79,7 +80,10 @@ scripts/run_m5_webshop_sft_corpus_job.sh
   退回浮动分支或未审计代码。内容树使用已版本化的 repository-relative
   path/size/file-SHA256 记录算法，服务禁写 bytecode，防止源码树在 allocation 间漂移；
 - SFT corpus collector 申请 4 CPU 且只开 4 个 worker；不在 2-CPU allocation 中
-  隐式启动 8 路线程，也不为一次性数据生成过量申请 CPU。
+  隐式启动 8 路线程，也不为一次性数据生成过量申请 CPU；
+- runtime、data、server environment、health、逐任务 SFT record、corpus 和 token
+  audit 都同时嵌入当前 clean 40 位 Git SHA 与协议 SHA-256；不能只靠 Slurm 日志
+  反推代码血缘。
 
 ## 停止条件
 

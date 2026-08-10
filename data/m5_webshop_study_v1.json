@@ -150,6 +150,7 @@
     "optimizer": "at least two nonzero updates; finite loss and gradients; effective optimizer action-token fraction >= 0.15",
     "throughput": "benchmark 32 and 64 lanes against one shared 8-CPU service; select the faster stable setting; generation-phase median GPU utilization >= 0.60 and learner-phase median GPU utilization >= 0.80; no OOM",
     "recovery": "real Slurm interruption and same-root recovery preserve exact cost and artifact lineage",
+    "artifact_lineage": "every M5 runtime, data, environment, health, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
     "formal_release": "a clean frozen Git SHA plus a self-hashed readiness artifact must be referenced by a separate versioned authorization artifact; this preflight protocol remains closed until a new formal protocol version is reviewed"
   },
   "slurm": {

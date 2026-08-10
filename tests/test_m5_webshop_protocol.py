@@ -16,6 +16,7 @@ from miniwebwork.m5_webshop_protocol import (
     load_protocol,
     load_split_exclusions,
     load_upstream_lock,
+    repository_git_sha,
     sft_candidate_orders,
     split_for_goal_index,
     task_id_for_goal_index,
@@ -36,6 +37,8 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
     lock = load_upstream_lock()
     assert protocol["path"] == str(PROTOCOL_PATH.resolve())
     assert len(protocol["sha256"]) == 64
+    assert protocol["git_sha"] == repository_git_sha()
+    assert len(protocol["git_sha"]) == 40
     assert lock["payload"]["total_runtime_bytes"] == sum(
         item["size"] for item in lock["payload"]["runtime_files"]
     )
@@ -80,6 +83,14 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert 'afterany:${SLURM_JOB_ID}' in service
     assert '--reference-audit "$data_audit"' in service
     assert '--reference-audit "$environment_audit"' in service
+    environment_audit = 'scripts/m5_webshop_server_preflight.py environment'
+    for required_export in (
+        'export JAVA_HOME="$environment_root"',
+        'export JVM_PATH="$environment_root/lib/jvm/lib/server/libjvm.so"',
+        'export PATH="$JAVA_HOME/bin:$PATH"',
+        'export PYTHONDONTWRITEBYTECODE=1',
+    ):
+        assert service.index(required_export) < service.index(environment_audit)
     setup = (root / "scripts" / "run_m5_webshop_server_setup_job.sh").read_text(encoding="utf-8")
     assert "http.version=HTTP/1.1" in setup
     assert "for delay in 0 5" in setup
@@ -173,6 +184,9 @@ def test_protocol_fails_closed_on_method_budget_split_or_authorization_drift():
     mutations.append(changed)
     changed = copy.deepcopy(original)
     changed["online"]["anchor_contract"]["excluded_from_grouping"].remove("prompt tokens")
+    mutations.append(changed)
+    changed = copy.deepcopy(original)
+    changed["preflight_gates"]["artifact_lineage"] = "external logs only"
     mutations.append(changed)
     for mutation in mutations:
         with pytest.raises(ValueError):

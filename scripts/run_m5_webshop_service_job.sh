@@ -30,6 +30,10 @@ launch_audit_root="$study_root/preflight/server_launch/${SLURM_JOB_ID:-manual}_$
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 workers="${M5_WEBSHOP_WORKERS:-4}"
 export CUDA_VISIBLE_DEVICES=""
+export JAVA_HOME="$environment_root"
+export JVM_PATH="$environment_root/lib/jvm/lib/server/libjvm.so"
+export PATH="$JAVA_HOME/bin:$PATH"
+export PYTHONDONTWRITEBYTECODE=1
 
 case "$workers" in
   2|4|8) ;;
@@ -52,11 +56,7 @@ mkdir -p "$launch_audit_root"
   --output "$launch_audit_root/environment_audit.json" \
   --reference-audit "$environment_audit"
 
-export JAVA_HOME="$environment_root"
-export JVM_PATH="$environment_root/lib/jvm/lib/server/libjvm.so"
-export PATH="$JAVA_HOME/bin:$PATH"
 export PYTHONPATH="$upstream_root"
-export PYTHONDONTWRITEBYTECODE=1
 export WEBSHOP_DATASET_MODE=full
 export WEBSHOP_DATA_DIR="$runtime_root"
 export WEBSHOP_INDEX_DIR="$runtime_root"

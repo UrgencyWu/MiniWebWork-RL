@@ -84,6 +84,7 @@ def audit_runtime(*, base_model: Path, output: Path) -> dict[str, Any]:
         "passed": True,
         "formal_training": False,
         "protocol_sha256": protocol["sha256"],
+        "git_sha": protocol["git_sha"],
         "python": sys.version,
         "packages": packages,
         "torch_runtime_version": torch.__version__,

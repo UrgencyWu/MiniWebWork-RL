@@ -62,18 +62,36 @@ def _validate_record(
     split: str,
     goal_index: int,
     protocol_sha256: str,
+    git_sha: str,
     goals_sha256: str,
 ) -> dict[str, Any]:
     payload = dict(record)
+    expected_record_keys = {
+        "schema_version",
+        "split",
+        "goal_index",
+        "task_id",
+        "protocol_sha256",
+        "git_sha",
+        "goals_sha256",
+        "status",
+        "exclusion_reason",
+        "trajectory",
+        "content_sha256",
+    }
+    _require(set(payload) == expected_record_keys, "oracle record keys drift")
     _require(payload.get("schema_version") == "m5_webshop_oracle_record_v1", "oracle record schema drift")
     _require(payload.get("split") == split and payload.get("goal_index") == goal_index, "oracle record identity drift")
+    _require(payload.get("task_id") == task_id_for_goal_index(goal_index), "oracle record task id drift")
     _require(payload.get("protocol_sha256") == protocol_sha256, "oracle record protocol drift")
+    _require(payload.get("git_sha") == git_sha, "oracle record Git lineage drift")
     _require(payload.get("goals_sha256") == goals_sha256, "oracle record goal source drift")
     _require(payload.get("status") in {"verified", "policy_excluded"}, "oracle record status drift")
     expected = dict(payload)
     content_sha = expected.pop("content_sha256", None)
     _require(content_sha == sha256_json(expected), "oracle record self-hash drift")
     if payload["status"] == "verified":
+        _require(payload.get("exclusion_reason") == "", "verified oracle record has an exclusion reason")
         trajectory = payload.get("trajectory")
         _require(isinstance(trajectory, Mapping), "verified oracle record lacks trajectory")
         trajectory_without_hash = dict(trajectory)
@@ -110,6 +128,9 @@ def _validate_record(
             _require(parsed.action is not None and parsed.action.command == turn.get("command"), "oracle command drift")
             anchor = str(turn.get("public_state_anchor_sha256") or "")
             _require(len(anchor) == 64 and all(character in "0123456789abcdef" for character in anchor), "oracle anchor drift")
+    else:
+        _require(payload.get("trajectory") is None, "excluded oracle record contains a trajectory")
+        _require(isinstance(payload.get("exclusion_reason"), str) and payload["exclusion_reason"], "excluded oracle reason is missing")
     return payload
 
 
@@ -120,6 +141,7 @@ def _build_record(
     base_url: str,
     output_root: Path,
     protocol_sha256: str,
+    git_sha: str,
     goals_sha256: str,
 ) -> dict[str, Any]:
     goal_index = int(goal["goal_index"])
@@ -130,6 +152,7 @@ def _build_record(
             split=split,
             goal_index=goal_index,
             protocol_sha256=protocol_sha256,
+            git_sha=git_sha,
             goals_sha256=goals_sha256,
         )
     environment = WebShopHTTPEnvironment(base_url=base_url, split=split)
@@ -150,6 +173,7 @@ def _build_record(
         "goal_index": goal_index,
         "task_id": task_id_for_goal_index(goal_index),
         "protocol_sha256": protocol_sha256,
+        "git_sha": git_sha,
         "goals_sha256": goals_sha256,
         "status": status,
         "exclusion_reason": reason,
@@ -162,6 +186,7 @@ def _build_record(
         split=split,
         goal_index=goal_index,
         protocol_sha256=protocol_sha256,
+        git_sha=git_sha,
         goals_sha256=goals_sha256,
     )
 
@@ -174,6 +199,7 @@ def _collect_split(
     base_url: str,
     output_root: Path,
     protocol_sha256: str,
+    git_sha: str,
     goals_sha256: str,
     seed: int,
     workers: int,
@@ -197,6 +223,7 @@ def _collect_split(
                         base_url=base_url,
                         output_root=output_root,
                         protocol_sha256=protocol_sha256,
+                        git_sha=git_sha,
                         goals_sha256=goals_sha256,
                     ),
                     batch,
@@ -243,6 +270,7 @@ def build_corpus(
     _require(health_hash == sha256_json(health_without_hash), "M5 WebShop service health self-hash drift")
     _require(health_audit.get("passed") is True, "M5 WebShop service health did not pass")
     _require(health_audit.get("protocol_sha256") == protocol["sha256"], "M5 WebShop service protocol drift")
+    _require(health_audit.get("git_sha") == protocol["git_sha"], "M5 WebShop service Git lineage drift")
     _require(health_audit.get("base_url") == base_url.rstrip("/"), "M5 WebShop service URL drift")
     goal_audit = audit_goals(goals_path, protocol["payload"])
     goals = json.loads(Path(goals_path).expanduser().resolve().read_text(encoding="utf-8"))
@@ -259,6 +287,7 @@ def build_corpus(
             base_url=base_url,
             output_root=root,
             protocol_sha256=protocol["sha256"],
+            git_sha=protocol["git_sha"],
             goals_sha256=goal_audit["goals_sha256"],
             seed=seed,
             workers=workers,
@@ -277,6 +306,7 @@ def build_corpus(
             trajectory = record["trajectory"]
             for turn in trajectory["turns"]:
                 row = dict(turn)
+                row["git_sha"] = protocol["git_sha"]
                 row["trajectory_content_sha256"] = trajectory["content_sha256"]
                 rows.append(row)
         _require(all(row["completion"].strip() for row in rows), f"{split} corpus contains a zero label")
@@ -290,6 +320,7 @@ def build_corpus(
         "passed": True,
         "formal_training": False,
         "protocol_sha256": protocol["sha256"],
+        "git_sha": protocol["git_sha"],
         "goals_sha256": goal_audit["goals_sha256"],
         "selection_seed": seed,
         "base_url": base_url,

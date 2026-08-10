@@ -191,6 +191,7 @@ def verify_runtime(runtime_root: Path) -> dict[str, Any]:
         "passed": True,
         "runtime_root": str(root),
         "protocol_sha256": protocol["sha256"],
+        "git_sha": protocol["git_sha"],
         "upstream_lock_sha256": lock["sha256"],
         "split_exclusions_sha256": exclusions["sha256"],
         "file_count": len(files),

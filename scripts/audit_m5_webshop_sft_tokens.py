@@ -47,7 +47,13 @@ def _verify_self_hash(payload: dict[str, Any], *, label: str) -> None:
     _require(observed == sha256_json(expected), f"{label} self-hash drift")
 
 
-def _audit_split(rows: list[dict[str, Any]], tokenizer: Any, *, max_length: int) -> dict[str, Any]:
+def _audit_split(
+    rows: list[dict[str, Any]],
+    tokenizer: Any,
+    *,
+    max_length: int,
+    git_sha: str,
+) -> dict[str, Any]:
     sample_ids = []
     labels = []
     forwards = []
@@ -65,10 +71,12 @@ def _audit_split(rows: list[dict[str, Any]], tokenizer: Any, *, max_length: int)
         "completion",
         "command",
         "public_state_anchor_sha256",
+        "git_sha",
         "trajectory_content_sha256",
     }
     for row in rows:
         _require(set(row) == expected_keys, "M5 SFT row schema drift")
+        _require(row.get("git_sha") == git_sha, "M5 SFT row Git lineage drift")
         sample_id = f"{row['task_id']}:{int(row['turn_index']):03d}"
         sample_ids.append(sample_id)
         parsed = parse_command_output(row.get("completion", ""))
@@ -134,6 +142,7 @@ def main() -> None:
     _verify_self_hash(corpus_audit, label="M5 SFT corpus audit")
     _require(corpus_audit.get("passed") is True, "M5 SFT corpus audit did not pass")
     _require(corpus_audit.get("protocol_sha256") == protocol["sha256"], "M5 SFT corpus protocol drift")
+    _require(corpus_audit.get("git_sha") == protocol["git_sha"], "M5 SFT corpus Git lineage drift")
     corpus_files = corpus_audit.get("corpus_files")
     _require(isinstance(corpus_files, dict), "M5 SFT corpus file manifest is missing")
     for split in ("train", "dev"):
@@ -143,7 +152,12 @@ def main() -> None:
         _require(entry.get("sha256") == sha256_file(split_path), f"M5 SFT {split} file hash drift")
     tokenizer = AutoTokenizer.from_pretrained(str(base_model), local_files_only=True, trust_remote_code=True)
     splits = {
-        split: _audit_split(_load_rows(data_root / f"{split}.jsonl"), tokenizer, max_length=max_length)
+        split: _audit_split(
+            _load_rows(data_root / f"{split}.jsonl"),
+            tokenizer,
+            max_length=max_length,
+            git_sha=protocol["git_sha"],
+        )
         for split in ("train", "dev")
     }
     _require(splits["train"]["task_count"] == int(sft["train_task_count"]), "M5 SFT train task count drift")
@@ -158,6 +172,7 @@ def main() -> None:
         "study_id": protocol["payload"]["study_id"],
         "passed": True,
         "protocol_sha256": protocol["sha256"],
+        "git_sha": protocol["git_sha"],
         "corpus_audit_sha256": sha256_file(corpus_audit_path),
         "train_sha256": sha256_file(data_root / "train.jsonl"),
         "dev_sha256": sha256_file(data_root / "dev.jsonl"),

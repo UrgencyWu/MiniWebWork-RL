@@ -218,7 +218,9 @@ service 同样受 24 小时上限约束。集群的 `scontrol` 对普通用户�
 依赖的后继 allocation；日志记录 parent/successor 血缘。每次 allocation 都重新校验
 8.37 GB runtime 与隔离环境，并要求审计 content hash 与初始冻结工件完全一致。客户端
 将重启窗口记为 infrastructure failure 并重采整个原子 K4 group，不能把服务中断
-写成 reward=0。所有 CPU-only 作业显式隐藏 GPU。
+写成 reward=0。所有 CPU-only 作业显式隐藏 GPU。runtime、data、environment、
+health、逐任务 SFT record、corpus 与 token-audit 工件均同时写入 clean 40 位 Git SHA
+和协议 SHA-256，不能只靠 Slurm 日志反推代码血缘。
 
 逻辑 GPU 工作量是 7 个训练 run（1 SFT + 6 online）和 8 个 eval run，共 15 个；
 24 小时恢复可能增加 Slurm allocation 数。稳定情况下预计 5–8 个自然日；给环境

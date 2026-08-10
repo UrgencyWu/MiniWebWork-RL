@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -32,6 +34,20 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+@lru_cache(maxsize=1)
+def repository_git_sha() -> str:
+    """Return the exact repository revision bound into every M5 artifact."""
+
+    result = subprocess.run(
+        ["git", "-C", str(PROJECT_ROOT), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    _require(GIT_REVISION_RE.fullmatch(result) is not None, "invalid M5 repository Git SHA")
+    return result
 
 
 def content_tree_audit(
@@ -288,6 +304,13 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         },
         "M5 credit parameters drift",
     )
+    gates = protocol.get("preflight_gates")
+    _require(isinstance(gates, Mapping), "M5 preflight gates are missing")
+    _require(
+        gates.get("artifact_lineage")
+        == "every M5 runtime, data, environment, health, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
+        "M5 artifact-lineage contract drift",
+    )
     evaluation = protocol.get("evaluation")
     _require(isinstance(evaluation, Mapping), "M5 evaluation contract is missing")
     _require(evaluation.get("task_count") == 500 and evaluation.get("rollouts_per_task") == 4, "M5 frozen evaluation drift")
@@ -402,7 +425,12 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
 def load_protocol(path: Path = PROTOCOL_PATH) -> dict[str, Any]:
     resolved = Path(path).expanduser().resolve()
     payload = validate_protocol(_json(resolved))
-    return {"path": str(resolved), "sha256": sha256_file(resolved), "payload": payload}
+    return {
+        "path": str(resolved),
+        "sha256": sha256_file(resolved),
+        "git_sha": repository_git_sha(),
+        "payload": payload,
+    }
 
 
 def split_for_goal_index(goal_index: int) -> str:
