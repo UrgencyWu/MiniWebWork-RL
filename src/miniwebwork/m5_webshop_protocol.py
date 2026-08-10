@@ -321,6 +321,19 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         },
         "M5 credit parameters drift",
     )
+    _require(
+        online.get("parity_contract")
+        == {
+            "behavior_sampling_maximum_absolute_difference": 1e-6,
+            "replay_mean_absolute_difference": 0.02,
+            "replay_p95_absolute_difference": 0.08,
+            "replay_p99_absolute_difference": 0.08,
+            "replay_p999_absolute_difference": 0.5,
+            "replay_initial_ratio_clip_fraction": 0.005,
+            "mean_importance_ratio_absolute_deviation": 0.02,
+        },
+        "M5 behavior/replay parity contract drift",
+    )
     gates = protocol.get("preflight_gates")
     _require(isinstance(gates, Mapping), "M5 preflight gates are missing")
     _require(

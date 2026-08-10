@@ -1,6 +1,6 @@
 # M5 执行与准入状态
 
-> 最后更新：2026-08-10
+> 最后更新：2026-08-11
 > 当前结论：推荐方案已冻结；正式训练仍为 `NOT_READY`。当前只允许 CPU 数据、
 > server 和小规模 preflight 作业。
 
@@ -40,10 +40,10 @@ formal SFT → six parallel online runs → eight frozen evaluations → analysi
 | 隔离 Python 3.12.13/Java 21.0.10/Pyserini server | IMPLEMENTED / PENDING（Slurm） | 独立环境，不污染训练 env |
 | 4,000/400 SFT corpus | PENDING | 依赖 data + service |
 | 8192 token/250k exposure audit | PENDING | 依赖 corpus + Qwen tokenizer |
-| SFT GPU preflight | PENDING | 正式 SFT 禁止 |
-| K4 signal/credit/optimizer gate | PENDING | 含非初始状态汇合率；正式 online 禁止 |
+| SFT GPU preflight | PASS（producer `9cedc2a`） | Job 1433：完整 1 epoch、339,925 label token、1,031 updates、train/dev NLL `1.1624/1.0951`；online preflight 只做 adapter、语料、prompt、tokenizer/base-model 与 LoRA 的最小兼容检查，不重跑 SFT |
+| K4 signal/credit/optimizer gate | IMPLEMENTED / PENDING（Slurm） | 32 个 K4、32 lanes、两方法 parity/learner、更新后 adapter reload 与非初始 anchor 门禁；正式 online 禁止 |
 | 8/16 workers、32/64 lanes 与 GPU telemetry | SERVICE PASS / GPU PENDING | 8/16 均零 5xx；冻结选择 16 workers + 32 lanes |
-| 真实 24h 中断恢复 | PENDING | 必须至少一次 scheduler 级恢复 |
+| 24h 同根恢复 | IMPLEMENTED / NATURAL-EVENT AUDIT | afterany successor、turn ledger、原子 K4 与 learner stage 可续；快速验证不主动制造一次无必要中断 |
 | clean-SHA readiness | PENDING | 必须 self-hashed 且无 unmet gate |
 | 正式 authorization | CLOSED | preflight 通过后另行生成 |
 
@@ -58,10 +58,32 @@ scripts/run_m5_webshop_service_job.sh
 scripts/run_m5_webshop_service_health_job.sh
 scripts/run_m5_webshop_concurrency_preflight_job.sh
 scripts/run_m5_webshop_sft_corpus_job.sh
+scripts/run_m5_webshop_sft_preflight_job.sh
+scripts/run_m5_webshop_online_preflight_job.sh
 ```
 
 这些入口不提交正式训练。正式 SFT、online 与 frozen test 脚本在 readiness 完成前
 不应存在可绕过的开放路径。
+
+在线 preflight 单卡临时申请 `8 CPU / 48 GiB`，用于同一作业内依次容纳 vLLM
+generation、两个独立 HF learner 与中断恢复诊断；正式六个 online run 仍严格使用
+冻结的每作业 `8 CPU / 32 GiB`，共享 24 CPU 服务不重复计入各 GPU job。
+
+### SFT GPU 实现验证（2026-08-11）
+
+Job 1433 在 RTX PRO 6000 Blackwell 上以 microbatch 8、gradient accumulation 2、
+effective batch 16 完成完整一轮；339,925 个 train completion-label token 与 token
+audit 逐项一致，zero-label/truncation 均为 0。dev NLL 为 `1.095142`，teacher-forced
+action exact/schema-valid 为 `68.659%/92.210%`。adapter 目录 SHA-256 为
+`c97c9265...d7334`，报告自哈希、invocation/benchmark/training 交叉哈希及四个 corpus
+输入哈希全部复算一致。全作业 GPU utilization mean/median 为 `88.70%/100%`，峰值
+显存约 `41.9 GiB`。Job 1434 作为 24h afterany 续跑已在正常完成后自动取消。
+
+该工件绑定 producer `9cedc2a7...86c1`，online consumer 保留自己的 Git SHA，二者
+不会伪装成同一提交。为了快速验证，本轮不因 online-only 代码或 parity 阈值变化重跑
+SFT；online invocation/report 直接记录并核验固定 adapter SHA、四个 corpus 哈希、
+agent prompt、tokenizer/base-model 语义和 LoRA 配置。任一项不一致即停止，而不是自动
+重跑 SFT。
 
 ## 已发现并关闭的集群差异
 

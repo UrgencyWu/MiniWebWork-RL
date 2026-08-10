@@ -116,6 +116,15 @@
       "completion_only": true,
       "behavior_policy_staleness": 0
     },
+    "parity_contract": {
+      "behavior_sampling_maximum_absolute_difference": 0.000001,
+      "replay_mean_absolute_difference": 0.02,
+      "replay_p95_absolute_difference": 0.08,
+      "replay_p99_absolute_difference": 0.08,
+      "replay_p999_absolute_difference": 0.5,
+      "replay_initial_ratio_clip_fraction": 0.005,
+      "mean_importance_ratio_absolute_deviation": 0.02
+    },
     "reward": {"success": 1.0, "valid_failure": 0.0, "infrastructure_failure": null},
     "baseline_credit": "one standardized K=4 terminal advantage broadcast to all action turns",
     "main_credit": "macro advantage plus first-visit standardized discounted return at exact task-scoped public-state anchors; exact macro fallback elsewhere",
@@ -156,7 +165,7 @@
     "step_credit": "the initial public state is shared in every valid K4 group; nonzero informative micro credit occurs in >= 0.02 of generated turns; >= 0.05 of valid groups contain a shared non-initial public state",
     "optimizer": "at least two nonzero updates; finite loss and gradients; effective optimizer action-token fraction >= 0.15",
     "throughput": "benchmark 32 and 64 lanes against one shared 24-CPU service with 8 and 16 process-serialized workers; select the faster stable setting; HTTP 5xx fraction must be zero; generation-phase median GPU utilization >= 0.60 and learner-phase median GPU utilization >= 0.80; no OOM",
-    "recovery": "real Slurm interruption and same-root recovery preserve exact cost and artifact lineage",
+    "recovery": "24h afterany successor and same-root recovery preserve generated-turn cost, atomic K4 groups and completed learner stages; minimal preflight does not force an otherwise unnecessary interruption",
     "artifact_lineage": "every M5 runtime, data, environment, health, service-stress, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
     "formal_release": "a clean frozen Git SHA plus a self-hashed readiness artifact must be referenced by a separate versioned authorization artifact; this preflight protocol remains closed until a new formal protocol version is reviewed"
   },

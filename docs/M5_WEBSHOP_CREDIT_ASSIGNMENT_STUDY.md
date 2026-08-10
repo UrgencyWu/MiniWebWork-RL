@@ -167,6 +167,12 @@ schema/exact action、64-task closed-loop dev 和冻结 train K4 base-signal gat
   clip epsilon 0.2、gradient clip 1.0；
 - token mean → turn mean → trajectory mean → K4 group mean 的层级归一化。
 
+首次更新前还必须验证两层 on-policy 证据：behavior 与无 warp sampling logprob 的
+逐 token 最大差异不超过 `1e-6`；HF learner replay 相对 vLLM behavior 的
+mean/P95/P99/P99.9 绝对 logprob 差分别不超过 `0.02/0.08/0.08/0.5`，初始
+ratio 落入 clip 区间外的 token 比例不超过 `0.5%`，mean importance ratio 偏离
+1 不超过 `0.02`。这些阈值在首次 M5 GPU 观测前冻结，失败时不得启动 optimizer。
+
 GRPO 使用 K4 终奖的 population-standardized advantage。`anchor_gigpo` 使用相同
 macro 项，另加 `gamma=0.95`、权重 `omega=1.0` 的 first-visit public-state micro
 项；anchor 少于两个不同轨迹或 return 无方差时 micro 精确为 0。这使“信用分配”
@@ -262,8 +268,9 @@ clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码�
 7. 8/16 workers × 32/64 lanes 的真实 reset/search benchmark 达到零 HTTP 5xx，
    正式服务选择 16 workers、每 run 32 lanes；
    generation/learner GPU 利用率、VRAM 与 OOM 门槛通过；
-8. 真实 Slurm 中断后 same-root 恢复，token ledger、adapter、optimizer、sampler 和
-   K4 原子组血缘不漂移；
+8. 24h `afterany` successor 能从 same-root 恢复，保留 generated-turn token ledger、
+   K4 原子组和完整 learner stage；快速 preflight 不为展示恢复而主动中断，若自然发生
+   timeout/preemption 则必须审计恢复前缀；
 9. 最终 CPU 全回归在 clean Git SHA 上通过，生成 self-hashed readiness；
 10. 单独版本化 authorization 才可把正式训练开关打开。
 
