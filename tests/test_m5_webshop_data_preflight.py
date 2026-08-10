@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
+
+import pytest
+
+from miniwebwork.long_horizon_rl.contracts import sha256_json
 
 from scripts.m5_webshop_data_preflight import (
     _download_one,
     _observed_runtime_files,
     _source_url,
     _valid_existing,
+    verify_reference_audit,
 )
 
 
@@ -54,3 +60,17 @@ def test_runtime_roster_observes_nested_unlocked_files(tmp_path: Path):
     (tmp_path / "goals.json").write_text("[]", encoding="utf-8")
     (tmp_path / "lucene_index" / "segments_2").write_bytes(b"unlocked")
     assert _observed_runtime_files(tmp_path) == {"goals.json", "lucene_index/segments_2"}
+
+
+def test_reference_audit_requires_exact_self_hashed_content(tmp_path: Path):
+    reference = {"schema_version": "x", "passed": True, "value": 7}
+    reference["content_sha256"] = sha256_json(reference)
+    path = tmp_path / "reference.json"
+    path.write_text(json.dumps(reference), encoding="utf-8")
+    verify_reference_audit(reference, path)
+    changed = dict(reference, value=8)
+    changed["content_sha256"] = sha256_json(
+        {key: value for key, value in changed.items() if key != "content_sha256"}
+    )
+    with pytest.raises(ValueError, match="differs"):
+        verify_reference_audit(changed, path)

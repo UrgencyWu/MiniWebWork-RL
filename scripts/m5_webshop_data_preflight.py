@@ -203,6 +203,23 @@ def verify_runtime(runtime_root: Path) -> dict[str, Any]:
     return report
 
 
+def verify_reference_audit(report: Mapping[str, Any], reference_path: Path) -> None:
+    """Require an allocation-time audit to match the frozen setup audit exactly."""
+
+    path = Path(reference_path).expanduser().resolve()
+    _require(path.is_file(), "M5 WebShop reference runtime audit is missing")
+    reference = json.loads(path.read_text(encoding="utf-8"))
+    _require(isinstance(reference, dict), "M5 WebShop reference runtime audit is malformed")
+    expected = dict(reference)
+    observed_hash = expected.pop("content_sha256", None)
+    _require(observed_hash == sha256_json(expected), "M5 WebShop reference runtime audit self-hash drift")
+    _require(reference.get("passed") is True, "M5 WebShop reference runtime audit did not pass")
+    _require(
+        report.get("content_sha256") == reference.get("content_sha256"),
+        "M5 WebShop runtime differs from the frozen setup audit",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -212,6 +229,7 @@ def main() -> None:
     )
     parser.add_argument("--runtime-root", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--reference-audit", type=Path)
     parser.add_argument("--maximum-attempts", type=int, default=4)
     args = parser.parse_args()
     _require(args.maximum_attempts >= 1, "maximum attempts must be positive")
@@ -220,6 +238,8 @@ def main() -> None:
         payload = download_runtime(args.runtime_root, maximum_attempts=args.maximum_attempts)
     else:
         payload = verify_runtime(args.runtime_root)
+        if args.reference_audit is not None:
+            verify_reference_audit(payload, args.reference_audit)
     if args.output:
         atomic_write_json(args.output, payload)
         print(str(args.output.expanduser().resolve()))

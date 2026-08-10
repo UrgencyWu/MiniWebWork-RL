@@ -42,49 +42,32 @@ def _tracked_tree_sha256(root: Path, prefix: str) -> str:
     return hashlib.sha256((listing + "\n").encode("utf-8")).hexdigest()
 
 
-def environment_audit(*, upstream_root: Path, output: Path) -> dict[str, Any]:
+def environment_audit(
+    *,
+    upstream_root: Path,
+    output: Path,
+    reference_audit_path: Path | None = None,
+) -> dict[str, Any]:
     root = Path(upstream_root).expanduser().resolve()
     protocol = load_protocol()
+    runtime_contract = protocol["payload"]["server_runtime"]
     expected_revision = protocol["payload"]["upstream_sources"]["agent_r1_code"]["revision"]
     _require((root / ".git").exists(), "Agent-R1 server source is not a Git checkout")
     revision = _run(["git", "rev-parse", "HEAD"], cwd=root)
     _require(revision == expected_revision, "Agent-R1 server revision drift")
     _require(not _run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root), "Agent-R1 tracked source is dirty")
-    _require(sys.version_info[:2] == (3, 12), "M5 WebShop server requires Python 3.12")
+    _require(".".join(map(str, sys.version_info[:3])) == runtime_contract["python"], "M5 WebShop server Python drift")
     java_version = subprocess.run(["java", "-version"], check=True, capture_output=True, text=True).stderr.strip()
-    _require('version "21' in java_version, "M5 WebShop server requires Java 21")
+    _require(f'version "{runtime_contract["java"]}' in java_version, "M5 WebShop server Java drift")
     java_home = Path(os.environ.get("JAVA_HOME", "")).expanduser().resolve()
     jvm_path = Path(os.environ.get("JVM_PATH", "")).expanduser().resolve()
     _require((java_home / "bin" / "java").is_file(), "M5 WebShop JAVA_HOME is invalid")
     _require(jvm_path.is_file(), "M5 WebShop JVM_PATH is invalid")
-    packages = {
-        name: importlib.metadata.version(name)
-        for name in (
-            "pandas",
-            "pyarrow",
-            "fastapi",
-            "gunicorn",
-            "uvicorn",
-            "pyserini",
-            "pyjnius",
-            "httpx",
-            "rank-bm25",
-        )
-    }
-    expected_packages = {
-        "pandas": "3.0.3",
-        "pyarrow": "25.0.0",
-        "fastapi": "0.139.2",
-        "gunicorn": "26.0.0",
-        "uvicorn": "0.51.0",
-        "pyserini": "2.3.0",
-        "pyjnius": "1.7.0",
-        "httpx": "0.28.1",
-        "rank-bm25": "0.2.2",
-    }
+    expected_packages = runtime_contract["critical_packages"]
+    packages = {name: importlib.metadata.version(name) for name in expected_packages}
     _require(packages == expected_packages, "M5 WebShop server package lock drift")
-    _require(importlib.util.find_spec("thefuzz") is None, "optional thefuzz would change the frozen reward semantics")
-    _require(importlib.util.find_spec("spacy") is None, "optional spaCy would change the frozen reward semantics")
+    for name in runtime_contract["reward_changing_optional_packages_forbidden"]:
+        _require(importlib.util.find_spec(name) is None, f"optional {name} would change frozen reward semantics")
     source_root = root / "recipes" / "webshop"
     _require(source_root.is_dir(), "Agent-R1 WebShop recipe is missing")
     report = {
@@ -100,11 +83,24 @@ def environment_audit(*, upstream_root: Path, output: Path) -> dict[str, Any]:
         "java_home": str(java_home),
         "jvm_path": str(jvm_path),
         "packages": packages,
-        "optional_reward_dependencies_absent": ["spacy", "thefuzz"],
+        "optional_reward_dependencies_absent": runtime_contract["reward_changing_optional_packages_forbidden"],
         "pip_freeze": sorted(_run([sys.executable, "-m", "pip", "freeze"]).splitlines()),
         "requirements_sha256": sha256_file(PROJECT_ROOT / "requirements.m5-webshop-server.txt"),
     }
     report["content_sha256"] = sha256_json(report)
+    if reference_audit_path is not None:
+        reference_path = Path(reference_audit_path).expanduser().resolve()
+        _require(reference_path.is_file(), "M5 WebShop reference environment audit is missing")
+        reference = json.loads(reference_path.read_text(encoding="utf-8"))
+        _require(isinstance(reference, dict), "M5 WebShop reference environment audit is malformed")
+        expected = dict(reference)
+        observed_hash = expected.pop("content_sha256", None)
+        _require(observed_hash == sha256_json(expected), "M5 WebShop reference environment self-hash drift")
+        _require(reference.get("passed") is True, "M5 WebShop reference environment did not pass")
+        _require(
+            report["content_sha256"] == reference.get("content_sha256"),
+            "M5 WebShop environment differs from the frozen setup audit",
+        )
     atomic_write_json(output, report)
     return report
 
@@ -159,13 +155,18 @@ def main() -> None:
     environment_parser = subparsers.add_parser("environment")
     environment_parser.add_argument("--upstream-root", type=Path, required=True)
     environment_parser.add_argument("--output", type=Path, required=True)
+    environment_parser.add_argument("--reference-audit", type=Path)
     health_parser = subparsers.add_parser("health")
     health_parser.add_argument("--base-url", default="http://127.0.0.1:44151")
     health_parser.add_argument("--output", type=Path, required=True)
     health_parser.add_argument("--expected-workers", type=int, default=4)
     args = parser.parse_args()
     if args.command == "environment":
-        report = environment_audit(upstream_root=args.upstream_root, output=args.output)
+        report = environment_audit(
+            upstream_root=args.upstream_root,
+            output=args.output,
+            reference_audit_path=args.reference_audit,
+        )
     else:
         report = health_audit(base_url=args.base_url, output=args.output, expected_workers=args.expected_workers)
     print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))

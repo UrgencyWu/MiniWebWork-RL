@@ -6,7 +6,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=16G
+#SBATCH --mem=20G
 #SBATCH --output=logs/m5_webshop_setup_%j.out
 #SBATCH --error=logs/m5_webshop_setup_%j.err
 
@@ -24,12 +24,14 @@ upstream_root="$study_root/upstream/Agent-R1"
 audit_path="$study_root/preflight/server/environment_audit.json"
 conda_bin="/home/wushaohua/miniconda3/bin/conda"
 revision="b124aa46534cbf2fb8bc8af11405774984c42ac7"
+export CUDA_VISIBLE_DEVICES=""
+export GIT_TERMINAL_PROMPT=0
 
 if test ! -x "$environment_root/bin/python"; then
-  "$conda_bin" create -y -p "$environment_root" -c conda-forge python=3.12 openjdk=21 pip
+  "$conda_bin" create -y -p "$environment_root" -c conda-forge python=3.12.13 openjdk=21.0.10 pip
 else
   # Repair an environment whose earlier 24h allocation ended during creation.
-  "$conda_bin" install -y -p "$environment_root" -c conda-forge python=3.12 openjdk=21 pip
+  "$conda_bin" install -y -p "$environment_root" -c conda-forge python=3.12.13 openjdk=21.0.10 pip
 fi
 "$environment_root/bin/python" -m pip install --disable-pip-version-check -r requirements.m5-webshop-server.txt
 
@@ -38,7 +40,17 @@ if test ! -d "$upstream_root/.git"; then
   git -C "$upstream_root" init
   git -C "$upstream_root" remote add origin https://github.com/AgentR1/Agent-R1.git
 fi
-git -C "$upstream_root" fetch --depth 1 origin "$revision"
+fetched=0
+for delay in 0 5 15 30; do
+  if test "$delay" -gt 0; then
+    sleep "$delay"
+  fi
+  if git -C "$upstream_root" -c http.version=HTTP/1.1 fetch --depth 1 origin "$revision"; then
+    fetched=1
+    break
+  fi
+done
+test "$fetched" = 1
 git -C "$upstream_root" checkout --detach "$revision"
 test -z "$(git -C "$upstream_root" status --porcelain --untracked-files=no)"
 

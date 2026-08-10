@@ -21,6 +21,7 @@ test -z "$(git status --porcelain --untracked-files=no)"
 
 source /home/wushaohua/miniconda3/etc/profile.d/conda.sh
 conda activate miniwebwork
+export CUDA_VISIBLE_DEVICES=""
 
 echo "study=m5_webshop_credit_assignment_v1"
 echo "phase=clean_sha_cpu_regression"

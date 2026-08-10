@@ -231,6 +231,14 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         slurm.get("cpu_regression") == {"gpus": 0, "cpus": 2, "memory_gib": 8},
         "M5 CPU regression resource drift",
     )
+    _require(
+        slurm.get("server_setup") == {"gpus": 0, "cpus": 2, "memory_gib": 20},
+        "M5 server setup resource drift",
+    )
+    _require(
+        slurm.get("training_runtime_setup") == {"gpus": 0, "cpus": 2, "memory_gib": 8},
+        "M5 training runtime setup resource drift",
+    )
     _require(slurm.get("maximum_parallel_online_runs") == 6, "M5 online parallelism drift")
     _require(
         slurm.get("shared_environment_service")
@@ -242,8 +250,69 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
             "initial_workers": 4,
             "worker_candidates": [2, 4, 8],
             "renewable": True,
+            "renewal_mechanism": "sbatch_successor_afterany",
+            "cuda_visible_devices": "empty",
         },
         "M5 shared service resource contract drift",
+    )
+    server_runtime = protocol.get("server_runtime")
+    _require(isinstance(server_runtime, Mapping), "M5 server runtime contract is missing")
+    _require(server_runtime.get("python") == "3.12.13", "M5 server Python drift")
+    _require(server_runtime.get("java") == "21.0.10", "M5 server Java drift")
+    _require(
+        server_runtime.get("critical_packages")
+        == {
+            "pandas": "3.0.3",
+            "pyarrow": "25.0.0",
+            "fastapi": "0.139.2",
+            "gunicorn": "26.0.0",
+            "uvicorn": "0.51.0",
+            "pyserini": "2.3.0",
+            "pyjnius": "1.7.0",
+            "httpx": "0.28.1",
+            "rank-bm25": "0.2.2",
+        },
+        "M5 server package drift",
+    )
+    _require(
+        server_runtime.get("reward_changing_optional_packages_forbidden") == ["spacy", "thefuzz"],
+        "M5 server optional-package policy drift",
+    )
+    _require(
+        server_runtime.get("allocation_consistency")
+        == "every service allocation audit content_sha256 must equal the setup audit",
+        "M5 server allocation-consistency drift",
+    )
+    training_runtime = protocol.get("training_runtime")
+    _require(isinstance(training_runtime, Mapping), "M5 training runtime contract is missing")
+    _require(training_runtime.get("python_major_minor") == "3.11", "M5 training Python drift")
+    _require(
+        training_runtime.get("critical_packages")
+        == {
+            "torch": "2.10.0",
+            "transformers": "5.14.1",
+            "vllm": "0.17.0",
+            "peft": "0.19.1",
+            "requests": "2.32.5",
+            "urllib3": "2.6.3",
+            "chardet": "5.2.0",
+            "charset-normalizer": "3.4.5",
+        },
+        "M5 training runtime package drift",
+    )
+    _require(
+        training_runtime.get("known_pip_check_exception")
+        == "vllm 0.17.0 has requirement transformers<5,>=4.56.0, but you have transformers 5.14.1.",
+        "M5 training runtime metadata-exception drift",
+    )
+    _require(
+        training_runtime.get("exception_scope")
+        == "metadata-only exception accepted for preflight because vLLM 0.17.0 natively registers Qwen3_5ForConditionalGeneration; formal release still requires real deterministic generation, behavior-logprob, sleep/wake and learner-update gates",
+        "M5 training runtime exception-scope drift",
+    )
+    _require(
+        training_runtime.get("requests_warning_policy") == "RequestsDependencyWarning is forbidden",
+        "M5 requests warning policy drift",
     )
     load_upstream_lock(PROJECT_ROOT / sources["agent_r1_data"]["lock_path"])
     return protocol

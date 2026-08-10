@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+from pathlib import Path
 
 import pytest
 
@@ -47,6 +48,35 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
     split_lock = load_split_exclusions()
     assert split_lock["path"] == str(SPLIT_EXCLUSIONS_PATH.resolve())
     assert split_lock["payload"]["eligible_counts"] == {"test": 500, "dev": 499, "train": 10885}
+    runtime = protocol["payload"]["training_runtime"]
+    assert runtime["critical_packages"]["chardet"] == "5.2.0"
+    assert protocol["payload"]["slurm"]["shared_environment_service"]["renewal_mechanism"] == (
+        "sbatch_successor_afterany"
+    )
+
+
+def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus():
+    root = Path(__file__).resolve().parents[1]
+    service = (root / "scripts" / "run_m5_webshop_service_job.sh").read_text(encoding="utf-8")
+    assert "scontrol" not in service
+    assert "sbatch --parsable" in service
+    assert 'afterany:${SLURM_JOB_ID}' in service
+    assert '--reference-audit "$data_audit"' in service
+    assert '--reference-audit "$environment_audit"' in service
+    setup = (root / "scripts" / "run_m5_webshop_server_setup_job.sh").read_text(encoding="utf-8")
+    assert "http.version=HTTP/1.1" in setup
+    assert "for delay in 0 5 15 30" in setup
+    for name in (
+        "run_m5_webshop_cpu_regression_job.sh",
+        "run_m5_webshop_data_preflight_job.sh",
+        "run_m5_webshop_server_setup_job.sh",
+        "run_m5_webshop_service_job.sh",
+        "run_m5_webshop_service_health_job.sh",
+        "run_m5_webshop_sft_corpus_job.sh",
+        "run_m5_training_runtime_setup_job.sh",
+    ):
+        script = (root / "scripts" / name).read_text(encoding="utf-8")
+        assert 'export CUDA_VISIBLE_DEVICES=""' in script
 
 
 def test_split_roles_are_exhaustive_and_task_ids_are_canonical():

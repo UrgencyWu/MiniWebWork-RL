@@ -97,7 +97,14 @@ M5 适配层因此采用 fail-closed 白名单：
   因此前序动作不同的轨迹如果重新到达同一公开状态，仍能形成 step 对照；episode
   ID、step index、history、目标 ASIN、verifier 和运行时 URL 均不能影响 anchor；
 - 可选 `thefuzz`/spaCy 会改变上游 reward 计算，隔离 server 环境明确要求二者不存在，
-  并把完整 `pip freeze` 写入审计工件。
+  并固定 Python `3.12.13`、Java `21.0.10`，把完整 `pip freeze` 写入审计工件。
+
+训练环境另有两个明确处置。`requests==2.32.5` 与误装的 `chardet 6` 会产生运行时
+警告，M5 将 chardet 收紧到 `5.2.0` 并要求 warning 为零。`vllm==0.17.0` 的包元数据
+仍声明 `transformers<5`，而冻结 learner 使用 `transformers==5.14.1`；这不是静默忽略：
+CPU gate 要求 `pip check` 只剩这一条精确登记的 exception，并确认 vLLM 原生注册
+`Qwen3_5ForConditionalGeneration`；随后真实 GPU gate 还必须通过确定性生成、behavior
+logprob、sleep/wake、adapter reload 和 learner update，任一失败即停止正式训练。
 
 这部分是项目最重要的工程论点之一：benchmark 可用不等于 benchmark 默认实现可以
 不经审查地用于因果对比。
@@ -182,7 +189,8 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 |---|---:|---:|---:|
 | clean-SHA CPU 回归 | 0 | 2 | 8 GiB |
 | 数据下载/字节审计 | 0 | 1 | 8 GiB |
-| server 环境安装 | 0 | 2 | 16 GiB |
+| training runtime 修复/审计 | 0 | 2 | 8 GiB |
+| server 环境安装 | 0 | 2 | 20 GiB |
 | shared WebShop service（初始 4 workers） | 0 | 8 | 48 GiB |
 | SFT | 1 | 4 | 32 GiB |
 | 每个 online run | 1 | 4 | 24 GiB |
@@ -195,9 +203,12 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 32/64 lanes，正式值取稳定且更快者；
 generation 阶段 GPU 利用率中位数要求至少 60%，learner 阶段至少 80%。
 
-service 同样受 24 小时上限约束，在到期前 5 分钟由 Slurm requeue；每次 allocation
-重启都重新校验 8.37 GB runtime 与隔离环境。客户端将重启窗口记为 infrastructure
-failure 并重采整个原子 K4 group，不能把服务中断写成 reward=0。
+service 同样受 24 小时上限约束。集群的 `scontrol` 对普通用户禁权，因此到期前
+5 分钟不做伪 requeue，而是由当前作业用 `sbatch` 提交带 `afterany:<parent_job_id>`
+依赖的后继 allocation；日志记录 parent/successor 血缘。每次 allocation 都重新校验
+8.37 GB runtime 与隔离环境，并要求审计 content hash 与初始冻结工件完全一致。客户端
+将重启窗口记为 infrastructure failure 并重采整个原子 K4 group，不能把服务中断
+写成 reward=0。所有 CPU-only 作业显式隐藏 GPU。
 
 逻辑 GPU 工作量是 7 个训练 run（1 SFT + 6 online）和 8 个 eval run，共 15 个；
 24 小时恢复可能增加 Slurm allocation 数。稳定情况下预计 5–8 个自然日；给环境

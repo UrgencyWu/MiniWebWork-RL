@@ -24,6 +24,7 @@ output_root="$study_root/preflight/sft_corpus"
 health_audit="$study_root/preflight/server/health_audit.json"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 base_url="${WEBSHOP_ENV_BASE_URL:-http://127.0.0.1:44151}"
+export CUDA_VISIBLE_DEVICES=""
 
 "$python_bin" -c 'import sys,urllib.request; url=sys.argv[1] + "/health"; print(urllib.request.urlopen(url, timeout=30).read().decode())' "$base_url"
 "$python_bin" scripts/build_m5_webshop_sft_corpus.py \

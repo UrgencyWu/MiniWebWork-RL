@@ -23,6 +23,7 @@ test -z "$(git status --porcelain --untracked-files=no)"
 runtime_root="$repo_root/outputs/m5_webshop_credit_assignment_v1/upstream/webshop_full"
 audit_path="$repo_root/outputs/m5_webshop_credit_assignment_v1/preflight/data/runtime_audit.json"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
+export CUDA_VISIBLE_DEVICES=""
 
 echo "study=m5_webshop_credit_assignment_v1"
 echo "phase=pinned_data_preflight"

@@ -29,6 +29,7 @@ environment_audit="$study_root/preflight/server/environment_audit.json"
 launch_audit_root="$study_root/preflight/server_launch/${SLURM_JOB_ID:-manual}_${SLURM_RESTART_COUNT:-0}"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 workers="${M5_WEBSHOP_WORKERS:-4}"
+export CUDA_VISIBLE_DEVICES=""
 
 case "$workers" in
   2|4|8) ;;
@@ -44,10 +45,12 @@ mkdir -p "$launch_audit_root"
 # Revalidate the exact bytes and interpreter at every 24h service allocation.
 "$python_bin" scripts/m5_webshop_data_preflight.py audit \
   --runtime-root "$runtime_root" \
-  --output "$launch_audit_root/runtime_audit.json"
+  --output "$launch_audit_root/runtime_audit.json" \
+  --reference-audit "$data_audit"
 "$environment_root/bin/python" scripts/m5_webshop_server_preflight.py environment \
   --upstream-root "$upstream_root" \
-  --output "$launch_audit_root/environment_audit.json"
+  --output "$launch_audit_root/environment_audit.json" \
+  --reference-audit "$environment_audit"
 
 export JAVA_HOME="$environment_root"
 export JVM_PATH="$environment_root/lib/jvm/lib/server/libjvm.so"
@@ -70,14 +73,20 @@ if ss -ltn | awk '{print $4}' | grep -Eq '(^|:|\])44151$'; then
 fi
 
 service_pid=""
-requeue_service() {
+renew_service() {
   trap - USR1 TERM INT
   if test -n "$service_pid"; then
     kill -TERM "$service_pid" 2>/dev/null || true
     wait "$service_pid" 2>/dev/null || true
   fi
   if test -n "${SLURM_JOB_ID:-}"; then
-    scontrol requeue "$SLURM_JOB_ID"
+    cd "$repo_root"
+    successor_job_id="$(sbatch --parsable \
+      --dependency="afterany:${SLURM_JOB_ID}" \
+      --export="ALL,M5_EXPECTED_GIT_SHA=${M5_EXPECTED_GIT_SHA},M5_WEBSHOP_WORKERS=${workers}" \
+      "$repo_root/scripts/run_m5_webshop_service_job.sh")"
+    echo "renewal_parent_job_id=$SLURM_JOB_ID"
+    echo "renewal_successor_job_id=$successor_job_id"
   fi
   exit 0
 }
@@ -89,7 +98,7 @@ stop_service() {
   fi
   exit 143
 }
-trap requeue_service USR1
+trap renew_service USR1
 trap stop_service TERM INT
 
 "$environment_root/bin/gunicorn" \
