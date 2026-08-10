@@ -39,7 +39,7 @@ esac
 test -s "$data_audit"
 test -s "$environment_audit"
 test -x "$environment_root/bin/python"
-test "$(git -C "$upstream_root" rev-parse HEAD)" = "b124aa46534cbf2fb8bc8af11405774984c42ac7"
+test -d "$upstream_root/recipes/webshop"
 mkdir -p "$launch_audit_root"
 
 # Revalidate the exact bytes and interpreter at every 24h service allocation.
@@ -56,6 +56,7 @@ export JAVA_HOME="$environment_root"
 export JVM_PATH="$environment_root/lib/jvm/lib/server/libjvm.so"
 export PATH="$JAVA_HOME/bin:$PATH"
 export PYTHONPATH="$upstream_root"
+export PYTHONDONTWRITEBYTECODE=1
 export WEBSHOP_DATASET_MODE=full
 export WEBSHOP_DATA_DIR="$runtime_root"
 export WEBSHOP_INDEX_DIR="$runtime_root"

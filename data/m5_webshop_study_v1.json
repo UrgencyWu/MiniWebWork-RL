@@ -24,6 +24,14 @@
     "agent_r1_code": {
       "repository": "https://github.com/AgentR1/Agent-R1",
       "revision": "b124aa46534cbf2fb8bc8af11405774984c42ac7",
+      "archive_url": "https://codeload.github.com/AgentR1/Agent-R1/tar.gz/b124aa46534cbf2fb8bc8af11405774984c42ac7",
+      "archive_sha256": "07e6a35a159e7ed148d1e4b2b47d5e0158e3b8f60a71e5626f911477dfc7d57b",
+      "archive_size": 1628704,
+      "archive_member_count": 226,
+      "source_content_tree_sha256": "04fc3146c21857328350627a3cad9809dae45d6dcaf828abd492822a08a1daed",
+      "source_content_tree_file_count": 178,
+      "source_content_tree_bytes": 2189338,
+      "webshop_content_tree_sha256": "46523f50aeeb0e112afe761f42e16319aa5c5a28f5ff5f02f16f22d3bec07a58",
       "license": "MIT",
       "role": "pinned WebShop FastAPI, SQLite and Lucene reference implementation"
     },

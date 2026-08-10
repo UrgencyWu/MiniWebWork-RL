@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from scripts.m5_webshop_data_preflight import (
     _valid_existing,
     verify_reference_audit,
 )
+from scripts.m5_agent_r1_source import _validate_members
 
 
 def test_source_url_quotes_each_locked_path_component():
@@ -74,3 +76,20 @@ def test_reference_audit_requires_exact_self_hashed_content(tmp_path: Path):
     )
     with pytest.raises(ValueError, match="differs"):
         verify_reference_audit(changed, path)
+
+
+def test_agent_r1_archive_roster_rejects_traversal_and_links():
+    root = tarfile.TarInfo("Agent-R1-fixed/")
+    root.type = tarfile.DIRTYPE
+    source = tarfile.TarInfo("Agent-R1-fixed/recipes/webshop/server.py")
+    source.type = tarfile.REGTYPE
+    roster, root_name = _validate_members([root, source], 2)
+    assert roster == [root, source]
+    assert root_name == "Agent-R1-fixed"
+    traversal = tarfile.TarInfo("../escape")
+    with pytest.raises(ValueError, match="unsafe"):
+        _validate_members([traversal], 1)
+    link = tarfile.TarInfo("Agent-R1-fixed/link")
+    link.type = tarfile.SYMTYPE
+    with pytest.raises(ValueError, match="non-file"):
+        _validate_members([link], 1)

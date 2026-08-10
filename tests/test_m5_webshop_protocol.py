@@ -50,6 +50,9 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
     assert split_lock["payload"]["eligible_counts"] == {"test": 500, "dev": 499, "train": 10885}
     runtime = protocol["payload"]["training_runtime"]
     assert runtime["critical_packages"]["chardet"] == "5.2.0"
+    agent_r1 = protocol["payload"]["upstream_sources"]["agent_r1_code"]
+    assert agent_r1["archive_size"] == 1628704
+    assert agent_r1["archive_sha256"] == "07e6a35a159e7ed148d1e4b2b47d5e0158e3b8f60a71e5626f911477dfc7d57b"
     assert protocol["payload"]["slurm"]["shared_environment_service"]["renewal_mechanism"] == (
         "sbatch_successor_afterany"
     )
@@ -66,6 +69,7 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     setup = (root / "scripts" / "run_m5_webshop_server_setup_job.sh").read_text(encoding="utf-8")
     assert "http.version=HTTP/1.1" in setup
     assert "for delay in 0 5 15 30" in setup
+    assert "scripts/m5_agent_r1_source.py" in setup
     for name in (
         "run_m5_webshop_cpu_regression_job.sh",
         "run_m5_webshop_data_preflight_job.sh",

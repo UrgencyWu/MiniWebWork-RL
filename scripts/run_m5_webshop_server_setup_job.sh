@@ -35,24 +35,35 @@ else
 fi
 "$environment_root/bin/python" -m pip install --disable-pip-version-check -r requirements.m5-webshop-server.txt
 
-if test ! -d "$upstream_root/.git"; then
-  mkdir -p "$upstream_root"
-  git -C "$upstream_root" init
-  git -C "$upstream_root" remote add origin https://github.com/AgentR1/Agent-R1.git
+if test -f "$upstream_root/.m5_source_manifest.json"; then
+  "$environment_root/bin/python" scripts/m5_agent_r1_source.py --destination "$upstream_root"
+else
+  if test ! -d "$upstream_root/.git"; then
+    mkdir -p "$upstream_root"
+    git -C "$upstream_root" init
+    git -C "$upstream_root" remote add origin https://github.com/AgentR1/Agent-R1.git
+  fi
+  fetched=0
+  for delay in 0 5 15 30; do
+    if test "$delay" -gt 0; then
+      sleep "$delay"
+    fi
+    if git -C "$upstream_root" \
+      -c http.version=HTTP/1.1 \
+      -c http.lowSpeedLimit=1024 \
+      -c http.lowSpeedTime=30 \
+      fetch --depth 1 origin "$revision"; then
+      fetched=1
+      break
+    fi
+  done
+  if test "$fetched" = 1; then
+    git -C "$upstream_root" checkout --detach "$revision"
+    test -z "$(git -C "$upstream_root" status --porcelain --untracked-files=no)"
+  else
+    "$environment_root/bin/python" scripts/m5_agent_r1_source.py --destination "$upstream_root"
+  fi
 fi
-fetched=0
-for delay in 0 5 15 30; do
-  if test "$delay" -gt 0; then
-    sleep "$delay"
-  fi
-  if git -C "$upstream_root" -c http.version=HTTP/1.1 fetch --depth 1 origin "$revision"; then
-    fetched=1
-    break
-  fi
-done
-test "$fetched" = 1
-git -C "$upstream_root" checkout --detach "$revision"
-test -z "$(git -C "$upstream_root" status --porcelain --untracked-files=no)"
 
 export JAVA_HOME="$environment_root"
 export JVM_PATH="$environment_root/lib/jvm/lib/server/libjvm.so"

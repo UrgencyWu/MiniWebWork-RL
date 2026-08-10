@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.util
 import importlib.metadata
 import json
@@ -20,7 +19,7 @@ if str(PROJECT_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_json  # noqa: E402
-from miniwebwork.m5_webshop_protocol import load_protocol, sha256_file  # noqa: E402
+from miniwebwork.m5_webshop_protocol import content_tree_audit, load_protocol, sha256_file  # noqa: E402
 from miniwebwork.webshop_rl import prompt  # noqa: E402
 from miniwebwork.webshop_rl.environment import WebShopHTTPEnvironment  # noqa: E402
 
@@ -34,14 +33,6 @@ def _run(command: list[str], *, cwd: Path | None = None) -> str:
     return subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
 
 
-def _tracked_tree_sha256(root: Path, prefix: str) -> str:
-    """Hash the pinned Git tree, excluding runtime bytecode and caches."""
-
-    listing = _run(["git", "ls-tree", "-r", "--full-tree", "HEAD", prefix], cwd=root)
-    _require(bool(listing), f"tracked upstream tree is empty: {prefix}")
-    return hashlib.sha256((listing + "\n").encode("utf-8")).hexdigest()
-
-
 def environment_audit(
     *,
     upstream_root: Path,
@@ -51,11 +42,52 @@ def environment_audit(
     root = Path(upstream_root).expanduser().resolve()
     protocol = load_protocol()
     runtime_contract = protocol["payload"]["server_runtime"]
-    expected_revision = protocol["payload"]["upstream_sources"]["agent_r1_code"]["revision"]
-    _require((root / ".git").exists(), "Agent-R1 server source is not a Git checkout")
-    revision = _run(["git", "rev-parse", "HEAD"], cwd=root)
-    _require(revision == expected_revision, "Agent-R1 server revision drift")
-    _require(not _run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root), "Agent-R1 tracked source is dirty")
+    source_contract = protocol["payload"]["upstream_sources"]["agent_r1_code"]
+    expected_revision = source_contract["revision"]
+    archive_sha256 = None
+    if (root / ".git").exists():
+        source_mode = "git"
+        revision = _run(["git", "rev-parse", "HEAD"], cwd=root)
+        _require(revision == expected_revision, "Agent-R1 server revision drift")
+        _require(
+            not _run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root),
+            "Agent-R1 tracked source is dirty",
+        )
+    else:
+        source_mode = "github_codeload_archive"
+        manifest_path = root / ".m5_source_manifest.json"
+        _require(manifest_path.is_file(), "Agent-R1 source is neither a Git checkout nor a locked archive")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        _require(isinstance(manifest, dict), "Agent-R1 archive manifest is malformed")
+        manifest_without_hash = dict(manifest)
+        manifest_hash = manifest_without_hash.pop("content_sha256", None)
+        _require(manifest_hash == sha256_json(manifest_without_hash), "Agent-R1 archive manifest self-hash drift")
+        _require(manifest.get("schema_version") == "m5_agent_r1_archive_source_v1", "Agent-R1 manifest schema drift")
+        for field in ("revision", "archive_url", "archive_sha256", "archive_size", "archive_member_count"):
+            _require(manifest.get(field) == source_contract[field], f"Agent-R1 archive {field} drift")
+        revision = str(manifest["revision"])
+        archive_sha256 = str(manifest["archive_sha256"])
+    source_tree = content_tree_audit(root, "", excluded_prefixes=(".git", ".m5_source_manifest.json"))
+    _require(
+        source_tree["sha256"] == source_contract["source_content_tree_sha256"],
+        "Agent-R1 complete source-tree drift",
+    )
+    _require(
+        source_tree["file_count"] == source_contract["source_content_tree_file_count"],
+        "Agent-R1 complete source file-count drift",
+    )
+    _require(
+        source_tree["total_bytes"] == source_contract["source_content_tree_bytes"],
+        "Agent-R1 complete source byte-count drift",
+    )
+    webshop_tree = content_tree_audit(root, "recipes/webshop")
+    _require(
+        webshop_tree["sha256"] == source_contract["webshop_content_tree_sha256"],
+        "Agent-R1 WebShop content-tree drift",
+    )
+    if source_mode == "github_codeload_archive":
+        _require(manifest.get("source_content_tree") == source_tree, "Agent-R1 manifest source-tree drift")
+        _require(manifest.get("webshop_content_tree") == webshop_tree, "Agent-R1 manifest content-tree drift")
     _require(".".join(map(str, sys.version_info[:3])) == runtime_contract["python"], "M5 WebShop server Python drift")
     java_version = subprocess.run(["java", "-version"], check=True, capture_output=True, text=True).stderr.strip()
     _require(f'version "{runtime_contract["java"]}' in java_version, "M5 WebShop server Java drift")
@@ -77,7 +109,10 @@ def environment_audit(
         "protocol_sha256": protocol["sha256"],
         "upstream_root": str(root),
         "upstream_revision": revision,
-        "upstream_webshop_tree_sha256": _tracked_tree_sha256(root, "recipes/webshop"),
+        "upstream_source_mode": source_mode,
+        "upstream_archive_sha256": archive_sha256,
+        "upstream_source_content_tree": source_tree,
+        "upstream_webshop_content_tree": webshop_tree,
         "python": sys.version,
         "java_version": java_version.splitlines()[0],
         "java_home": str(java_home),

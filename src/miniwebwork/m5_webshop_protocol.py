@@ -34,6 +34,44 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def content_tree_audit(
+    root: Path,
+    prefix: str,
+    *,
+    excluded_prefixes: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Hash a source subtree by relative path, size and per-file SHA256."""
+
+    source = Path(root).expanduser().resolve()
+    tree_root = source / prefix if prefix else source
+    _require(tree_root.is_dir(), f"content tree is missing: {prefix}")
+    files = []
+    for path in tree_root.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(source).as_posix()
+        if any(relative == blocked or relative.startswith(f"{blocked}/") for blocked in excluded_prefixes):
+            continue
+        files.append(path)
+    files.sort()
+    _require(bool(files), f"content tree is empty: {prefix}")
+    digest = hashlib.sha256()
+    total_bytes = 0
+    for path in files:
+        _require(not path.is_symlink(), f"content tree contains a symlink: {path}")
+        relative = path.relative_to(source).as_posix()
+        size = path.stat().st_size
+        file_sha = sha256_file(path)
+        digest.update(f"{relative}\0{size}\0{file_sha}\n".encode("utf-8"))
+        total_bytes += size
+    return {
+        "prefix": prefix or ".",
+        "sha256": digest.hexdigest(),
+        "file_count": len(files),
+        "total_bytes": total_bytes,
+    }
+
+
 def _json(path: Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     _require(isinstance(payload, dict), f"JSON root must be an object: {path}")
@@ -163,6 +201,31 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         _require(isinstance(source, Mapping), f"missing upstream source: {name}")
         _require(GIT_REVISION_RE.fullmatch(str(source.get("revision", ""))) is not None, f"invalid source revision: {name}")
         _require(source.get("license") == expected_source_licenses[name], f"source license drift: {name}")
+    agent_r1_source = sources["agent_r1_code"]
+    _require(
+        agent_r1_source.get("archive_url")
+        == "https://codeload.github.com/AgentR1/Agent-R1/tar.gz/b124aa46534cbf2fb8bc8af11405774984c42ac7",
+        "Agent-R1 archive URL drift",
+    )
+    _require(
+        agent_r1_source.get("archive_sha256")
+        == "07e6a35a159e7ed148d1e4b2b47d5e0158e3b8f60a71e5626f911477dfc7d57b",
+        "Agent-R1 archive SHA256 drift",
+    )
+    _require(agent_r1_source.get("archive_size") == 1628704, "Agent-R1 archive size drift")
+    _require(agent_r1_source.get("archive_member_count") == 226, "Agent-R1 archive roster drift")
+    _require(
+        agent_r1_source.get("source_content_tree_sha256")
+        == "04fc3146c21857328350627a3cad9809dae45d6dcaf828abd492822a08a1daed",
+        "Agent-R1 source content-tree drift",
+    )
+    _require(agent_r1_source.get("source_content_tree_file_count") == 178, "Agent-R1 source file-count drift")
+    _require(agent_r1_source.get("source_content_tree_bytes") == 2189338, "Agent-R1 source byte-count drift")
+    _require(
+        agent_r1_source.get("webshop_content_tree_sha256")
+        == "46523f50aeeb0e112afe761f42e16319aa5c5a28f5ff5f02f16f22d3bec07a58",
+        "Agent-R1 WebShop content-tree drift",
+    )
     dataset = protocol.get("dataset")
     _require(isinstance(dataset, Mapping), "M5 dataset contract is missing")
     _require(dataset.get("products") == 1181430 and dataset.get("goals") == 12087, "WebShop count drift")
