@@ -121,6 +121,7 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     health = (root / "scripts" / "run_m5_webshop_service_health_job.sh").read_text(encoding="utf-8")
     assert "#SBATCH --cpus-per-task=2" in health
     assert "#SBATCH --mem=8G" in health
+    assert "health_workers_${workers}.json" in health
     health_preflight = (root / "scripts" / "m5_webshop_server_preflight.py").read_text(encoding="utf-8")
     assert 'headers={"Connection": "close"}' in health_preflight
     assert "ThreadPoolExecutor(max_workers=expected_workers * 2)" in health_preflight
@@ -129,6 +130,7 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert "#SBATCH --cpus-per-task=8" in stress
     assert "#SBATCH --mem=16G" in stress
     assert 'case "$M5_STRESS_LANES" in 32|64)' in stress
+    assert "health_workers_${M5_WEBSHOP_WORKERS}.json" in stress
     for name in (
         "run_m5_webshop_cpu_regression_job.sh",
         "run_m5_webshop_data_preflight_job.sh",

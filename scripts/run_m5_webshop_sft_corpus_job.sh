@@ -21,9 +21,11 @@ test -z "$(git status --porcelain --untracked-files=no)"
 study_root="$repo_root/outputs/m5_webshop_credit_assignment_v1"
 runtime_root="$study_root/upstream/webshop_full"
 output_root="$study_root/preflight/sft_corpus"
-health_audit="$study_root/preflight/server/health_audit.json"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 base_url="${WEBSHOP_ENV_BASE_URL:-http://127.0.0.1:44151}"
+service_workers="${M5_WEBSHOP_WORKERS:-8}"
+case "$service_workers" in 8|16) ;; *) exit 2 ;; esac
+health_audit="$study_root/preflight/server/health_workers_${service_workers}.json"
 export CUDA_VISIBLE_DEVICES=""
 
 "$python_bin" -c 'import sys,urllib.request; url=sys.argv[1] + "/health"; print(urllib.request.urlopen(url, timeout=30).read().decode())' "$base_url"

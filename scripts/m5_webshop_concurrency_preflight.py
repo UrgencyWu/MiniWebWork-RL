@@ -147,6 +147,7 @@ def run_stress(
         "lanes": lanes,
         "episodes_per_lane": episodes_per_lane,
         "task_order_sha256": sha256_json(order),
+        "health_audit_path": str(health_path),
         "health_audit_sha256": sha256_file(health_path),
         "planned_requests": planned_requests,
         "completed_requests": completed_requests,

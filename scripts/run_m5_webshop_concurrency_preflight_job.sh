@@ -25,7 +25,7 @@ case "$M5_STRESS_LANES" in 32|64) ;; *) exit 2 ;; esac
 
 study_root="$repo_root/outputs/m5_webshop_credit_assignment_v1"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
-health_audit="$study_root/preflight/server/health_audit.json"
+health_audit="$study_root/preflight/server/health_workers_${M5_WEBSHOP_WORKERS}.json"
 output="$study_root/preflight/service_stress/workers_${M5_WEBSHOP_WORKERS}_lanes_${M5_STRESS_LANES}.json"
 export CUDA_VISIBLE_DEVICES=""
 

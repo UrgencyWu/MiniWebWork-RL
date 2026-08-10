@@ -87,7 +87,8 @@ scripts/run_m5_webshop_sft_corpus_job.sh
   searcher 与 mutable cache，而 FastAPI 会把同步 endpoint 放入线程池；同 worker
   并发可令 SQLite 查询返回损坏值并产生 HTTP 500。上游源码 hash 保持不变，仓库
   ASGI 包装只在 worker 内串行 HTTP 请求，8/16 个 worker 之间仍并行；健康探针用
-  connection-closing 并发波覆盖每个 PID，压力门槛要求 HTTP 5xx 比例严格为零；
+  connection-closing 并发波覆盖每个 PID，且分别保留 `health_workers_8.json` 与
+  `health_workers_16.json`；压力门槛要求 HTTP 5xx 比例严格为零；
 - SFT corpus collector 申请 8 CPU 且开 8 个 worker；共享服务申请 24 CPU/96 GiB，
   可在 8/16 process worker 间做吞吐选择，不让 CPU 服务拖慢 6 个 GPU run；
 - runtime、data、server environment、health、service-stress、逐任务 SFT record、

@@ -272,6 +272,15 @@ def build_corpus(
     _require(health_audit.get("protocol_sha256") == protocol["sha256"], "M5 WebShop service protocol drift")
     _require(health_audit.get("git_sha") == protocol["git_sha"], "M5 WebShop service Git lineage drift")
     _require(health_audit.get("base_url") == base_url.rstrip("/"), "M5 WebShop service URL drift")
+    _require(
+        health_audit.get("expected_workers")
+        in protocol["payload"]["slurm"]["shared_environment_service"]["worker_candidates"],
+        "M5 WebShop service worker count drift",
+    )
+    _require(
+        health_audit.get("request_concurrency_mode") == "process_serialized_asgi_v1",
+        "M5 WebShop service request-concurrency drift",
+    )
     goal_audit = audit_goals(goals_path, protocol["payload"])
     goals = json.loads(Path(goals_path).expanduser().resolve().read_text(encoding="utf-8"))
     _require(isinstance(goals, list), "WebShop goals root is not a list")
@@ -324,6 +333,8 @@ def build_corpus(
         "goals_sha256": goal_audit["goals_sha256"],
         "selection_seed": seed,
         "base_url": base_url,
+        "service_workers": health_audit["expected_workers"],
+        "service_health_audit_path": str(health_path),
         "service_health_audit_sha256": sha256_file(health_path),
         "workers": workers,
         "train_task_count": selections["train"]["target_count"],
