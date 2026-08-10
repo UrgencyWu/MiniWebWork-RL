@@ -34,6 +34,30 @@ def _run(command: list[str], *, cwd: Path | None = None) -> str:
     return subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
 
 
+def _semantic_reference_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Remove lineage-only fields before comparing frozen environment semantics."""
+
+    value = dict(payload)
+    for field in ("content_sha256", "git_sha", "protocol_sha256"):
+        value.pop(field, None)
+    return value
+
+
+def _verify_reference_environment(report: dict[str, Any], reference_path: Path) -> None:
+    path = Path(reference_path).expanduser().resolve()
+    _require(path.is_file(), "M5 WebShop reference environment audit is missing")
+    reference = json.loads(path.read_text(encoding="utf-8"))
+    _require(isinstance(reference, dict), "M5 WebShop reference environment audit is malformed")
+    expected = dict(reference)
+    observed_hash = expected.pop("content_sha256", None)
+    _require(observed_hash == sha256_json(expected), "M5 WebShop reference environment self-hash drift")
+    _require(reference.get("passed") is True, "M5 WebShop reference environment did not pass")
+    _require(
+        _semantic_reference_payload(report) == _semantic_reference_payload(reference),
+        "M5 WebShop environment differs from the frozen setup audit",
+    )
+
+
 def environment_audit(
     *,
     upstream_root: Path,
@@ -126,18 +150,7 @@ def environment_audit(
     }
     report["content_sha256"] = sha256_json(report)
     if reference_audit_path is not None:
-        reference_path = Path(reference_audit_path).expanduser().resolve()
-        _require(reference_path.is_file(), "M5 WebShop reference environment audit is missing")
-        reference = json.loads(reference_path.read_text(encoding="utf-8"))
-        _require(isinstance(reference, dict), "M5 WebShop reference environment audit is malformed")
-        expected = dict(reference)
-        observed_hash = expected.pop("content_sha256", None)
-        _require(observed_hash == sha256_json(expected), "M5 WebShop reference environment self-hash drift")
-        _require(reference.get("passed") is True, "M5 WebShop reference environment did not pass")
-        _require(
-            report["content_sha256"] == reference.get("content_sha256"),
-            "M5 WebShop environment differs from the frozen setup audit",
-        )
+        _verify_reference_environment(report, reference_audit_path)
     atomic_write_json(output, report)
     return report
 

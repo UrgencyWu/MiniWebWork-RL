@@ -93,7 +93,7 @@ agent prompt、tokenizer/base-model 语义和 LoRA 配置。任一项不一致�
 - 所有 CPU-only 入口显式设置空 `CUDA_VISIBLE_DEVICES`，即使隔离 server 的
   Pyserini 依赖树带有 Torch/CUDA wheel，也不能触碰未申请的 GPU；
 - 每个新 service allocation 不仅重算 runtime/environment 审计，还必须与初始冻结
-  audit 的 `content_sha256` 完全相同；隔离 `JAVA_HOME`、`JVM_PATH`、`PATH` 与
+  audit 除 `git_sha`、`protocol_sha256` 两个血缘字段外语义内容完全相同；隔离 `JAVA_HOME`、`JVM_PATH`、`PATH` 与
   禁写 bytecode 必须在 allocation 审计之前导出，不能依赖登录 shell；
 - 上游 Git fetch 使用固定提交、HTTP/1.1、两次有限重试，并对每次尝试施加 60 秒
   硬超时（含连接阶段）；若校园出口持续

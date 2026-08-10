@@ -204,8 +204,17 @@ def verify_runtime(runtime_root: Path) -> dict[str, Any]:
     return report
 
 
+def _semantic_reference_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Remove lineage-only fields before comparing frozen runtime semantics."""
+
+    value = dict(payload)
+    for field in ("content_sha256", "git_sha", "protocol_sha256"):
+        value.pop(field, None)
+    return value
+
+
 def verify_reference_audit(report: Mapping[str, Any], reference_path: Path) -> None:
-    """Require an allocation-time audit to match the frozen setup audit exactly."""
+    """Require allocation-time runtime semantics to match the frozen audit."""
 
     path = Path(reference_path).expanduser().resolve()
     _require(path.is_file(), "M5 WebShop reference runtime audit is missing")
@@ -216,7 +225,7 @@ def verify_reference_audit(report: Mapping[str, Any], reference_path: Path) -> N
     _require(observed_hash == sha256_json(expected), "M5 WebShop reference runtime audit self-hash drift")
     _require(reference.get("passed") is True, "M5 WebShop reference runtime audit did not pass")
     _require(
-        report.get("content_sha256") == reference.get("content_sha256"),
+        _semantic_reference_payload(report) == _semantic_reference_payload(reference),
         "M5 WebShop runtime differs from the frozen setup audit",
     )
 

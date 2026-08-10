@@ -17,6 +17,7 @@ from scripts.m5_webshop_data_preflight import (
     verify_reference_audit,
 )
 from scripts.m5_agent_r1_source import _validate_members
+from scripts.m5_webshop_server_preflight import _verify_reference_environment
 
 
 def test_source_url_quotes_each_locked_path_component():
@@ -64,18 +65,52 @@ def test_runtime_roster_observes_nested_unlocked_files(tmp_path: Path):
     assert _observed_runtime_files(tmp_path) == {"goals.json", "lucene_index/segments_2"}
 
 
-def test_reference_audit_requires_exact_self_hashed_content(tmp_path: Path):
-    reference = {"schema_version": "x", "passed": True, "value": 7}
+def test_reference_audit_allows_only_lineage_changes(tmp_path: Path):
+    reference = {
+        "schema_version": "x",
+        "passed": True,
+        "git_sha": "producer",
+        "protocol_sha256": "old-protocol",
+        "value": 7,
+    }
     reference["content_sha256"] = sha256_json(reference)
     path = tmp_path / "reference.json"
     path.write_text(json.dumps(reference), encoding="utf-8")
-    verify_reference_audit(reference, path)
-    changed = dict(reference, value=8)
+    lineage_changed = dict(reference, git_sha="consumer", protocol_sha256="new-protocol")
+    lineage_changed["content_sha256"] = sha256_json(
+        {key: value for key, value in lineage_changed.items() if key != "content_sha256"}
+    )
+    verify_reference_audit(lineage_changed, path)
+    changed = dict(lineage_changed, value=8)
     changed["content_sha256"] = sha256_json(
         {key: value for key, value in changed.items() if key != "content_sha256"}
     )
     with pytest.raises(ValueError, match="differs"):
         verify_reference_audit(changed, path)
+
+
+def test_server_reference_audit_allows_only_lineage_changes(tmp_path: Path):
+    reference = {
+        "schema_version": "x",
+        "passed": True,
+        "git_sha": "producer",
+        "protocol_sha256": "old-protocol",
+        "packages": {"flask": "locked"},
+    }
+    reference["content_sha256"] = sha256_json(reference)
+    path = tmp_path / "reference.json"
+    path.write_text(json.dumps(reference), encoding="utf-8")
+    lineage_changed = dict(reference, git_sha="consumer", protocol_sha256="new-protocol")
+    lineage_changed["content_sha256"] = sha256_json(
+        {key: value for key, value in lineage_changed.items() if key != "content_sha256"}
+    )
+    _verify_reference_environment(lineage_changed, path)
+    semantic_changed = dict(lineage_changed, packages={"flask": "drifted"})
+    semantic_changed["content_sha256"] = sha256_json(
+        {key: value for key, value in semantic_changed.items() if key != "content_sha256"}
+    )
+    with pytest.raises(ValueError, match="differs"):
+        _verify_reference_environment(semantic_changed, path)
 
 
 def test_agent_r1_archive_roster_rejects_traversal_and_links():
