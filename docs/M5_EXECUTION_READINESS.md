@@ -13,9 +13,9 @@ clean M5 preflight SHA
 ├─ CPU training-runtime repair + audit (2 CPU)
 └─ CPU server-env setup + upstream pin (2 CPU)
        ↓ all three pass
-shared WebShop service (24 CPU, 8/16 serialized workers, renewable 24h)
+shared WebShop service (24 CPU, selected 16 serialized workers, renewable 24h)
        ↓
-verified SFT corpus + tokenizer audit (8 CPU / 8 workers)
+verified SFT corpus + tokenizer audit (16 CPU / 16 workers)
        ↓
 SFT microbatch/short-train preflight (1 GPU)
        ↓
@@ -42,7 +42,7 @@ formal SFT → six parallel online runs → eight frozen evaluations → analysi
 | 8192 token/250k exposure audit | PENDING | 依赖 corpus + Qwen tokenizer |
 | SFT GPU preflight | PENDING | 正式 SFT 禁止 |
 | K4 signal/credit/optimizer gate | PENDING | 含非初始状态汇合率；正式 online 禁止 |
-| 8/16 workers、32/64 lanes 与 GPU telemetry | PENDING | 充分供给 CPU；HTTP 5xx 必须为零 |
+| 8/16 workers、32/64 lanes 与 GPU telemetry | SERVICE PASS / GPU PENDING | 8/16 均零 5xx；冻结选择 16 workers + 32 lanes |
 | 真实 24h 中断恢复 | PENDING | 必须至少一次 scheduler 级恢复 |
 | clean-SHA readiness | PENDING | 必须 self-hashed 且无 unmet gate |
 | 正式 authorization | CLOSED | preflight 通过后另行生成 |
@@ -89,8 +89,12 @@ scripts/run_m5_webshop_sft_corpus_job.sh
   ASGI 包装只在 worker 内串行 HTTP 请求，8/16 个 worker 之间仍并行；健康探针用
   connection-closing 并发波覆盖每个 PID，且分别保留 `health_workers_8.json` 与
   `health_workers_16.json`；压力门槛要求 HTTP 5xx 比例严格为零；
-- SFT corpus collector 申请 8 CPU 且开 8 个 worker；共享服务申请 24 CPU/96 GiB，
-  可在 8/16 process worker 间做吞吐选择，不让 CPU 服务拖慢 6 个 GPU run；
+- 对比审计中 8/16 workers 在 32/64 lanes 下共完成 1,536 次真实 reset/search，
+  HTTP 5xx 与其他 failure 均为零；64 lanes 未增加吞吐却把 p95 从约 6.8 秒推高到
+  约 14 秒。正式值因此冻结为 16 workers + 每 run 32 lanes：16 workers 为六个在线
+  run 保留更多独立容量，32 lanes 避免无效排队；
+- SFT corpus collector 申请 16 CPU 且开 16 个 worker；共享服务申请 24 CPU/96 GiB，
+  不让 CPU 数据或环境服务拖慢 GPU；
 - runtime、data、server environment、health、service-stress、逐任务 SFT record、
   corpus 和 token audit 都同时嵌入当前 clean 40 位 Git SHA 与协议 SHA-256；不能
   只靠 Slurm 日志反推代码血缘。

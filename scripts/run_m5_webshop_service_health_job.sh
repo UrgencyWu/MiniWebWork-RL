@@ -15,7 +15,7 @@ cd "$repo_root"
 : "${M5_EXPECTED_GIT_SHA:?set the frozen M5 preflight commit SHA}"
 test "$(git rev-parse HEAD)" = "$M5_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
-workers="${M5_WEBSHOP_WORKERS:-8}"
+workers="${M5_WEBSHOP_WORKERS:-16}"
 output="$repo_root/outputs/m5_webshop_credit_assignment_v1/preflight/server/health_workers_${workers}.json"
 export CUDA_VISIBLE_DEVICES=""
 /home/wushaohua/miniconda3/envs/miniwebwork/bin/python scripts/m5_webshop_server_preflight.py health \

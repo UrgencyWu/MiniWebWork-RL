@@ -200,10 +200,10 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 | 数据下载/字节审计 | 0 | 1 | 8 GiB |
 | training runtime 修复/审计 | 0 | 2 | 8 GiB |
 | server 环境安装 | 0 | 2 | 20 GiB |
-| shared WebShop service（初始 8 workers） | 0 | 24 | 96 GiB |
+| shared WebShop service（选择 16 workers） | 0 | 24 | 96 GiB |
 | service health | 0 | 2 | 8 GiB |
 | service 32/64-lane stress | 0 | 8 | 16 GiB |
-| verified SFT corpus（8 workers） | 0 | 8 | 16 GiB |
+| verified SFT corpus（16 workers） | 0 | 16 | 32 GiB |
 | SFT | 1 | 8 | 48 GiB |
 | 每个 online run | 1 | 8 | 32 GiB |
 | 每个 frozen eval | 1 | 6 | 24 GiB |
@@ -211,7 +211,10 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 六个 online run 可以并行：合计 6 GPU/48 CPU/192 GiB；加共享服务后是
 6 GPU/72 CPU/288 GiB。在当前 112 CPU/377 GiB 节点上仍保留 40 CPU/89 GiB
 余量。共享服务固定获得 24 CPU/96 GiB，比较 8/16 workers 与每 run 32/64 lanes，
-正式值取零 HTTP 5xx 且更快者。冻结上游的 SQLite connection、Lucene searcher 和
+四种组合均为零 HTTP 5xx；64 lanes 没有增加吞吐且把 p95 由约 6.8 秒提高到约
+14 秒，故冻结每 run 32 lanes。16 workers 单作业吞吐与 8 workers 接近，但为六个
+并行 online run 提供更多独立进程容量，资源充足时正式选择 16。冻结上游的 SQLite
+connection、Lucene searcher 和
 mutable cache 是 per-process 共享对象，而 FastAPI 同步 endpoint 使用线程池；因此
 服务入口在每个 worker 内只允许一个 in-flight HTTP 请求，worker 之间继续并行。
 generation 阶段 GPU 利用率中位数要求至少 60%，learner 阶段至少 80%。
@@ -244,7 +247,8 @@ clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码�
    credit，且至少 5% 有效 K4 group 存在一个由不同轨迹共享的非初始状态；
 6. 两种 learner 均至少完成 2 次非零更新，loss/gradient 有限，有效 optimizer
    action-token 比例 ≥15%；
-7. 8/16 workers × 32/64 lanes 的真实 reset/search benchmark 达到零 HTTP 5xx；
+7. 8/16 workers × 32/64 lanes 的真实 reset/search benchmark 达到零 HTTP 5xx，
+   正式服务选择 16 workers、每 run 32 lanes；
    generation/learner GPU 利用率、VRAM 与 OOM 门槛通过；
 8. 真实 Slurm 中断后 same-root 恢复，token ledger、adapter、optimizer、sampler 和
    K4 原子组血缘不漂移；

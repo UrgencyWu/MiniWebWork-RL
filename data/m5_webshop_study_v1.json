@@ -99,6 +99,7 @@
     "tasks_per_iteration": 32,
     "initial_parallel_lanes": 32,
     "candidate_parallel_lanes": [32, 64],
+    "selected_parallel_lanes": 32,
     "sampling": {"temperature": 1.0, "top_p": 1.0, "top_k": 0},
     "learner": {
       "policy_epochs": 2,
@@ -159,8 +160,8 @@
     "data_preflight": {"gpus": 0, "cpus": 1, "memory_gib": 8},
     "server_setup": {"gpus": 0, "cpus": 2, "memory_gib": 20},
     "training_runtime_setup": {"gpus": 0, "cpus": 2, "memory_gib": 8},
-    "sft_corpus": {"gpus": 0, "cpus": 8, "memory_gib": 16, "workers": 8},
-    "shared_environment_service": {"gpus": 0, "cpus": 24, "memory_gib": 96, "port": 44151, "initial_workers": 8, "worker_candidates": [8, 16], "request_concurrency": "one in-flight HTTP request per worker process", "renewable": true, "renewal_mechanism": "sbatch_successor_afterany", "cuda_visible_devices": "empty"},
+    "sft_corpus": {"gpus": 0, "cpus": 16, "memory_gib": 32, "workers": 16},
+    "shared_environment_service": {"gpus": 0, "cpus": 24, "memory_gib": 96, "port": 44151, "initial_workers": 8, "worker_candidates": [8, 16], "selected_workers": 16, "request_concurrency": "one in-flight HTTP request per worker process", "selection_reason": "both candidates had zero failures; 16 workers preserves more independent capacity for six concurrent online runs while 32 lanes avoided the doubled tail latency seen at 64", "renewable": true, "renewal_mechanism": "sbatch_successor_afterany", "cuda_visible_devices": "empty"},
     "service_health": {"gpus": 0, "cpus": 2, "memory_gib": 8},
     "service_stress": {"gpus": 0, "cpus": 8, "memory_gib": 16, "episodes_per_lane": 4},
     "sft": {"gpus": 1, "cpus": 8, "memory_gib": 48},

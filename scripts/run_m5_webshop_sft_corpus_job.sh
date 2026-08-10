@@ -5,8 +5,8 @@
 #SBATCH --partition=compute
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=32G
 #SBATCH --output=logs/m5_webshop_sft_data_%j.out
 #SBATCH --error=logs/m5_webshop_sft_data_%j.err
 
@@ -23,7 +23,7 @@ runtime_root="$study_root/upstream/webshop_full"
 output_root="$study_root/preflight/sft_corpus"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 base_url="${WEBSHOP_ENV_BASE_URL:-http://127.0.0.1:44151}"
-service_workers="${M5_WEBSHOP_WORKERS:-8}"
+service_workers="${M5_WEBSHOP_WORKERS:-16}"
 case "$service_workers" in 8|16) ;; *) exit 2 ;; esac
 health_audit="$study_root/preflight/server/health_workers_${service_workers}.json"
 export CUDA_VISIBLE_DEVICES=""
@@ -33,7 +33,7 @@ export CUDA_VISIBLE_DEVICES=""
   --goals "$runtime_root/goals.json" \
   --output-dir "$output_root" \
   --base-url "$base_url" \
-  --workers 8 \
+  --workers 16 \
   --health-audit "$health_audit"
 "$python_bin" scripts/audit_m5_webshop_sft_tokens.py \
   --data-dir "$output_root" \

@@ -69,10 +69,12 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
     }
     assert protocol["payload"]["slurm"]["sft_corpus"] == {
         "gpus": 0,
-        "cpus": 8,
-        "memory_gib": 16,
-        "workers": 8,
+        "cpus": 16,
+        "memory_gib": 32,
+        "workers": 16,
     }
+    assert protocol["payload"]["online"]["selected_parallel_lanes"] == 32
+    assert protocol["payload"]["slurm"]["shared_environment_service"]["selected_workers"] == 16
     assert protocol["payload"]["server_runtime"]["request_concurrency"]["mode"] == (
         "process_serialized_asgi_v1"
     )
@@ -115,9 +117,9 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert "status --porcelain --untracked-files=all --ignored" in setup
     assert setup.index(exact_git_reuse) < setup.index("fetched=0")
     sft_corpus = (root / "scripts" / "run_m5_webshop_sft_corpus_job.sh").read_text(encoding="utf-8")
-    assert "#SBATCH --cpus-per-task=8" in sft_corpus
-    assert "#SBATCH --mem=16G" in sft_corpus
-    assert "--workers 8" in sft_corpus
+    assert "#SBATCH --cpus-per-task=16" in sft_corpus
+    assert "#SBATCH --mem=32G" in sft_corpus
+    assert "--workers 16" in sft_corpus
     health = (root / "scripts" / "run_m5_webshop_service_health_job.sh").read_text(encoding="utf-8")
     assert "#SBATCH --cpus-per-task=2" in health
     assert "#SBATCH --mem=8G" in health

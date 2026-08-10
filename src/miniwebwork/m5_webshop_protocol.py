@@ -270,6 +270,12 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(online.get("group_size") == 4, "M5 group size drift")
     _require(online.get("generated_action_token_cap_per_run") == 500000, "M5 action-token budget drift")
     _require(
+        online.get("initial_parallel_lanes") == 32
+        and online.get("candidate_parallel_lanes") == [32, 64]
+        and online.get("selected_parallel_lanes") == 32,
+        "M5 online lane selection drift",
+    )
+    _require(
         online.get("credit_formula_version") == "webshop_public_state_macro_micro_v1",
         "M5 credit formula drift",
     )
@@ -336,7 +342,7 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         "M5 training runtime setup resource drift",
     )
     _require(
-        slurm.get("sft_corpus") == {"gpus": 0, "cpus": 8, "memory_gib": 16, "workers": 8},
+        slurm.get("sft_corpus") == {"gpus": 0, "cpus": 16, "memory_gib": 32, "workers": 16},
         "M5 SFT corpus resource drift",
     )
     _require(
@@ -374,7 +380,9 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
             "port": 44151,
             "initial_workers": 8,
             "worker_candidates": [8, 16],
+            "selected_workers": 16,
             "request_concurrency": "one in-flight HTTP request per worker process",
+            "selection_reason": "both candidates had zero failures; 16 workers preserves more independent capacity for six concurrent online runs while 32 lanes avoided the doubled tail latency seen at 64",
             "renewable": True,
             "renewal_mechanism": "sbatch_successor_afterany",
             "cuda_visible_devices": "empty",
