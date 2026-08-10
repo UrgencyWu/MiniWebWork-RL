@@ -97,6 +97,10 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert 'git_fetch_timeout_seconds=60' in setup
     assert '--kill-after=10s "${git_fetch_timeout_seconds}s"' in setup
     assert "scripts/m5_agent_r1_source.py" in setup
+    exact_git_reuse = 'echo "source_reuse=exact_git_checkout"'
+    assert exact_git_reuse in setup
+    assert "status --porcelain --untracked-files=all --ignored" in setup
+    assert setup.index(exact_git_reuse) < setup.index("fetched=0")
     sft_corpus = (root / "scripts" / "run_m5_webshop_sft_corpus_job.sh").read_text(encoding="utf-8")
     assert "#SBATCH --cpus-per-task=4" in sft_corpus
     assert "--workers 4" in sft_corpus

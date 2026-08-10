@@ -38,6 +38,10 @@ fi
 
 if test -f "$upstream_root/.m5_source_manifest.json"; then
   "$environment_root/bin/python" scripts/m5_agent_r1_source.py --destination "$upstream_root"
+elif test -d "$upstream_root/.git" \
+  && test "$(git -C "$upstream_root" rev-parse HEAD 2>/dev/null)" = "$revision" \
+  && test -z "$(git -C "$upstream_root" status --porcelain --untracked-files=all --ignored)"; then
+  echo "source_reuse=exact_git_checkout"
 else
   if test ! -d "$upstream_root/.git"; then
     mkdir -p "$upstream_root"
