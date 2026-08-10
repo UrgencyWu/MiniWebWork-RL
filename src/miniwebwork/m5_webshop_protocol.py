@@ -263,6 +263,10 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(isinstance(sft, Mapping), "M5 SFT contract is missing")
     _require(sft.get("external_trajectory_data") is False, "external trajectory data entered formal M5 SFT")
     _require(sft.get("train_task_count") == 4000 and sft.get("dev_task_count") == 400, "M5 SFT roster drift")
+    _require(
+        sft.get("maximum_teacher_query_characters") == 200 and sft.get("maximum_oracle_turns") == 15,
+        "M5 SFT teacher bound drift",
+    )
     _require(sft.get("minimum_effective_completion_label_token_exposure") == 250000, "M5 SFT token exposure drift")
     _require(sft.get("maximum_zero_label_fraction") == 0.0, "M5 SFT zero-label gate drift")
     online = protocol.get("online")
@@ -610,6 +614,7 @@ def audit_goals(goals_path: Path, protocol: Mapping[str, Any] | None = None) -> 
         _require(isinstance(goal.get("instruction"), str) and goal["instruction"].strip(), f"missing instruction: {index}")
         _require(isinstance(goal.get("asin"), str) and goal["asin"], f"missing ASIN: {index}")
         _require(isinstance(goal.get("query"), str) and goal["query"], f"missing query: {index}")
+        _require(isinstance(goal.get("name"), str) and goal["name"].strip(), f"missing product title: {index}")
         _require(goal.get("reward_mode") == "webshop_full", f"reward mode drift: {index}")
         normalized = normalized_instruction(goal["instruction"])
         instructions.setdefault(normalized, []).append(index)

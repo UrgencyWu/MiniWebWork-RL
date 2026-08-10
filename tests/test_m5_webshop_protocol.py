@@ -30,6 +30,7 @@ from miniwebwork.webshop_rl.credit import (
     MICRO_ADVANTAGE_WEIGHT,
     MICRO_RETURN_GAMMA,
 )
+from miniwebwork.webshop_rl.oracle import MAX_ORACLE_TURNS
 
 
 def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
@@ -73,6 +74,8 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
         "memory_gib": 32,
         "workers": 16,
     }
+    assert protocol["payload"]["sft"]["maximum_teacher_query_characters"] == 200
+    assert protocol["payload"]["sft"]["maximum_oracle_turns"] == MAX_ORACLE_TURNS
     assert protocol["payload"]["online"]["selected_parallel_lanes"] == 32
     assert protocol["payload"]["slurm"]["shared_environment_service"]["selected_workers"] == 16
     assert protocol["payload"]["server_runtime"]["request_concurrency"]["mode"] == (

@@ -235,6 +235,30 @@ def _collect_split(
                 selected.append(record)
         if len(selected) == target_count:
             break
+    exclusion_reasons = dict(
+        sorted(
+            Counter(
+                record["exclusion_reason"] for record in attempted if record["status"] != "verified"
+            ).items()
+        )
+    )
+    diagnostic = {
+        "schema_version": "m5_webshop_sft_selection_diagnostic_v1",
+        "split": split,
+        "passed": len(selected) == target_count,
+        "target_count": target_count,
+        "attempted_count": len(attempted),
+        "verified_count": sum(record["status"] == "verified" for record in attempted),
+        "selected_count": len(selected),
+        "protocol_sha256": protocol_sha256,
+        "git_sha": git_sha,
+        "goals_sha256": goals_sha256,
+        "selection_seed": seed,
+        "workers": workers,
+        "exclusion_reasons": exclusion_reasons,
+    }
+    diagnostic["content_sha256"] = sha256_json(diagnostic)
+    atomic_write_json(output_root / f"{split}_selection_diagnostic.json", diagnostic)
     _require(len(selected) == target_count, f"insufficient verified {split} oracle trajectories")
     selected_goal_indices = [int(record["goal_index"]) for record in selected]
     _require(len(selected_goal_indices) == len(set(selected_goal_indices)), f"duplicate selected {split} goal")
@@ -245,9 +269,7 @@ def _collect_split(
         "selected_records": selected,
         "selected_goal_indices": selected_goal_indices,
         "selected_goal_order_sha256": sha256_json(selected_goal_indices),
-        "exclusion_reasons": dict(
-            sorted(Counter(record["exclusion_reason"] for record in attempted if record["status"] != "verified").items())
-        ),
+        "exclusion_reasons": exclusion_reasons,
     }
 
 

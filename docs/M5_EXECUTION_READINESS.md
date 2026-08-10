@@ -36,7 +36,7 @@ formal SFT → six parallel online runs → eight frozen evaluations → analysi
 | 原始重复文本审计与排除 lock | PASS（本地真实 goals） | 500 test、499 dev、10,885 train；eligible overlap=0 |
 | Prompt target 泄漏防护 | PASS（CPU 单测） | reset ASIN 不进入 prompt |
 | 未公开 ASIN shortcut 防护 | PASS（CPU 单测） | 未列出的 click 不发送 HTTP |
-| Verified oracle 实现 | PASS（CPU mock）/ PENDING（full env） | top-50 public navigation + reward=1 only |
+| Verified oracle 实现 | PASS（CPU mock）/ PENDING（full env 重跑） | sanitized title search + top-50 public navigation + reward=1 only |
 | 隔离 Python 3.12.13/Java 21.0.10/Pyserini server | IMPLEMENTED / PENDING（Slurm） | 独立环境，不污染训练 env |
 | 4,000/400 SFT corpus | PENDING | 依赖 data + service |
 | 8192 token/250k exposure audit | PENDING | 依赖 corpus + Qwen tokenizer |
@@ -98,6 +98,16 @@ scripts/run_m5_webshop_sft_corpus_job.sh
 - runtime、data、server environment、health、service-stress、逐任务 SFT record、
   corpus 和 token audit 都同时嵌入当前 clean 40 位 Git SHA 与协议 SHA-256；不能
   只靠 Slurm 日志反推代码血缘。
+
+### 失败诊断与已冻结修复（2026-08-10）
+
+首次 full-env SFT collector（Slurm 1396）扫描 10,885 个 eligible train goal，只得到
+72 个 verified trajectory；10,812 个失败原因为 broad `goal.query` 的 public top-50 中
+不存在 target ASIN，另 1 个未通过最终购买 verifier。这不是算力不足。随后对 100 个
+均匀 train 样本做只读 live diagnostic：`goal.query` 召回 0/100，清洗后的精确商品标题
+召回 95/100。修复后 oracle 只用标题构造公开 `search[...]` 动作、显式移除 ASIN、限制
+200 字符和 15 步；完整 4,000/400 corpus 与 token audit 仍须重跑通过后才能解锁 GPU
+训练。collector 现在无论成功或失败都会写带 Git/协议血缘的 split selection diagnostic。
 
 ## 停止条件
 

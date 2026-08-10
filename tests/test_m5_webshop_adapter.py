@@ -13,7 +13,12 @@ from miniwebwork.webshop_rl.environment import (
     WebShopHTTPEnvironment,
     _bounded_public_actions,
 )
-from miniwebwork.webshop_rl.oracle import OraclePolicyFailure, build_verified_oracle_trajectory
+from miniwebwork.webshop_rl.oracle import (
+    MAX_ORACLE_TURNS,
+    OraclePolicyFailure,
+    _oracle_title_query,
+    build_verified_oracle_trajectory,
+)
 
 
 class FakeWebShopServer:
@@ -303,13 +308,14 @@ def test_oracle_builds_only_public_executable_verified_turns():
     goal = {
         "goal_index": 1000,
         "query": "blue mug",
+        "name": "Blue Mug",
         "asin": "B000TARGET",
         "goal_options": ["navy"],
     }
     trajectory = build_verified_oracle_trajectory(environment, goal).to_dict()
     assert trajectory["verified_reward"] == 1.0
     assert [turn["command"] for turn in trajectory["turns"]] == [
-        "search[blue mug]",
+        "search[Blue Mug]",
         "click[B000TARGET]",
         "click[navy]",
         "click[Buy Now]",
@@ -324,11 +330,31 @@ def test_oracle_builds_only_public_executable_verified_turns():
     assert second["content_sha256"] == trajectory["content_sha256"]
 
 
+def test_oracle_title_query_is_bounded_sanitized_and_does_not_emit_target_asin():
+    query = _oracle_title_query(
+        {
+            "name": "  Blue [B000TARGET]\nMug " + ("x" * 300),
+            "asin": "B000TARGET",
+        }
+    )
+    assert query.startswith("Blue Mug")
+    assert len(query) == 200
+    assert "[" not in query and "]" not in query
+    assert "B000TARGET" not in query
+    assert MAX_ORACLE_TURNS == 15
+
+
 def test_oracle_refuses_the_frozen_test_split_before_reset():
     client = httpx.Client(transport=httpx.MockTransport(OracleFakeServer()), base_url="http://webshop.test")
     environment = WebShopHTTPEnvironment(split="test", client=client)
     with pytest.raises(OraclePolicyFailure, match="frozen_test"):
         build_verified_oracle_trajectory(
             environment,
-            {"goal_index": 0, "query": "blue mug", "asin": "B000TARGET", "goal_options": []},
+            {
+                "goal_index": 0,
+                "query": "blue mug",
+                "name": "Blue Mug",
+                "asin": "B000TARGET",
+                "goal_options": [],
+            },
         )

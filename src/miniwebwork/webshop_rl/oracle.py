@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ..long_horizon_rl.contracts import sha256_json
 from ..m5_webshop_protocol import split_for_goal_index, task_id_for_goal_index
 from . import prompt
-from .actions import WebShopCommand
+from .actions import MAX_SEARCH_QUERY_CHARACTERS, WebShopCommand
 from .credit import public_state_anchor_signature
 
 
 class OraclePolicyFailure(ValueError):
     """A pinned goal cannot be solved through the bounded public action API."""
+
+
+MAX_ORACLE_TURNS = 15
 
 
 def _normalize(value: Any) -> str:
@@ -38,6 +42,28 @@ def _goal_option_values(raw: Any) -> tuple[str, ...]:
     if len(set(map(_normalize, normalized))) != len(normalized):
         raise OraclePolicyFailure("duplicate_goal_option")
     return normalized
+
+
+def _oracle_title_query(goal: Mapping[str, Any]) -> str:
+    """Build a deterministic public search action from offline teacher metadata.
+
+    The exact product title is available only to the offline SFT teacher. The
+    resulting action still goes through WebShop's normal public search API; the
+    target ASIN is removed before the action is emitted and is never inserted
+    into a prompt.
+    """
+
+    title = str(goal.get("name") or "")
+    target_asin = str(goal.get("asin") or "").strip()
+    if not title.strip() or not target_asin:
+        raise OraclePolicyFailure("missing_oracle_metadata")
+    printable = "".join(character if character.isprintable() else " " for character in title)
+    without_delimiters = re.sub(r"[\[\]]+", " ", printable)
+    without_asin = re.sub(re.escape(target_asin), " ", without_delimiters, flags=re.IGNORECASE)
+    query = " ".join(without_asin.split())[:MAX_SEARCH_QUERY_CHARACTERS].strip()
+    if not query or target_asin.lower() in query.lower():
+        raise OraclePolicyFailure("unsafe_oracle_title_query")
+    return query
 
 
 @dataclass
@@ -77,6 +103,8 @@ def build_verified_oracle_trajectory(environment: Any, goal: Mapping[str, Any]) 
 
     def execute(command: str):
         nonlocal observation
+        if len(turns) >= MAX_ORACLE_TURNS:
+            raise OraclePolicyFailure("oracle_turn_budget_exhausted")
         messages = prompt.build_messages(observation, history)
         completion = json.dumps({"command": command}, ensure_ascii=False, separators=(",", ":"))
         result = environment.step(WebShopCommand(command))
@@ -110,10 +138,8 @@ def build_verified_oracle_trajectory(environment: Any, goal: Mapping[str, Any]) 
             observation = result.observation
         return result
 
-    query = str(goal.get("query") or "").strip()
+    query = _oracle_title_query(goal)
     target_asin = str(goal.get("asin") or "").strip()
-    if not query or not target_asin:
-        raise OraclePolicyFailure("missing_oracle_metadata")
     execute(f"search[{query}]")
 
     target_action = ""

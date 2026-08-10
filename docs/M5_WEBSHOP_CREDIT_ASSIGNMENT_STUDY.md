@@ -124,12 +124,18 @@ SFT 不引入外部轨迹。专家只读取被冻结 goal 的 oracle metadata �
 都必须由当前公开 action list 支持，并由官方环境最终验证 reward=1：
 
 ```text
-search[goal.query]
+search[sanitize(goal.name)[:200]]
 → 在最多 5 页公开 top-50 搜索结果中找到并点击 goal.asin
 → 逐一点击公开可见的 goal_options
 → click[Buy Now]
-→ retain only reward=1 and task_score=1
+→ retain only reward=1、task_score=1 且总步数不超过 15
 ```
+
+`sanitize` 会移除方括号、控制字符及任何与 target ASIN 相同的片段。这里的商品标题
+只供离线教师构造一个公开可执行的搜索动作，不进入 policy prompt；ASIN 只有在搜索
+结果已公开列出后才能被点击。2026-08-10 的 100 个均匀 train 抽样显示，原先宽泛的
+`goal.query` 对 target 的 top-50 召回为 0/100，清洗后的精确标题为 95/100，因此冻结
+方案采用标题搜索，并继续以最终 reward=1 verifier 作为唯一语料准入条件。
 
 正式语料按 seed `20260810` 对 eligible roster 做 SHA-256 排序，顺序扫描并保留前
 4,000 个 verified train 任务与前 400 个 verified dev 任务。每个 action turn 是一个
