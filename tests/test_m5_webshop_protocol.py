@@ -56,6 +56,11 @@ def test_frozen_m5_protocol_and_upstream_lock_are_self_consistent():
     assert protocol["payload"]["slurm"]["shared_environment_service"]["renewal_mechanism"] == (
         "sbatch_successor_afterany"
     )
+    assert protocol["payload"]["server_runtime"]["source_fetch_policy"] == {
+        "git_attempts": 2,
+        "git_attempt_timeout_seconds": 60,
+        "locked_archive_attempts": 4,
+    }
 
 
 def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus():
@@ -68,7 +73,9 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert '--reference-audit "$environment_audit"' in service
     setup = (root / "scripts" / "run_m5_webshop_server_setup_job.sh").read_text(encoding="utf-8")
     assert "http.version=HTTP/1.1" in setup
-    assert "for delay in 0 5 15 30" in setup
+    assert "for delay in 0 5" in setup
+    assert 'git_fetch_timeout_seconds=60' in setup
+    assert '--kill-after=10s "${git_fetch_timeout_seconds}s"' in setup
     assert "scripts/m5_agent_r1_source.py" in setup
     for name in (
         "run_m5_webshop_cpu_regression_job.sh",

@@ -40,8 +40,9 @@ WebShop 同时满足三点：它是公开、可执行、rule-verifiable 的多�
 集群没有 Docker/Podman/Singularity/Apptainer，因此 WebArena 会把项目重心转成
 基础设施运维，并阻碍六个单卡训练并行。
 
-Agent-R1 源码优先用 Git fetch 获取该 40 位提交。针对校园出口对 Git smart HTTP
-偶发超时，唯一备用路径是同一提交的 GitHub codeload 归档；其当前精确大小
+Agent-R1 源码优先用 Git fetch 获取该 40 位提交；最多两次、每次含连接阶段硬
+超时 60 秒。针对校园出口对 Git smart HTTP 偶发超时，唯一备用路径是同一提交
+的 GitHub codeload 归档；其当前精确大小
 `1,628,704` bytes、SHA-256 `07e6a35a...7d57b`、226 个 members 以及 WebShop
 recipe 内容树 SHA-256 `46523f50...07a58` 全部冻结；完整 178-file 源码树另锁为
 `04fc3146...1daed`。归档逐 member 拒绝绝对路径、`..`、symlink/hardlink，安全

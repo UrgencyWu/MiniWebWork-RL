@@ -323,6 +323,15 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(server_runtime.get("python") == "3.12.13", "M5 server Python drift")
     _require(server_runtime.get("java") == "21.0.10", "M5 server Java drift")
     _require(
+        server_runtime.get("source_fetch_policy")
+        == {
+            "git_attempts": 2,
+            "git_attempt_timeout_seconds": 60,
+            "locked_archive_attempts": 4,
+        },
+        "M5 server source-fetch policy drift",
+    )
+    _require(
         server_runtime.get("critical_packages")
         == {
             "pandas": "3.0.3",

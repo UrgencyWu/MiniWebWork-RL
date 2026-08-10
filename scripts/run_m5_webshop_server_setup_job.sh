@@ -24,6 +24,7 @@ upstream_root="$study_root/upstream/Agent-R1"
 audit_path="$study_root/preflight/server/environment_audit.json"
 conda_bin="/home/wushaohua/miniconda3/bin/conda"
 revision="b124aa46534cbf2fb8bc8af11405774984c42ac7"
+git_fetch_timeout_seconds=60
 export CUDA_VISIBLE_DEVICES=""
 export GIT_TERMINAL_PROMPT=0
 
@@ -44,11 +45,14 @@ else
     git -C "$upstream_root" remote add origin https://github.com/AgentR1/Agent-R1.git
   fi
   fetched=0
-  for delay in 0 5 15 30; do
+  timeout_bin="$(command -v timeout)"
+  test -x "$timeout_bin"
+  for delay in 0 5; do
     if test "$delay" -gt 0; then
       sleep "$delay"
     fi
-    if git -C "$upstream_root" \
+    if "$timeout_bin" --signal=TERM --kill-after=10s "${git_fetch_timeout_seconds}s" \
+      git -C "$upstream_root" \
       -c http.version=HTTP/1.1 \
       -c http.lowSpeedLimit=1024 \
       -c http.lowSpeedTime=30 \

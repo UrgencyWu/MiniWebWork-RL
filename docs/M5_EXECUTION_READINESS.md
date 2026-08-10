@@ -71,7 +71,8 @@ scripts/run_m5_webshop_sft_corpus_job.sh
   Pyserini 依赖树带有 Torch/CUDA wheel，也不能触碰未申请的 GPU；
 - 每个新 service allocation 不仅重算 runtime/environment 审计，还必须与初始冻结
   audit 的 `content_sha256` 完全相同；
-- 上游 Git fetch 使用固定提交、HTTP/1.1、低速超时和有限重试；若校园出口持续
+- 上游 Git fetch 使用固定提交、HTTP/1.1、两次有限重试，并对每次尝试施加 60 秒
+  硬超时（含连接阶段）；若校园出口持续
   阻断 Git smart HTTP，只允许退到同一提交的 GitHub codeload 归档，且归档
   SHA-256、字节数、member 数和 `recipes/webshop` 内容树 hash 均已写入机器合同；
   完整 178-file 源码树也独立锁定；部分 Git checkout 移入可恢复 quarantine，绝不

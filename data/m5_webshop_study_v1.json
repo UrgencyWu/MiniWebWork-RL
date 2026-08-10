@@ -170,6 +170,11 @@
   "server_runtime": {
     "python": "3.12.13",
     "java": "21.0.10",
+    "source_fetch_policy": {
+      "git_attempts": 2,
+      "git_attempt_timeout_seconds": 60,
+      "locked_archive_attempts": 4
+    },
     "critical_packages": {
       "pandas": "3.0.3",
       "pyarrow": "25.0.0",
