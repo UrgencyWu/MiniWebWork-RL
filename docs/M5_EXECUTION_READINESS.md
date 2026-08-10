@@ -8,9 +8,10 @@
 
 ```text
 clean M5 preflight SHA
+├─ scheduled full CPU regression (2 CPU)
 ├─ CPU data download + exact audit (1 CPU)
 └─ CPU server-env setup + upstream pin (2 CPU)
-       ↓ both pass
+       ↓ all three pass
 shared WebShop service (8 CPU, renewable 24h)
        ↓
 verified SFT corpus + tokenizer audit (2 CPU)
@@ -47,6 +48,7 @@ formal SFT → six parallel online runs → eight frozen evaluations → analysi
 ## 当前允许执行的入口
 
 ```text
+scripts/run_m5_webshop_cpu_regression_job.sh
 scripts/run_m5_webshop_data_preflight_job.sh
 scripts/run_m5_webshop_server_setup_job.sh
 scripts/run_m5_webshop_service_job.sh

@@ -180,6 +180,7 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 
 | 角色 | GPU | CPU | 内存 |
 |---|---:|---:|---:|
+| clean-SHA CPU 回归 | 0 | 2 | 8 GiB |
 | 数据下载/字节审计 | 0 | 1 | 8 GiB |
 | server 环境安装 | 0 | 2 | 16 GiB |
 | shared WebShop service（初始 4 workers） | 0 | 8 | 48 GiB |

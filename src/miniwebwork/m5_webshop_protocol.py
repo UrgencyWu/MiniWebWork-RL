@@ -227,6 +227,10 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     slurm = protocol.get("slurm")
     _require(isinstance(slurm, Mapping), "M5 Slurm contract is missing")
     _require(slurm.get("wall_time_per_job") == "24:00:00", "M5 wall-time drift")
+    _require(
+        slurm.get("cpu_regression") == {"gpus": 0, "cpus": 2, "memory_gib": 8},
+        "M5 CPU regression resource drift",
+    )
     _require(slurm.get("maximum_parallel_online_runs") == 6, "M5 online parallelism drift")
     _require(
         slurm.get("shared_environment_service")

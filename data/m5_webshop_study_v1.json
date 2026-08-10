@@ -144,6 +144,7 @@
   },
   "slurm": {
     "wall_time_per_job": "24:00:00",
+    "cpu_regression": {"gpus": 0, "cpus": 2, "memory_gib": 8},
     "data_preflight": {"gpus": 0, "cpus": 1, "memory_gib": 8},
     "shared_environment_service": {"gpus": 0, "cpus": 8, "memory_gib": 48, "port": 44151, "initial_workers": 4, "worker_candidates": [2, 4, 8], "renewable": true},
     "sft": {"gpus": 1, "cpus": 4, "memory_gib": 32},
