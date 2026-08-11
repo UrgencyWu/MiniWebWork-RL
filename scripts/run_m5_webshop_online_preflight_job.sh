@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Real K4 collection + two-learner GPU preflight. Never a formal training entry.
-# A 24h afterany successor reopens the same root only if this allocation does
-# not finish; normal completion cancels it without creating extra work.
+# The USR1 timeout warning submits one same-root successor. Deterministic
+# failures stop immediately instead of creating an unbounded retry chain.
 #SBATCH --job-name=m5-webshop-online-pf
 #SBATCH --partition=compute
 #SBATCH --time=24:00:00
@@ -28,20 +28,24 @@ if test -f "$output_root/preflight_report.json"; then
   exit 0
 fi
 
-successor_job_id=""
-if test -n "${SLURM_JOB_ID:-}" && test "${M5_DISABLE_SUCCESSOR:-0}" != "1"; then
-  successor_job_id="$(sbatch --parsable \
-    --dependency="afterany:${SLURM_JOB_ID}" \
-    --export="ALL,M5_EXPECTED_GIT_SHA=${M5_EXPECTED_GIT_SHA}" \
-    scripts/run_m5_webshop_online_preflight_job.sh)"
-  printf '%s\n' "$successor_job_id" > "$output_root/successor_job_id"
-  echo "successor_job_id=$successor_job_id"
-fi
+submit_timeout_successor() {
+  trap - USR1
+  if test -n "${SLURM_JOB_ID:-}" && test "${M5_DISABLE_SUCCESSOR:-0}" != "1"; then
+    successor_job_id="$(sbatch --parsable \
+      --dependency="afterany:${SLURM_JOB_ID}" \
+      --export="ALL,M5_EXPECTED_GIT_SHA=${M5_EXPECTED_GIT_SHA}" \
+      scripts/run_m5_webshop_online_preflight_job.sh)"
+    printf '%s\n' "$successor_job_id" > "$output_root/successor_job_id"
+    echo "timeout_successor_job_id=$successor_job_id"
+  fi
+  exit 99
+}
+trap submit_timeout_successor USR1
 
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export TOKENIZERS_PARALLELISM=false
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+unset PYTORCH_CUDA_ALLOC_CONF
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 
 echo "phase=m5_online_gpu_preflight"
@@ -62,7 +66,4 @@ curl --fail --silent --show-error --max-time 30 \
   --output-dir "$output_root" \
   --base-url http://127.0.0.1:44151
 
-if test -f "$output_root/preflight_report.json" && test -n "$successor_job_id"; then
-  scancel "$successor_job_id" || true
-fi
 echo "finished=$(date -Is)"

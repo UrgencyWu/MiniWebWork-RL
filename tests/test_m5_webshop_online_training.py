@@ -141,7 +141,10 @@ def test_m5_protocol_freezes_parity_and_online_slurm_recovery():
     assert "#SBATCH --time=24:00:00" in script
     assert "#SBATCH --cpus-per-task=8" in script
     assert "#SBATCH --gres=gpu:1" in script
+    assert "trap submit_timeout_successor USR1" in script
     assert 'afterany:${SLURM_JOB_ID}' in script
+    assert "unset PYTORCH_CUDA_ALLOC_CONF" in script
+    assert "export PYTORCH_CUDA_ALLOC_CONF" not in script
     assert "preflight/online_gpu" in script
     assert "formal_training=false" in script
     assert 'scancel "$SLURM_JOB_ID"' not in script
