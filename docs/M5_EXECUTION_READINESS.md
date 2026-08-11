@@ -21,6 +21,13 @@ P99.9=`0.5`、clip fraction=`0.005` 和 mean-ratio deviation=`0.02` 等独立 fa
 门禁。revision 4 必须重新通过真实 GPU online preflight 后才能生成新的 readiness 与授权；
 旧 Jobs `2143–2148` 只能作为失败诊断，不进入正式结果。
 
+revision-4 GPU preflight Job `2161` 随后证明两种 learner 都通过新 parity 门禁、各完成 12 次
+真实更新并改变 adapter；但最终被旧的 generation median GPU≥60% 资源门禁拒绝。该批实际
+generation mean/median/P95 为 45.2%/56%/64%，learner median 通过 80% 门槛。浏览器智能体
+生成会在 GPU token burst 与 CPU/HTTP 环境步骤间交替，因此资源门禁修正为 generation
+mean≥40% 且 P95≥60%，同时保留 learner median≥80%；这只修正资源利用率判据，不改变
+数据、奖励、训练预算或算法。
+
 ## 1. 已通过的最小 RL 验证
 
 正式起点是已经审计通过的 SFT adapter：

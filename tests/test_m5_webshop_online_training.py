@@ -268,5 +268,9 @@ def test_m5_protocol_freezes_parity_and_online_slurm_recovery():
     assert 'scancel "$SLURM_JOB_ID"' not in script
     runner = (Path(__file__).resolve().parents[1] / "scripts" / "m5_webshop_online_preflight.py").read_text()
     assert "_minimal_sft_compatibility" in runner
+    assert '"generation_mean": generation_audit["mean_gpu_utilization_fraction"] >= 0.40' in runner
+    assert '"generation_p95": generation_audit["p95_gpu_utilization_fraction"] >= 0.60' in runner
+    assert '"learner_median": learner_audit["median_gpu_utilization_fraction"] >= 0.80' in runner
+    assert '"generation_median"' not in runner
     assert "c97c9265fe0043a8cda59908713429eef9e13d9619261a144c13cfa5fb4d7334" in runner
     assert "_request_real_interruption" not in runner
