@@ -54,6 +54,17 @@ MAX_SEQUENCE_TOKENS = 8192
 MAX_NEW_TOKENS = 128
 
 
+class ReplayParityError(ValueError):
+    """Fail-closed parity error that preserves the complete numeric audit."""
+
+    def __init__(self, report: Mapping[str, Any]):
+        self.report = dict(report)
+        super().__init__(
+            "M5 behavior/replay parity failed: "
+            + json.dumps(self.report, sort_keys=True, separators=(",", ":"))
+        )
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
@@ -423,8 +434,16 @@ def audit_initial_replay_parity(
         "clip_fraction": report["initial_ratio_clip_fraction"] <= thresholds["replay_initial_ratio_clip_fraction"],
         "mean_ratio": abs(report["mean_importance_ratio"] - 1.0) <= thresholds["mean_importance_ratio_absolute_deviation"],
     }
-    _require(all(checks.values()), f"M5 behavior/replay parity failed: {checks}")
-    return {**report, "behavior_sampling": sampling_report, "checks": checks, "thresholds": dict(thresholds), "passed": True}
+    audit = {
+        **report,
+        "behavior_sampling": sampling_report,
+        "checks": checks,
+        "thresholds": dict(thresholds),
+        "passed": all(checks.values()),
+    }
+    if not audit["passed"]:
+        raise ReplayParityError(audit)
+    return audit
 
 
 def train_policy_preflight(

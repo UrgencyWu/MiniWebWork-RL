@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import torch
 
+import miniwebwork.webshop_rl.online_training as online_training_module
 from miniwebwork.m5_webshop_protocol import load_protocol
 from miniwebwork.webshop_rl.credit import ANCHOR_METHOD, BASELINE_METHOD
 from miniwebwork.webshop_rl.online_training import (
     MAX_SEQUENCE_TOKENS,
     M5VLLMBackendConfig,
+    ReplayParityError,
     audit_collection,
+    audit_initial_replay_parity,
     build_committed_group,
     prepare_group_training_examples,
     trajectory_from_episode,
@@ -18,6 +24,55 @@ from miniwebwork.webshop_rl.online_training import (
 )
 
 SHA = "a" * 64
+
+
+def test_m5_replay_parity_error_preserves_complete_numeric_audit(monkeypatch):
+    behavior = [0.0] * 1000
+    replay = [0.0] * 989 + [0.09] * 11
+    prepared = [
+        {
+            "examples": [
+                SimpleNamespace(
+                    behavior_logprobs=behavior,
+                    sampling_logprobs=behavior,
+                )
+            ]
+        }
+    ]
+    monkeypatch.setattr(online_training_module, "_replay_logprobs", lambda *_args, **_kwargs: replay)
+    thresholds = {
+        "behavior_sampling_maximum_absolute_difference": 1e-6,
+        "replay_mean_absolute_difference": 0.02,
+        "replay_p95_absolute_difference": 0.08,
+        "replay_p99_absolute_difference": 0.08,
+        "replay_p999_absolute_difference": 0.5,
+        "replay_initial_ratio_clip_fraction": 0.005,
+        "mean_importance_ratio_absolute_deviation": 0.02,
+    }
+
+    with pytest.raises(ReplayParityError) as captured:
+        audit_initial_replay_parity(
+            model=None,
+            prepared=prepared,
+            tokenizer=None,
+            device=torch.device("cpu"),
+            microbatch_size=4,
+            thresholds=thresholds,
+        )
+
+    report = captured.value.report
+    assert report["passed"] is False
+    assert report["checks"] == {
+        "mean": True,
+        "p95": True,
+        "p99": False,
+        "p999": True,
+        "clip_fraction": True,
+        "mean_ratio": True,
+    }
+    assert report["p99_absolute_logprob_difference"] == pytest.approx(0.09)
+    assert report["thresholds"] == thresholds
+    assert json.loads(str(captured.value).split(": ", 1)[1])["p99_absolute_logprob_difference"] == pytest.approx(0.09)
 
 
 def _observation(page: str, *, step: int, episode: str) -> dict:
