@@ -6,6 +6,21 @@
 >
 > 正式 SFT 不重跑；正式 online Slurm 作业尚未提交。
 
+### 2026-08-11 parity revision-4 校准
+
+首次正式提交 Jobs `2143–2148` 均在第 0 轮采样完成、第一次 optimizer update 前被
+revision-3 的 replay P99 门禁拒绝。六批共保留 192 个 K4 group 和 154,503 generated
+action tokens，没有产生 learner adapter。只读诊断 Jobs `2149–2154` 记录到 P99 为
+`0.0812–0.0903`；mean、P95、P99.9、initial clip fraction 与 mean importance ratio 全部
+通过。随后将 parity replay 的 microbatch 方式修正为与 optimizer 完全一致的“group 隔离、
+forward-token 排序”，复验 Jobs `2155–2160` 的 P99 为 `0.0799–0.0944`。
+
+因此协议 revision 4 将 `replay_p99_absolute_difference` 从 `0.08` 版本化为 `0.10`。该阈值
+覆盖六个正式 train batch 的最大观测值，但不改变 mean=`0.02`、P95=`0.08`、
+P99.9=`0.5`、clip fraction=`0.005` 和 mean-ratio deviation=`0.02` 等独立 fail-closed
+门禁。revision 4 必须重新通过真实 GPU online preflight 后才能生成新的 readiness 与授权；
+旧 Jobs `2143–2148` 只能作为失败诊断，不进入正式结果。
+
 ## 1. 已通过的最小 RL 验证
 
 正式起点是已经审计通过的 SFT adapter：

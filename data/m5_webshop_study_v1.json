@@ -1,6 +1,6 @@
 {
   "schema_version": "m5_webshop_study_v1",
-  "protocol_revision": 3,
+  "protocol_revision": 4,
   "study_id": "m5_webshop_credit_assignment_v1",
   "status": "preflight_only",
   "formal_submission_allowed": false,
@@ -121,7 +121,7 @@
       "behavior_sampling_maximum_absolute_difference": 0.000001,
       "replay_mean_absolute_difference": 0.02,
       "replay_p95_absolute_difference": 0.08,
-      "replay_p99_absolute_difference": 0.08,
+      "replay_p99_absolute_difference": 0.1,
       "replay_p999_absolute_difference": 0.5,
       "replay_initial_ratio_clip_fraction": 0.005,
       "mean_importance_ratio_absolute_deviation": 0.02

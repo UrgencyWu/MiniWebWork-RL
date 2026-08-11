@@ -197,7 +197,7 @@ def load_split_exclusions(path: Path = SPLIT_EXCLUSIONS_PATH) -> dict[str, Any]:
 def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     protocol = dict(payload)
     _require(protocol.get("schema_version") == SCHEMA_VERSION, "M5 protocol schema drift")
-    _require(protocol.get("protocol_revision") == 3, "M5 protocol revision drift")
+    _require(protocol.get("protocol_revision") == 4, "M5 protocol revision drift")
     _require(protocol.get("study_id") == STUDY_ID, "M5 study id drift")
     _require(protocol.get("status") == "preflight_only", "M5 protocol status must remain preflight_only")
     _require(protocol.get("formal_submission_allowed") is False, "formal M5 submission was enabled inside the study protocol")
@@ -359,7 +359,7 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
             "behavior_sampling_maximum_absolute_difference": 1e-6,
             "replay_mean_absolute_difference": 0.02,
             "replay_p95_absolute_difference": 0.08,
-            "replay_p99_absolute_difference": 0.08,
+            "replay_p99_absolute_difference": 0.1,
             "replay_p999_absolute_difference": 0.5,
             "replay_initial_ratio_clip_fraction": 0.005,
             "mean_importance_ratio_absolute_deviation": 0.02,

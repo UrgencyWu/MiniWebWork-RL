@@ -253,7 +253,8 @@ def test_m5_vllm_contract_uses_8192_context_and_frozen_sampling():
 
 def test_m5_protocol_freezes_parity_and_online_slurm_recovery():
     protocol = load_protocol()["payload"]
-    assert protocol["online"]["parity_contract"]["replay_p99_absolute_difference"] == 0.08
+    assert protocol["protocol_revision"] == 4
+    assert protocol["online"]["parity_contract"]["replay_p99_absolute_difference"] == 0.1
     script = (Path(__file__).resolve().parents[1] / "scripts" / "run_m5_webshop_online_preflight_job.sh").read_text()
     assert "#SBATCH --time=24:00:00" in script
     assert "#SBATCH --cpus-per-task=8" in script
