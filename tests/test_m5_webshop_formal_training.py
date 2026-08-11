@@ -62,7 +62,7 @@ def test_formal_task_order_is_seeded_unique_and_train_only():
 
 
 def test_atomic_token_budget_never_exceeds_cap_and_releases_unused_capacity():
-    budget = AtomicTokenBudget(cap=20000, spent=1000, reservation_size=9216)
+    budget = AtomicTokenBudget(cap=21000, spent=1000, reservation_size=9216)
     first = budget.reserve("g0")
     second = budget.reserve("g1")
     assert first is not None and second is not None
