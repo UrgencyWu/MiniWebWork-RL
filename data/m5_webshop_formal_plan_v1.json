@@ -1,0 +1,108 @@
+{
+  "schema_version": "m5_webshop_formal_plan_v1",
+  "study_id": "m5_webshop_credit_assignment_v1",
+  "lifecycle_state": "ready_pending_user_authorization",
+  "formal_submission_allowed": false,
+  "preflight_evidence": {
+    "slurm_job_id": 2139,
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "producer_git_sha": "2e077f228f633e6b23dfbce00758cde1e9bfb74e",
+    "protocol_sha256": "035475618ec0da1a9206147cbbed0d7a7526ec534e8fe667874546d863e5f4e3",
+    "report_path": "outputs/m5_webshop_credit_assignment_v1/preflight/online_gpu/preflight_report.json",
+    "report_content_sha256": "5fd931a82d6a205e52ea0d93ae36d79797d6b5613ca85e93bfa8613265612564",
+    "sft_adapter_sha256": "c97c9265fe0043a8cda59908713429eef9e13d9619261a144c13cfa5fb4d7334",
+    "result": "passed"
+  },
+  "matrix": {
+    "methods": ["multi_turn_grpo", "anchor_gigpo"],
+    "seeds": [20260801, 20260802, 20260803],
+    "logical_online_runs": 6,
+    "initial_adapter": "outputs/m5_webshop_credit_assignment_v1/preflight/sft_gpu/training/final_adapter_epoch_1",
+    "base_model": "/data/share/model/Qwen3.5-4B"
+  },
+  "online_budget": {
+    "generated_action_token_cap_per_run": 500000,
+    "minimum_final_billed_action_tokens": 490784,
+    "maximum_atomic_group_token_reservation": 9216,
+    "group_size": 4,
+    "tasks_per_iteration": 32,
+    "maximum_environment_steps": 15,
+    "maximum_model_turns": 18,
+    "maximum_new_tokens_per_turn": 128,
+    "shared_prefix_turns": 1,
+    "parallel_lanes": 32,
+    "task_roster": "eligible frozen train goals only",
+    "task_order": "SHA256 rank of m5_webshop_formal_train_v1|seed|task_id, cold coverage without replacement",
+    "reward": "official terminal WebShop task_score in [0,1]",
+    "attempt_cost_policy": "every generated action token is billed, including invalid infrastructure attempts; a new K4 attempt starts only after reserving its 9216-token worst case",
+    "terminal_budget_policy": "stop before a new atomic K4 attempt when fewer than 9216 unbilled tokens remain; never exceed 500000"
+  },
+  "controlled_comparison": {
+    "common": "SFT adapter, task order, K4 branching, sampling, reward, optimizer, token cap and environment",
+    "multi_turn_grpo": "population-standardized K4 terminal task-score advantage broadcast to every action turn",
+    "anchor_gigpo": "the same macro advantage plus first-visit public-state discounted-return micro advantage",
+    "only_intended_difference": "turn-level credit assignment"
+  },
+  "learner": {
+    "policy_epochs": 2,
+    "trajectory_minibatch_size": 4,
+    "learning_rate": 0.000005,
+    "clip_epsilon": 0.2,
+    "gradient_clip": 1.0,
+    "behavior_policy_staleness": 0,
+    "optimizer": "AdamW with state carried across atomic iterations",
+    "checkpoint_frequency": "after every rollout iteration",
+    "parity_check_frequency": "before the optimizer in every iteration"
+  },
+  "resource_contract": {
+    "wall_time_per_allocation": "24:00:00",
+    "gpus_per_run": 1,
+    "cpus_per_run": 8,
+    "memory_gib_per_run": 32,
+    "maximum_parallel_online_runs": 6,
+    "parallel_online_total": {"gpus": 6, "cpus": 48, "memory_gib": 192},
+    "shared_service": {"gpus": 0, "cpus": 24, "memory_gib": 96, "workers": 16, "url": "http://127.0.0.1:44151"},
+    "parallel_online_plus_service_total": {"gpus": 6, "cpus": 72, "memory_gib": 288},
+    "scheduler_note": "CPU, memory and GPU are all requested explicitly; no per-run service duplication"
+  },
+  "recovery_contract": {
+    "same_root_resume": true,
+    "generated_turn_ledger": "fsync after every model turn",
+    "group_commit": "atomic only after all four trajectories are infrastructure-valid",
+    "learner_commit": "atomic adapter, rollout-adapter, optimizer and report per iteration",
+    "timeout": "only Slurm USR1 at T-300 seconds may submit one afterany successor with the same method, seed, Git SHA and output root",
+    "deterministic_failure": "stop without successor",
+    "completed_run": "idempotent validation and exit"
+  },
+  "data_isolation": {
+    "training": "eligible train goals [1000,12087) after frozen exact-instruction exclusions",
+    "dev": "not read by online training",
+    "test": "not read by online training or readiness; opened only after all six final adapters and inference identities are frozen"
+  },
+  "success_contract": {
+    "generated_action_tokens": "490784 <= billed <= 500000",
+    "attempt_infrastructure_valid_fraction_minimum": 0.98,
+    "committed_token_fraction_minimum": 0.90,
+    "cumulative_optimizer_updates_minimum": 2,
+    "finite_loss_and_gradient": true,
+    "real_parameter_update": true,
+    "all_iteration_parity_checks_pass": true,
+    "adapter_optimizer_lineage_complete": true,
+    "cost_and_credit_metrics_recorded": true
+  },
+  "output_contract": {
+    "formal_root": "outputs/m5_webshop_credit_assignment_v1/formal",
+    "run_root_template": "outputs/m5_webshop_credit_assignment_v1/formal/online/{method}/seed_{seed}",
+    "readiness_manifest": "outputs/m5_webshop_credit_assignment_v1/readiness/readiness_manifest_v1.json",
+    "authorization_artifact": "outputs/m5_webshop_credit_assignment_v1/readiness/formal_authorization_v1.json",
+    "formal_runner": "scripts/m5_webshop_formal_online.py",
+    "slurm_entrypoint": "scripts/run_m5_webshop_formal_online_job.sh"
+  },
+  "ordering_contract": {
+    "readiness_before_authorization": true,
+    "explicit_user_authorization_before_any_formal_submission": true,
+    "all_six_training_artifacts_before_frozen_test": true,
+    "no_formal_job_is_submitted_by_readiness_or_authorization_tools": true
+  }
+}

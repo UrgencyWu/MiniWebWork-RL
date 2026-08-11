@@ -47,6 +47,8 @@ from .credit import (
 GROUP_SCHEMA = "m5_webshop_k4_group_v2"
 LEARNER_REPORT_SCHEMA = "m5_webshop_online_learner_report_v2"
 OPTIMIZER_SCHEMA = "m5_webshop_online_optimizer_v2"
+FORMAL_ITERATION_LEARNER_SCHEMA = "m5_webshop_formal_iteration_learner_v1"
+FORMAL_OPTIMIZER_SCHEMA = "m5_webshop_formal_optimizer_v1"
 METHODS = (BASELINE_METHOD, ANCHOR_METHOD)
 MAX_SEQUENCE_TOKENS = 8192
 MAX_NEW_TOKENS = 128
@@ -577,4 +579,235 @@ def validate_learner_report(path: Path) -> dict[str, Any]:
     _require(rollout["view_directory_sha256"] == report["output_rollout_adapter_sha256"], "M5 learner rollout adapter hash drift")
     _require(rollout["semantic_tensor_sha256"] == report["output_adapter_semantic_sha256"], "M5 learner semantic adapter hash drift")
     _require(sha256_file(Path(report["output_optimizer"])) == report["output_optimizer_sha256"], "M5 learner optimizer hash drift")
+    return report
+
+
+def train_policy_iteration(
+    *,
+    method: str,
+    groups: Sequence[Mapping[str, Any]],
+    iteration_generated_action_tokens: int,
+    base_model: Path,
+    initial_adapter: Path,
+    input_adapter_semantic_sha256: str,
+    input_optimizer: Path | None,
+    output_root: Path,
+    protocol: Mapping[str, Any],
+    git_sha: str,
+    protocol_sha256: str,
+    iteration_index: int,
+    seed: int,
+    microbatch_size: int = 4,
+) -> dict[str, Any]:
+    """Apply one atomic formal on-policy update and persist Adam state.
+
+    Every non-zero K4 group from the current behavior-policy snapshot is used.
+    A zero-signal iteration is still committed with an unchanged policy so its
+    rollout cost remains visible and the next iteration can continue safely.
+    """
+
+    _require(method in METHODS, "unsupported M5 formal method")
+    _require(groups and iteration_generated_action_tokens > 0, "M5 formal iteration is empty")
+    _require(iteration_index >= 0 and seed >= 0, "M5 formal iteration identity drift")
+    prepared_all = [prepare_group_training_examples(group, method) for group in groups]
+    prepared = [item for item in prepared_all if not item["zero_advantage_group"]]
+    effective_tokens = sum(item["effective_optimizer_action_tokens"] for item in prepared)
+    effective_fraction = effective_tokens / iteration_generated_action_tokens
+    parent = Path(output_root).expanduser().resolve()
+    parent.parent.mkdir(parents=True, exist_ok=True)
+    report_path = parent / "learner_report.json"
+    if report_path.is_file():
+        return validate_formal_iteration_learner_report(report_path)
+    interrupted = parent.parent / "interrupted_learner_stages"
+    stale = ([parent] if parent.exists() else []) + sorted(parent.parent.glob(f".{parent.name}.staging-*"))
+    for index, path in enumerate(stale):
+        interrupted.mkdir(exist_ok=True)
+        os.rename(path, interrupted / f"{parent.name}_{time.time_ns()}_{index}")
+    staging = parent.parent / f".{parent.name}.staging-{os.getpid()}-{time.time_ns()}"
+    staging.mkdir()
+    device = torch.device("cuda:0")
+    torch.manual_seed(seed + iteration_index)
+    torch.cuda.manual_seed_all(seed + iteration_index)
+    model, tokenizer = load_trainable_policy_model(base_model=base_model, adapter_path=initial_adapter)
+    learner = protocol["online"]["learner"]
+    optimizer = torch.optim.AdamW(
+        [parameter for parameter in model.parameters() if parameter.requires_grad],
+        lr=float(learner["learning_rate"]),
+        weight_decay=0.0,
+    )
+    cumulative_updates_before = 0
+    input_optimizer_sha256 = None
+    if input_optimizer is not None:
+        checkpoint_path = Path(input_optimizer).expanduser().resolve()
+        _require(checkpoint_path.is_file(), "M5 formal input optimizer is missing")
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        _require(checkpoint.get("schema_version") == FORMAL_OPTIMIZER_SCHEMA, "M5 formal optimizer schema drift")
+        _require(checkpoint.get("method") == method, "M5 formal optimizer method drift")
+        _require(checkpoint.get("git_sha") == git_sha, "M5 formal optimizer Git drift")
+        _require(checkpoint.get("protocol_sha256") == protocol_sha256, "M5 formal optimizer protocol drift")
+        _require(
+            checkpoint.get("adapter_sha256") == directory_sha256(initial_adapter),
+            "M5 formal optimizer/adapter lineage drift",
+        )
+        cumulative_updates_before = int(checkpoint.get("cumulative_optimizer_updates", -1))
+        _require(cumulative_updates_before >= 0, "M5 formal optimizer update count drift")
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        input_optimizer_sha256 = sha256_file(checkpoint_path)
+
+    parity_source = prepared if prepared else prepared_all
+    parity = audit_initial_replay_parity(
+        model=model,
+        prepared=parity_source,
+        tokenizer=tokenizer,
+        device=device,
+        microbatch_size=microbatch_size,
+        thresholds=protocol["online"]["parity_contract"],
+    )
+    updates = 0
+    losses: list[float] = []
+    gradients: list[float] = []
+    metric_tokens = 0
+    model.train()
+    for _epoch in range(int(learner["policy_epochs"])):
+        for item in prepared:
+            optimizer.zero_grad(set_to_none=True)
+            examples = sorted(
+                item["examples"],
+                key=lambda example: (example.forward_tokens, example.trajectory_index, example.turn_index),
+            )
+            for chunk in _chunks(examples, microbatch_size):
+                batch = _move_batch(
+                    collate_turn_training_examples(chunk, pad_token_id=tokenizer.pad_token_id),
+                    device,
+                )
+                replay, entropy = _forward(model, batch)
+                result = hierarchical_clipped_policy_loss(
+                    replay,
+                    batch,
+                    clip_epsilon=float(learner["clip_epsilon"]),
+                    entropy=entropy,
+                )
+                _require(bool(torch.isfinite(result["loss"])), "M5 formal learner loss is non-finite")
+                result["loss"].backward()
+                losses.append(float(result["loss"].detach().cpu()))
+                metric_tokens += int(result["token_count"])
+            gradient = torch.nn.utils.clip_grad_norm_(
+                [parameter for parameter in model.parameters() if parameter.requires_grad],
+                float(learner["gradient_clip"]),
+            )
+            _require(bool(torch.isfinite(gradient)), "M5 formal learner gradient is non-finite")
+            gradients.append(float(gradient.detach().cpu()))
+            optimizer.step()
+            updates += 1
+
+    adapter = staging / "adapter"
+    model.save_pretrained(adapter, safe_serialization=True)
+    tokenizer.save_pretrained(adapter)
+    view = staging / "rollout_adapter"
+    view_audit = build_vllm_adapter_view(source_adapter=adapter, destination=view, base_model=base_model)
+    if updates:
+        _require(
+            view_audit["semantic_tensor_sha256"] != input_adapter_semantic_sha256,
+            "M5 formal optimizer reported updates without a parameter change",
+        )
+    else:
+        _require(
+            view_audit["semantic_tensor_sha256"] == input_adapter_semantic_sha256,
+            "M5 zero-signal iteration changed policy parameters",
+        )
+    cumulative_updates_after = cumulative_updates_before + updates
+    optimizer_path = staging / "optimizer.pt"
+    torch.save(
+        {
+            "schema_version": FORMAL_OPTIMIZER_SCHEMA,
+            "method": method,
+            "seed": seed,
+            "iteration_index": iteration_index,
+            "git_sha": git_sha,
+            "protocol_sha256": protocol_sha256,
+            "adapter_sha256": directory_sha256(adapter),
+            "iteration_optimizer_updates": updates,
+            "cumulative_optimizer_updates": cumulative_updates_after,
+            "optimizer_state_dict": optimizer.state_dict(),
+        },
+        optimizer_path,
+    )
+    report = {
+        "schema_version": FORMAL_ITERATION_LEARNER_SCHEMA,
+        "complete": True,
+        "formal_training": True,
+        "method": method,
+        "seed": seed,
+        "iteration_index": iteration_index,
+        "git_sha": git_sha,
+        "protocol_sha256": protocol_sha256,
+        "group_count": len(groups),
+        "nonzero_group_count": len(prepared),
+        "iteration_optimizer_updates": updates,
+        "cumulative_optimizer_updates_before": cumulative_updates_before,
+        "cumulative_optimizer_updates_after": cumulative_updates_after,
+        "iteration_generated_action_tokens": iteration_generated_action_tokens,
+        "effective_optimizer_action_tokens": effective_tokens,
+        "effective_optimizer_action_token_fraction": effective_fraction,
+        "optimizer_evaluated_action_tokens": metric_tokens,
+        "mean_loss": sum(losses) / len(losses) if losses else None,
+        "maximum_absolute_loss": max(abs(value) for value in losses) if losses else None,
+        "mean_gradient_norm": sum(gradients) / len(gradients) if gradients else None,
+        "maximum_gradient_norm": max(gradients) if gradients else None,
+        "initial_replay_parity": parity,
+        "input_adapter": str(Path(initial_adapter).expanduser().resolve()),
+        "input_adapter_sha256": directory_sha256(initial_adapter),
+        "input_adapter_semantic_sha256": input_adapter_semantic_sha256,
+        "input_optimizer": str(Path(input_optimizer).expanduser().resolve()) if input_optimizer else None,
+        "input_optimizer_sha256": input_optimizer_sha256,
+        "base_model": str(Path(base_model).expanduser().resolve()),
+        "output_adapter": str(parent / "adapter"),
+        "output_adapter_sha256": directory_sha256(adapter),
+        "output_adapter_semantic_sha256": view_audit["semantic_tensor_sha256"],
+        "output_rollout_adapter": str(parent / "rollout_adapter"),
+        "output_rollout_adapter_sha256": view_audit["view_directory_sha256"],
+        "output_optimizer": str(parent / "optimizer.pt"),
+        "output_optimizer_sha256": sha256_file(optimizer_path),
+    }
+    report["content_sha256"] = _self_hash(report)
+    atomic_write_json(staging / "learner_report.json", report)
+    os.rename(staging, parent)
+    descriptor = os.open(parent.parent, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    del model, optimizer
+    torch.cuda.empty_cache()
+    return report
+
+
+def validate_formal_iteration_learner_report(path: Path) -> dict[str, Any]:
+    report = json.loads(Path(path).read_text(encoding="utf-8"))
+    _require(
+        report.get("schema_version") == FORMAL_ITERATION_LEARNER_SCHEMA
+        and report.get("complete") is True
+        and report.get("formal_training") is True,
+        "M5 formal learner report schema drift",
+    )
+    _require(report.get("content_sha256") == _self_hash(report), "M5 formal learner report self-hash drift")
+    _require(directory_sha256(Path(report["output_adapter"])) == report["output_adapter_sha256"], "M5 formal learner adapter hash drift")
+    from ..long_horizon_rl.adapter_view import validate_vllm_adapter_view
+
+    rollout = validate_vllm_adapter_view(
+        source_adapter=Path(report["output_adapter"]),
+        view_directory=Path(report["output_rollout_adapter"]),
+        base_model=Path(report["base_model"]),
+    )
+    _require(rollout["view_directory_sha256"] == report["output_rollout_adapter_sha256"], "M5 formal learner rollout adapter hash drift")
+    _require(rollout["semantic_tensor_sha256"] == report["output_adapter_semantic_sha256"], "M5 formal learner semantic hash drift")
+    _require(sha256_file(Path(report["output_optimizer"])) == report["output_optimizer_sha256"], "M5 formal learner optimizer hash drift")
+    _require(
+        report["cumulative_optimizer_updates_after"]
+        == report["cumulative_optimizer_updates_before"] + report["iteration_optimizer_updates"],
+        "M5 formal learner cumulative update drift",
+    )
+    for field in ("mean_loss", "maximum_absolute_loss", "mean_gradient_norm", "maximum_gradient_norm"):
+        value = report[field]
+        _require(value is None or (isinstance(value, (int, float)) and math.isfinite(float(value))), f"M5 formal learner non-finite {field}")
     return report

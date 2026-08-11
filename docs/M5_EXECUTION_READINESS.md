@@ -1,175 +1,128 @@
-# M5 执行与准入状态
+# M5 正式在线训练准入与运行手册
 
 > 最后更新：2026-08-11
-> 当前结论：推荐方案已冻结；正式训练仍为 `NOT_READY`。当前只允许 CPU 数据、
-> server 和小规模 preflight 作业。
+>
+> 当前状态：`READY_PENDING_USER_AUTHORIZATION`
+>
+> 正式 SFT 不重跑；正式 online Slurm 作业尚未提交。
 
-## 作业依赖
+## 1. 已通过的最小 RL 验证
+
+正式起点是已经审计通过的 SFT adapter：
+
+- producer Git：`9cedc2a7cc8cb557f5b583d3c9dd7ae3502486c1`
+- adapter SHA-256：`c97c9265fe0043a8cda59908713429eef9e13d9619261a144c13cfa5fb4d7334`
+- 语料：4,000 train / 400 dev，339,925 completion-label token/epoch，zero-label=0，truncation=0
+- online 只复核 adapter、语料、prompt、tokenizer/base model 和 LoRA 的直接兼容性；online-only 代码变化不触发 SFT 重跑
+
+Job `2139` 在 Git `2e077f228f633e6b23dfbce00758cde1e9bfb74e` 完成 revision-3 online preflight，
+Slurm 状态/退出码为 `COMPLETED / 0:0`，用时 `00:17:56`。32 个 train task × K=4
+得到以下真实信号：
+
+| 项目 | 结果 | 门槛 |
+|---|---:|---:|
+| infrastructure-valid trajectory | 128/128 = 100% | ≥98% |
+| mixed official-task-score group | 9/32 = 28.125% | ≥20% |
+| non-zero task-score trajectory | 11/128 = 8.594% | ≥5% |
+| mean official task score | 0.03724 | ≥0.01 |
+| binary success | 1/128 = 0.781% | ≤70% 饱和上限 |
+| informative micro-credit turn | 156/1,997 = 7.812% | ≥2% |
+| shared non-initial-state group | 29/32 = 90.625% | ≥5% |
+
+两种 learner 都从同一个 SFT adapter 和同一批 K4 轨迹开始，各完成 10 次真实 optimizer
+update；有效 optimizer action-token 比例都是 15.169%。`multi_turn_grpo` 的 mean loss / max
+gradient norm 为 `-0.000137 / 0.5743`，`anchor_gigpo` 为 `-0.003080 / 1.1492`；两者
+adapter 语义 hash 均发生变化。初始 replay parity 全部通过。generation/learner GPU
+利用率中位数分别为 `60%/93%`，峰值显存约 `53.4/19.7 GiB`。
+
+这证明的是“RL 管线和信用信号成立”，不是 held-out 效果。preflight 只读 frozen SFT train
+任务，绝不作为测试集成绩。
+
+## 2. 正式训练只比较两个方法
+
+六个逻辑 run 是 2 方法 × 3 seed：
+
+- `multi_turn_grpo`：K4 官方 terminal task score 在组内标准化，将同一个 macro advantage
+  广播到该轨迹所有动作 turn；
+- `anchor_gigpo`：保留完全相同的 macro advantage，再对不同轨迹首次到达的相同公开状态
+  加入 discounted-return micro advantage。
+
+seed 固定为 `20260801/20260802/20260803`。两个方法共享 SFT 起点、任务顺序、K=4
+branching、采样参数、reward、optimizer、token 预算和环境；唯一预期差异是 turn-level
+信用分配。PPO、RLOO、RSFT、GSPO、critic 等不进入本轮，避免把项目做成算法清单。
+
+正式 K4 和 preflight 一样共享第一个策略采样动作，随后四条 trajectory 独立分支。
+这让两种方法面对相同的树形采样分布，并给 public-state credit 提供真实的非初始状态
+对照；不是人为过程奖励。训练 reward 始终是官方 terminal task score，binary success
+只用于最终评测主指标。
+
+## 3. 每个 run 的具体流程
 
 ```text
-clean M5 preflight SHA
-├─ scheduled full CPU regression (2 CPU)
-├─ CPU data download + exact audit (1 CPU)
-├─ CPU training-runtime repair + audit (2 CPU)
-└─ CPU server-env setup + upstream pin (2 CPU)
-       ↓ all three pass
-shared WebShop service (24 CPU, selected 16 serialized workers, renewable 24h)
-       ↓
-verified SFT corpus + tokenizer audit (16 CPU / 16 workers)
-       ↓
-SFT microbatch/short-train preflight (1 GPU)
-       ↓
-base-signal K4 + GRPO/GiGPO learner + 32/64-lane + real-resume preflights
-       ↓
-clean-SHA full CPU regression + self-hashed readiness
-       ↓ separate authorization
-formal SFT → six parallel online runs → eight frozen evaluations → analysis
+已审计 SFT adapter
+  → 从 eligible train roster 按 seed 做确定性 SHA256 顺序
+  → 当前 policy 生成最多 32 个 atomic K4 group
+  → 每 turn fsync generated-token ledger
+  → 校验 behavior/sampling/HF replay logprob parity
+  → 按方法计算 macro 或 macro+micro credit
+  → 2 policy epochs，AdamW 状态跨 iteration 延续
+  → 原子提交 adapter + rollout adapter + optimizer + report
+  → 用新 adapter 开始下一 iteration
+  → billed generated-action token 接近且不超过 500,000 时结束
 ```
 
-## 当前 checklist
+每个新 K4 attempt 先预留最坏情况 `4 × 18 × 128 = 9,216` token。所有输出都计费，
+包括 infrastructure-invalid attempt；余额不足 9,216 时不再启动新组。因此最终实际 billed
+token 位于 `[490,784, 500,000]`，不会靠失败重采突破预算。任务只来自 frozen eligible
+train roster；dev 不参与 online update，test 在六个最终 adapter 和推理身份冻结前保持关闭。
 
-| 门禁 | 状态 | 证据/说明 |
-|---|---|---|
-| 唯一 benchmark 与方法矩阵 | PASS（本地） | `data/m5_webshop_study_v1.json` |
-| 训练 runtime | IMPLEMENTED / PENDING（Slurm） | 修复 chardet 警告；只容许已冻结的 vLLM/Transformers metadata exception，真实 generation 仍须 GPU gate |
-| 上游版本/25 文件 hash lock | PASS（合同）/ PENDING（远端全文件） | `data/m5_webshop_upstream_lock_v1.json` |
-| 原始重复文本审计与排除 lock | PASS（本地真实 goals） | 500 test、499 dev、10,885 train；eligible overlap=0 |
-| Prompt target 泄漏防护 | PASS（CPU 单测） | reset ASIN 不进入 prompt |
-| 未公开 ASIN shortcut 防护 | PASS（CPU 单测） | 未列出的 click 不发送 HTTP |
-| Verified oracle 实现 | PASS（CPU mock）/ PENDING（full env 重跑） | sanitized title search + top-50 public navigation + reward=1 only |
-| 隔离 Python 3.12.13/Java 21.0.10/Pyserini server | IMPLEMENTED / PENDING（Slurm） | 独立环境，不污染训练 env |
-| 4,000/400 SFT corpus | PENDING | 依赖 data + service |
-| 8192 token/250k exposure audit | PENDING | 依赖 corpus + Qwen tokenizer |
-| SFT GPU preflight | PASS（producer `9cedc2a`） | Job 1433：完整 1 epoch、339,925 label token、1,031 updates、train/dev NLL `1.1624/1.0951`；online preflight 只做 adapter、语料、prompt、tokenizer/base-model 与 LoRA 的最小兼容检查，不重跑 SFT |
-| K4 signal/credit/optimizer gate | REVISION 2 / PENDING（Slurm） | Job 2137 完成 32×K4，但二元奖励仅 2/128 success、mixed group 2/32、自然非初始共享状态为 0；revision 2 改用官方 task score，并以共享 1-turn prefix 后独立分支验证信用分配 |
-| 8/16 workers、32/64 lanes 与 GPU telemetry | SERVICE PASS / GPU PENDING | 8/16 均零 5xx；冻结选择 16 workers + 32 lanes |
-| 24h 同根恢复 | IMPLEMENTED / NATURAL-EVENT AUDIT | 仅 USR1 超时预警提交一个 afterany successor；确定性失败停止，turn ledger、原子 K4 与 learner stage 可续 |
-| clean-SHA readiness | PENDING | 必须 self-hashed 且无 unmet gate |
-| 正式 authorization | CLOSED | preflight 通过后另行生成 |
+正式成功条件包括：attempt valid ≥98%、committed token / billed token ≥90%、累计至少
+2 次 optimizer update、loss/gradient 有限、最终参数真实变化、每 iteration parity 通过，
+以及完整的 adapter/optimizer/cost/credit 工件。
 
-## 当前允许执行的入口
+## 4. 资源、并行与 24h 恢复
 
-```text
-scripts/run_m5_webshop_cpu_regression_job.sh
-scripts/run_m5_webshop_data_preflight_job.sh
-scripts/run_m5_webshop_server_setup_job.sh
-scripts/run_m5_training_runtime_setup_job.sh
-scripts/run_m5_webshop_service_job.sh
-scripts/run_m5_webshop_service_health_job.sh
-scripts/run_m5_webshop_concurrency_preflight_job.sh
-scripts/run_m5_webshop_sft_corpus_job.sh
-scripts/run_m5_webshop_sft_preflight_job.sh
-scripts/run_m5_webshop_online_preflight_job.sh
-```
+| 角色 | GPU | CPU | 内存 | wall time |
+|---|---:|---:|---:|---:|
+| shared WebShop service | 0 | 24 | 96 GiB | 24h 可续 |
+| 每个 online run | 1 | 8 | 32 GiB | 24h 可续 |
+| 六个 online run 合计 | 6 | 48 | 192 GiB | 并行 |
+| online + service | 6 | 72 | 288 GiB | 节点内 |
 
-这些入口不提交正式训练。正式 SFT、online 与 frozen test 脚本在 readiness 完成前
-不应存在可绕过的开放路径。
+共享服务固定 16 个 process-serialized worker，online 每 run 32 lanes。CPU、GPU 和内存
+都显式进入 Slurm 调度；online job 不重复申请服务资源。六个逻辑 run 可以并行，但服务
+吞吐是共同瓶颈，GPU 会在 generation/learner 两阶段交替。若资源调度不能同时满足六个，
+Slurm 自然排队，不通过增大单作业 CPU 请求抢占资源。
 
-在线 preflight 单卡临时申请 `8 CPU / 48 GiB`，用于同一作业内依次容纳 vLLM
-generation、两个独立 HF learner 与中断恢复诊断；正式六个 online run 仍严格使用
-冻结的每作业 `8 CPU / 32 GiB`，共享 24 CPU 服务不重复计入各 GPU job。
+每个 allocation 上限 24h。只有 Slurm 在 T-300 秒发送的 `USR1` 可以提交一个
+`afterany:<parent>` successor；普通异常和参数错误立即停止，不形成 retry chain。恢复使用
+同一 method/seed/output root：已 fsync 的 token cost 保留，只有完整 K4 被 learner 使用，
+已原子提交的 learner iteration 直接复核并跳过。正式逻辑 job 数恒为 6；24h successor
+只增加 allocation 数，不增加实验条件。
 
-### SFT GPU 实现验证（2026-08-11）
+按 Job 2139 的单 run preflight 吞吐外推，不考虑共享服务竞争约 5–7 小时/run；六 run
+并发后的保守 wall-clock 预计 12–24 小时，若触发一次 24h 恢复则 24–48 小时。之后的冻结
+测试和统计分析是单独阶段，不包含在这里。
 
-Job 1433 在 RTX PRO 6000 Blackwell 上以 microbatch 8、gradient accumulation 2、
-effective batch 16 完成完整一轮；339,925 个 train completion-label token 与 token
-audit 逐项一致，zero-label/truncation 均为 0。dev NLL 为 `1.095142`，teacher-forced
-action exact/schema-valid 为 `68.659%/92.210%`。adapter 目录 SHA-256 为
-`c97c9265...d7334`，报告自哈希、invocation/benchmark/training 交叉哈希及四个 corpus
-输入哈希全部复算一致。全作业 GPU utilization mean/median 为 `88.70%/100%`，峰值
-显存约 `41.9 GiB`。Job 1434 作为 24h afterany 续跑已在正常完成后自动取消。
+## 5. 文件与操作入口
 
-该工件绑定 producer `9cedc2a7...86c1`，online consumer 保留自己的 Git SHA，二者
-不会伪装成同一提交。为了快速验证，本轮不因 online-only 代码或 parity 阈值变化重跑
-SFT；online invocation/report 直接记录并核验固定 adapter SHA、四个 corpus 哈希、
-agent prompt、tokenizer/base-model 语义和 LoRA 配置。任一项不一致即停止，而不是自动
-重跑 SFT。
+- 冻结计划：`data/m5_webshop_formal_plan_v1.json`
+- 正式 runner：`scripts/m5_webshop_formal_online.py`
+- Slurm 入口：`scripts/run_m5_webshop_formal_online_job.sh`
+- readiness 生成器：`scripts/m5_webshop_formal_readiness.py`
+- 用户批准后才可运行的 authorization 生成器：`scripts/m5_webshop_authorize_formal.py`
+- readiness：`outputs/m5_webshop_credit_assignment_v1/readiness/readiness_manifest_v1.json`
+- authorization：`outputs/m5_webshop_credit_assignment_v1/readiness/formal_authorization_v1.json`
+- run root：`outputs/m5_webshop_credit_assignment_v1/formal/online/{method}/seed_{seed}`
 
-### 在线信号诊断与 revision 2（2026-08-11）
+readiness 和 authorization 工具本身都不调用 `sbatch`。正式 job 入口同时要求 clean frozen
+Git SHA、readiness self-hash 和用户 authorization self-hash；缺任一项都会在 optimizer 前
+fail closed。当前阶段不生成 authorization，也不提交六个正式作业。
 
-Job 2137 已证明 vLLM LoRA 在线生成可用，并提交 32 个完整 K4 group。原二元合同只
-得到 2/128 success；但 8 次 purchase 的官方 verifier task score 为 `0, 1/6,
-1/3, 1/2, 0.6, 1` 等可验证值，非零信号分布在 6/32 group。revision 2 不发明
-过程奖励：训练 reward 直接采用官方 terminal task score，binary success 仍是正式
-评测主指标。preflight 只从冻结 SFT train roster 选择 32 个任务，因此仅用于信号与
-learner 验证，不作为 held-out 效果估计。K4 第一动作共享同一策略采样 seed，随后按
-rollout 分支，使不同 continuation 从同一非初始公开状态出发。
+## 6. 提交后的依赖
 
-Job 2138 验证了该设计：raw attempt valid `99.24%`、mixed group `28.1%`、非零
-task-score trajectory `9.4%`、mean task score `0.0392`、informative micro turn
-`9.2%`、非初始共享 group `96.9%`，两方法有效 optimizer token 均为 `24.6%`。
-其 binary success 为 0，因此 revision 3 删除与官方稠密训练信号重复且冲突的
-binary-success 下限；binary success 继续作为正式评测主指标与饱和上限检查。
-
-## 已发现并关闭的集群差异
-
-- 集群的 `scontrol` 仅允许 `slurmadmin` 执行，service 不再调用
-  `scontrol requeue`；到期前 5 分钟由当前 allocation 使用普通用户可执行的 `sbatch`
-  提交 `afterany:<parent_job_id>` 后继作业，日志同时记录 parent/successor job id；
-- 所有 CPU-only 入口显式设置空 `CUDA_VISIBLE_DEVICES`，即使隔离 server 的
-  Pyserini 依赖树带有 Torch/CUDA wheel，也不能触碰未申请的 GPU；
-- 每个新 service allocation 不仅重算 runtime/environment 审计，还必须与初始冻结
-  audit 除 `git_sha`、`protocol_sha256` 两个血缘字段外语义内容完全相同；隔离 `JAVA_HOME`、`JVM_PATH`、`PATH` 与
-  禁写 bytecode 必须在 allocation 审计之前导出，不能依赖登录 shell；
-- 上游 Git fetch 使用固定提交、HTTP/1.1、两次有限重试，并对每次尝试施加 60 秒
-  硬超时（含连接阶段）；若校园出口持续
-  阻断 Git smart HTTP，只允许退到同一提交的 GitHub codeload 归档，且归档
-  SHA-256、字节数、member 数和 `recipes/webshop` 内容树 hash 均已写入机器合同；
-  完整 178-file 源码树也独立锁定；部分 Git checkout 移入可恢复 quarantine，绝不
-  退回浮动分支或未审计代码。内容树使用已版本化的 repository-relative
-  path/size/file-SHA256 记录算法，服务禁写 bytecode，防止源码树在 allocation 间漂移；
-- 已存在的 Agent-R1 Git 源只有在 HEAD 精确等于冻结提交，且 tracked、untracked
-  与 ignored 状态均为空时才无网络复用；随后仍执行完整源码树与 WebShop 子树 hash
-  审计。重复 preflight 因而不依赖 GitHub 可用性，也不会接受本地残留；
-- 真实并发审计发现冻结上游在每个 worker 内共享一个 SQLite connection、Lucene
-  searcher 与 mutable cache，而 FastAPI 会把同步 endpoint 放入线程池；同 worker
-  并发可令 SQLite 查询返回损坏值并产生 HTTP 500。上游源码 hash 保持不变，仓库
-  ASGI 包装只在 worker 内串行 HTTP 请求，8/16 个 worker 之间仍并行；健康探针用
-  connection-closing 并发波覆盖每个 PID，且分别保留 `health_workers_8.json` 与
-  `health_workers_16.json`；压力门槛要求 HTTP 5xx 比例严格为零；
-- 对比审计中 8/16 workers 在 32/64 lanes 下共完成 1,536 次真实 reset/search，
-  HTTP 5xx 与其他 failure 均为零；64 lanes 未增加吞吐却把 p95 从约 6.8 秒推高到
-  约 14 秒。正式值因此冻结为 16 workers + 每 run 32 lanes：16 workers 为六个在线
-  run 保留更多独立容量，32 lanes 避免无效排队；
-- SFT corpus collector 申请 16 CPU 且开 16 个 worker；共享服务申请 24 CPU/96 GiB，
-  不让 CPU 数据或环境服务拖慢 GPU；
-- runtime、data、server environment、health、service-stress、逐任务 SFT record、
-  corpus 和 token audit 都同时嵌入当前 clean 40 位 Git SHA 与协议 SHA-256；不能
-  只靠 Slurm 日志反推代码血缘。
-
-### 失败诊断与已冻结修复（2026-08-10）
-
-首次 full-env SFT collector（Slurm 1396）扫描 10,885 个 eligible train goal，只得到
-72 个 verified trajectory；10,812 个失败原因为 broad `goal.query` 的 public top-50 中
-不存在 target ASIN，另 1 个未通过最终购买 verifier。这不是算力不足。随后对 100 个
-均匀 train 样本做只读 live diagnostic：`goal.query` 召回 0/100，清洗后的精确商品标题
-召回 95/100。修复后 oracle 只用标题构造公开 `search[...]` 动作、显式移除 ASIN、限制
-200 字符和 15 步；完整 4,000/400 corpus 与 token audit 仍须重跑通过后才能解锁 GPU
-训练。官方仅 goal 6770 的标题为空，它保留在数据审计中，但从 SFT 选择中以
-`missing_oracle_metadata` 排除。collector 现在无论成功或失败都会写带 Git/协议血缘
-的 split selection diagnostic。
-
-第二次 collector（Slurm 1408）在 goal 3134 的商品页发现 40 个原始 action 中只有
-29 个唯一 command；11 个 size command 因上游两个 option 组而重复。公开 API 重放
-确认按首次出现稳定去重后，目标 `flavor name` 与 `size` 均正确写入，最终
-reward/task_score 都为 1。适配层因此冻结为“空白规范化 → 稳定去重 → 256 上限”，
-而不是删除该任务；不同 command 不合并，非法 action 仍 fail-closed。
-
-第三次 collector（Slurm 1416）已成功生成 4,000 train / 400 dev、18,141 个 verified
-turn，但首次 token audit 揭示 Qwen3.5 默认 generation prompt 以开放 `<think>` 开头，
-与 action-only 完整样本自动插入的空 thinking block 不是严格前缀。显式
-`enable_thinking=false` 后对全 corpus 复算：train 每 epoch 339,925 个有效标签 token、
-zero-label=0、截断=0、最大序列 4,576。协议因此冻结 non-thinking chat template，并将
-SFT 收紧为 1–2 epochs：第一轮已超过 250k，只有 dev/base-signal gate 不足才跑第二轮。
-
-## 停止条件
-
-出现下列任一情况立即停在 preflight，并新建协议版本，而不是原地修改已绑定工件：
-
-- 上游 hash、商品/goal 数或 Lucene index 不一致；
-- 可选依赖导致 reward 语义漂移；
-- 公开动作 oracle 无法稳定获得 4,000/400 个 verified task；
-- SFT 后 K4 几乎全成功或全失败，mixed group 低于 20%；
-- micro credit 覆盖低于 2%，或含 shared non-initial state 的有效 K4 group 低于 5%；
-- GPU 利用率未达门槛且增加 lanes 仍由 CPU server 限制；
-- 中断恢复改变 token 成本、组原子性或 adapter/optimizer lineage。
+六个 online run 彼此独立，只共同依赖 SFT adapter、readiness/authorization 和健康的共享
+服务，因此可并行。冻结 test 对它们存在严格依赖：只有六个 `run_report.json` 全部通过、
+最终 adapter/optimizer 血缘复核完成并冻结 8 个推理身份（raw、SFT、6 RL）后，才能一次性
+打开 500-task、K=4 测试。任何中途 checkpoint、单 seed 正结果或 preflight 结果都不能进入
+正式效果表。

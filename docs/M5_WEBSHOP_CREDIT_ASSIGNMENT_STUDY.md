@@ -22,9 +22,10 @@
    state anchor 时加入 discounted-return micro advantage；没有共享信息时
    精确退化为 macro advantage。
 
-二元 success（task score ≥0.999）仍是正式评测主指标。revision 2 的 preflight
+二元 success（task score ≥0.999）仍是正式评测主指标。revision 2 起的 preflight
 共享一个由当前策略采样的首动作，之后 K=4 独立分支，从而验证非初始共享状态上的
-信用分配；该 signal probe 只使用冻结 SFT train 任务，不声称是 held-out 性能。
+信用分配；正式两个方法也共享这一树形采样设置，使受控变量仍然只有 credit estimator。
+signal probe 只使用冻结 SFT train 任务，不声称是 held-out 性能。
 
 每个方法只做 3 个预注册 seed：`20260801/02/03`。不加入 PPO、RLOO、GSPO、
 RSFT 或 critic，以免面试项目变成“大而全的算法清单”。项目深度集中在多轮轨迹、
@@ -171,6 +172,12 @@ schema/exact action、64-task closed-loop dev 和冻结 train K4 base-signal gat
   clip epsilon 0.2、gradient clip 1.0；
 - token mean → turn mean → trajectory mean → K4 group mean 的层级归一化。
 
+正式预算的硬实现是：每次启动 K4 attempt 前先预留最坏情况
+`4 × 18 × 128 = 9,216` generated-action token，生成后释放未用额度；余额不足 9,216
+时停止。因此每个 run 的实际 billed token 在 `[490,784, 500,000]`，且包含失败 attempt，
+不会因并发或恢复越过 500,000。每 32 个 task group 形成一个 on-policy iteration，
+AdamW 状态跨 iteration 延续，adapter/optimizer/report 每轮原子提交。
+
 首次更新前还必须验证两层 on-policy 证据：behavior 与无 warp sampling logprob 的
 逐 token 最大差异不超过 `1e-6`；HF learner replay 相对 vLLM behavior 的
 mean/P95/P99/P99.9 绝对 logprob 差分别不超过 `0.02/0.08/0.08/0.5`，初始
@@ -250,9 +257,15 @@ service 同样受 24 小时上限约束。集群的 `scontrol` 对普通用户�
 health、service-stress、逐任务 SFT record、corpus 与 token-audit 工件均同时写入
 clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码血缘。
 
-逻辑 GPU 工作量是 7 个训练 run（1 SFT + 6 online）和 8 个 eval run，共 15 个；
-24 小时恢复可能增加 Slurm allocation 数。稳定情况下预计 5–8 个自然日；给环境
-兼容、恢复和一次协议修订留余量，保守计划为 7–10 天。
+完整研究的逻辑 GPU 工作量是 7 个训练 run（1 SFT + 6 online）和 8 个 eval run，共
+15 个；其中 SFT 已经完成且不重跑，当前剩余训练只有 6 个 online run。24 小时恢复可能
+增加 Slurm allocation 数，但不增加实验条件。按通过的 Job 2139 外推，六 run 并发训练
+预计 12–24 小时，发生一次 timeout successor 时为 24–48 小时；冻结测试和分析另计。
+
+正式入口、输出路径、六作业矩阵和恢复命令冻结在
+`data/m5_webshop_formal_plan_v1.json` 与 `docs/M5_EXECUTION_READINESS.md`。readiness
+只给出 `READY_PENDING_USER_AUTHORIZATION`，不包含提交权限；用户明确批准后才生成
+output 下的 self-hashed authorization，readiness/authorization 工具均不调用 `sbatch`。
 
 ## 9. 正式准入门槛
 
