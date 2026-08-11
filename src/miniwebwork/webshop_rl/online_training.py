@@ -398,6 +398,19 @@ def _chunks(values: Sequence[Any], size: int):
         yield values[start : start + size]
 
 
+def _optimizer_examples(item: Mapping[str, Any]) -> list[M5TurnTrainingExample]:
+    """Return the exact per-group order used by both parity and optimization."""
+
+    return sorted(
+        item["examples"],
+        key=lambda example: (
+            example.forward_tokens,
+            example.trajectory_index,
+            example.turn_index,
+        ),
+    )
+
+
 def _replay_logprobs(model: Any, examples: Sequence[M5TurnTrainingExample], tokenizer: Any, device: torch.device, microbatch_size: int) -> list[float]:
     output = []
     model.eval()
@@ -419,12 +432,16 @@ def audit_initial_replay_parity(
     microbatch_size: int,
     thresholds: Mapping[str, float],
 ) -> dict[str, Any]:
-    behavior = [value for item in prepared for example in item["examples"] for value in example.behavior_logprobs]
-    sampling = [value for item in prepared for example in item["examples"] for value in example.sampling_logprobs]
+    behavior: list[float] = []
+    sampling: list[float] = []
+    replay: list[float] = []
+    for item in prepared:
+        examples = _optimizer_examples(item)
+        behavior.extend(value for example in examples for value in example.behavior_logprobs)
+        sampling.extend(value for example in examples for value in example.sampling_logprobs)
+        replay.extend(_replay_logprobs(model, examples, tokenizer, device, microbatch_size))
     sampling_report = summarize_logprob_parity(behavior, sampling)
     _require(sampling_report["maximum_absolute_logprob_difference"] <= thresholds["behavior_sampling_maximum_absolute_difference"], "M5 behavior/sampling parity failed")
-    examples = [example for item in prepared for example in item["examples"]]
-    replay = _replay_logprobs(model, examples, tokenizer, device, microbatch_size)
     report = summarize_logprob_parity(behavior, replay)
     checks = {
         "mean": report["mean_absolute_logprob_difference"] <= thresholds["replay_mean_absolute_difference"],
@@ -508,7 +525,7 @@ def train_policy_preflight(
     for _epoch in range(int(learner["policy_epochs"])):
         for item in prepared:
             optimizer.zero_grad(set_to_none=True)
-            examples = sorted(item["examples"], key=lambda example: (example.forward_tokens, example.trajectory_index, example.turn_index))
+            examples = _optimizer_examples(item)
             for chunk in _chunks(examples, microbatch_size):
                 batch = _move_batch(collate_turn_training_examples(chunk, pad_token_id=tokenizer.pad_token_id), device)
                 replay, entropy = _forward(model, batch)
@@ -690,10 +707,7 @@ def train_policy_iteration(
     for _epoch in range(int(learner["policy_epochs"])):
         for item in prepared:
             optimizer.zero_grad(set_to_none=True)
-            examples = sorted(
-                item["examples"],
-                key=lambda example: (example.forward_tokens, example.trajectory_index, example.turn_index),
-            )
+            examples = _optimizer_examples(item)
             for chunk in _chunks(examples, microbatch_size):
                 batch = _move_batch(
                     collate_turn_training_examples(chunk, pad_token_id=tokenizer.pad_token_id),

@@ -33,6 +33,9 @@ def test_m5_replay_parity_error_preserves_complete_numeric_audit(monkeypatch):
         {
             "examples": [
                 SimpleNamespace(
+                    forward_tokens=1000,
+                    trajectory_index=0,
+                    turn_index=0,
                     behavior_logprobs=behavior,
                     sampling_logprobs=behavior,
                 )
@@ -73,6 +76,50 @@ def test_m5_replay_parity_error_preserves_complete_numeric_audit(monkeypatch):
     assert report["p99_absolute_logprob_difference"] == pytest.approx(0.09)
     assert report["thresholds"] == thresholds
     assert json.loads(str(captured.value).split(": ", 1)[1])["p99_absolute_logprob_difference"] == pytest.approx(0.09)
+
+
+def test_m5_replay_parity_uses_exact_per_group_optimizer_batch_order(monkeypatch):
+    def example(forward_tokens: int, trajectory_index: int, turn_index: int):
+        return SimpleNamespace(
+            forward_tokens=forward_tokens,
+            trajectory_index=trajectory_index,
+            turn_index=turn_index,
+            behavior_logprobs=[0.0],
+            sampling_logprobs=[0.0],
+        )
+
+    prepared = [
+        {"examples": [example(10, 0, 1), example(5, 1, 1)]},
+        {"examples": [example(8, 0, 1), example(3, 1, 1)]},
+    ]
+    calls = []
+
+    def replay(_model, examples, _tokenizer, _device, _microbatch_size):
+        calls.append([item.forward_tokens for item in examples])
+        return [0.0] * len(examples)
+
+    monkeypatch.setattr(online_training_module, "_replay_logprobs", replay)
+    thresholds = {
+        "behavior_sampling_maximum_absolute_difference": 1e-6,
+        "replay_mean_absolute_difference": 0.02,
+        "replay_p95_absolute_difference": 0.08,
+        "replay_p99_absolute_difference": 0.08,
+        "replay_p999_absolute_difference": 0.5,
+        "replay_initial_ratio_clip_fraction": 0.005,
+        "mean_importance_ratio_absolute_deviation": 0.02,
+    }
+
+    report = audit_initial_replay_parity(
+        model=None,
+        prepared=prepared,
+        tokenizer=None,
+        device=torch.device("cpu"),
+        microbatch_size=4,
+        thresholds=thresholds,
+    )
+
+    assert report["passed"] is True
+    assert calls == [[5, 10], [3, 8]]
 
 
 def _observation(page: str, *, step: int, episode: str) -> dict:
