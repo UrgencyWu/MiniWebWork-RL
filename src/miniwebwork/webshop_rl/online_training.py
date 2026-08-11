@@ -44,9 +44,9 @@ from .credit import (
     public_state_anchor_signature,
 )
 
-GROUP_SCHEMA = "m5_webshop_k4_group_v1"
-LEARNER_REPORT_SCHEMA = "m5_webshop_online_learner_report_v1"
-OPTIMIZER_SCHEMA = "m5_webshop_online_optimizer_v1"
+GROUP_SCHEMA = "m5_webshop_k4_group_v2"
+LEARNER_REPORT_SCHEMA = "m5_webshop_online_learner_report_v2"
+OPTIMIZER_SCHEMA = "m5_webshop_online_optimizer_v2"
 METHODS = (BASELINE_METHOD, ANCHOR_METHOD)
 MAX_SEQUENCE_TOKENS = 8192
 MAX_NEW_TOKENS = 128
@@ -112,8 +112,24 @@ def trajectory_from_episode(
     """Convert one valid generic episode into exact M5 learner evidence."""
 
     _require(episode.get("rollout_valid") is True, "cannot commit an infrastructure-invalid trajectory")
-    reward = episode.get("reward")
-    _require(isinstance(reward, (int, float)) and not isinstance(reward, bool) and float(reward) in (0.0, 1.0), "M5 reward is not binary")
+    binary_reward = episode.get("reward")
+    _require(
+        isinstance(binary_reward, (int, float))
+        and not isinstance(binary_reward, bool)
+        and float(binary_reward) in (0.0, 1.0),
+        "M5 binary success reward is invalid",
+    )
+    task_score = episode.get("task_score", binary_reward)
+    _require(
+        isinstance(task_score, (int, float))
+        and not isinstance(task_score, bool)
+        and math.isfinite(float(task_score))
+        and 0.0 <= float(task_score) <= 1.0,
+        "M5 official task score is invalid",
+    )
+    success = episode.get("success")
+    _require(isinstance(success, bool), "M5 success flag is invalid")
+    _require(success == (float(task_score) >= 0.999), "M5 success/task-score disagreement")
     source_turns = episode.get("turns")
     _require(isinstance(source_turns, list) and source_turns, "M5 trajectory has no generated turns")
     turns = []
@@ -155,8 +171,9 @@ def trajectory_from_episode(
         "trajectory_id": trajectory_id,
         "rollout_index": rollout_index,
         "task_id": str(episode.get("task_id", "")),
-        "reward": float(reward),
-        "success": bool(episode.get("success", False)),
+        "reward": float(task_score),
+        "binary_reward": float(binary_reward),
+        "success": success,
         "termination_reason": str(episode.get("termination_reason", "")),
         "environment_steps": int(episode.get("environment_steps", 0)),
         "generated_action_tokens": sum(len(turn["generated_token_ids"]) for turn in turns),
@@ -209,7 +226,23 @@ def validate_committed_group(group: Mapping[str, Any]) -> dict[str, Any]:
     for trajectory in trajectories:
         _require(trajectory.get("task_id") == task_id, "M5 group crosses tasks")
         reward = trajectory.get("reward")
-        _require(isinstance(reward, (int, float)) and float(reward) in (0.0, 1.0), "M5 group reward drift")
+        _require(
+            isinstance(reward, (int, float))
+            and math.isfinite(float(reward))
+            and 0.0 <= float(reward) <= 1.0,
+            "M5 group official task-score drift",
+        )
+        success = trajectory.get("success")
+        binary_reward = trajectory.get("binary_reward")
+        _require(isinstance(success, bool), "M5 group success flag drift")
+        _require(
+            isinstance(binary_reward, (int, float))
+            and not isinstance(binary_reward, bool)
+            and float(binary_reward) in (0.0, 1.0)
+            and bool(binary_reward) is success,
+            "M5 group binary reward drift",
+        )
+        _require(success == (float(reward) >= 0.999), "M5 group success/task-score drift")
         turns = trajectory.get("turns")
         _require(isinstance(turns, list) and turns, "M5 group trajectory has no turns")
         rollout_indices.add(trajectory.get("rollout_index"))
@@ -300,6 +333,7 @@ def audit_collection(groups: Sequence[Mapping[str, Any]], *, all_generated_actio
     _require(bool(groups), "M5 collection audit requires at least one K4 group")
     validated = [validate_committed_group(group) for group in groups]
     rewards = [float(trajectory["reward"]) for group in validated for trajectory in group["trajectories"]]
+    successes = [bool(trajectory["success"]) for group in validated for trajectory in group["trajectories"]]
     mixed = sum(len({float(item["reward"]) for item in group["trajectories"]}) > 1 for group in validated)
     anchor_reports = [assign_group_credit(group["trajectories"], ANCHOR_METHOD) for group in validated]
     total_turns = sum(report["metrics"]["turn_count"] for report in anchor_reports)
@@ -311,7 +345,10 @@ def audit_collection(groups: Sequence[Mapping[str, Any]], *, all_generated_actio
     return {
         "group_count": len(validated),
         "trajectory_count": len(rewards),
-        "success_rate": sum(rewards) / len(rewards),
+        "success_count": sum(successes),
+        "success_rate": sum(successes) / len(successes),
+        "mean_official_task_score": sum(rewards) / len(rewards),
+        "nonzero_task_score_count": sum(value > 0 for value in rewards),
         "mixed_reward_group_count": mixed,
         "mixed_reward_group_fraction": mixed / len(validated),
         "initial_shared_anchor_group_count": initial_shared,

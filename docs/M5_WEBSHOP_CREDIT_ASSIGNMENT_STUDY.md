@@ -16,11 +16,15 @@
 
 正式训练只有两个在线方法：
 
-1. `multi_turn_grpo`：每个 K4 组按终局二元奖励标准化，同一轨迹的全部动作 turn
+1. `multi_turn_grpo`：每个 K4 组按 WebShop 官方 terminal task score 标准化，同一轨迹的全部动作 turn
    使用相同 macro advantage；
 2. `anchor_gigpo`：保留相同 macro advantage，并在多个轨迹首次到达同一公开
    state anchor 时加入 discounted-return micro advantage；没有共享信息时
    精确退化为 macro advantage。
+
+二元 success（task score ≥0.999）仍是正式评测主指标。revision 2 的 preflight
+共享一个由当前策略采样的首动作，之后 K=4 独立分支，从而验证非初始共享状态上的
+信用分配；该 signal probe 只使用冻结 SFT train 任务，不声称是 held-out 性能。
 
 每个方法只做 3 个预注册 seed：`20260801/02/03`。不加入 PPO、RLOO、GSPO、
 RSFT 或 critic，以免面试项目变成“大而全的算法清单”。项目深度集中在多轮轨迹、
@@ -259,8 +263,9 @@ clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码�
 2. split exclusion lock 可复现，eligible 跨角色精确 instruction 交集为零；
 3. 4,000/400 SFT task 100% public-action-valid、reward=1、zero label=0、无截断，
    三 epoch 能达到 250k label exposure；
-4. 至少 32 个 SFT-policy K4 train group：infra valid ≥99%，mixed-reward group ≥20%，
-   success 在 3%–70%；
+4. 至少 32 个 SFT-policy K4 train signal-probe group：所有 committed group 有效、
+   raw attempt valid ≥98%，mixed official-task-score group ≥20%，binary success 在
+   3%–70%；
 5. 每组初始状态形成 shared anchor，至少 2% turn 获得非零 informative micro
    credit，且至少 5% 有效 K4 group 存在一个由不同轨迹共享的非初始状态；
 6. 两种 learner 均至少完成 2 次非零更新，loss/gradient 有限，有效 optimizer
@@ -268,7 +273,7 @@ clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码�
 7. 8/16 workers × 32/64 lanes 的真实 reset/search benchmark 达到零 HTTP 5xx，
    正式服务选择 16 workers、每 run 32 lanes；
    generation/learner GPU 利用率、VRAM 与 OOM 门槛通过；
-8. 24h `afterany` successor 能从 same-root 恢复，保留 generated-turn token ledger、
+8. 只有 24h USR1 超时预警可提交一个 `afterany` successor；same-root 恢复保留 generated-turn token ledger、
    K4 原子组和完整 learner stage；快速 preflight 不为展示恢复而主动中断，若自然发生
    timeout/preemption 则必须审计恢复前缀；
 9. 最终 CPU 全回归在 clean Git SHA 上通过，生成 self-hashed readiness；

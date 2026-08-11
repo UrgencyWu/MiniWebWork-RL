@@ -197,6 +197,7 @@ def load_split_exclusions(path: Path = SPLIT_EXCLUSIONS_PATH) -> dict[str, Any]:
 def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     protocol = dict(payload)
     _require(protocol.get("schema_version") == SCHEMA_VERSION, "M5 protocol schema drift")
+    _require(protocol.get("protocol_revision") == 2, "M5 protocol revision drift")
     _require(protocol.get("study_id") == STUDY_ID, "M5 study id drift")
     _require(protocol.get("status") == "preflight_only", "M5 protocol status must remain preflight_only")
     _require(protocol.get("formal_submission_allowed") is False, "formal M5 submission was enabled inside the study protocol")
@@ -287,8 +288,38 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         "M5 online lane selection drift",
     )
     _require(
-        online.get("credit_formula_version") == "webshop_public_state_macro_micro_v1",
+        online.get("credit_formula_version") == "webshop_public_state_macro_micro_dense_v2",
         "M5 credit formula drift",
+    )
+    _require(
+        online.get("reward")
+        == {
+            "training_reward": "official WebShop terminal task_score in [0,1], or 0 when no purchase occurs",
+            "primary_evaluation": "binary success iff task_score >= 0.999",
+            "infrastructure_failure": None,
+        },
+        "M5 official reward contract drift",
+    )
+    _require(
+        online.get("preflight_sampling")
+        == {
+            "task_roster": "32 deterministic tasks from the frozen 4000-task SFT train roster",
+            "shared_prefix_turns": 1,
+            "purpose": "learner and credit-assignment signal validation only; never a held-out performance estimate",
+        },
+        "M5 preflight sampling drift",
+    )
+    _require(
+        online.get("preflight_signal_contract")
+        == {
+            "minimum_raw_attempt_valid_fraction": 0.98,
+            "minimum_mixed_task_score_group_fraction": 0.20,
+            "minimum_binary_success_rate": 0.03,
+            "maximum_binary_success_rate": 0.70,
+            "minimum_informative_micro_turn_fraction": 0.02,
+            "minimum_shared_noninitial_group_fraction": 0.05,
+        },
+        "M5 preflight signal contract drift",
     )
     _require(
         online.get("anchor_contract")
@@ -305,7 +336,7 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
                 "unknown fields",
             ],
             "policy_context_evidence": "exact prompt-token SHA256 is recorded separately and binds behavior logprobs but never changes the state group",
-            "group_scope": "same frozen task and same atomic K4 rollout group only",
+            "group_scope": "same frozen task and same atomic K4 rollout group only; preflight shares one sampled prefix action before rollout-specific branching",
         },
         "M5 public-state anchor contract drift",
     )

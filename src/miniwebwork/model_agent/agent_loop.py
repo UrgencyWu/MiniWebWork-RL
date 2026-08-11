@@ -39,6 +39,7 @@ def run_model_episode(
         "episode_id": "",
         "success": False,
         "reward": 0.0,
+        "task_score": 0.0,
         "rollout_valid": True,
         "failure_origin": "policy",
         "termination_reason": "unknown",
@@ -109,6 +110,7 @@ def run_model_episode(
             ):
                 result.update(
                     reward=None,
+                    task_score=None,
                     rollout_valid=False,
                     failure_origin="infrastructure",
                     termination_reason="model_backend_error",
@@ -160,6 +162,7 @@ def run_model_episode(
             if step_result.terminated or step_result.truncated:
                 result["success"] = step_result.reward > 0.5
                 result["reward"] = float(step_result.reward)
+                result["task_score"] = float(step_result.info.get("task_score", step_result.reward))
                 result["failure_origin"] = "none" if result["success"] else "policy"
                 result["termination_reason"] = step_result.info.get(
                     "termination_reason",
@@ -176,6 +179,7 @@ def run_model_episode(
         result.update(
             success=False,
             reward=None,
+            task_score=None,
             rollout_valid=False,
             failure_origin="infrastructure",
             termination_reason="environment_or_runner_error",

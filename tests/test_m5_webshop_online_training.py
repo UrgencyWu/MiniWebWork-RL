@@ -36,7 +36,7 @@ def _observation(page: str, *, step: int, episode: str) -> dict:
     }
 
 
-def _episode(reward: float, rollout: int) -> dict:
+def _episode(reward: float, rollout: int, *, task_score: float | None = None) -> dict:
     turns = []
     for index, page in enumerate(("home", "search_results"), start=1):
         turns.append(
@@ -62,6 +62,7 @@ def _episode(reward: float, rollout: int) -> dict:
         "task_id": "webshop_goal_01000",
         "success": reward == 1.0,
         "reward": reward,
+        "task_score": reward if task_score is None else task_score,
         "rollout_valid": True,
         "termination_reason": "purchase" if reward else "max_model_turns",
         "environment_steps": 2,
@@ -106,6 +107,20 @@ def test_m5_group_binds_token_logprobs_prompt_context_and_public_state():
     changed["trajectories"][0]["turns"][0]["prompt_token_ids"][0] = 999
     with pytest.raises(ValueError, match="self-hash|prompt token hash"):
         validate_committed_group(changed)
+
+
+def test_m5_uses_official_dense_task_score_but_preserves_binary_success():
+    trajectory = trajectory_from_episode(
+        _episode(0.0, 0, task_score=0.625),
+        trajectory_id="g0000.a0.r0",
+        rollout_index=0,
+        adapter_sha256=SHA,
+        rollout_adapter_sha256="b" * 64,
+        adapter_semantic_sha256="c" * 64,
+    )
+    assert trajectory["reward"] == 0.625
+    assert trajectory["binary_reward"] == 0.0
+    assert trajectory["success"] is False
 
 
 def test_m5_collection_gate_counts_k4_signal_and_noninitial_anchor():

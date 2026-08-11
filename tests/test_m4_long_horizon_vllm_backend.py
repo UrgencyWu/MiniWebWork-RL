@@ -13,6 +13,7 @@ from miniwebwork.long_horizon_rl.vllm_backend import (
     RolloutRequestContext,
     ThreadsafeVLLMBackend,
     VLLMBackendConfig,
+    derive_context_sampling_seed,
     derive_sampling_seed,
     extract_chosen_token_logprobs,
 )
@@ -116,6 +117,23 @@ def test_sampling_seed_is_deterministic_and_changes_across_rollout_or_turn():
         rollout_index=0,
         turn_index=2,
     )
+
+
+def test_shared_prefix_seed_matches_within_group_then_branches():
+    contexts = [
+        RolloutRequestContext(
+            run_seed=20260811,
+            iteration_index=0,
+            group_id="group-0000",
+            attempt_index=0,
+            trajectory_id=f"trajectory-{index}",
+            rollout_index=index,
+            shared_prefix_turns=1,
+        )
+        for index in range(4)
+    ]
+    assert len({derive_context_sampling_seed(context, turn_index=1) for context in contexts}) == 1
+    assert len({derive_context_sampling_seed(context, turn_index=2) for context in contexts}) == 4
 
 
 class _FakeAsyncEngine:

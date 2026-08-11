@@ -41,9 +41,9 @@ formal SFT → six parallel online runs → eight frozen evaluations → analysi
 | 4,000/400 SFT corpus | PENDING | 依赖 data + service |
 | 8192 token/250k exposure audit | PENDING | 依赖 corpus + Qwen tokenizer |
 | SFT GPU preflight | PASS（producer `9cedc2a`） | Job 1433：完整 1 epoch、339,925 label token、1,031 updates、train/dev NLL `1.1624/1.0951`；online preflight 只做 adapter、语料、prompt、tokenizer/base-model 与 LoRA 的最小兼容检查，不重跑 SFT |
-| K4 signal/credit/optimizer gate | IMPLEMENTED / PENDING（Slurm） | 32 个 K4、32 lanes、两方法 parity/learner、更新后 adapter reload 与非初始 anchor 门禁；正式 online 禁止 |
+| K4 signal/credit/optimizer gate | REVISION 2 / PENDING（Slurm） | Job 2137 完成 32×K4，但二元奖励仅 2/128 success、mixed group 2/32、自然非初始共享状态为 0；revision 2 改用官方 task score，并以共享 1-turn prefix 后独立分支验证信用分配 |
 | 8/16 workers、32/64 lanes 与 GPU telemetry | SERVICE PASS / GPU PENDING | 8/16 均零 5xx；冻结选择 16 workers + 32 lanes |
-| 24h 同根恢复 | IMPLEMENTED / NATURAL-EVENT AUDIT | afterany successor、turn ledger、原子 K4 与 learner stage 可续；快速验证不主动制造一次无必要中断 |
+| 24h 同根恢复 | IMPLEMENTED / NATURAL-EVENT AUDIT | 仅 USR1 超时预警提交一个 afterany successor；确定性失败停止，turn ledger、原子 K4 与 learner stage 可续 |
 | clean-SHA readiness | PENDING | 必须 self-hashed 且无 unmet gate |
 | 正式 authorization | CLOSED | preflight 通过后另行生成 |
 
@@ -84,6 +84,16 @@ action exact/schema-valid 为 `68.659%/92.210%`。adapter 目录 SHA-256 为
 SFT；online invocation/report 直接记录并核验固定 adapter SHA、四个 corpus 哈希、
 agent prompt、tokenizer/base-model 语义和 LoRA 配置。任一项不一致即停止，而不是自动
 重跑 SFT。
+
+### 在线信号诊断与 revision 2（2026-08-11）
+
+Job 2137 已证明 vLLM LoRA 在线生成可用，并提交 32 个完整 K4 group。原二元合同只
+得到 2/128 success；但 8 次 purchase 的官方 verifier task score 为 `0, 1/6,
+1/3, 1/2, 0.6, 1` 等可验证值，非零信号分布在 6/32 group。revision 2 不发明
+过程奖励：训练 reward 直接采用官方 terminal task score，binary success 仍是正式
+评测主指标。preflight 只从冻结 SFT train roster 选择 32 个任务，因此仅用于信号与
+learner 验证，不作为 held-out 效果估计。K4 第一动作共享同一策略采样 seed，随后按
+rollout 分支，使不同 continuation 从同一非初始公开状态出发。
 
 ## 已发现并关闭的集群差异
 

@@ -62,6 +62,7 @@ PREFLIGHT_SEED = 20260810
 GROUP_COUNT = 32
 CONCURRENT_GROUPS = 8
 MAX_ATTEMPTS = 4
+SHARED_PREFIX_TURNS = 1
 SFT_PRODUCER_GIT_SHA = "9cedc2a7cc8cb557f5b583d3c9dd7ae3502486c1"
 SFT_PRODUCER_PROTOCOL_SHA256 = "f6a6a2ded1fd6c926873d920d921937d32734aca0812a6aa72d54c1cfe13535f"
 SFT_ADAPTER_SHA256 = "c97c9265fe0043a8cda59908713429eef9e13d9619261a144c13cfa5fb4d7334"
@@ -178,9 +179,13 @@ def _telemetry_audit(paths: list[Path]) -> dict[str, Any]:
 
 
 def _task_order() -> list[str]:
-    roster = eligible_goal_indices("train")
-    ordered = sorted(roster, key=lambda index: hashlib.sha256(f"{PREFLIGHT_SEED}|{index}".encode()).digest())
-    return [task_id_for_goal_index(index) for index in ordered[:GROUP_COUNT]]
+    corpus = PROJECT_ROOT / "outputs" / "m5_webshop_credit_assignment_v1" / "preflight" / "sft_corpus" / "train.jsonl"
+    task_ids = {str(json.loads(line)["task_id"]) for line in corpus.read_text(encoding="utf-8").splitlines()}
+    _require(len(task_ids) == 4000, "M5 frozen SFT train-task roster drift")
+    eligible = {task_id_for_goal_index(index) for index in eligible_goal_indices("train")}
+    _require(task_ids <= eligible, "M5 signal probe crossed the train split")
+    ordered = sorted(task_ids, key=lambda task_id: hashlib.sha256(f"{PREFLIGHT_SEED}|{task_id}".encode()).digest())
+    return ordered[:GROUP_COUNT]
 
 
 def _minimal_sft_compatibility(*, protocol: Mapping[str, Any], base_model: Path, adapter: Path) -> dict[str, Any]:
@@ -269,6 +274,7 @@ async def _collect_one_group(
                 attempt_index=attempt_index,
                 trajectory_id=trajectory_id,
                 rollout_index=rollout_index,
+                shared_prefix_turns=SHARED_PREFIX_TURNS,
             )
             backend = ThreadsafeVLLMBackend(
                 engine=engine,
@@ -325,6 +331,7 @@ async def _collect_one_group(
                     "rollout_index": index,
                     "rollout_valid": episode.get("rollout_valid"),
                     "reward": episode.get("reward"),
+                    "task_score": episode.get("task_score"),
                     "termination_reason": episode.get("termination_reason"),
                     "error": episode.get("error"),
                     "model_turns": episode.get("model_turns"),
@@ -417,6 +424,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "group_count": GROUP_COUNT,
             "K": 4,
             "parallel_lanes": 32,
+            "task_selection": "deterministic_from_frozen_sft_train_tasks",
+            "shared_prefix_turns": SHARED_PREFIX_TURNS,
             "base_model": str(base_model),
             "initial_adapter": str(initial_adapter),
             "sft_compatibility": compatibility,
@@ -474,14 +483,15 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         ledger_audit = ledger.audit()
         collection = audit_collection(groups, all_generated_action_tokens=ledger_audit["generated_action_tokens"])
         attempt = _attempt_validity(attempts_root)
+        signal_contract = protocol["online"]["preflight_signal_contract"]
         collection_checks = {
-            "infrastructure_valid": attempt["infrastructure_valid_fraction"] >= 0.99,
-            "mixed_reward": collection["mixed_reward_group_fraction"] >= 0.20,
-            "success_lower": collection["success_rate"] >= 0.03,
-            "success_upper": collection["success_rate"] <= 0.70,
+            "infrastructure_valid": attempt["infrastructure_valid_fraction"] >= signal_contract["minimum_raw_attempt_valid_fraction"],
+            "mixed_reward": collection["mixed_reward_group_fraction"] >= signal_contract["minimum_mixed_task_score_group_fraction"],
+            "success_lower": collection["success_rate"] >= signal_contract["minimum_binary_success_rate"],
+            "success_upper": collection["success_rate"] <= signal_contract["maximum_binary_success_rate"],
             "initial_anchor": collection["initial_shared_anchor_group_fraction"] == 1.0,
-            "informative_micro": collection["informative_micro_turn_fraction"] >= 0.02,
-            "shared_noninitial": collection["shared_noninitial_group_fraction"] >= 0.05,
+            "informative_micro": collection["informative_micro_turn_fraction"] >= signal_contract["minimum_informative_micro_turn_fraction"],
+            "shared_noninitial": collection["shared_noninitial_group_fraction"] >= signal_contract["minimum_shared_noninitial_group_fraction"],
         }
         _require(all(collection_checks.values()), f"M5 collection gates failed: {collection_checks}")
         collection_report = _hashed(
@@ -493,6 +503,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 "attempts": attempt,
                 "metrics": collection,
                 "checks": collection_checks,
+                "signal_contract": signal_contract,
                 "recovery": {
                     "same_root_resume_supported": True,
                     "resumed_group_count": resumed_group_count,

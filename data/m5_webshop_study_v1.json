@@ -1,5 +1,6 @@
 {
   "schema_version": "m5_webshop_study_v1",
+  "protocol_revision": 2,
   "study_id": "m5_webshop_credit_assignment_v1",
   "status": "preflight_only",
   "formal_submission_allowed": false,
@@ -125,15 +126,17 @@
       "replay_initial_ratio_clip_fraction": 0.005,
       "mean_importance_ratio_absolute_deviation": 0.02
     },
-    "reward": {"success": 1.0, "valid_failure": 0.0, "infrastructure_failure": null},
-    "baseline_credit": "one standardized K=4 terminal advantage broadcast to all action turns",
-    "main_credit": "macro advantage plus first-visit standardized discounted return at exact task-scoped public-state anchors; exact macro fallback elsewhere",
-    "credit_formula_version": "webshop_public_state_macro_micro_v1",
+    "reward": {"training_reward": "official WebShop terminal task_score in [0,1], or 0 when no purchase occurs", "primary_evaluation": "binary success iff task_score >= 0.999", "infrastructure_failure": null},
+    "preflight_sampling": {"task_roster": "32 deterministic tasks from the frozen 4000-task SFT train roster", "shared_prefix_turns": 1, "purpose": "learner and credit-assignment signal validation only; never a held-out performance estimate"},
+    "preflight_signal_contract": {"minimum_raw_attempt_valid_fraction": 0.98, "minimum_mixed_task_score_group_fraction": 0.20, "minimum_binary_success_rate": 0.03, "maximum_binary_success_rate": 0.70, "minimum_informative_micro_turn_fraction": 0.02, "minimum_shared_noninitial_group_fraction": 0.05},
+    "baseline_credit": "one standardized K=4 official terminal task-score advantage broadcast to all action turns",
+    "main_credit": "macro official task-score advantage plus first-visit standardized discounted task-score return at exact task-scoped public-state anchors; exact macro fallback elsewhere",
+    "credit_formula_version": "webshop_public_state_macro_micro_dense_v2",
     "anchor_contract": {
       "state_source": "exact task-scoped public MDP state before action: schema, task id, instruction, page type, prompt-visible observation text, truncation flag, bounded available actions and terminal flag",
       "excluded_from_grouping": ["prompt tokens", "step index", "recent action history", "episode id", "runtime URL", "oracle target", "verifier output", "unknown fields"],
       "policy_context_evidence": "exact prompt-token SHA256 is recorded separately and binds behavior logprobs but never changes the state group",
-      "group_scope": "same frozen task and same atomic K4 rollout group only"
+      "group_scope": "same frozen task and same atomic K4 rollout group only; preflight shares one sampled prefix action before rollout-specific branching"
     },
     "credit_parameters": {
       "advantage_epsilon": 0.000001,
@@ -143,7 +146,7 @@
       "advantage_normalization": "population standardization within the same task K4 group; exact zero when standard deviation is at most epsilon",
       "loss_normalization": "token mean within turn; turn mean within trajectory; trajectory mean within K4 group"
     },
-    "recovery": "fsync every generated turn and atomic K=4 group; commit adapter, rollout adapter, optimizer, sampler and token ledger per iteration; resume same root after 24h interruption"
+    "recovery": "fsync every generated turn and atomic K=4 group; commit adapter, rollout adapter, optimizer, sampler and token ledger per iteration; only the Slurm USR1 timeout warning may submit one afterany successor for same-root recovery"
   },
   "evaluation": {
     "task_count": 500,
@@ -161,11 +164,11 @@
     "split_isolation": "zero goal-index overlap and zero normalized exact-instruction overlap across the eligible train/dev rosters and the complete frozen test roster; exclusions must exactly match the versioned lock",
     "training_runtime": "all pinned critical packages exact; RequestsDependencyWarning absent; pip check output contains only the frozen vLLM 0.17.0 versus Transformers 5.14.1 metadata exception; Qwen3_5ForConditionalGeneration is registered natively; real generation remains a required GPU gate",
     "expert_replay": "100 percent verifier success; zero invalid labels; zero test access; zero hidden-field prompt leakage",
-    "base_signal": "at least 32 K4 train groups; infrastructure-valid >= 0.99; mixed-reward group fraction >= 0.20; success in [0.03, 0.70]",
+    "base_signal": "at least 32 K4 frozen-SFT-train signal-probe groups; committed groups are 100 percent valid, raw attempt validity >= 0.98; mixed official-task-score group fraction >= 0.20; binary success in [0.03, 0.70]",
     "step_credit": "the initial public state is shared in every valid K4 group; nonzero informative micro credit occurs in >= 0.02 of generated turns; >= 0.05 of valid groups contain a shared non-initial public state",
     "optimizer": "at least two nonzero updates; finite loss and gradients; effective optimizer action-token fraction >= 0.15",
     "throughput": "benchmark 32 and 64 lanes against one shared 24-CPU service with 8 and 16 process-serialized workers; select the faster stable setting; HTTP 5xx fraction must be zero; generation-phase median GPU utilization >= 0.60 and learner-phase median GPU utilization >= 0.80; no OOM",
-    "recovery": "24h afterany successor and same-root recovery preserve generated-turn cost, atomic K4 groups and completed learner stages; minimal preflight does not force an otherwise unnecessary interruption",
+    "recovery": "only a 24h USR1 timeout warning submits one afterany successor; same-root recovery preserves generated-turn cost, atomic K4 groups and completed learner stages; deterministic failures stop without retry chains",
     "artifact_lineage": "every M5 runtime, data, environment, health, service-stress, SFT record, corpus and token-audit artifact embeds the exact clean 40-character repository Git SHA in addition to the protocol SHA256",
     "formal_release": "a clean frozen Git SHA plus a self-hashed readiness artifact must be referenced by a separate versioned authorization artifact; this preflight protocol remains closed until a new formal protocol version is reviewed"
   },

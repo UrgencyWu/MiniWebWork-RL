@@ -19,7 +19,7 @@ from ..long_horizon_rl.contracts import sha256_json, token_ids_sha256
 
 BASELINE_METHOD = "multi_turn_grpo"
 ANCHOR_METHOD = "anchor_gigpo"
-CREDIT_FORMULA_VERSION = "webshop_public_state_macro_micro_v1"
+CREDIT_FORMULA_VERSION = "webshop_public_state_macro_micro_dense_v2"
 GROUP_SIZE = 4
 ADVANTAGE_EPSILON = 1e-6
 MICRO_RETURN_GAMMA = 0.95
@@ -116,8 +116,11 @@ def _validate_trajectories(trajectories: Sequence[Mapping[str, Any]]) -> tuple[M
         task_ids.add(task_id)
         reward = trajectory.get("reward")
         _require(
-            isinstance(reward, (int, float)) and not isinstance(reward, bool) and float(reward) in (0.0, 1.0),
-            f"trajectory {trajectory_index} reward is not binary",
+            isinstance(reward, (int, float))
+            and not isinstance(reward, bool)
+            and math.isfinite(float(reward))
+            and 0.0 <= float(reward) <= 1.0,
+            f"trajectory {trajectory_index} official task score is invalid",
         )
         turns = trajectory.get("turns")
         _require(isinstance(turns, list) and turns, f"trajectory {trajectory_index} has no turns")

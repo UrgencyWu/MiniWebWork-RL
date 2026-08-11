@@ -191,6 +191,7 @@ class RolloutRequestContext:
     attempt_index: int
     trajectory_id: str
     rollout_index: int
+    shared_prefix_turns: int = 0
 
     def validate(self) -> None:
         for field in ("group_id", "trajectory_id"):
@@ -200,12 +201,28 @@ class RolloutRequestContext:
                 and SAFE_REQUEST_COMPONENT.fullmatch(value) is not None,
                 f"unsafe rollout request {field}",
             )
-        for field in ("run_seed", "iteration_index", "attempt_index", "rollout_index"):
+        for field in ("run_seed", "iteration_index", "attempt_index", "rollout_index", "shared_prefix_turns"):
             value = getattr(self, field)
             _require(
                 isinstance(value, int) and not isinstance(value, bool) and value >= 0,
                 f"invalid rollout request {field}",
             )
+
+
+def derive_context_sampling_seed(context: RolloutRequestContext, *, turn_index: int) -> int:
+    """Share a stochastic prefix within K, then branch with rollout-specific seeds."""
+
+    context.validate()
+    _require(isinstance(turn_index, int) and turn_index > 0, "invalid rollout turn index")
+    seed_rollout_index = 0 if turn_index <= context.shared_prefix_turns else context.rollout_index
+    return derive_sampling_seed(
+        run_seed=context.run_seed,
+        iteration_index=context.iteration_index,
+        group_id=context.group_id,
+        attempt_index=context.attempt_index,
+        rollout_index=seed_rollout_index,
+        turn_index=turn_index,
+    )
 
 
 class AsyncVLLMGenerationEngine:
@@ -475,14 +492,7 @@ class ThreadsafeVLLMBackend:
             f"{self._context.group_id}.a{self._context.attempt_index}."
             f"r{self._context.rollout_index}.t{turn_index}"
         )
-        sampling_seed = derive_sampling_seed(
-            run_seed=self._context.run_seed,
-            iteration_index=self._context.iteration_index,
-            group_id=self._context.group_id,
-            attempt_index=self._context.attempt_index,
-            rollout_index=self._context.rollout_index,
-            turn_index=turn_index,
-        )
+        sampling_seed = derive_context_sampling_seed(self._context, turn_index=turn_index)
         future = asyncio.run_coroutine_threadsafe(
             self._engine.generate_messages(
                 messages,
