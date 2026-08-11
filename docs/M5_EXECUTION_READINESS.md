@@ -2,9 +2,9 @@
 
 > 最后更新：2026-08-11
 >
-> 当前状态：`READY_PENDING_USER_AUTHORIZATION`
+> 当前状态：revision-4 preflight 已通过，正在重建正式准入与提交
 >
-> 正式 SFT 不重跑；正式 online Slurm 作业尚未提交。
+> 正式 SFT 不重跑；Jobs `2143–2148` 已作为失败诊断归档，不进入正式结果。
 
 ### 2026-08-11 parity revision-4 校准
 
@@ -26,7 +26,7 @@ revision-4 GPU preflight Job `2161` 随后证明两种 learner 都通过新 pari
 generation mean/median/P95 为 45.2%/56%/64%，learner median 通过 80% 门槛。浏览器智能体
 生成会在 GPU token burst 与 CPU/HTTP 环境步骤间交替，因此资源门禁修正为 generation
 mean≥40% 且 P95≥60%，同时保留 learner median≥80%；这只修正资源利用率判据，不改变
-数据、奖励、训练预算或算法。
+数据、奖励、训练预算或算法。最终 Job `2162` 在该判据下完整通过。
 
 ## 1. 已通过的最小 RL 验证
 
@@ -37,25 +37,26 @@ mean≥40% 且 P95≥60%，同时保留 learner median≥80%；这只修正资�
 - 语料：4,000 train / 400 dev，339,925 completion-label token/epoch，zero-label=0，truncation=0
 - online 只复核 adapter、语料、prompt、tokenizer/base model 和 LoRA 的直接兼容性；online-only 代码变化不触发 SFT 重跑
 
-Job `2139` 在 Git `2e077f228f633e6b23dfbce00758cde1e9bfb74e` 完成 revision-3 online preflight，
-Slurm 状态/退出码为 `COMPLETED / 0:0`，用时 `00:17:56`。32 个 train task × K=4
+Job `2162` 在 Git `2c62bf648f3584e4461bf50e987661071a1bb9f9` 完成 revision-4 online preflight，
+Slurm 状态/退出码为 `COMPLETED / 0:0`，用时 `00:18:49`。32 个 train task × K=4
 得到以下真实信号：
 
 | 项目 | 结果 | 门槛 |
 |---|---:|---:|
 | infrastructure-valid trajectory | 128/128 = 100% | ≥98% |
-| mixed official-task-score group | 9/32 = 28.125% | ≥20% |
+| mixed official-task-score group | 10/32 = 31.25% | ≥20% |
 | non-zero task-score trajectory | 11/128 = 8.594% | ≥5% |
-| mean official task score | 0.03724 | ≥0.01 |
+| mean official task score | 0.03984 | ≥0.01 |
 | binary success | 1/128 = 0.781% | ≤70% 饱和上限 |
-| informative micro-credit turn | 156/1,997 = 7.812% | ≥2% |
+| informative micro-credit turn | 168/1,994 = 8.425% | ≥2% |
 | shared non-initial-state group | 29/32 = 90.625% | ≥5% |
 
 两种 learner 都从同一个 SFT adapter 和同一批 K4 轨迹开始，各完成 10 次真实 optimizer
-update；有效 optimizer action-token 比例都是 15.169%。`multi_turn_grpo` 的 mean loss / max
-gradient norm 为 `-0.000137 / 0.5743`，`anchor_gigpo` 为 `-0.003080 / 1.1492`；两者
-adapter 语义 hash 均发生变化。初始 replay parity 全部通过。generation/learner GPU
-利用率中位数分别为 `60%/93%`，峰值显存约 `53.4/19.7 GiB`。
+update；有效 optimizer action-token 比例都是 15.648%。`multi_turn_grpo` 的 mean loss / max
+gradient norm 为 `-0.000127 / 0.3866`，`anchor_gigpo` 为 `-0.003384 / 0.7279`；两者
+adapter 语义 hash 均发生变化。初始 replay parity 全部通过，P99 absolute difference 为
+`0.08345`。generation mean/P95 为 `49.0%/92%`，learner median 为 `86%`，峰值显存约
+`53.4/19.6 GiB`。
 
 这证明的是“RL 管线和信用信号成立”，不是 held-out 效果。preflight 只读 frozen SFT train
 任务，绝不作为测试集成绩。
@@ -122,7 +123,7 @@ Slurm 自然排队，不通过增大单作业 CPU 请求抢占资源。
 已原子提交的 learner iteration 直接复核并跳过。正式逻辑 job 数恒为 6；24h successor
 只增加 allocation 数，不增加实验条件。
 
-按 Job 2139 的单 run preflight 吞吐外推，不考虑共享服务竞争约 5–7 小时/run；六 run
+按 Job 2162 的单 run preflight 吞吐外推，不考虑共享服务竞争约 5–7 小时/run；六 run
 并发后的保守 wall-clock 预计 12–24 小时，若触发一次 24h 恢复则 24–48 小时。之后的冻结
 测试和统计分析是单独阶段，不包含在这里。
 

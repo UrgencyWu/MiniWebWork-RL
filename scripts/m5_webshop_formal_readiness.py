@@ -162,7 +162,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--expected-git-sha", required=True)
     parser.add_argument("--formal-plan", type=Path, default=PROJECT_ROOT / "data" / "m5_webshop_formal_plan_v1.json")
-    parser.add_argument("--preflight-job-id", type=int, default=2139)
+    parser.add_argument("--preflight-job-id", type=int, default=2162)
     parser.add_argument("--preflight-state", default="COMPLETED")
     parser.add_argument("--preflight-exit-code", default="0:0")
     parser.add_argument("--regression-job-id", type=int, required=True)

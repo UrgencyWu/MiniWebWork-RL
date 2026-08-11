@@ -105,7 +105,7 @@ def validate_formal_plan(payload: Mapping[str, Any]) -> dict[str, Any]:
     evidence = plan.get("preflight_evidence")
     _require(
         isinstance(evidence, Mapping)
-        and evidence.get("slurm_job_id") == 2139
+        and evidence.get("slurm_job_id") == 2162
         and evidence.get("state") == "COMPLETED"
         and evidence.get("exit_code") == "0:0"
         and evidence.get("result") == "passed",

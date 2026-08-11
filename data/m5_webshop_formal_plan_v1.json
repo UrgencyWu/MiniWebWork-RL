@@ -4,13 +4,13 @@
   "lifecycle_state": "ready_pending_user_authorization",
   "formal_submission_allowed": false,
   "preflight_evidence": {
-    "slurm_job_id": 2139,
+    "slurm_job_id": 2162,
     "state": "COMPLETED",
     "exit_code": "0:0",
-    "producer_git_sha": "2e077f228f633e6b23dfbce00758cde1e9bfb74e",
-    "protocol_sha256": "035475618ec0da1a9206147cbbed0d7a7526ec534e8fe667874546d863e5f4e3",
+    "producer_git_sha": "2c62bf648f3584e4461bf50e987661071a1bb9f9",
+    "protocol_sha256": "a49881137e90a7bc6b2747e36a7e129ea37c52924d9ab965ea549e8be98a8293",
     "report_path": "outputs/m5_webshop_credit_assignment_v1/preflight/online_gpu/preflight_report.json",
-    "report_content_sha256": "5fd931a82d6a205e52ea0d93ae36d79797d6b5613ca85e93bfa8613265612564",
+    "report_content_sha256": "a80a0f88169e9d94bf0536bf024f17556cad17ebf781edc7679efdbae9b6dd48",
     "sft_adapter_sha256": "c97c9265fe0043a8cda59908713429eef9e13d9619261a144c13cfa5fb4d7334",
     "result": "passed"
   },

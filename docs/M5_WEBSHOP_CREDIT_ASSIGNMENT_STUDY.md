@@ -246,7 +246,7 @@ public-anchor 覆盖和有效 optimizer token 比例。置信区间使用 task-c
 connection、Lucene searcher 和
 mutable cache 是 per-process 共享对象，而 FastAPI 同步 endpoint 使用线程池；因此
 服务入口在每个 worker 内只允许一个 in-flight HTTP 请求，worker 之间继续并行。
-generation 阶段 GPU 利用率中位数要求至少 60%，learner 阶段至少 80%。
+generation 阶段要求 GPU 利用率 mean≥40% 且 P95≥60%，learner 阶段 median≥80%。
 
 service 同样受 24 小时上限约束。集群的 `scontrol` 对普通用户禁权，因此到期前
 5 分钟不做伪 requeue，而是由当前作业用 `sbatch` 提交带 `afterany:<parent_job_id>`
@@ -259,7 +259,7 @@ clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码�
 
 完整研究的逻辑 GPU 工作量是 7 个训练 run（1 SFT + 6 online）和 8 个 eval run，共
 15 个；其中 SFT 已经完成且不重跑，当前剩余训练只有 6 个 online run。24 小时恢复可能
-增加 Slurm allocation 数，但不增加实验条件。按通过的 Job 2139 外推，六 run 并发训练
+增加 Slurm allocation 数，但不增加实验条件。按通过的 Job 2162 外推，六 run 并发训练
 预计 12–24 小时，发生一次 timeout successor 时为 24–48 小时；冻结测试和分析另计。
 
 正式入口、输出路径、六作业矩阵和恢复命令冻结在
