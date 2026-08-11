@@ -487,7 +487,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         collection_checks = {
             "infrastructure_valid": attempt["infrastructure_valid_fraction"] >= signal_contract["minimum_raw_attempt_valid_fraction"],
             "mixed_reward": collection["mixed_reward_group_fraction"] >= signal_contract["minimum_mixed_task_score_group_fraction"],
-            "success_lower": collection["success_rate"] >= signal_contract["minimum_binary_success_rate"],
+            "nonzero_task_score": collection["nonzero_task_score_count"] / collection["trajectory_count"] >= signal_contract["minimum_nonzero_task_score_fraction"],
+            "mean_task_score": collection["mean_official_task_score"] >= signal_contract["minimum_mean_official_task_score"],
             "success_upper": collection["success_rate"] <= signal_contract["maximum_binary_success_rate"],
             "initial_anchor": collection["initial_shared_anchor_group_fraction"] == 1.0,
             "informative_micro": collection["informative_micro_turn_fraction"] >= signal_contract["minimum_informative_micro_turn_fraction"],

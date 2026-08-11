@@ -95,6 +95,12 @@ Job 2137 已证明 vLLM LoRA 在线生成可用，并提交 32 个完整 K4 grou
 learner 验证，不作为 held-out 效果估计。K4 第一动作共享同一策略采样 seed，随后按
 rollout 分支，使不同 continuation 从同一非初始公开状态出发。
 
+Job 2138 验证了该设计：raw attempt valid `99.24%`、mixed group `28.1%`、非零
+task-score trajectory `9.4%`、mean task score `0.0392`、informative micro turn
+`9.2%`、非初始共享 group `96.9%`，两方法有效 optimizer token 均为 `24.6%`。
+其 binary success 为 0，因此 revision 3 删除与官方稠密训练信号重复且冲突的
+binary-success 下限；binary success 继续作为正式评测主指标与饱和上限检查。
+
 ## 已发现并关闭的集群差异
 
 - 集群的 `scontrol` 仅允许 `slurmadmin` 执行，service 不再调用

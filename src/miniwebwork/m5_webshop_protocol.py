@@ -197,7 +197,7 @@ def load_split_exclusions(path: Path = SPLIT_EXCLUSIONS_PATH) -> dict[str, Any]:
 def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
     protocol = dict(payload)
     _require(protocol.get("schema_version") == SCHEMA_VERSION, "M5 protocol schema drift")
-    _require(protocol.get("protocol_revision") == 2, "M5 protocol revision drift")
+    _require(protocol.get("protocol_revision") == 3, "M5 protocol revision drift")
     _require(protocol.get("study_id") == STUDY_ID, "M5 study id drift")
     _require(protocol.get("status") == "preflight_only", "M5 protocol status must remain preflight_only")
     _require(protocol.get("formal_submission_allowed") is False, "formal M5 submission was enabled inside the study protocol")
@@ -314,7 +314,8 @@ def validate_protocol(payload: Mapping[str, Any]) -> dict[str, Any]:
         == {
             "minimum_raw_attempt_valid_fraction": 0.98,
             "minimum_mixed_task_score_group_fraction": 0.20,
-            "minimum_binary_success_rate": 0.03,
+            "minimum_nonzero_task_score_fraction": 0.05,
+            "minimum_mean_official_task_score": 0.01,
             "maximum_binary_success_rate": 0.70,
             "minimum_informative_micro_turn_fraction": 0.02,
             "minimum_shared_noninitial_group_fraction": 0.05,

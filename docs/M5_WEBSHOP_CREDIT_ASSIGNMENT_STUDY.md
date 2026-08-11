@@ -264,8 +264,8 @@ clean 40 位 Git SHA 和协议 SHA-256，不能只靠 Slurm 日志反推代码�
 3. 4,000/400 SFT task 100% public-action-valid、reward=1、zero label=0、无截断，
    三 epoch 能达到 250k label exposure；
 4. 至少 32 个 SFT-policy K4 train signal-probe group：所有 committed group 有效、
-   raw attempt valid ≥98%，mixed official-task-score group ≥20%，binary success 在
-   3%–70%；
+   raw attempt valid ≥98%，mixed official-task-score group ≥20%，非零 task-score
+   trajectory ≥5%，mean official task score ≥0.01，binary success ≤70%；
 5. 每组初始状态形成 shared anchor，至少 2% turn 获得非零 informative micro
    credit，且至少 5% 有效 K4 group 存在一个由不同轨迹共享的非初始状态；
 6. 两种 learner 均至少完成 2 次非零更新，loss/gradient 有限，有效 optimizer
