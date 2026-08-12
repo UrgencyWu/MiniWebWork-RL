@@ -1,6 +1,6 @@
 # MiniWebWork-RL 当前实现状态
 
-> 权威状态页。最后更新：2026-08-10。
+> 权威状态页。最后更新：2026-08-12。
 
 ## 项目定位
 
@@ -19,19 +19,30 @@ GiGPO-style credit 各 3 seeds。数据源为固定 Agent-R1 WebShop full：1,18
 商品、12,087 goal。原始切分中的 203 个后出现重复 instruction 已通过
 canonical-first lock 隔离；测试 500 条保持完整，eligible dev/train 为 499/10,885。
 
-正式训练当前仍为 `NOT_READY`。已完成的是机器协议、上游文件 lock、重复隔离、
-目标字段白名单、未公开 ASIN 点击防护、verified oracle 和 CPU mock tests；待远端
-完成 8.37 GB 全文件审计、隔离 server、SFT corpus/token audit、GPU signal/optimizer/
-throughput/recovery preflight 与 clean-SHA readiness。
+M5 已完成 shared verified SFT、2 方法 × 3 seed 的正式在线训练，以及 8 个冻结推理
+身份在 500 test tasks × K=4 上的最终评测。六个正式 online Jobs `2165–2170` 均为
+`COMPLETED/0:0`；最终矩阵包含 16,000 条轨迹。Raw、SFT、multi-turn GRPO 和
+Anchor-GiGPO 的严格成功率分别为 33.50%、0.65%、9.42% 和 9.27%。本轮结论是：
+SFT 因 privileged、闭环不可稳定预测的搜索标签发生严重负迁移；在线 RL 明显恢复
+状态推进和购买行为，但没有恢复到 Raw；Anchor-GiGPO 没有在严格成功率上显著优于
+GRPO，不过 dense score 更高、评测 token 平均低约 15%。
 
-权威方案见 [`M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md`](M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)，
-实时门禁见 [`M5_EXECUTION_READINESS.md`](M5_EXECUTION_READINESS.md)。下文 M1–M4
-状态均为历史证据，不授权 M5 正式训练。
+最终分析 Job `2184` 为 `COMPLETED/0:0`；统计报告、配对任务差异和 14,196 条失败
+轨迹分类均已生成，共享 WebShop 服务也已停止。完整结果、统计边界、失败分析和产物
+哈希见 [`M5_FINAL_TECHNICAL_REPORT.md`](M5_FINAL_TECHNICAL_REPORT.md)。
+
+事前冻结方案见 [`M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md`](M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)，
+执行与恢复记录见 [`M5_EXECUTION_READINESS.md`](M5_EXECUTION_READINESS.md)。下文
+M1–M4 状态均为历史证据。
 
 ## 阶段状态
 
 | 阶段 | 状态 |
 |---|---|
+| M5 verified SFT | COMPLETE / negative closed-loop transfer identified |
+| M5 online RL（2 methods × 3 seeds） | COMPLETE |
+| M5 frozen test（8 identities × 500 tasks × K4） | COMPLETE |
+| M5 final statistical analysis | COMPLETE / exploratory inference |
 | M1.0–M1.2 Environment / Agent Runtime | PASS |
 | M2.0 Canonical Base Agent | PASS |
 | M2.1F Expert trajectories / SFT data | PASS |

@@ -1,9 +1,10 @@
 # M5 WebShop 长程信用分配研究：冻结方案
 
-> 状态：`preflight_only`
+> 协议状态：已冻结并执行完成；本文保留事前 `preflight_only` 合同，结果见
+> [`M5_FINAL_TECHNICAL_REPORT.md`](M5_FINAL_TECHNICAL_REPORT.md)
 > 决策日期：2026-08-10
 > 机器合同：`data/m5_webshop_study_v1.json`
-> 正式训练开关：关闭；只有新的 clean-SHA readiness 与独立授权可以打开
+> 事前正式训练开关：关闭；历史执行仅在 clean-SHA readiness 与独立授权后打开
 
 ## 1. 最终决定
 

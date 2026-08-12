@@ -6,16 +6,22 @@ MiniWebWork-RL 是一个面向确定性采购调研流程的轻量浏览器 Agen
 
 ## 当前阶段
 
-当前主线是 **M5 WebShop 长程信用分配研究**：使用公开的 1.18M 商品/12,087 goal
-WebShop full benchmark，训练一个 shared verified SFT，然后在相同 500k
+**M5 WebShop 长程信用分配研究已经完成。** 项目使用公开的 1.18M 商品/12,087 goal
+WebShop full benchmark，训练一个 shared verified SFT，然后在相同约 500k
 generated-action-token 预算下比较 multi-turn GRPO 与 public-anchor GiGPO-style
-credit（各 3 seeds）。最后一次性评测 raw base、SFT 和六个 online adapter，共
-8 模型 × 500 frozen test tasks × K4。
+credit（各 3 seeds）。所有策略冻结后一次性评测 raw base、SFT 和六个 online adapter，
+共 8 identities × 500 test tasks × K4 = 16,000 条轨迹。
 
-范围见 [`docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md`](docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)，
-执行门禁见 [`docs/M5_EXECUTION_READINESS.md`](docs/M5_EXECUTION_READINESS.md)。
-正式训练仍关闭；只有数据、server、SFT/K4 signal、optimizer、GPU throughput、
-真实 24h 恢复和 clean-SHA readiness 全部通过后，独立 authorization 才能开放。
+最终严格成功率为 Raw 33.50%、SFT 0.65%、GRPO 9.42%、Anchor-GiGPO 9.27%。
+结论不是后训练超过基础模型：verified SFT 因 policy 不可见的 privileged search labels
+发生严重闭环负迁移；在线 RL 恢复了状态推进和购买行为，但只恢复约四分之一严格成功率
+差距。Anchor-GiGPO 没有显著提高最终成功率，不过获得更高 dense score，并将评测 token
+平均降低约 15%。
+
+完整结果见
+[`docs/M5_FINAL_TECHNICAL_REPORT.md`](docs/M5_FINAL_TECHNICAL_REPORT.md)，事前范围见
+[`docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md`](docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)，
+执行与恢复记录见 [`docs/M5_EXECUTION_READINESS.md`](docs/M5_EXECUTION_READINESS.md)。
 
 下列 M1–M3 状态是已经完成的历史基线：
 
@@ -37,6 +43,11 @@ M3.0C      Frozen paired comparison             COMPLETE / no improvement suppor
 正式状态见 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md)：
 
 ```text
+M5_VERIFIED_SFT_COMPLETE=true
+M5_FORMAL_ONLINE_RUNS_COMPLETE=6/6
+M5_FROZEN_IDENTITIES_COMPLETE=8/8
+M5_FROZEN_TRAJECTORIES_COMPLETE=16000/16000
+M5_FINAL_STATISTICAL_REPORT_COMPLETE=true
 M2_3_MINI_CANONICAL_PROBE_PASS=true
 ROLLOUT_DEV_FEASIBLE_V2_FROZEN=true
 READY_FOR_STRICT_ON_POLICY_COLLECTION=true
@@ -84,6 +95,9 @@ Expert SFT / Grouped Multi-turn Rollout / GRPO-style Update
 
 ## 权威文档
 
+- [M5 最终训练技术报告](docs/M5_FINAL_TECHNICAL_REPORT.md)
+- [M5 WebShop 信用分配研究合同](docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)
+- [M5 执行、恢复与冻结评测记录](docs/M5_EXECUTION_READINESS.md)
 - [当前实现状态](docs/CURRENT_STATUS.md)
 - [架构与运行合同](docs/ARCHITECTURE_AND_CONTRACTS.md)
 - [实验与数据治理](docs/EXPERIMENT_GOVERNANCE.md)
