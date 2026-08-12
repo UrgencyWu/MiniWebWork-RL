@@ -372,7 +372,7 @@ def _identity_summary(
             "trajectories_with_public_action_error": _rate(
                 sum(row["public_action_error_count"] > 0 for row in records), len(records)
             ),
-            "public_action_error_codes": dict(
+            "trajectories_by_public_action_error_code": dict(
                 sorted(Counter(code for row in records for code in row["public_action_error_codes"]).items())
             ),
         },
@@ -734,7 +734,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines.append(
             f"| {name} | {comparison['success']['mean_delta']:+.4f} | [{ci[0]:+.4f}, {ci[1]:+.4f}] | "
             f"{pvalue:.6f} | {'—' if adjusted is None else f'{adjusted:.6f}'} | "
-            f"{'显著' if significant else '未达到预设显著标准'} |"
+            f"{'显著' if significant else '未达到显著标准'} |"
         )
     primary = report["comparisons"][PRIMARY_COMPARISON]
     task_aggregate = primary["task_aggregate"]
@@ -879,7 +879,7 @@ def build_final_analysis(
         comparisons[name]["significant_at_familywise_alpha_0_05"] = _significant(
             comparisons[name], adjusted_pvalue=value
         )
-    comparisons[PRIMARY_COMPARISON]["prespecified_primary"] = True
+    comparisons[PRIMARY_COMPARISON]["designated_final_primary"] = True
     comparisons[PRIMARY_COMPARISON]["significant_at_alpha_0_05"] = _significant(
         comparisons[PRIMARY_COMPARISON]
     )
@@ -921,6 +921,10 @@ def build_final_analysis(
         "analysis_git_sha": analysis_git_sha,
         "statistical_contract": {
             "primary_estimand": "anchor_gigpo minus multi_turn_grpo task-macro success across three matched training seeds",
+            "analysis_plan_timing": (
+                "The exact final-analysis implementation was frozen after all evaluation outcomes existed; "
+                "the primary comparison is designated for coherent final reporting, not preregistered."
+            ),
             "bootstrap_samples": bootstrap_samples,
             "permutation_samples": permutation_samples,
             "single_identity_ci": "task-cluster percentile bootstrap",
@@ -982,6 +986,7 @@ def build_final_analysis(
             "all_current_failure_markers_absent": True,
         },
         "limitations": [
+            "The exact final-analysis implementation was written after evaluation completion, so inferential results are exploratory rather than preregistered confirmation.",
             "Only three training seeds are available, so population-level algorithm uncertainty remains wide.",
             "The study covers one WebShop environment, one base model, and one frozen prompt/runtime contract.",
             "Failure classes are deterministic diagnostics from public trajectory evidence, not human causal labels.",
