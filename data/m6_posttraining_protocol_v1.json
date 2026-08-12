@@ -1,0 +1,164 @@
+{
+  "schema_version": "m6_posttraining_protocol_v1",
+  "protocol_revision": 1,
+  "study_id": "m6_monotonic_posttraining_v1",
+  "status": "implementation_only",
+  "formal_submission_allowed": false,
+  "primary_goal": {
+    "metric": "strict task success iff official task_score >= 0.999",
+    "required_chain": "raw < sft < rl",
+    "minimum_sft_minus_raw_pp": 3.0,
+    "minimum_rl_minus_sft_pp": 3.0
+  },
+  "split": {
+    "source_start_inclusive": 1000,
+    "source_stop_exclusive": 12087,
+    "selection_seed": 20260812,
+    "mini_train_tasks": 256,
+    "mini_dev_tasks": 200,
+    "formal_dev_tasks": 500,
+    "minimum_remaining_train_tasks": 2000,
+    "evaluation_task_candidates": [
+      1000,
+      1500,
+      2000
+    ],
+    "promotion_and_holdout_must_be_never_read": true,
+    "normalized_instruction_overlap_allowed": false
+  },
+  "mini": {
+    "development_only": true,
+    "raw_collection_K": 8,
+    "maximum_raw_collection_K": 16,
+    "evaluation_K": 4,
+    "minimum_success_tasks": 160,
+    "minimum_success_trajectories": 320,
+    "minimum_completion_label_tokens": 20000,
+    "maximum_completion_label_tokens": 80000,
+    "maximum_rl_generated_action_tokens": 50000,
+    "rl_collection_groups_per_iteration": 1,
+    "rl_collection_max_model_turns": 6,
+    "rl_collection_max_environment_steps": 6,
+    "rl_collection_action_token_cap_per_iteration": 12288,
+    "maximum_rl_iterations": 12,
+    "minimum_mixed_rl_iterations": 5,
+    "minimum_optimizer_updates": 2,
+    "minimum_sft_minus_raw_pp": 3.0,
+    "minimum_rl_minus_sft_pp": 3.0,
+    "minimum_bootstrap_positive_fraction": 0.8,
+    "maximum_sft_search_exhaustion_increase_pp": 5.0,
+    "maximum_rl_partial_match_increase_pp": 5.0,
+    "maximum_stage_schema_or_action_error_increase_pp": 3.0,
+    "failed_dev_roster_policy": "burn_and_replace"
+  },
+  "corpus": {
+    "strict_success_fraction": 1.0,
+    "replay_success_fraction": 1.0,
+    "maximum_hidden_field_count": 0,
+    "maximum_target_asin_search_label_count": 0,
+    "minimum_public_query_token_fraction": 0.9,
+    "maximum_mean_search_query_characters": 48,
+    "maximum_p95_search_query_characters": 96,
+    "minimum_unique_command_sequence_fraction": 0.6,
+    "minimum_recovery_trajectory_fraction": 0.2,
+    "maximum_action_family_fraction": 0.35,
+    "maximum_trajectories_per_task": 4,
+    "minimum_formal_success_tasks": 2000,
+    "minimum_formal_trajectories": 4000,
+    "maximum_formal_trajectories": 8000,
+    "minimum_formal_completion_label_tokens": 250000,
+    "maximum_formal_completion_label_tokens": 600000
+  },
+  "sft": {
+    "base_model": "/data/share/model/Qwen3.5-4B",
+    "prompt_contract": "webshop_agent_v1_compact",
+    "maximum_sequence_tokens": 8192,
+    "effective_batch_size": 10,
+    "microbatch_candidates": [
+      1,
+      2,
+      5
+    ],
+    "minimum_vram_headroom": 0.15,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "maximum_epochs": 1,
+    "learning_rate_candidates": [
+      0.00002,
+      0.00005
+    ],
+    "mini_learning_rate": 0.00002,
+    "raw_reference_kl_candidates": [
+      0.01,
+      0.03
+    ],
+    "mini_raw_reference_kl": 0.03,
+    "raw_reference_kl_direction": "KL(raw_policy||sft_policy)_sampled_on_raw_actions",
+    "success_imitation_fraction": 0.9,
+    "retention_state_fraction": 0.1,
+    "lora": {
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.05,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    }
+  },
+  "rl": {
+    "method": "strict_grpo_verifier_td",
+    "group_size": 8,
+    "terminal_reward": "1[official task_score >= 0.999]",
+    "verifier_td_lambda": 0.5,
+    "telescoping_absolute_tolerance": 1e-8,
+    "minimum_nonzero_credit_turn_fraction": 0.3,
+    "minimum_mixed_group_fraction": 0.2,
+    "learning_rate": 0.000001,
+    "policy_epochs": 1,
+    "adaptive_kl_target_minimum": 0.005,
+    "adaptive_kl_target_maximum": 0.03,
+    "parity_contract": {
+      "behavior_sampling_maximum_absolute_difference": 0.000001,
+      "replay_mean_absolute_difference": 0.02,
+      "replay_p95_absolute_difference": 0.08,
+      "replay_p99_absolute_difference": 0.1,
+      "replay_p999_absolute_difference": 0.5,
+      "replay_initial_ratio_clip_fraction": 0.005,
+      "mean_importance_ratio_absolute_deviation": 0.02
+    },
+    "formal_generated_action_token_cap_per_seed": 500000,
+    "formal_seeds": [
+      20260812,
+      20260813,
+      20260814
+    ]
+  },
+  "slurm": {
+    "wall_time_per_job": "24:00:00",
+    "maximum_parallel_gpu_jobs": 4,
+    "training_per_job": {
+      "gpus": 1,
+      "cpus": 8,
+      "memory_gib": 32
+    },
+    "evaluation_per_job": {
+      "gpus": 1,
+      "cpus": 4,
+      "memory_gib": 24
+    },
+    "environment_service_per_job": {
+      "gpus": 0,
+      "cpus": 8,
+      "memory_gib": 48
+    },
+    "timeout_recovery": "same_root_successor_only",
+    "deterministic_failure_successor_allowed": false
+  }
+}

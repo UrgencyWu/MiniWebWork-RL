@@ -7,16 +7,26 @@ import json
 import time
 from collections.abc import Callable
 from pathlib import Path
-
-from ..agent_env.environment import ProcurementBrowserEnv
-
+from typing import Protocol
 
 INFRASTRUCTURE_ERROR_PREFIXES = ("generation_error", "rollout_evidence_error")
 
 
+class EpisodeEnvironment(Protocol):
+    """Structural runtime contract shared by browser and WebShop environments."""
+
+    trajectory: object | None
+
+    def reset(self, task_id: str): ...
+
+    def set_agent_name(self, name: str) -> None: ...
+
+    def step(self, action): ...
+
+
 def run_model_episode(
     task_id: str,
-    env: ProcurementBrowserEnv,
+    env: EpisodeEnvironment,
     agent,
     max_model_turns: int = 20,
     max_env_steps: int = 15,
@@ -93,6 +103,13 @@ def run_model_episode(
                 "action": attempt.action.to_dict() if attempt.action else None,
                 "errors": list(attempt.errors),
                 "action_result": None,
+                # Filled before the completed-turn callback.  This is the
+                # public state produced by the action (or the unchanged state
+                # when no action was executed).  Keeping it separate from the
+                # pre-action observation lets offline learners assign
+                # transition credit without exposing verifier data to the
+                # policy prompt.
+                "post_action_observation": None,
                 "reward": 0.0,
                 "terminated": False,
                 "truncated": False,
@@ -108,6 +125,11 @@ def run_model_episode(
                 error.startswith(INFRASTRUCTURE_ERROR_PREFIXES)
                 for error in attempt.errors
             ):
+                # Generation happened, but no environment transition did.
+                # Preserve the unchanged public state for durable attempt
+                # diagnostics; infrastructure-invalid episodes are still
+                # rejected before any learner/corpus contract.
+                turn["post_action_observation"] = observation.to_dict()
                 result.update(
                     reward=None,
                     task_score=None,
@@ -123,6 +145,7 @@ def run_model_episode(
                 consecutive_output_failures += 1
                 # Invalid model output is a model turn, but it is not an
                 # executed action and must not enter action-result history.
+                turn["post_action_observation"] = observation.to_dict()
                 if consecutive_output_failures >= 3:
                     result["termination_reason"] = "model_output_failure_limit"
                     if turn_completed_callback is not None:
@@ -135,6 +158,7 @@ def run_model_episode(
             consecutive_output_failures = 0
             if environment_steps >= max_env_steps:
                 result["termination_reason"] = "max_environment_steps"
+                turn["post_action_observation"] = observation.to_dict()
                 if turn_completed_callback is not None:
                     turn_completed_callback(copy.deepcopy(turn))
                 break
@@ -150,6 +174,11 @@ def run_model_episode(
             agent.record_feedback(attempt, step_result, next_page_type)
 
             turn["action_result"] = action_result
+            turn["post_action_observation"] = (
+                step_result.observation.to_dict()
+                if step_result.observation is not None
+                else observation.to_dict()
+            )
             turn["reward"] = step_result.reward
             turn["terminated"] = step_result.terminated
             turn["truncated"] = step_result.truncated

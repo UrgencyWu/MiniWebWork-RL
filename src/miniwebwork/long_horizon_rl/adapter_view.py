@@ -24,7 +24,6 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
-from ..m4_long_horizon_protocol import SFT_LORA_CONFIG
 from .contracts import (
     atomic_write_json,
     canonical_json_bytes,
@@ -56,6 +55,7 @@ _VLLM_LORA_KEY = re.compile(
 _MLP_TARGETS = frozenset({"down_proj", "gate_proj", "up_proj"})
 _ATTENTION_TARGETS = frozenset({"q_proj", "k_proj", "v_proj", "o_proj"})
 _EXPECTED_TARGETS = _MLP_TARGETS | _ATTENTION_TARGETS
+SUPPORTED_LORA_RANK = 16
 
 
 def _require(condition: bool, message: str) -> None:
@@ -172,7 +172,7 @@ def _audit_tensor_structure(
     pattern = _VLLM_LORA_KEY if view else _LORA_KEY
     prefix = VLLM_KEY_PREFIX if view else SOURCE_KEY_PREFIX
     modules: dict[str, dict[str, Any]] = {}
-    rank = int(SFT_LORA_CONFIG["r"])
+    rank = SUPPORTED_LORA_RANK
     for name, tensor in tensors.items():
         match = pattern.fullmatch(name)
         _require(match is not None, f"unsupported adapter tensor key: {name}")
@@ -221,7 +221,7 @@ def _validate_adapter_config(path: Path) -> dict[str, Any]:
         isinstance(targets, list) and set(targets) == _EXPECTED_TARGETS,
         "adapter target_modules contract drift",
     )
-    _require(payload.get("r") == SFT_LORA_CONFIG["r"], "adapter LoRA rank drift")
+    _require(payload.get("r") == SUPPORTED_LORA_RANK, "adapter LoRA rank drift")
     _require(payload.get("peft_type") == "LORA", "adapter PEFT type drift")
     return payload
 

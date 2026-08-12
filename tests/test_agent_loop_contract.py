@@ -1,7 +1,19 @@
 from types import SimpleNamespace
 
-from miniwebwork.agent_env.schemas import Observation
 from miniwebwork.model_agent.agent_loop import run_model_episode
+
+
+class _Observation:
+    def __init__(self, **payload):
+        self.__dict__.update(
+            step_index=0,
+            visible_text="",
+            terminal=False,
+            **payload,
+        )
+
+    def to_dict(self):
+        return dict(self.__dict__)
 
 
 class _Environment:
@@ -10,7 +22,7 @@ class _Environment:
         self.trajectory = None
 
     def reset(self, task_id):
-        return Observation(
+        return _Observation(
             task_id=task_id,
             episode_id="EP",
             instruction="instruction",
@@ -81,6 +93,10 @@ def test_schema_invalid_turns_do_not_enter_executed_history():
     assert len(generated_turns) == 3
     assert all(turn["sampling_logprobs"] == [-1.0] for turn in generated_turns)
     assert all(turn["generated_token_ids"] == [3] for turn in generated_turns)
+    assert all(
+        turn["post_action_observation"] == turn["observation"]
+        for turn in result["turns"]
+    )
 
 
 def test_backend_error_is_infrastructure_not_policy_failure():
@@ -95,6 +111,7 @@ def test_backend_error_is_infrastructure_not_policy_failure():
     assert result["reward"] is None
     assert result["termination_reason"] == "model_backend_error"
     assert environment.step_calls == 0
+    assert result["turns"][0]["post_action_observation"] == result["turns"][0]["observation"]
 
 
 def test_turn_journal_callback_failure_invalidates_rollout():

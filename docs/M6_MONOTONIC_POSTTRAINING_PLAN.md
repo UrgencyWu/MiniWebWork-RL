@@ -1,6 +1,6 @@
 # M6 WebShop：Raw → SFT → RL 单调提升改进计划
 
-> 状态：`planning_only`
+> 状态：`implementation_ready_for_phase_a_b_only`
 >
 > 制定日期：2026-08-12
 >
@@ -177,8 +177,8 @@ hidden metadata。所有 corpus 统计和逐样本 provenance 写入 self-hashed
 - 从 M6 train 的 Raw rollout 中另冻结 20,000 个 retention prompt states，按
   home/search-results/item/options/recovery 分层，成功与失败轨迹都覆盖；它们不提供 oracle label；
 - 每个 optimizer batch 中 90% 为 strict-success action imitation，10% 为 retention state；
-- reference 是冻结 Raw policy；在 retention state 的 action-token distribution 上优化
-  `L_SFT + β_KL KL(π_SFT || π_Raw)`；
+- reference 是冻结 Raw policy；retention action 由 Raw 采样，因此使用非负 k3 estimator 优化
+  `L_SFT + β_KL KL(π_Raw || π_SFT)`；
 - `β_KL` 只允许 `{0.01, 0.03}` 两个 dev 候选；
 - checkpoint 只按闭环 formal tuning-dev strict success 选择，NLL 只做诊断。
 
@@ -419,11 +419,14 @@ Raw K8 mini-train collection
 ```
 
 Mini 数据硬门禁为：K8 至少得到 160 个不同 strict-success tasks 和 320 条 replayable success
-trajectories；不足时只允许在同一 mini-train roster 上补到 K16。语料为 20k–80k
+trajectories；不足时只允许在同一 mini-train roster 上补到总计 K16（两轮独立 K8）。语料为 20k–80k
 completion-label tokens，100% strict replay、0 hidden field、0 target-ASIN 泄漏，并至少包含
 20% recovery trajectories。Mini-SFT 使用默认 `LR=2e-5`、`β_KL=0.03`、最多 1 epoch；
 mini-RL 从该 adapter 开始，使用正式计划完全相同的 strict macro、verifier-TD 和 adaptive KL，
-至少完成 5 个有 mixed strict reward 的 iteration、2 次有效更新和真实参数变化。
+从 Raw K8 成功数 1–6 的任务冻结 curriculum。每次迭代只收集 1 个 K8 group，最多 6 model/env
+turns，单次最多 12,288 action tokens；同质 strict group 只记成本、不更新参数并转向下一个冻结任务。
+全程最多 12 次 collection、总计不超过 50,000 generated action tokens；至少完成 5 个 mixed
+strict-reward iteration、2 次有效更新和真实参数变化。
 
 三者使用相同 task/rollout seeds 做配对评测。M6-mini 通过必须同时满足：
 
@@ -501,8 +504,8 @@ M6 补训。
 
 | 阶段 | 逻辑 GPU jobs | 最大并行 | 估计 wall time |
 |---|---:|---:|---:|
-| M6-mini Raw collection/eval | 1 | 1 | 1–3 h |
-| Mini-SFT + mini-RL | 2 | 1 | 1–4 h |
+| M6-mini Raw collection/eval | 2 | 2（同一 service） | 1–3 h |
+| Mini-SFT + mini-RL | 2 | 1 | 1–5 h |
 | Full Raw train rollout collection | 2–4 | 4 | 6–18 h |
 | Raw formal tuning-dev baseline | 1 | 1 | 2–4 h |
 | SFT recipe candidates | 4 | 4 | 3–8 h |
@@ -514,7 +517,7 @@ M6 补训。
 
 如果阶段门禁一次通过，端到端约 5–8 天；包含一次数据修订约 7–11 天。CPU 数据准备、共享
 WebShop service 和分析作业另计，但不应请求过量资源。任何时刻每波最多 4 个 GPU job；
-训练 job 默认单 GPU、8 CPU、32 GiB，纯推理评测默认单 GPU、4 CPU、16 GiB，并在提交前
+训练 job 默认单 GPU、8 CPU、32 GiB，纯推理评测默认单 GPU、4 CPU、24 GiB，并在提交前
 根据实际利用率下调而不是上调。共享 service 单独申请，避免每个 run 重复占用 CPU/内存。
 
 正式作业提交仍遵循：提交前检查参数、数据身份和资源；提交成功后只确认一次 job ID，不自动
@@ -524,8 +527,8 @@ WebShop service 和分析作业另计，但不应请求过量资源。任何时�
 
 ### 10.1 必须新增或修改
 
-- `data/m5_goal_exposure_registry_v1.json`：M5 曾读取 goal 的完整登记；
-- `data/m6_webshop_split_v1.json`：新的 train/mini-dev/formal-dev/promotion/holdout lock；
+- `outputs/m6_monotonic_posttraining_v1/locks/m5_goal_exposure_registry_v1.json`：M5 曾读取 goal 的完整登记；
+- `outputs/m6_monotonic_posttraining_v1/locks/m6_webshop_split_v1.json`：新的 train/mini-dev/formal-dev/promotion/holdout lock；
 - `scripts/m6_run_mini_chain.py`：development-only Raw→SFT→RL 最小闭环验证与门禁报告；
 - `scripts/m6_plan_statistical_power.py`：在训练前冻结 `N_eval`；
 - `scripts/m6_collect_policy_success.py`：Raw 成功/恢复轨迹收集；

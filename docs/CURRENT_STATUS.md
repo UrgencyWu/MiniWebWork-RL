@@ -4,7 +4,7 @@
 
 ## 项目定位
 
-当前方向是公开 WebShop benchmark 上的文本 Agent 后训练研究。M6 正在规划
+当前方向是公开 WebShop benchmark 上的文本 Agent 后训练研究。M6 已实现
 Raw → SFT → RL 的真实 strict-success 单调提升；原确定性采购
 网站实现保留为基础设施与失败诊断，不再承担 M5 正式效果结论。
 
@@ -15,7 +15,7 @@ Task → Browser Environment → Qwen Policy → Multi-turn Rollout
 
 ## M6 当前状态
 
-M6 状态为 `planning_only`，尚未授权或提交正式训练。计划针对 M5 负迁移做三项核心修复：
+M6 状态为 `implementation_ready_for_phase_a_b_only`，尚未授权或提交正式训练。实现针对 M5 负迁移做三项核心修复：
 
 1. SFT 从 Raw policy 在公开 observation 下产生的 strict-success/recovery 轨迹蒸馏，禁止
    hidden-title 和 target-ASIN 标签；
@@ -31,6 +31,12 @@ mini-dev，顺序验证 `Raw < mini-SFT < mini-RL`。两个相邻增量均达到
 M6 将从原 eligible train 区域冻结新的 dev 与 untouched holdout，不复用已经打开的 M5
 test 做调参。完整方案见
 [`M6_MONOTONIC_POSTTRAINING_PLAN.md`](M6_MONOTONIC_POSTTRAINING_PLAN.md)。
+
+Phase A/B 代码现已覆盖 exposure/power/split、Raw K8/K4 采样、独立 success replay、
+policy-visible corpus、Raw retention SFT、K8 strict-GRPO verifier-TD、相邻阶段闭环门禁和
+24h same-root recovery。当前下一步是先在集群运行 Phase A0 和 development-only mini chain；
+协议中的 `formal_submission_allowed=false` 保持不变。执行手册见
+[`M6_EXECUTION_RUNBOOK.md`](M6_EXECUTION_RUNBOOK.md)。
 
 ## M5 当前状态
 
@@ -59,6 +65,8 @@ M1–M4 状态均为历史证据。
 
 | 阶段 | 状态 |
 |---|---|
+| M6 Phase A/B implementation | READY / local focused tests passed / cluster smoke pending |
+| M6 mini Raw→SFT→RL gate | NOT RUN |
 | M5 verified SFT | COMPLETE / negative closed-loop transfer identified |
 | M5 online RL（2 methods × 3 seeds） | COMPLETE |
 | M5 frozen test（8 identities × 500 tasks × K4） | COMPLETE |

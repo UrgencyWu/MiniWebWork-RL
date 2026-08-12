@@ -105,6 +105,47 @@ def atomic_write_json(path: Path, value: Any) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def publish_immutable_bytes(path: Path, content: bytes) -> str:
+    """Publish bytes once, allowing only byte-identical idempotent retries.
+
+    Training/evaluation evidence must not be replaced by a later retry.  A
+    fully fsynced temporary file is hard-linked into place, so readers either
+    see the complete artifact or no artifact.  If another process or an older
+    attempt already published the destination, only identical bytes are
+    accepted.
+    """
+
+    destination = Path(path).expanduser().resolve()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(
+        f".{destination.name}.publish-{os.getpid()}-{os.urandom(4).hex()}"
+    )
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(temporary, destination)
+        except FileExistsError:
+            if destination.read_bytes() != content:
+                raise ValueError(f"immutable artifact already differs: {destination}")
+        directory_fd = os.open(destination.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return hashlib.sha256(content).hexdigest()
+
+
+def publish_immutable_json(path: Path, value: Any) -> str:
+    """Publish canonical JSON without permitting a different overwrite."""
+
+    return publish_immutable_bytes(path, canonical_json_bytes(value) + b"\n")
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
