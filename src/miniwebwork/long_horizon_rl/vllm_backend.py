@@ -192,6 +192,7 @@ class RolloutRequestContext:
     trajectory_id: str
     rollout_index: int
     shared_prefix_turns: int = 0
+    sampling_attempt_index: int | None = None
 
     def validate(self) -> None:
         for field in ("group_id", "trajectory_id"):
@@ -207,6 +208,15 @@ class RolloutRequestContext:
                 isinstance(value, int) and not isinstance(value, bool) and value >= 0,
                 f"invalid rollout request {field}",
             )
+        _require(
+            self.sampling_attempt_index is None
+            or (
+                isinstance(self.sampling_attempt_index, int)
+                and not isinstance(self.sampling_attempt_index, bool)
+                and self.sampling_attempt_index >= 0
+            ),
+            "invalid rollout request sampling_attempt_index",
+        )
 
 
 def derive_context_sampling_seed(context: RolloutRequestContext, *, turn_index: int) -> int:
@@ -219,7 +229,11 @@ def derive_context_sampling_seed(context: RolloutRequestContext, *, turn_index: 
         run_seed=context.run_seed,
         iteration_index=context.iteration_index,
         group_id=context.group_id,
-        attempt_index=context.attempt_index,
+        attempt_index=(
+            context.attempt_index
+            if context.sampling_attempt_index is None
+            else context.sampling_attempt_index
+        ),
         rollout_index=seed_rollout_index,
         turn_index=turn_index,
     )
@@ -459,13 +473,184 @@ class AsyncVLLMGenerationEngine:
         self._phase = "shutdown"
 
 
+@dataclass(frozen=True)
+class RawVLLMBackendConfig:
+    """Frozen no-LoRA vLLM identity used only by the raw-base evaluation."""
+
+    base_model: str
+    base_model_manifest_sha256: str
+    base_model_functional_sha256: str
+    seed: int
+    dtype: str = "bfloat16"
+    max_model_len: int = 8_192
+    max_new_tokens: int = MAX_NEW_TOKENS
+    gpu_memory_utilization: float = 0.5
+    max_num_seqs: int = 32
+    enforce_eager: bool = True
+    stream_interval: int = 8
+
+    def validate(self) -> None:
+        _require(Path(self.base_model).is_absolute(), "raw vLLM base model path must be absolute")
+        for field in ("base_model_manifest_sha256", "base_model_functional_sha256"):
+            value = getattr(self, field)
+            _require(isinstance(value, str) and SHA256_PATTERN.fullmatch(value) is not None, f"invalid raw {field}")
+        _require(isinstance(self.seed, int) and self.seed >= 0, "raw vLLM seed drift")
+        _require(self.dtype == "bfloat16", "raw vLLM dtype drift")
+        _require(self.max_model_len == 8_192, "raw M5 vLLM model length drift")
+        _require(self.max_new_tokens == MAX_NEW_TOKENS, "raw vLLM turn-token cap drift")
+        _require(math.isclose(self.gpu_memory_utilization, 0.5), "raw vLLM memory fraction drift")
+        _require(self.max_num_seqs == 32, "raw vLLM maximum sequence count drift")
+        _require(self.enforce_eager is True and self.stream_interval == 8, "raw vLLM runtime drift")
+
+    def engine_kwargs(self) -> dict[str, Any]:
+        self.validate()
+        return {
+            "model": self.base_model,
+            "tokenizer": self.base_model,
+            "dtype": self.dtype,
+            "seed": self.seed,
+            "max_model_len": self.max_model_len,
+            "gpu_memory_utilization": self.gpu_memory_utilization,
+            "max_num_seqs": self.max_num_seqs,
+            "enforce_eager": self.enforce_eager,
+            "max_logprobs": 1,
+            "logprobs_mode": "raw_logprobs",
+            "language_model_only": True,
+            "enable_lora": False,
+            "enable_prefix_caching": False,
+            "enable_chunked_prefill": True,
+            "generation_config": "vllm",
+            "stream_interval": self.stream_interval,
+            "trust_remote_code": True,
+            "disable_log_stats": False,
+        }
+
+
+class RawAsyncVLLMGenerationEngine:
+    """Async vLLM engine that evaluates the frozen base model without LoRA."""
+
+    def __init__(self, *, config: RawVLLMBackendConfig, engine: Any, tokenizer: Any):
+        config.validate()
+        self.config = config
+        self._engine = engine
+        self._tokenizer = tokenizer
+        self._phase = "generation"
+        self._inflight = 0
+        # Keep the generic rollout evidence interface explicit. These are base
+        # model identities, not adapter identities, and are recorded as such in
+        # the frozen evaluation manifest.
+        self._adapter_sha256 = config.base_model_manifest_sha256
+        self._rollout_adapter_sha256 = config.base_model_functional_sha256
+        self._adapter_semantic_sha256 = config.base_model_functional_sha256
+
+    @classmethod
+    async def create(cls, config: RawVLLMBackendConfig) -> "RawAsyncVLLMGenerationEngine":
+        config.validate()
+        from transformers import AutoTokenizer
+        from vllm.engine.arg_utils import AsyncEngineArgs
+        from vllm.v1.engine.async_llm import AsyncLLM
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            config.base_model,
+            local_files_only=True,
+            trust_remote_code=True,
+        )
+        engine = AsyncLLM.from_engine_args(AsyncEngineArgs(**config.engine_kwargs()))
+        return cls(config=config, engine=engine, tokenizer=tokenizer)
+
+    async def generate_messages(
+        self,
+        messages: Sequence[Mapping[str, Any]],
+        *,
+        request_id: str,
+        sampling_seed: int,
+    ) -> GenerationResult:
+        _require(self._phase == "generation", "raw vLLM generation requested outside generation phase")
+        _require(SAFE_REQUEST_COMPONENT.fullmatch(request_id) is not None, "unsafe raw vLLM request id")
+        _require(isinstance(sampling_seed, int) and sampling_seed >= 0, "invalid raw vLLM sampling seed")
+        from vllm import SamplingParams
+        from vllm.inputs import TokensPrompt
+        from vllm.sampling_params import RequestOutputKind
+
+        prompt_ids = _normalize_token_ids(
+            self._tokenizer.apply_chat_template(
+                list(messages),
+                tokenize=True,
+                add_generation_prompt=True,
+                enable_thinking=False,
+            )
+        )
+        _require(
+            len(prompt_ids) + self.config.max_new_tokens <= self.config.max_model_len,
+            "raw vLLM request exceeds frozen model length",
+        )
+        sampling = SamplingParams(
+            temperature=1.0,
+            top_p=1.0,
+            top_k=0,
+            seed=sampling_seed,
+            max_tokens=self.config.max_new_tokens,
+            logprobs=0,
+            flat_logprobs=True,
+            output_kind=RequestOutputKind.FINAL_ONLY,
+            detokenize=True,
+            skip_special_tokens=True,
+        )
+        started = time.monotonic()
+        final = None
+        self._inflight += 1
+        try:
+            async for output in self._engine.generate(
+                TokensPrompt(prompt_token_ids=prompt_ids),
+                sampling,
+                request_id,
+            ):
+                final = output
+        finally:
+            self._inflight -= 1
+        _require(final is not None and bool(final.finished), "raw vLLM request did not finish")
+        _require(len(final.outputs) == 1, "raw vLLM request returned non-single completion")
+        completion = final.outputs[0]
+        generated_ids = [int(token_id) for token_id in completion.token_ids]
+        raw_logprobs = extract_chosen_token_logprobs(generated_ids, completion.logprobs)
+        metrics = getattr(final, "metrics", None)
+        _require(metrics is not None, "raw vLLM request metrics are missing")
+        _require(int(metrics.num_generation_tokens) == len(generated_ids), "raw vLLM metrics/token count mismatch")
+        queue_wait_ms = max(0.0, float(metrics.scheduled_ts - metrics.queued_ts) * 1000)
+        generation_time_ms = max(0.0, float(metrics.last_token_ts - metrics.first_token_ts) * 1000)
+        return GenerationResult(
+            raw_text=str(completion.text),
+            new_tokens=len(generated_ids),
+            input_tokens=len(prompt_ids),
+            latency_ms=(time.monotonic() - started) * 1000,
+            prompt_token_ids=prompt_ids,
+            generated_token_ids=generated_ids,
+            logprobs=raw_logprobs,
+            sampling_logprobs=list(raw_logprobs),
+            request_id=request_id,
+            sampling_seed=sampling_seed,
+            generation_backend="vllm_async_raw_base",
+            adapter_sha256=self._adapter_sha256,
+            rollout_adapter_sha256=self._rollout_adapter_sha256,
+            adapter_semantic_sha256=self._adapter_semantic_sha256,
+            queue_wait_ms=queue_wait_ms,
+            first_token_latency_ms=float(metrics.first_token_latency) * 1000,
+            generation_time_ms=generation_time_ms,
+        )
+
+    def shutdown(self) -> None:
+        _require(self._inflight == 0, "cannot shut down raw vLLM with in-flight requests")
+        self._engine.shutdown()
+        self._phase = "shutdown"
+
+
 class ThreadsafeVLLMBackend:
     """Expose synchronous ``generate`` to one persistent browser worker."""
 
     def __init__(
         self,
         *,
-        engine: AsyncVLLMGenerationEngine,
+        engine: AsyncVLLMGenerationEngine | RawAsyncVLLMGenerationEngine,
         event_loop: asyncio.AbstractEventLoop,
         context: RolloutRequestContext,
         timeout_seconds: float = 900.0,
@@ -509,7 +694,11 @@ class ThreadsafeVLLMBackend:
                 error=f"{type(exc).__name__}: {exc}"[:500],
                 request_id=request_id,
                 sampling_seed=sampling_seed,
-                generation_backend=GENERATION_BACKEND,
+                generation_backend=(
+                    "vllm_async_raw_base"
+                    if isinstance(self._engine, RawAsyncVLLMGenerationEngine)
+                    else GENERATION_BACKEND
+                ),
                 adapter_sha256=self._engine._adapter_sha256,
                 rollout_adapter_sha256=(
                     self._engine._rollout_adapter_sha256

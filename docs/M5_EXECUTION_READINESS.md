@@ -149,3 +149,23 @@ fail closed。当前阶段不生成 authorization，也不提交六个正式作�
 最终 adapter/optimizer 血缘复核完成并冻结 8 个推理身份（raw、SFT、6 RL）后，才能一次性
 打开 500-task、K=4 测试。任何中途 checkpoint、单 seed 正结果或 preflight 结果都不能进入
 正式效果表。
+
+## 7. 正式训练完成与冻结测试入口（2026-08-12）
+
+六个 online run（Job 2165–2170）均以 `COMPLETED/0:0` 结束，并通过最终 adapter、optimizer、
+generated-token ledger、K4 group、telemetry 与 self-hash 复核。冻结测试不再训练，也不加载
+optimizer；它只在共同的 500 个官方 test goals 上，以相同采样设置为每个身份生成 K=4 轨迹。
+
+- 机器计划：`data/m5_webshop_frozen_eval_plan_v1.json`
+- 8 个身份：raw base、共享 verified SFT、3 个 multi-turn GRPO、3 个 anchor-GiGPO
+- 每身份：500 tasks × K=4 = 2,000 trajectories；总计 16,000 trajectories
+- 资源：每身份 1 GPU、6 CPU、24 GiB、单 allocation 24h；最多八身份并行
+- runner：`scripts/m5_webshop_frozen_eval.py`
+- Slurm 入口：`scripts/run_m5_webshop_frozen_eval_job.sh`
+- 独立批准工具：`scripts/m5_webshop_authorize_frozen_eval.py`
+- 输出：`outputs/m5_webshop_credit_assignment_v1/formal/frozen_test/{identity}`
+
+每个完整 K4 才原子提交；24h 超时只允许同 identity、同输出根的 successor。主指标是二值
+成功率，辅指标包括 dense score、类别/约束复杂度分层、token、环境步数、耗时和无效动作。
+任何测试结果都不得反向选择 checkpoint、修改模型或触发补训。八身份全部完成后，才执行
+task-cluster bootstrap、成对 seed-aware permutation、失败分类和最终对比结论。

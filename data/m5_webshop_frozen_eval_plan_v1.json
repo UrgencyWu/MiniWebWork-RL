@@ -1,0 +1,187 @@
+{
+  "schema_version": "m5_webshop_frozen_eval_plan_v1",
+  "study_id": "m5_webshop_credit_assignment_v1",
+  "producer_training_git_sha": "b9b5221777427b0d7decaf7b12c6572ac9a1d3f3",
+  "protocol_sha256": "a49881137e90a7bc6b2747e36a7e129ea37c52924d9ab965ea549e8be98a8293",
+  "formal_training_plan_sha256": "51fbe550ed8e3dd6064ac5f98a71fd08e3be4f7f9606adf3cb111d1479ed985b",
+  "test": {
+    "split": "test",
+    "task_count": 500,
+    "goal_index_start_inclusive": 0,
+    "goal_index_stop_exclusive": 500,
+    "task_order": "ascending frozen official goal_index",
+    "rollouts_per_task": 4,
+    "trajectory_count_per_identity": 2000,
+    "total_trajectory_count": 16000,
+    "evaluation_seed": 20260812,
+    "shared_prefix_turns": 0,
+    "maximum_environment_steps": 15,
+    "maximum_model_turns": 18,
+    "maximum_new_tokens_per_turn": 128,
+    "sampling": {"temperature": 1.0, "top_p": 1.0, "top_k": 0},
+    "goals_sha256": "5ac4982eb019ff0167a8dbfe30cbcc13c2170438c7ba7abbc7ec24ea8b942170",
+    "stratification": {
+      "category": "string goal.category, otherwise unknown",
+      "constraint_count": "count non-empty goal.attributes plus non-empty goal.goal_options entries plus one finite goal.price_upper"
+    },
+    "test_open_policy": "all eight inference identities and settings are frozen before any test rollout; no test result may update a model or select a checkpoint"
+  },
+  "base_model": {
+    "path": "/data/share/model/Qwen3.5-4B",
+    "manifest_sha256": "290ecd9ec4eaa1f5ac6927b10e9cb4c600d22aec78a6d743baa8a01d72c1b7a3",
+    "functional_file_set_sha256": "6b2cdb9cf894cec7eb1dcef2a57682a9d73e22f2a81a58ef3b1f32854f031b85"
+  },
+  "inference": {
+    "prompt_path": "prompts/webshop_agent_v1_compact.txt",
+    "prompt_sha256": "c33178c5c9a4e3f9cf683e6a1debb1e2f762a3cd9f27338292c8e8fa34f712aa",
+    "chat_template_kwargs": {"enable_thinking": false},
+    "dtype": "bfloat16",
+    "maximum_sequence_tokens": 8192,
+    "gpu_memory_utilization": 0.5,
+    "maximum_sequences": 32,
+    "enforce_eager": true,
+    "concurrent_k4_groups": 8
+  },
+  "identities": [
+    {
+      "identity": "raw_base_model",
+      "kind": "raw",
+      "method": "raw_base_model",
+      "training_seed": null,
+      "adapter_path": null,
+      "adapter_sha256": null,
+      "rollout_adapter_path": null,
+      "rollout_adapter_sha256": null,
+      "adapter_semantic_sha256": null,
+      "training_report_path": null,
+      "training_report_file_sha256": null,
+      "training_report_content_sha256": null
+    },
+    {
+      "identity": "shared_verified_sft",
+      "kind": "adapter",
+      "method": "shared_verified_sft",
+      "training_seed": null,
+      "adapter_path": "outputs/m5_webshop_credit_assignment_v1/preflight/sft_gpu/training/final_adapter_epoch_1",
+      "adapter_sha256": "c97c9265fe0043a8cda59908713429eef9e13d9619261a144c13cfa5fb4d7334",
+      "rollout_adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260801/iterations/i0000/input_rollout_adapter",
+      "rollout_adapter_sha256": "7c0a3a1b9ae49a2acdd2ad2bf1049873bbc3f574418d088c3d11fa4fb786e02c",
+      "adapter_semantic_sha256": "a11b73ae055212e8c6d2c8dcb8f6f7613308e90cefd5c409999b2370d2b6b107",
+      "training_report_path": null,
+      "training_report_file_sha256": null,
+      "training_report_content_sha256": null
+    },
+    {
+      "identity": "multi_turn_grpo_seed_20260801",
+      "kind": "adapter",
+      "method": "multi_turn_grpo",
+      "training_seed": 20260801,
+      "adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260801/iterations/i0020/learner/adapter",
+      "adapter_sha256": "813448245d7404da99bfeece36f943f7ad2305052b57a9ed7e0c6e80658efd38",
+      "rollout_adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260801/iterations/i0020/learner/rollout_adapter",
+      "rollout_adapter_sha256": "e8e919696541e09e980a868de57819613d768668e696195b46545d9eebff57a5",
+      "adapter_semantic_sha256": "83d0729d479ffd0e9abd43fed5279e6244a72b4736216d900611d8513d580227",
+      "training_report_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260801/run_report.json",
+      "training_report_file_sha256": "d21e74aa5344274c5279e27518d4a4507b7fdfed0479b99d4f2eafe12d62a7c4",
+      "training_report_content_sha256": "48b24d968ecafc9189efa4ddd04fd4874b8b4614c92ab6b67e060290a4edbc5d"
+    },
+    {
+      "identity": "multi_turn_grpo_seed_20260802",
+      "kind": "adapter",
+      "method": "multi_turn_grpo",
+      "training_seed": 20260802,
+      "adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260802/iterations/i0021/learner/adapter",
+      "adapter_sha256": "b2be0d3c66e890bad5c8c9b2d6a4e5ec481ef5e1c690ceb62910ef347058a1df",
+      "rollout_adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260802/iterations/i0021/learner/rollout_adapter",
+      "rollout_adapter_sha256": "1606019e7e93e86183e73929803deb46853f2393cd7389f71181a34420766a47",
+      "adapter_semantic_sha256": "aa5b3333f95a7386d606d44158c62863c7afa5b738a4dfae7cb59ded1f64e4b0",
+      "training_report_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260802/run_report.json",
+      "training_report_file_sha256": "b62214e00dfd9a6f867dd929817cbe980c5f0d6d80e4b57e9594c10ea0fa571f",
+      "training_report_content_sha256": "a6b8f6a724e67dfb45b8128327b48fc13e433763e86319377343ec43bb00b6bb"
+    },
+    {
+      "identity": "multi_turn_grpo_seed_20260803",
+      "kind": "adapter",
+      "method": "multi_turn_grpo",
+      "training_seed": 20260803,
+      "adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260803/iterations/i0020/learner/adapter",
+      "adapter_sha256": "25f00eb393659a6c9c2294be097064c7d3e2c879e48d5166cc84c28dc01ba3c1",
+      "rollout_adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260803/iterations/i0020/learner/rollout_adapter",
+      "rollout_adapter_sha256": "ba243cb20f36d28499e5a421ffb386feadcf6fe4028fc6172cc11e27534abe38",
+      "adapter_semantic_sha256": "1701e3271c779fe3ca96f785f43def9fd89222a34d9f082a2dbedb1f053a2225",
+      "training_report_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/multi_turn_grpo/seed_20260803/run_report.json",
+      "training_report_file_sha256": "f19293818511886deda97bb14b9a90de3e03d2abe4b79ca3397029f47b251017",
+      "training_report_content_sha256": "305fa3ac31736a6e383637729f37166cd6f9e2a96484a176d3708caa7b775bbe"
+    },
+    {
+      "identity": "anchor_gigpo_seed_20260801",
+      "kind": "adapter",
+      "method": "anchor_gigpo",
+      "training_seed": 20260801,
+      "adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260801/iterations/i0022/learner/adapter",
+      "adapter_sha256": "6945c784939b9245e0894d9173303d4af54c65eca1230c9ccd4bd3a9449fa0cd",
+      "rollout_adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260801/iterations/i0022/learner/rollout_adapter",
+      "rollout_adapter_sha256": "05ff6d89d623c2b8e149070c38a1ef0132f7e09dd97c54c662f50b69bdb75c29",
+      "adapter_semantic_sha256": "69f6809d4998473b6122eb57cf81a1c2332b34372e7f775463b0408bb135ab1d",
+      "training_report_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260801/run_report.json",
+      "training_report_file_sha256": "d9a6cee1bb532e3fe3c6feffdc9ecdc70e45ed58f1bec59664d28b68a2b17c30",
+      "training_report_content_sha256": "20219b84f7163c0847cd0cbeca04ce8ca0ad4e664839cf011169be81d48d1114"
+    },
+    {
+      "identity": "anchor_gigpo_seed_20260802",
+      "kind": "adapter",
+      "method": "anchor_gigpo",
+      "training_seed": 20260802,
+      "adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260802/iterations/i0023/learner/adapter",
+      "adapter_sha256": "0f5f0e2af4e94ba5bfbc0f0e529d97c8c2d91d9d0542b8b413e006fb3ec4b4ec",
+      "rollout_adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260802/iterations/i0023/learner/rollout_adapter",
+      "rollout_adapter_sha256": "54ed2bb78e4636ce487437e7607cb3e244d5ab5f4760ef0d0cabbb55a721d7a9",
+      "adapter_semantic_sha256": "6037a70f3eaa7745a57edef5765ff956edde9309cc0dbeb8f9d95e81ebfbad12",
+      "training_report_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260802/run_report.json",
+      "training_report_file_sha256": "602a7af1f89f674551a48c9927f8a3b1346beb8b2f31cdc123aa9eed2e7a3aa9",
+      "training_report_content_sha256": "ba45b30c484003ef0eb5804528735d71761463de3d5347af6bca313a4aeb8bcb"
+    },
+    {
+      "identity": "anchor_gigpo_seed_20260803",
+      "kind": "adapter",
+      "method": "anchor_gigpo",
+      "training_seed": 20260803,
+      "adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260803/iterations/i0023/learner/adapter",
+      "adapter_sha256": "e329ca3edd6be7913f052256bce3d8a38852948bc2594d611615413c112ca25f",
+      "rollout_adapter_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260803/iterations/i0023/learner/rollout_adapter",
+      "rollout_adapter_sha256": "f96ed07c852ed32dd3a9040f1d32afbc9209e719f611080f4072ed7321649619",
+      "adapter_semantic_sha256": "08e5d85e8a8e0d995334a17fcc67926e8c02c52af666ebb815083bab7ca75f4b",
+      "training_report_path": "outputs/m5_webshop_credit_assignment_v1/formal/online/anchor_gigpo/seed_20260803/run_report.json",
+      "training_report_file_sha256": "c4708e474bb052bf56be6016d053be5da62a51c9fad4764806a29ee8da1c773b",
+      "training_report_content_sha256": "982e14f83c5aa41cda9a4b3cb9f1b76dc6573af4ca25f822924a96124dc2c63e"
+    }
+  ],
+  "metrics": {
+    "primary": "binary task success rate where task_score >= 0.999",
+    "secondary": ["dense task score", "success by category", "success by constraint count", "generated tokens", "environment steps", "wall time", "invalid action rate"],
+    "statistics": "task-cluster bootstrap confidence intervals and paired seed-aware permutation tests are produced only after all eight identities complete"
+  },
+  "resources": {
+    "wall_time_per_allocation": "24:00:00",
+    "gpus_per_identity": 1,
+    "cpus_per_identity": 6,
+    "memory_gib_per_identity": 24,
+    "maximum_parallel_identities": 8,
+    "shared_service": {"cpus": 24, "memory_gib": 96, "workers": 16, "url": "http://127.0.0.1:44151"}
+  },
+  "recovery": {
+    "group_commit": "atomic after all K4 trajectories are infrastructure-valid",
+    "same_root_resume": true,
+    "maximum_infrastructure_attempts_per_group": 4,
+    "timeout_successor": "only Slurm USR1 at T-300 seconds may submit one afterany successor for the same identity and output root",
+    "deterministic_failure": "stop without successor"
+  },
+  "success_contract": {
+    "exact_task_count": 500,
+    "exact_trajectory_count": 2000,
+    "minimum_infrastructure_valid_attempt_fraction": 0.98,
+    "nonempty_gpu_telemetry": true,
+    "training_updates_allowed": false
+  },
+  "output_root_template": "outputs/m5_webshop_credit_assignment_v1/formal/frozen_test/{identity}"
+}
