@@ -13,6 +13,7 @@
 
 set -euo pipefail
 repo_root="${M6_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL}"
+slurm_bin="${M6_SLURM_BIN:-/opt/slurm/slurm.25.05/bin}"
 cd "$repo_root"
 mkdir -p logs
 : "${M6_EXPECTED_GIT_SHA:?set M6_EXPECTED_GIT_SHA}"
@@ -27,7 +28,7 @@ mkdir -p "$M6_ROLLOUT_OUTPUT"
 submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
-    successor_job_id="$(sbatch --parsable --dependency="afterany:${SLURM_JOB_ID}" \
+    successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" \
       --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_SERVICE_BASE_URL=${base_url:-${M6_SERVICE_BASE_URL:-http://127.0.0.1:44151}},M6_SPLIT_LOCK=${M6_SPLIT_LOCK:-},M6_ROLLOUT_MODE=$M6_ROLLOUT_MODE,M6_ROLLOUT_ROLE=$M6_ROLLOUT_ROLE,M6_ROLLOUT_K=$M6_ROLLOUT_K,M6_ROLLOUT_OUTPUT=$M6_ROLLOUT_OUTPUT,M6_ROLLOUT_ADAPTER=${M6_ROLLOUT_ADAPTER:-},M6_ROLLOUT_ITERATION=${M6_ROLLOUT_ITERATION:-0},M6_ROLLOUT_SEED=${M6_ROLLOUT_SEED:-20260812},M6_EVAL_IDENTITY=${M6_EVAL_IDENTITY:-},M6_TASK_ROSTER=${M6_TASK_ROSTER:-},M6_TASK_OFFSET=${M6_TASK_OFFSET:-0},M6_ROLLOUT_MAXIMUM_TOKENS=${M6_ROLLOUT_MAXIMUM_TOKENS:-}" \
       scripts/run_m6_rollout_job.sh)"
     printf '%s\n' "$successor_job_id" > "$M6_ROLLOUT_OUTPUT/successor_job_id"
@@ -71,7 +72,7 @@ curl --fail --silent --show-error --max-time 30 "$base_url/health" >/dev/null
 curl --fail --silent --show-error --max-time 120 -X POST \
   -H 'Content-Type: application/json' -d '{"goal_index":1000}' "$base_url/reset" >/dev/null
 
-/opt/slurm/slurm.25.05/bin/srun --ntasks=1 "$python_bin" scripts/m6_collect_policy_success.py \
+"$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_collect_policy_success.py \
   --mode "$M6_ROLLOUT_MODE" --role "$M6_ROLLOUT_ROLE" --k "$M6_ROLLOUT_K" \
   --split-lock "$split_lock" \
   --goals outputs/m5_webshop_credit_assignment_v1/upstream/webshop_full/goals.json \
@@ -83,7 +84,7 @@ curl --fail --silent --show-error --max-time 120 -X POST \
 
 if test "$M6_ROLLOUT_MODE" = "evaluation"; then
   : "${M6_EVAL_IDENTITY:?set raw, mini_sft, or mini_rl for evaluation}"
-  /opt/slurm/slurm.25.05/bin/srun --ntasks=1 "$python_bin" scripts/m6_closed_loop_eval.py \
+  "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_closed_loop_eval.py \
     --identity "$M6_EVAL_IDENTITY" --groups-dir "$M6_ROLLOUT_OUTPUT/groups" \
     --collection-report "$M6_ROLLOUT_OUTPUT/collection_report.json" --split-lock "$split_lock" \
     --output "$M6_ROLLOUT_OUTPUT/identity_report.json"

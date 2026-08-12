@@ -21,6 +21,7 @@ test "$(git rev-parse HEAD)" = "$M6_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
 
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
+slurm_bin="${M6_SLURM_BIN:-/opt/slurm/slurm.25.05/bin}"
 study_root="$repo_root/outputs/m6_monotonic_posttraining_v1"
 rl_root="$study_root/mini/rl"
 sft_adapter="$study_root/mini/sft/final_adapter"
@@ -39,7 +40,7 @@ mkdir -p "$rl_root"
 submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
-    successor_job_id="$(sbatch --parsable --dependency="afterany:${SLURM_JOB_ID}" \
+    successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" \
       --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock" \
       scripts/run_m6_mini_rl_loop_job.sh)"
     printf '%s\n' "$successor_job_id" > "$rl_root/successor_job_id"
@@ -85,7 +86,7 @@ PY
 identity="$rl_root/sft_adapter_identity.json"
 # Revalidation is cheap and proves the existing view still represents the
 # canonical SFT adapter before every 24h allocation/resume.
-/opt/slurm/slurm.25.05/bin/srun --ntasks=1 "$python_bin" scripts/m6_adapter_identity.py \
+"$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_adapter_identity.py \
   --adapter "$sft_adapter" --view "$rl_root/sft_rollout_adapter" --output "$identity"
 
 curriculum_tasks="$($python_bin -c 'import json,sys; value=json.load(open(sys.argv[1])); print(value["task_count"])' "$curriculum")"
@@ -148,7 +149,7 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
   fi
 
   if ! test -f "$collection_root/collection_report.json"; then
-    /opt/slurm/slurm.25.05/bin/srun --ntasks=1 "$python_bin" scripts/m6_collect_policy_success.py \
+    "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_collect_policy_success.py \
       --mode rl_collection --role mini_train --k 8 \
       --split-lock "$split_lock" \
       --goals outputs/m5_webshop_credit_assignment_v1/upstream/webshop_full/goals.json \
@@ -174,7 +175,7 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
   optimizer_args=()
   test -z "$input_optimizer" || optimizer_args=(--input-optimizer "$input_optimizer")
   if ! test -f "$learner_root/learner_report.json"; then
-    /opt/slurm/slurm.25.05/bin/srun --ntasks=1 "$python_bin" scripts/m6_online_rl.py \
+    "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_online_rl.py \
       --groups-dir "$collection_root/groups" --collection-report "$collection_root/collection_report.json" \
       --input-adapter "$input_adapter" --input-adapter-semantic-sha256 "$input_semantic" \
       --reference-sft-adapter "$sft_adapter" --output-dir "$learner_root" \
@@ -199,5 +200,5 @@ while test "$index" -lt "$iteration"; do
   fi
   index=$((index + 1))
 done
-/opt/slurm/slurm.25.05/bin/srun --ntasks=1 "$python_bin" scripts/m6_finalize_rl_audit.py \
+"$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_finalize_rl_audit.py \
   "${audit_args[@]}" "${collection_args[@]}" --output "$rl_root/rl_audit.json"

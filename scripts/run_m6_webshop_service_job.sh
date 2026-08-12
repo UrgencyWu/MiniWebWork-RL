@@ -13,6 +13,7 @@
 
 set -euo pipefail
 repo_root="${M6_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL}"
+slurm_bin="${M6_SLURM_BIN:-/opt/slurm/slurm.25.05/bin}"
 cd "$repo_root"
 mkdir -p logs
 mkdir -p outputs/m6_monotonic_posttraining_v1
@@ -58,7 +59,7 @@ renew_service() {
   test -z "$service_pid" || wait "$service_pid" 2>/dev/null || true
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
     cd "$repo_root"
-    successor_job_id="$(sbatch --parsable \
+    successor_job_id="$("$slurm_bin/sbatch" --parsable \
       --dependency="afterany:${SLURM_JOB_ID}" \
       --export="ALL,M6_REPO_ROOT=$repo_root,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_WEBSHOP_WORKERS=$workers" \
       scripts/run_m6_webshop_service_job.sh)"

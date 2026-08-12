@@ -13,6 +13,7 @@
 
 set -euo pipefail
 repo_root="${M6_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL}"
+slurm_bin="${M6_SLURM_BIN:-/opt/slurm/slurm.25.05/bin}"
 cd "$repo_root"
 mkdir -p logs
 : "${M6_EXPECTED_GIT_SHA:?set M6_EXPECTED_GIT_SHA}"
@@ -24,7 +25,7 @@ mkdir -p "$output"
 submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
-    successor_job_id="$(sbatch --parsable --dependency="afterany:${SLURM_JOB_ID}" --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA" scripts/run_m6_mini_sft_job.sh)"
+    successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA" scripts/run_m6_mini_sft_job.sh)"
     printf '%s\n' "$successor_job_id" > "$output/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
   fi
@@ -36,6 +37,6 @@ python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export TOKENIZERS_PARALLELISM=false
-/opt/slurm/slurm.25.05/bin/srun --ntasks=1 "$python_bin" scripts/m6_sft_train.py \
+"$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_sft_train.py \
   --data-dir outputs/m6_monotonic_posttraining_v1/mini/corpus \
   --output-dir "$output"
