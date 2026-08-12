@@ -23,6 +23,11 @@ M6 状态为 `planning_only`，尚未授权或提交正式训练。计划针对 
 3. RL 用 strict binary terminal reward 做 GRPO macro credit，并用 verifier progress 的
    telescoping TD 差分提供 turn credit，避免继续奖励 partial-match purchase。
 
+M6 在全量训练前新增一条 development-only 最小链：256-task mini-train、200-task 隔离
+mini-dev，顺序验证 `Raw < mini-SFT < mini-RL`。两个相邻增量均达到至少 3 pp 且行为、
+信用分配和真实更新门禁通过后，才允许从 Raw 重新开始全量正式训练；mini checkpoint 不得
+直接续训或包装为正式结果。
+
 M6 将从原 eligible train 区域冻结新的 dev 与 untouched holdout，不复用已经打开的 M5
 test 做调参。完整方案见
 [`M6_MONOTONIC_POSTTRAINING_PLAN.md`](M6_MONOTONIC_POSTTRAINING_PLAN.md)。

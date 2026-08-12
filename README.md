@@ -12,6 +12,10 @@ MiniWebWork-RL 是一个面向确定性采购调研流程的轻量浏览器 Agen
 verifier potential 的 TD 差分分配逐 turn credit。每一阶段只有在独立闭环 dev 上胜过前一
 阶段才允许晋级，最终使用新的 untouched holdout，不复用 M5 test 调参。
 
+全量训练前先运行 development-only 的 M6-mini：256 个 mini-train task、200 个隔离
+mini-dev task，依次验证 `Raw → mini-SFT → mini-RL`。只有两个相邻阶段都至少提升 3 pp
+且行为门禁通过，才扩展到全量 SFT/RL；mini checkpoint 不会续训为正式模型。
+
 当前只完成改进计划，尚未授权或提交 M6 正式训练。方案见
 [`docs/M6_MONOTONIC_POSTTRAINING_PLAN.md`](docs/M6_MONOTONIC_POSTTRAINING_PLAN.md)。
 

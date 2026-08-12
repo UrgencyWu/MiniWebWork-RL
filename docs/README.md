@@ -2,7 +2,7 @@
 
 ## Authoritative current documents
 
-1. [`M6_MONOTONIC_POSTTRAINING_PLAN.md`](M6_MONOTONIC_POSTTRAINING_PLAN.md) — current planning-only proposal for a genuine Raw → SFT → RL strict-success improvement, with learnable data, closed-loop promotion gates, verifier-TD credit, and a new untouched holdout.
+1. [`M6_MONOTONIC_POSTTRAINING_PLAN.md`](M6_MONOTONIC_POSTTRAINING_PLAN.md) — current planning-only proposal for a genuine Raw → SFT → RL strict-success improvement, beginning with an isolated small-data end-to-end gate before full SFT/RL, then closed-loop promotion and a new untouched holdout.
 2. [`M5_FINAL_TECHNICAL_REPORT.md`](M5_FINAL_TECHNICAL_REPORT.md) — final M5 training report: 16,000 frozen trajectories, statistical results, SFT negative-transfer diagnosis, credit-assignment findings, failures, costs, artifacts, and limitations.
 3. [`M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md`](M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md) — frozen historical M5 study contract.
 4. [`M5_EXECUTION_READINESS.md`](M5_EXECUTION_READINESS.md) — M5 training, recovery, frozen-evaluation, and final-analysis execution record.

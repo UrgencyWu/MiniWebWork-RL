@@ -30,6 +30,10 @@ loss、teacher-forced exact action 或 dense score。最终研究成功必须同
    最好 seed；
 6. 所有模型、checkpoint、prompt、阈值和分析代码在首次打开 promotion gate 前冻结。
 
+在任何全量 SFT/RL 之前，必须先完成一条独立的 **M6-mini Raw → SFT → RL 闭环链**。
+Mini 只回答“数据是否可学、训练是否朝正确方向移动、RL credit 是否真的改善 SFT”，用于尽早
+淘汰错误方案；它不能替代 3 seed 全量训练、promotion gate 或 untouched holdout 的正式证据。
+
 这不是承诺模型一定会提升。我们能保证的是：**只有满足上述证据才会把 M6 标记为成功；
 任何失败都会在 tuning-dev 门禁或正式报告中保留，不能靠测试泄漏、事后挑 seed 或改指标
 制造成功。**
@@ -137,7 +141,7 @@ SFT corpus 发布前必须满足：
 | Strict-success verified trajectories | 100% |
 | Environment replay success | 100% |
 | Zero-label / truncation | 0 / 0 |
-| Train/tuning-dev/promotion/holdout exact instruction overlap | 0 |
+| Train/mini-dev/formal-dev/promotion/holdout exact instruction overlap | 0 |
 | M5-exposed goals in promotion/holdout | 0 |
 | Search query token 来自 instruction 或先前公开 observation | ≥90% |
 | Search query mean length | ≤48 characters |
@@ -176,17 +180,17 @@ hidden metadata。所有 corpus 统计和逐样本 provenance 写入 self-hashed
 - reference 是冻结 Raw policy；在 retention state 的 action-token distribution 上优化
   `L_SFT + β_KL KL(π_SFT || π_Raw)`；
 - `β_KL` 只允许 `{0.01, 0.03}` 两个 dev 候选；
-- checkpoint 只按闭环 tuning-dev strict success 选择，NLL 只做诊断。
+- checkpoint 只按闭环 formal tuning-dev strict success 选择，NLL 只做诊断。
 
-这是一个 2×2 的小型开发网格，不是正式实验矩阵。候选都只读取 tuning-dev；确定 recipe
+这是一个 2×2 的小型开发网格，不是正式实验矩阵。候选都只读取 formal tuning-dev；确定 recipe
 后重新用冻结 recipe 训练 3 个正式 SFT seed。
 
 ### 5.2 Raw baseline 先冻结
 
-任何 SFT 训练前，先在 M6 tuning-dev roster 上运行 Raw：
+任何全量 SFT 训练前，先在 M6 formal tuning-dev roster 上运行 Raw：
 
 ```text
-500 tuning-dev tasks × K=4
+500 formal tuning-dev tasks × K=4
 ```
 
 冻结 strict success、dense score、partial-match purchase、search exhaustion、action/schema
@@ -195,10 +199,10 @@ promotion gate 和 holdout 的 Raw rollout 此时不运行。
 
 ### 5.3 SFT 晋级门禁
 
-候选 recipe 确定后，用它训练 3 个正式 SFT seed。只有在 tuning dev 同时满足以下条件，
+候选 recipe 确定后，用它训练 3 个正式 SFT seed。只有在 formal tuning-dev 同时满足以下条件，
 才允许继续 RL；这里是开发门禁，不是最终效果结论：
 
-1. paired tuning-dev strict success 相对 Raw **至少 +3.0 pp**；
+1. paired formal tuning-dev strict success 相对 Raw **至少 +3.0 pp**；
 2. task-cluster bootstrap 95% CI 下界 **> 0**；
 3. 3 个正式 SFT seed 均为正差，且 seed 均值满足门槛；
 4. search exhaustion ≤ Raw +2.0 pp；
@@ -288,8 +292,8 @@ mean → K8 group mean 聚合，因此每条轨迹的 macro 权重不随长度�
 - PPO-style clipped objective 保留，并加入 adaptive KL 到 SFT reference；目标 observed KL
   在 `[0.005, 0.03]`，越界自动调整 coefficient；
 - LR 从 M5 的 `5e-6` 降为 `1e-6`，每 iteration 只做 1 policy epoch；
-- 每 50,000 generated action tokens 做一次 tuning-dev eval；
-- checkpoint 选择只按 tuning-dev strict success，同时受成本/错误 guardrail 约束；
+- 每 50,000 generated action tokens 做一次 formal tuning-dev eval；
+- checkpoint 选择只按 formal tuning-dev strict success，同时受成本/错误 guardrail 约束；
 - patience=2 次 eval；连续两次没有刷新 best 或任一 guardrail 失败即停止；
 - behavior/sampling/HF replay parity、真实参数变化和 24h same-root recovery 沿用 M5。
 
@@ -298,9 +302,9 @@ mean → K8 group mean 聚合，因此每条轨迹的 macro 权重不随长度�
 正式 RL 每 seed 最多 500,000 generated action tokens，但达到 early stop 可以更早结束。最终
 checkpoint 必须：
 
-1. paired tuning-dev strict success 相对对应 SFT seed **至少 +3.0 pp**；
+1. paired formal tuning-dev strict success 相对对应 SFT seed **至少 +3.0 pp**；
 2. task-cluster bootstrap 95% CI 下界 >0；
-3. 同时高于 Raw tuning-dev baseline；
+3. 同时高于 Raw formal tuning-dev baseline；
 4. partial-match purchase 不高于 SFT；
 5. search exhaustion、schema/action error 不高于 SFT +2 pp；
 6. tokens/trajectory 不高于 SFT ×1.15；
@@ -320,23 +324,24 @@ M6 不复用 `[0,500)` 作为正式结论。先生成 `m5_goal_exposure_registry
 corpus、preflight、online、frozen-eval 和报告中的 task/goal identity。设原 eligible train
 `[1000,12087)` 的 canonical-instruction groups 为 `U`，其中没有 M5 task-specific exposure
 的子集为 `F`。分配顺序必须固定为：先从 `F` 选 promotion 和 holdout，再从剩余 `U` 选
-tuning dev，最后其余全部归 train。
+formal tuning-dev 与 mini-dev，最后其余全部归 train。
 
 | 角色 | 目标数量 | 用途 | 可更新模型 |
 |---|---:|---|---:|
-| Train | `U − 500 − 2×N_eval`，且至少 2,000 | 轨迹采集、SFT、RL | 是 |
-| Tuning dev | 500 | 小型 recipe、checkpoint 和 early stop | 否 |
+| Train | `U − 700 − 2×N_eval`，且至少 2,000 | mini/full 轨迹采集、SFT、RL | 是 |
+| Mini-dev | 200 | 小数据 Raw→SFT→RL 方向门禁 | 否 |
+| Formal tuning-dev | 500 | 全量 checkpoint 和 early stop | 否 |
 | Promotion gate | `N_eval` | 7 个身份冻结后的一次性晋级检查 | 否 |
 | M6 untouched holdout | `N_eval` | 最终只打开一次 | 否 |
 
 Promotion gate 和 holdout 必须来自 registry 中 `ever_read=false` 的 `F`。历史 M5 task
-可进入 M6 train/tuning-dev，因为它们只承担优化和选择角色，不再承担效果证据；其 exposure
+可进入 M6 train/mini-dev/formal tuning-dev，因为它们只承担优化和选择角色，不再承担效果证据；其 exposure
 flag 仍完整保留。`N_eval` 在任何 M6 训练前
 由第 7.4 节的前瞻功效分析冻结，且在 `[1,000, 2,000]` 内。若
-`F < 2×N_eval`，或 `|U| − 500 − 2×N_eval < 2,000`，M6 停止并寻找新的合规任务源，
+`F < 2×N_eval`，或 `|U| − 700 − 2×N_eval < 2,000`，M6 停止并寻找新的合规任务源，
 不能缩小既定未见评测或把已暴露任务伪装成新测试。
 精确数量以排除重复后的 group 分配为准，最终 roster 和 SHA-256 必须写入机器合同。M5 test、
-M6 train、tuning dev、promotion gate 和 holdout 的规范化 instruction 交集必须为零。
+M6 train、mini-dev、formal tuning-dev、promotion gate 和 holdout 的规范化 instruction 交集必须为零。
 由于 promotion/holdout 是从 WebShop 上游 train 区域重切的内部未见集，M6 只声称这条冻结
 分布上的 Raw→SFT→RL 因果对比，不把其绝对分数包装成官方 WebShop `[0,500)` test 排名。
 
@@ -400,46 +405,86 @@ M5 的 Raw 单模型 500-task CI 为 [30.05%, 37.20%]，说明固定 500 个 tas
 若 `N=2,000` 仍不能达到 80% 设计功效，或者 fresh goals 不足，则在训练前停止。不能先训练，
 再通过换置信区间算法或降低 3 pp 门槛补救。
 
+### 7.5 M6-mini：小数据端到端方向验证
+
+全量语料采集和正式训练前，从 M6 train 内预先冻结 256 个分层 mini-train tasks，并使用与
+train 完全隔离的 200 个 mini-dev tasks。它们按 category、constraint count 和 M5 Raw
+难度分层，但不得读取 promotion/holdout。Mini 链固定为：
+
+```text
+Raw K8 mini-train collection
+→ 1-seed mini-SFT
+→ K8、最多 50k generated-action-token mini-RL
+→ Raw / mini-SFT / mini-RL 在同一 200-task mini-dev 上 K4 闭环评测
+```
+
+Mini 数据硬门禁为：K8 至少得到 160 个不同 strict-success tasks 和 320 条 replayable success
+trajectories；不足时只允许在同一 mini-train roster 上补到 K16。语料为 20k–80k
+completion-label tokens，100% strict replay、0 hidden field、0 target-ASIN 泄漏，并至少包含
+20% recovery trajectories。Mini-SFT 使用默认 `LR=2e-5`、`β_KL=0.03`、最多 1 epoch；
+mini-RL 从该 adapter 开始，使用正式计划完全相同的 strict macro、verifier-TD 和 adaptive KL，
+至少完成 5 个有 mixed strict reward 的 iteration、2 次有效更新和真实参数变化。
+
+三者使用相同 task/rollout seeds 做配对评测。M6-mini 通过必须同时满足：
+
+1. `mini-SFT − Raw >= 3.0 pp`；
+2. `mini-RL − mini-SFT >= 3.0 pp`，且 `mini-RL > Raw`；
+3. 两个差值各有至少 80% 的 task-cluster bootstrap resample 为正；
+4. mini-SFT search exhaustion 不高于 Raw +5 pp；
+5. mini-RL partial-match purchase 不高于 mini-SFT +5 pp；
+6. schema/action error 不高于前一阶段 +3 pp；
+7. verifier-TD、finite loss/gradient、真实更新与 self-hash 审计全部通过。
+
+200-task mini-dev 的统计功效不足以支持最终结论，所以这里不要求正式 95% CI 下界大于 0。
+Mini checkpoint 全部标记 `development_only`，不得续训或重命名为正式 checkpoint；通过后正式
+SFT 仍从同一 Raw base 重新开始，正式 RL 仍从通过全量门禁的 SFT 开始。Mini-train 可继续
+属于正式 train，但 mini-dev 永不进入训练。若任一增量失败，停止扩量并按失败分类修订新版本；
+不得因为“小样本噪声”直接跳过，也不得反复窥视同一 mini-dev 调参。若 mini 链失败，该
+mini-dev roster 立即标记 `burned_for_selection=true`；修订方案后的下一轮必须从剩余开发池
+冻结新的 mini-dev-v2，不能在已经看过结果的 200 个任务上宣布“修复成功”。
+
 ## 8. 分阶段执行与停止点
 
-### Phase A：数据与基线（CPU + inference GPU）
+### Phase A：锁定切分并构建 mini 数据（CPU + inference GPU）
 
 1. 生成 M5 goal-exposure registry；
 2. 用 M5 paired differences 完成前瞻功效分析，冻结 `N_eval`；
-3. 生成 M6 split lock，证明五角色无 instruction overlap；
-4. 冻结 Raw tuning-dev baseline；
-5. 收集 Raw K8/K16 train success 和 recovery trajectories；
-6. 可选审计官方 human demonstrations；
-7. 生成 corpus manifest 与 conditional-learnability report。
+3. 生成 M6 split lock，证明所有角色无 instruction overlap；
+4. 冻结 256-task mini-train 与 200-task mini-dev；
+5. 收集 Raw K8/K16 mini success/recovery trajectories；
+6. 运行 Raw mini-dev K4 baseline；
+7. 生成 mini corpus manifest 与 conditional-learnability report。
 
-**停止点 A：** corpus 任一硬门禁失败，不提交 SFT。
+**停止点 A：** mini corpus 任一硬门禁失败，不提交 mini-SFT。
 
-### Phase B：小型 SFT recipe search
+### Phase B：M6-mini Raw → SFT → RL
 
-1. 训练 4 个候选：2 LR × 2 KL；
-2. 每 10% exposure 做闭环 tuning-dev；
-3. 选择第一个满足门禁、且成本最低的 recipe；
-4. 用冻结 recipe 训练 3 个正式 SFT seed。
+1. 训练 1 个 development-only mini-SFT；
+2. 在 mini-dev 上验证 `mini-SFT > Raw`；
+3. 运行 verifier-TD 和 K8 mixed-signal preflight；
+4. 训练 1 个最多 50k token 的 development-only mini-RL；
+5. 在共同 mini-dev/rollout seeds 上验证 `mini-RL > mini-SFT > Raw`。
 
-**停止点 B：** 正式 SFT 未在 tuning dev 形成一致 `SFT > Raw`，不实现/提交正式 RL。
+**停止点 B：** 第 7.5 节任一门槛失败，不扩大数据、不提交正式训练。
 
-### Phase C：RL preflight
+### Phase C：扩量与正式 SFT
 
-1. K8 strict mixed-signal probe；
-2. verifier-TD telescoping、相关性和 anti-partial-match audit；
-3. 至少 2 次真实 update、finite loss/gradient、adapter change；
-4. 50-task tuning-dev 小评测验证方向，不作为正式效果结论。
+1. 在完整 train 上扩展 Raw success/recovery collection；
+2. 可选审计并补入 WebShop human demonstrations；
+3. 发布 4k–8k trajectory 的正式 corpus；
+4. 运行 2 LR × 2 KL 小型 recipe search；
+5. 冻结 recipe 后从 Raw base 独立训练 3 个正式 SFT seed。
 
-**停止点 C：** credit 不满足 outcome-preserving 守恒，或 RL 未在小 tuning-dev probe 上胜
-SFT，不提交正式 RL。
+**停止点 C：** 3 个正式 SFT 未在 formal tuning-dev 一致 `SFT > Raw`，不提交正式 RL。
 
 ### Phase D：正式 RL
 
-3 个 seed，可并行；每 run 单 GPU、8 CPU、32 GiB、24h allocation、same-root resume。
-每 50k token 独立 tuning-dev eval，按 strict-success early stop。正式逻辑 run 为 3，不增加
+先在正式 corpus/adapter 上重复一次短 K8 preflight，再训练 3 个 seed；每 run 单 GPU、8 CPU、
+32 GiB、24h allocation、same-root resume。
+每 50k token 独立 formal tuning-dev eval，按 strict-success early stop。正式逻辑 run 为 3，不增加
 算法矩阵。
 
-**停止点 D：** 3 seed 未在 tuning dev 形成一致 `RL > SFT`，不打开 promotion gate；回到
+**停止点 D：** 3 seed 未在 formal tuning-dev 形成一致 `RL > SFT`，不打开 promotion gate；回到
 新的版本化研究，不能继续在同一 dev 上无限调参。
 
 ### Phase E：一次性 promotion gate
@@ -456,11 +501,13 @@ M6 补训。
 
 | 阶段 | 逻辑 GPU jobs | 最大并行 | 估计 wall time |
 |---|---:|---:|---:|
-| Raw train rollout data collection | 2–4 | 4 | 6–18 h |
-| Raw tuning-dev baseline | 1 | 1 | 2–4 h |
+| M6-mini Raw collection/eval | 1 | 1 | 1–3 h |
+| Mini-SFT + mini-RL | 2 | 1 | 1–4 h |
+| Full Raw train rollout collection | 2–4 | 4 | 6–18 h |
+| Raw formal tuning-dev baseline | 1 | 1 | 2–4 h |
 | SFT recipe candidates | 4 | 4 | 3–8 h |
 | Formal SFT seeds | 3 | 3 | 3–8 h |
-| RL preflight | 1 | 1 | <1 h |
+| Formal RL preflight | 1 | 1 | <1 h |
 | Formal RL seeds | 3 | 3 | 12–30 h |
 | Promotion-gate identities | 7 | 4 | 12–36 h |
 | Frozen holdout identities | 7 | 4 | 12–36 h |
@@ -478,7 +525,8 @@ WebShop service 和分析作业另计，但不应请求过量资源。任何时�
 ### 10.1 必须新增或修改
 
 - `data/m5_goal_exposure_registry_v1.json`：M5 曾读取 goal 的完整登记；
-- `data/m6_webshop_split_v1.json`：新的 train/tuning-dev/promotion/holdout lock；
+- `data/m6_webshop_split_v1.json`：新的 train/mini-dev/formal-dev/promotion/holdout lock；
+- `scripts/m6_run_mini_chain.py`：development-only Raw→SFT→RL 最小闭环验证与门禁报告；
 - `scripts/m6_plan_statistical_power.py`：在训练前冻结 `N_eval`；
 - `scripts/m6_collect_policy_success.py`：Raw 成功/恢复轨迹收集；
 - `scripts/m6_build_sft_corpus.py`：公开可学习 corpus、去重和 action balance；
@@ -511,28 +559,37 @@ WebShop service 和分析作业另计，但不应请求过量资源。任何时�
 
 ## 11. 分阶段准入审查清单
 
-### 11.1 开始数据采集与 SFT 前
+### 11.1 开始 M6-mini 前
 
 - [ ] 用户批准按本计划进入 Phase A/B；
 - [ ] M5 exposure registry 完整，promotion/holdout 中 M5-exposed goal 为 0；
 - [ ] 前瞻功效报告已冻结，3 pp 目标的预期 `CI_low>0` 概率 ≥80%；
-- [ ] M6 split 已冻结，M5 test 与 M6 train/tuning-dev/promotion/holdout 无 instruction overlap；
-- [ ] Raw tuning-dev baseline 与分析代码冻结；
-- [ ] SFT corpus 100% strict-success replay、0 hidden-title、0 target-ASIN label leak；
+- [ ] M6 split 已冻结，所有角色之间无 instruction overlap；
+- [ ] 256-task mini-train、200-task mini-dev 和 mini 分析代码冻结；
+- [ ] Mini corpus 100% strict-success replay、0 hidden-title、0 target-ASIN label leak；
 - [ ] query provenance、长度、多样性、recovery 和 action balance 全部过门。
 
-### 11.2 开始正式 RL 前
+### 11.2 扩展到全量 SFT 前
 
-- [ ] 3 个正式 SFT seed 在闭环 tuning-dev 上一致胜 Raw；
+- [ ] M6-mini 同一闭环 mini-dev 上满足 `mini-RL > mini-SFT > Raw`；
+- [ ] 两个相邻增量均至少 +3 pp，且 bootstrap 正向比例均 ≥80%；
+- [ ] Mini 行为 guardrails、TD 守恒、finite update 和参数变化全部通过；
+- [ ] Mini checkpoints 已标记 `development_only`，正式训练不得续用；
+- [ ] 用户批准进入 Phase C。
+
+### 11.3 开始正式 RL 前
+
+- [ ] Raw formal tuning-dev baseline 与分析代码冻结；
+- [ ] 全量 SFT corpus 通过全部数据门禁；
+- [ ] 3 个正式 SFT seed 在闭环 formal tuning-dev 上一致胜 Raw；
 - [ ] verifier-TD 对成功/失败严格求和为 1/0，partial-match 失败无净正 credit；
-- [ ] RL preflight 有 strict mixed groups、有限更新和真实参数变化；
-- [ ] RL 小型闭环 probe 胜对应 SFT，且 partial-match 没有恶化；
+- [ ] 正式 RL preflight 有 strict mixed groups、有限更新和真实参数变化；
 - [ ] 正式 RL 的 budget、early stop、KL、资源和 24h recovery 冻结；
 - [ ] 用户批准进入 Phase D。
 
-### 11.3 打开 promotion 与最终 holdout 前
+### 11.4 打开 promotion 与最终 holdout 前
 
-- [ ] 3 个正式 RL seed 在 tuning-dev 上一致胜对应 SFT；
+- [ ] 3 个正式 RL seed 在 formal tuning-dev 上一致胜对应 SFT；
 - [ ] 7 身份、prompt、checkpoint、sampling、评测与统计代码全部冻结；
 - [ ] 用户批准一次性打开 promotion gate；
 - [ ] promotion 全部门槛通过后，用户批准一次性打开最终 holdout。
