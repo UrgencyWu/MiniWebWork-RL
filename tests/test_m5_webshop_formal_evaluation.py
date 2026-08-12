@@ -155,6 +155,8 @@ def test_eval_slurm_is_evaluation_only_24h_recoverable_and_resource_bounded():
     assert 'afterany:${SLURM_JOB_ID}' in script
     assert "training_updates_allowed=false" in script
     assert "M5_EVAL_AUTHORIZATION_PATH" in script
+    assert 'M5_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL' in script
+    assert "M5_REPO_ROOT=$repo_root" in script
     assert "scancel" not in script
     assert evaluation_run_root("raw_base_model").as_posix().endswith("formal/frozen_test/raw_base_model")
 

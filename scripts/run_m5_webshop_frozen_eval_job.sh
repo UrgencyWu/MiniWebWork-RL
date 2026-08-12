@@ -12,7 +12,7 @@
 #SBATCH --error=logs/m5_webshop_frozen_eval_%j.err
 
 set -euo pipefail
-repo_root="/home/wushaohua/data/MiniWebWork-RL"
+repo_root="${M5_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL}"
 cd "$repo_root"
 mkdir -p logs
 : "${M5_EXPECTED_GIT_SHA:?set the frozen M5 evaluation Git SHA}"
@@ -33,7 +33,7 @@ submit_timeout_successor() {
   if test -n "${SLURM_JOB_ID:-}" && test "${M5_DISABLE_SUCCESSOR:-0}" != "1"; then
     successor_job_id="$(/opt/slurm/slurm.25.05/bin/sbatch --parsable \
       --dependency="afterany:${SLURM_JOB_ID}" \
-      --export="ALL,M5_EXPECTED_GIT_SHA=$M5_EXPECTED_GIT_SHA,M5_EVAL_IDENTITY=$M5_EVAL_IDENTITY,M5_EVAL_AUTHORIZATION_PATH=$authorization" \
+      --export="ALL,M5_REPO_ROOT=$repo_root,M5_EXPECTED_GIT_SHA=$M5_EXPECTED_GIT_SHA,M5_EVAL_IDENTITY=$M5_EVAL_IDENTITY,M5_EVAL_AUTHORIZATION_PATH=$authorization" \
       scripts/run_m5_webshop_frozen_eval_job.sh)"
     printf '%s\n' "$successor_job_id" > "$output_root/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
@@ -57,6 +57,7 @@ echo "phase=frozen_evaluation"
 echo "formal_evaluation=true"
 echo "training_updates_allowed=false"
 echo "identity=$M5_EVAL_IDENTITY"
+echo "repo_root=$repo_root"
 echo "git_sha=$(git rev-parse HEAD)"
 echo "job_id=${SLURM_JOB_ID:-manual}"
 echo "cpus=${SLURM_CPUS_PER_TASK:-6}"

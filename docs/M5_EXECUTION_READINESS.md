@@ -165,6 +165,9 @@ optimizer；它只在共同的 500 个官方 test goals 上，以相同采样设
 - 独立批准工具：`scripts/m5_webshop_authorize_frozen_eval.py`
 - 输出：`outputs/m5_webshop_credit_assignment_v1/formal/frozen_test/{identity}`
 
+评测代码可以通过 `M5_REPO_ROOT` 在独立 Git worktree 中执行；该 worktree 只共享既有
+`outputs` 训练产物，从而不切换或污染训练/服务使用的主工作树。
+
 每个完整 K4 才原子提交；24h 超时只允许同 identity、同输出根的 successor。主指标是二值
 成功率，辅指标包括 dense score、类别/约束复杂度分层、token、环境步数、耗时和无效动作。
 任何测试结果都不得反向选择 checkpoint、修改模型或触发补训。八身份全部完成后，才执行
