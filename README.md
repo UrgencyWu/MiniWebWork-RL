@@ -6,6 +6,15 @@ MiniWebWork-RL 是一个面向确定性采购调研流程的轻量浏览器 Agen
 
 ## 当前阶段
 
+**M6 Raw → SFT → RL 单调提升研究处于计划阶段。** M6 针对 M5 的两个主要错误重建
+后训练链路：SFT 不再使用 prompt 不可见的精确商品标题，而从 Raw policy 的真实成功与
+恢复轨迹蒸馏；RL 不再用 dense score 做宏观排序，而以 strict success 为终局目标，用
+verifier potential 的 TD 差分分配逐 turn credit。每一阶段只有在独立闭环 dev 上胜过前一
+阶段才允许晋级，最终使用新的 untouched holdout，不复用 M5 test 调参。
+
+当前只完成改进计划，尚未授权或提交 M6 正式训练。方案见
+[`docs/M6_MONOTONIC_POSTTRAINING_PLAN.md`](docs/M6_MONOTONIC_POSTTRAINING_PLAN.md)。
+
 **M5 WebShop 长程信用分配研究已经完成。** 项目使用公开的 1.18M 商品/12,087 goal
 WebShop full benchmark，训练一个 shared verified SFT，然后在相同约 500k
 generated-action-token 预算下比较 multi-turn GRPO 与 public-anchor GiGPO-style
@@ -95,6 +104,7 @@ Expert SFT / Grouped Multi-turn Rollout / GRPO-style Update
 
 ## 权威文档
 
+- [M6 Raw → SFT → RL 单调提升计划](docs/M6_MONOTONIC_POSTTRAINING_PLAN.md)
 - [M5 最终训练技术报告](docs/M5_FINAL_TECHNICAL_REPORT.md)
 - [M5 WebShop 信用分配研究合同](docs/M5_WEBSHOP_CREDIT_ASSIGNMENT_STUDY.md)
 - [M5 执行、恢复与冻结评测记录](docs/M5_EXECUTION_READINESS.md)

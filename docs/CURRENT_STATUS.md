@@ -4,13 +4,28 @@
 
 ## 项目定位
 
-当前正式方向是公开 WebShop benchmark 上的文本 Agent 信用分配研究。原确定性采购
+当前方向是公开 WebShop benchmark 上的文本 Agent 后训练研究。M6 正在规划
+Raw → SFT → RL 的真实 strict-success 单调提升；原确定性采购
 网站实现保留为基础设施与失败诊断，不再承担 M5 正式效果结论。
 
 ```text
 Task → Browser Environment → Qwen Policy → Multi-turn Rollout
 → Deterministic Verifier → SFT / GRPO-style Update → Frozen Evaluation
 ```
+
+## M6 当前状态
+
+M6 状态为 `planning_only`，尚未授权或提交正式训练。计划针对 M5 负迁移做三项核心修复：
+
+1. SFT 从 Raw policy 在公开 observation 下产生的 strict-success/recovery 轨迹蒸馏，禁止
+   hidden-title 和 target-ASIN 标签；
+2. Raw、SFT、RL 之间设置闭环 strict-success 晋级门禁，前一阶段未被超过就停止；
+3. RL 用 strict binary terminal reward 做 GRPO macro credit，并用 verifier progress 的
+   telescoping TD 差分提供 turn credit，避免继续奖励 partial-match purchase。
+
+M6 将从原 eligible train 区域冻结新的 dev 与 untouched holdout，不复用已经打开的 M5
+test 做调参。完整方案见
+[`M6_MONOTONIC_POSTTRAINING_PLAN.md`](M6_MONOTONIC_POSTTRAINING_PLAN.md)。
 
 ## M5 当前状态
 
