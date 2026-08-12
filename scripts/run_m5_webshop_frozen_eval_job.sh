@@ -44,6 +44,7 @@ trap submit_timeout_successor USR1
 
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-6}"
+export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
 export TOKENIZERS_PARALLELISM=false
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 unset PYTORCH_CUDA_ALLOC_CONF
