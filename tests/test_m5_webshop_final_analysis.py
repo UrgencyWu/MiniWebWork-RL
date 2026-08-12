@@ -4,6 +4,8 @@ from miniwebwork.webshop_rl.final_analysis import (
     FINAL_ANALYSIS_SCHEMA,
     bootstrap_mean_ci,
     classify_failure,
+    crossed_seed_task_bootstrap_ci,
+    exact_paired_seed_sign_permutation_pvalue,
     hierarchical_seed_task_bootstrap_ci,
     holm_adjust,
     paired_sign_permutation_pvalue,
@@ -27,9 +29,17 @@ def test_statistics_are_deterministic_and_task_clustered():
     assert hierarchical_seed_task_bootstrap_ci(
         grouped, samples=1_000, seed=9
     ) == hierarchical_seed_task_bootstrap_ci(grouped, samples=1_000, seed=9)
+    assert crossed_seed_task_bootstrap_ci(
+        grouped, samples=1_000, seed=10
+    ) == crossed_seed_task_bootstrap_ci(grouped, samples=1_000, seed=10)
     assert paired_sign_permutation_pvalue(
         [1.0, 1.0, 1.0, 1.0], samples=1_000, seed=11
     ) < 0.2
+
+
+def test_three_seed_exact_sign_test_cannot_overclaim_significance():
+    assert exact_paired_seed_sign_permutation_pvalue([0.1, 0.2, 0.3]) == 0.25
+    assert exact_paired_seed_sign_permutation_pvalue([-0.1, -0.2, -0.3]) == 0.25
 
 
 def test_failure_taxonomy_is_mutually_exclusive_and_exhaustive():

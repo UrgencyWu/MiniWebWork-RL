@@ -4,8 +4,9 @@
 #SBATCH --partition=compute
 #SBATCH --time=02:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+# The implementation is deliberately single-process; extra CPUs do not shorten it.
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
 #SBATCH --output=logs/m5_webshop_final_analysis_%j.out
 #SBATCH --error=logs/m5_webshop_final_analysis_%j.err
 
@@ -17,7 +18,7 @@ test "$(git rev-parse HEAD)" = "$M5_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
 mkdir -p logs
 export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 /home/wushaohua/miniconda3/envs/miniwebwork/bin/python \
   scripts/m5_webshop_analyze_final.py \
   --expected-git-sha "$M5_EXPECTED_GIT_SHA"

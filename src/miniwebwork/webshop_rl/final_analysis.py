@@ -107,6 +107,37 @@ def hierarchical_seed_task_bootstrap_ci(
     return [_quantile(draws, 0.025), _quantile(draws, 0.975)]
 
 
+def crossed_seed_task_bootstrap_ci(
+    seed_task_values: Mapping[int, Sequence[float]],
+    *,
+    samples: int,
+    seed: int,
+) -> list[float]:
+    """Resample paired training seeds and the common task roster as crossed units."""
+
+    _require(bool(seed_task_values) and samples >= 1_000, "crossed bootstrap requires data")
+    seeds = sorted(seed_task_values)
+    task_count = len(seed_task_values[seeds[0]])
+    _require(task_count > 0, "crossed bootstrap task roster is empty")
+    _require(
+        all(len(seed_task_values[item]) == task_count for item in seeds),
+        "crossed bootstrap task roster drift",
+    )
+    rng = random.Random(seed)
+    draws: list[float] = []
+    for _ in range(samples):
+        sampled_seeds = [seeds[rng.randrange(len(seeds))] for _ in seeds]
+        sampled_tasks = [rng.randrange(task_count) for _ in range(task_count)]
+        draws.append(
+            statistics.fmean(
+                float(seed_task_values[training_seed][task_index])
+                for training_seed in sampled_seeds
+                for task_index in sampled_tasks
+            )
+        )
+    return [_quantile(draws, 0.025), _quantile(draws, 0.975)]
+
+
 def paired_sign_permutation_pvalue(
     differences: Sequence[float], *, samples: int, seed: int
 ) -> float:
@@ -125,20 +156,39 @@ def paired_sign_permutation_pvalue(
     return extreme / (samples + 1)
 
 
-def seed_stratified_paired_permutation_pvalue(
-    seed_task_differences: Mapping[int, Sequence[float]],
-    *,
-    samples: int,
-    seed: int,
-) -> float:
-    """Randomize method labels within every matched seed/task cluster."""
+def exact_paired_seed_sign_permutation_pvalue(differences: Sequence[float]) -> float:
+    """Exact two-sided sign randomization over independent paired training runs."""
 
-    flattened = [
-        float(value)
-        for item in sorted(seed_task_differences)
-        for value in seed_task_differences[item]
+    _require(bool(differences) and len(differences) <= 20, "exact paired-seed test requires 1..20 pairs")
+    values = [float(value) for value in differences]
+    observed = abs(statistics.fmean(values))
+    extreme = 0
+    assignment_count = 1 << len(values)
+    for assignment in range(assignment_count):
+        candidate = abs(
+            statistics.fmean(
+                value if assignment & (1 << index) else -value
+                for index, value in enumerate(values)
+            )
+        )
+        extreme += candidate >= observed - 1e-15
+    return extreme / assignment_count
+
+
+def _mean_task_differences_across_seeds(
+    seed_task_differences: Mapping[int, Sequence[float]],
+) -> list[float]:
+    seeds = sorted(seed_task_differences)
+    _require(bool(seeds), "paired seed roster is empty")
+    task_count = len(seed_task_differences[seeds[0]])
+    _require(
+        task_count > 0 and all(len(seed_task_differences[item]) == task_count for item in seeds),
+        "paired crossed task roster drift",
+    )
+    return [
+        statistics.fmean(float(seed_task_differences[item][task_index]) for item in seeds)
+        for task_index in range(task_count)
     ]
-    return paired_sign_permutation_pvalue(flattened, samples=samples, seed=seed)
 
 
 def holm_adjust(pvalues: Mapping[str, float]) -> dict[str, float]:
@@ -431,14 +481,14 @@ def _method_aggregate(
         "tasks_per_seed": 500,
         "trajectories_per_seed": 2_000,
         "task_macro_success_mean": statistics.fmean(per_seed_success),
-        "hierarchical_seed_then_task_bootstrap_95ci_success": hierarchical_seed_task_bootstrap_ci(
+        "crossed_training_seed_and_common_task_bootstrap_95ci_success": crossed_seed_task_bootstrap_ci(
             success, samples=bootstrap_samples, seed=seed
         ),
         "task_macro_success_sample_standard_deviation_across_seeds": statistics.stdev(per_seed_success),
         "task_macro_dense_score_mean": statistics.fmean(
             statistics.fmean(dense[item]) for item in TRAINING_SEEDS
         ),
-        "hierarchical_seed_then_task_bootstrap_95ci_dense_score": hierarchical_seed_task_bootstrap_ci(
+        "crossed_training_seed_and_common_task_bootstrap_95ci_dense_score": crossed_seed_task_bootstrap_ci(
             dense, samples=bootstrap_samples, seed=seed + 1
         ),
         "per_seed_success": {str(item): statistics.fmean(success[item]) for item in TRAINING_SEEDS},
@@ -464,6 +514,18 @@ def _simple_paired_statistics(
         "paired_task_sign_permutation_pvalue_two_sided": paired_sign_permutation_pvalue(
             differences, samples=permutation_samples, seed=seed + 97
         ),
+        "paired_task_count": len(differences),
+        "improved_task_count": sum(value > 1e-15 for value in differences),
+        "tied_task_count": sum(abs(value) <= 1e-15 for value in differences),
+        "regressed_task_count": sum(value < -1e-15 for value in differences),
+    }
+
+
+def _paired_descriptive_statistics(differences: Sequence[float]) -> dict[str, Any]:
+    """Per-stratum diagnostics without treating one seed as a confirmatory study."""
+
+    return {
+        "mean_delta": statistics.fmean(float(value) for value in differences),
         "paired_task_count": len(differences),
         "improved_task_count": sum(value > 1e-15 for value in differences),
         "tied_task_count": sum(abs(value) <= 1e-15 for value in differences),
@@ -520,18 +582,8 @@ def _paired_comparison(
         success_by_seed[training_seed] = success_differences
         dense_by_seed[training_seed] = dense_differences
         by_seed[str(training_seed)] = {
-            "success": _simple_paired_statistics(
-                success_differences,
-                bootstrap_samples=bootstrap_samples,
-                permutation_samples=permutation_samples,
-                seed=seed + offset * 1_009,
-            ),
-            "dense_score": _simple_paired_statistics(
-                dense_differences,
-                bootstrap_samples=bootstrap_samples,
-                permutation_samples=permutation_samples,
-                seed=seed + offset * 1_009 + 1,
-            ),
+            "success": _paired_descriptive_statistics(success_differences),
+            "dense_score": _paired_descriptive_statistics(dense_differences),
         }
         first_records = first[training_seed]["records_by_key"]
         second_records = second[training_seed]["records_by_key"]
@@ -552,13 +604,35 @@ def _paired_comparison(
             dense_flat, bootstrap_samples=bootstrap_samples, permutation_samples=permutation_samples, seed=seed + 1
         )
     else:
+        success_seed_means = {
+            training_seed: statistics.fmean(values)
+            for training_seed, values in success_by_seed.items()
+        }
+        dense_seed_means = {
+            training_seed: statistics.fmean(values)
+            for training_seed, values in dense_by_seed.items()
+        }
+        success_task_means = _mean_task_differences_across_seeds(success_by_seed)
+        dense_task_means = _mean_task_differences_across_seeds(dense_by_seed)
         success_stats = {
             "mean_delta": statistics.fmean(success_flat),
-            "hierarchical_seed_then_task_bootstrap_95ci": hierarchical_seed_task_bootstrap_ci(
+            "crossed_training_seed_and_common_task_bootstrap_95ci": crossed_seed_task_bootstrap_ci(
                 success_by_seed, samples=bootstrap_samples, seed=seed
             ),
-            "seed_stratified_paired_task_sign_permutation_pvalue_two_sided": seed_stratified_paired_permutation_pvalue(
-                success_by_seed, samples=permutation_samples, seed=seed + 97
+            "exact_paired_training_seed_sign_permutation_pvalue_two_sided": exact_paired_seed_sign_permutation_pvalue(
+                list(success_seed_means.values())
+            ),
+            "paired_training_seed_count": len(seeds),
+            "per_seed_mean_delta": {str(item): success_seed_means[item] for item in seeds},
+            "task_conditioned_on_trained_seeds": (
+                _simple_paired_statistics(
+                    success_task_means,
+                    bootstrap_samples=bootstrap_samples,
+                    permutation_samples=permutation_samples,
+                    seed=seed + 97,
+                )
+                if include_detail
+                else None
             ),
             "paired_seed_task_count": len(success_flat),
             "improved_seed_task_count": sum(value > 1e-15 for value in success_flat),
@@ -567,11 +641,23 @@ def _paired_comparison(
         }
         dense_stats = {
             "mean_delta": statistics.fmean(dense_flat),
-            "hierarchical_seed_then_task_bootstrap_95ci": hierarchical_seed_task_bootstrap_ci(
+            "crossed_training_seed_and_common_task_bootstrap_95ci": crossed_seed_task_bootstrap_ci(
                 dense_by_seed, samples=bootstrap_samples, seed=seed + 1
             ),
-            "seed_stratified_paired_task_sign_permutation_pvalue_two_sided": seed_stratified_paired_permutation_pvalue(
-                dense_by_seed, samples=permutation_samples, seed=seed + 98
+            "exact_paired_training_seed_sign_permutation_pvalue_two_sided": exact_paired_seed_sign_permutation_pvalue(
+                list(dense_seed_means.values())
+            ),
+            "paired_training_seed_count": len(seeds),
+            "per_seed_mean_delta": {str(item): dense_seed_means[item] for item in seeds},
+            "task_conditioned_on_trained_seeds": (
+                _simple_paired_statistics(
+                    dense_task_means,
+                    bootstrap_samples=bootstrap_samples,
+                    permutation_samples=permutation_samples,
+                    seed=seed + 98,
+                )
+                if include_detail
+                else None
             ),
             "paired_seed_task_count": len(dense_flat),
         }
@@ -597,7 +683,8 @@ def _paired_comparison(
     return (
         {
             "comparison": name,
-            "estimand": "second minus first; paired by training seed, task_id, and rollout_index",
+            "estimand": "second minus first; task metrics paired by training seed and task_id; rollout_index pairing is diagnostic only",
+            "inferential_unit": "paired_training_seed" if len(seeds) > 1 else "paired_task",
             "success": success_stats,
             "dense_score": dense_stats,
             "paired_rollout_discordance_diagnostic": dict(discordance),
@@ -648,7 +735,7 @@ def _comparison_pvalue(comparison: Mapping[str, Any]) -> float:
     success = comparison["success"]
     return float(
         success.get(
-            "seed_stratified_paired_task_sign_permutation_pvalue_two_sided",
+            "exact_paired_training_seed_sign_permutation_pvalue_two_sided",
             success.get("paired_task_sign_permutation_pvalue_two_sided"),
         )
     )
@@ -657,7 +744,7 @@ def _comparison_pvalue(comparison: Mapping[str, Any]) -> float:
 def _comparison_ci(comparison: Mapping[str, Any]) -> Sequence[float]:
     success = comparison["success"]
     return success.get(
-        "hierarchical_seed_then_task_bootstrap_95ci",
+        "crossed_training_seed_and_common_task_bootstrap_95ci",
         success.get("paired_task_cluster_bootstrap_95ci"),
     )
 
@@ -700,13 +787,13 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             "",
             "## 三种子方法汇总",
             "",
-            "| 方法 | 平均成功率 | hierarchical 95% CI | 种子标准差 | 平均稠密得分 | 平均 action tokens/seed |",
+            "| 方法 | 平均成功率 | crossed seed/task 95% CI | 种子标准差 | 平均稠密得分 | 平均 action tokens/seed |",
             "|---|---:|---:|---:|---:|---:|",
         ]
     )
     for method in ("multi_turn_grpo", "anchor_gigpo"):
         aggregate = report["method_aggregates"][method]
-        ci = aggregate["hierarchical_seed_then_task_bootstrap_95ci_success"]
+        ci = aggregate["crossed_training_seed_and_common_task_bootstrap_95ci_success"]
         lines.append(
             f"| {method} | {aggregate['task_macro_success_mean']:.4f} | [{ci[0]:.4f}, {ci[1]:.4f}] | "
             f"{aggregate['task_macro_success_sample_standard_deviation_across_seeds']:.4f} | "
@@ -718,10 +805,10 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             "",
             "## 配对显著性检验",
             "",
-            "主比较为 Anchor-GiGPO − GRPO。区间按训练种子→任务分层 bootstrap；双侧随机化检验在每个匹配的 seed/task 簇内交换方法标签。解释性比较的 p 值使用 Holm 校正。",
+            "主比较为 Anchor-GiGPO − GRPO。区间对训练种子和共同任务做 crossed bootstrap；三种子方法比较的算法级双侧 p 值来自配对训练种子的精确符号随机化。仅有 3 对训练种子，因此双侧 p 的理论下限为 0.25。单身份比较以配对任务为推断单位，解释性比较的 p 值使用 Holm 校正。",
             "",
-            "| 比较（second − first） | 成功率差 | 95% CI | 双侧 p | Holm p | 结论 |",
-            "|---|---:|---:|---:|---:|---|",
+            "| 比较（second − first） | 推断单位 | 成功率差 | 95% CI | 双侧 p | Holm p | 结论 |",
+            "|---|---|---:|---:|---:|---:|---|",
         ]
     )
     ordered = [PRIMARY_COMPARISON, *EXPLANATORY_COMPARISONS]
@@ -732,7 +819,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         adjusted = comparison.get("holm_adjusted_pvalue")
         significant = _significant(comparison, adjusted_pvalue=adjusted)
         lines.append(
-            f"| {name} | {comparison['success']['mean_delta']:+.4f} | [{ci[0]:+.4f}, {ci[1]:+.4f}] | "
+            f"| {name} | {comparison['inferential_unit']} | {comparison['success']['mean_delta']:+.4f} | [{ci[0]:+.4f}, {ci[1]:+.4f}] | "
             f"{pvalue:.6f} | {'—' if adjusted is None else f'{adjusted:.6f}'} | "
             f"{'显著' if significant else '未达到显著标准'} |"
         )
@@ -742,6 +829,10 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         [
             "",
             "## 主比较的配对任务差异",
+            "",
+            f"在已训练的这 3 对检查点上先跨 seed 求任务均值后，任务聚类双侧 p="
+            f"{primary['success']['task_conditioned_on_trained_seeds']['paired_task_sign_permutation_pvalue_two_sided']:.6f}；"
+            "这是检查点条件下的任务差异诊断，不是独立的算法总体显著性检验。",
             "",
             f"跨三个训练种子求均值后：Anchor-GiGPO 改善 {task_aggregate['improved_task_count']} 个任务，持平 "
             f"{task_aggregate['tied_task_count']} 个，退化 {task_aggregate['regressed_task_count']} 个。",
@@ -797,8 +888,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"- Anchor-GiGPO − GRPO 的成功率差为 {primary['success']['mean_delta']:+.4f}，95% CI "
             f"[{primary_ci[0]:+.4f}, {primary_ci[1]:+.4f}]，双侧 p={_comparison_pvalue(primary):.6f}；不支持成功率优势声明。",
             f"- Anchor-GiGPO 的平均稠密得分差为 {primary['dense_score']['mean_delta']:+.4f}；平均生成 token 比 GRPO 低 {token_reduction:.1%}。",
-            "- 两种 RL 都显著高于退化后的 SFT，但仍显著低于 Raw 基座；因此本轮证明的是能力恢复和信用分配效率差异，不是对基座的最终超越。",
-            "- 三个训练种子限制了算法总体推断；失败分类是基于公开轨迹状态的诊断规则，不等价于人工因果标注。",
+            "- 点估计显示两种 RL 都从退化后的 SFT 恢复了大量能力，但仍低于 Raw 基座；由于仅有 3 个训练种子，算法级精确检验无法达到 0.05，不能宣称总体显著。",
+            "- 三个训练种子限制了算法总体推断；任务条件检验只描述这些冻结检查点。失败分类是基于公开轨迹状态的诊断规则，不等价于人工因果标注。",
             "",
             "## 可审计产物",
             "",
@@ -928,8 +1019,9 @@ def build_final_analysis(
             "bootstrap_samples": bootstrap_samples,
             "permutation_samples": permutation_samples,
             "single_identity_ci": "task-cluster percentile bootstrap",
-            "multi_seed_ci": "hierarchical training-seed then task bootstrap",
-            "method_test": "two-sided paired task-cluster sign permutation stratified by training seed",
+            "multi_seed_ci": "crossed bootstrap of paired training seeds and the common frozen task roster",
+            "method_test": "exact two-sided paired training-seed sign randomization; n=3 implies minimum attainable p=0.25",
+            "checkpoint_conditioned_task_test": "average each common task over the three trained seeds, then paired task sign permutation; diagnostic only",
             "explanatory_multiplicity": "Holm family-wise correction across five non-primary comparisons",
             "rollout_pairing": "same task_id and rollout_index; rollout-level discordance is diagnostic only",
             "alpha": 0.05,
@@ -988,6 +1080,7 @@ def build_final_analysis(
         "limitations": [
             "The exact final-analysis implementation was written after evaluation completion, so inferential results are exploratory rather than preregistered confirmation.",
             "Only three training seeds are available, so population-level algorithm uncertainty remains wide.",
+            "RL-versus-baseline seed tests compare three independently trained RL checkpoints with one fixed Raw or SFT checkpoint and are conditional on that fixed baseline.",
             "The study covers one WebShop environment, one base model, and one frozen prompt/runtime contract.",
             "Failure classes are deterministic diagnostics from public trajectory evidence, not human causal labels.",
             "The frozen test was opened once after training; its outcomes must not be used for further model selection.",
