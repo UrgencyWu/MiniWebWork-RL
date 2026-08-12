@@ -31,9 +31,11 @@ from ..m6_posttraining_protocol import (
 )
 from .credit import policy_context_signature, public_state_anchor_signature
 from .verifier_td import (
-    FORMULA_VERSION,
+    ANCHOR_METHOD,
+    BASELINE_METHOD,
+    FORMULA_VERSION_BY_METHOD,
     GROUP_SIZE,
-    METHOD,
+    METHODS,
     assign_group_credit,
     strict_terminal_reward,
     validate_credit_assignment,
@@ -285,9 +287,13 @@ class M6TurnTrainingExample:
         return 1.0 / (GROUP_SIZE * self.turns_in_trajectory * self.completion_tokens)
 
 
-def prepare_group_training_examples(group: Mapping[str, Any]) -> dict[str, Any]:
+def prepare_group_training_examples(
+    group: Mapping[str, Any],
+    method: str = ANCHOR_METHOD,
+) -> dict[str, Any]:
     validated = validate_committed_group(group, require_k=GROUP_SIZE)
-    credit = assign_group_credit(validated["trajectories"])
+    _require(method in METHODS, "unsupported M6 mini RL method")
+    credit = assign_group_credit(validated["trajectories"], method=method)
     examples: list[M6TurnTrainingExample] = []
     effective = 0
     for trajectory_index, (trajectory, trajectory_credit) in enumerate(
@@ -386,14 +392,22 @@ def update_adaptive_kl_coefficient(
     return coefficient
 
 
-def audit_collection(groups: Sequence[Mapping[str, Any]], *, all_generated_action_tokens: int) -> dict[str, Any]:
+def audit_collection(
+    groups: Sequence[Mapping[str, Any]],
+    *,
+    all_generated_action_tokens: int,
+    method: str = ANCHOR_METHOD,
+) -> dict[str, Any]:
     _require(bool(groups), "M6 collection audit requires K8 groups")
-    prepared = [prepare_group_training_examples(group) for group in groups]
+    prepared = [prepare_group_training_examples(group, method=method) for group in groups]
     credits = [item["credit"] for item in prepared]
     committed = sum(item["generated_action_tokens"] for item in prepared)
     _require(all_generated_action_tokens >= committed > 0, "M6 collection token ledger excludes committed tokens")
     turns = sum(int(item["metrics"]["turn_count"]) for item in credits)
-    nonzero = sum(int(item["metrics"]["nonzero_td_turn_count"]) for item in credits)
+    nonzero_td = sum(int(item["metrics"]["nonzero_td_turn_count"]) for item in credits)
+    nonzero_optimizer = sum(
+        int(item["metrics"]["nonzero_optimizer_turn_count"]) for item in credits
+    )
     mixed = sum(bool(item["metrics"]["mixed_strict_reward_signal"]) for item in credits)
     return {
         "group_count": len(groups),
@@ -401,8 +415,12 @@ def audit_collection(groups: Sequence[Mapping[str, Any]], *, all_generated_actio
         "mixed_strict_reward_group_count": mixed,
         "mixed_strict_reward_group_fraction": mixed / len(groups),
         "turn_count": turns,
-        "nonzero_td_turn_count": nonzero,
-        "nonzero_td_turn_fraction": nonzero / turns,
+        "method": method,
+        "credit_formula_version": FORMULA_VERSION_BY_METHOD[method],
+        "nonzero_td_turn_count": nonzero_td,
+        "nonzero_td_turn_fraction": nonzero_td / turns,
+        "nonzero_optimizer_turn_count": nonzero_optimizer,
+        "nonzero_optimizer_turn_fraction": nonzero_optimizer / turns,
         "committed_group_action_tokens": committed,
         "all_generated_action_tokens": all_generated_action_tokens,
         "credit_assignment_content_sha256": [item["content_sha256"] for item in credits],
@@ -493,6 +511,8 @@ def train_mini_policy_iteration(
     protocol_sha256: str,
     iteration_index: int,
     seed: int,
+    method: str = ANCHOR_METHOD,
+    pilot_authorization_sha256: str | None = None,
     microbatch_size: int = 4,
 ) -> dict[str, Any]:
     """Apply one recoverable M6-mini update from same-policy K8 groups."""
@@ -509,9 +529,10 @@ def train_mini_policy_iteration(
     validate_protocol(contract)
     _require(groups and all_generated_action_tokens > 0, "M6 mini learner input is empty")
     _require(iteration_index >= 0 and seed >= 0, "M6 mini learner identity drift")
-    prepared_all = [prepare_group_training_examples(group) for group in groups]
+    _require(method in METHODS, "unsupported M6 mini RL method")
+    prepared_all = [prepare_group_training_examples(group, method=method) for group in groups]
     prepared = [item for item in prepared_all if not item["zero_advantage_group"]]
-    _require(prepared, "M6 mini learner iteration has no nonzero verifier-TD credit")
+    _require(prepared, "M6 mini learner iteration has no nonzero policy credit")
     behavior_sampling_parity = audit_behavior_sampling_logprobs(
         [
             value
@@ -535,13 +556,14 @@ def train_mini_policy_iteration(
     root = Path(output_root).expanduser().resolve()
     report_path = root / "learner_report.json"
     if report_path.is_file():
-        report = validate_learner_report(report_path)
+        report = validate_learner_report(report_path, expected_method=method)
         _require(report.get("git_sha") == git_sha, "M6 recovered learner Git drift")
         _require(report.get("protocol_sha256") == protocol_sha256, "M6 recovered learner protocol drift")
         _require(report.get("iteration_index") == iteration_index and report.get("seed") == seed, "M6 recovered learner identity drift")
         _require(report.get("input_adapter_sha256") == directory_sha256(input_adapter), "M6 recovered learner input-adapter drift")
         _require(report.get("input_adapter_semantic_sha256") == input_adapter_semantic_sha256, "M6 recovered learner semantic input drift")
         _require(report.get("reference_sft_adapter_sha256") == directory_sha256(reference_sft_adapter), "M6 recovered learner reference drift")
+        _require(report.get("pilot_authorization_sha256") == pilot_authorization_sha256, "M6 recovered learner pilot authorization drift")
         expected_optimizer_sha = sha256_file(input_optimizer) if input_optimizer is not None else None
         _require(report.get("input_optimizer_sha256") == expected_optimizer_sha, "M6 recovered learner optimizer drift")
         return report
@@ -587,6 +609,20 @@ def train_mini_policy_iteration(
         checkpoint_path = Path(input_optimizer).expanduser().resolve()
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         _require(checkpoint.get("schema_version") == OPTIMIZER_SCHEMA, "M6 mini optimizer schema drift")
+        _require(checkpoint.get("method") == method, "M6 mini optimizer method drift")
+        _require(
+            checkpoint.get("credit_formula_version") == FORMULA_VERSION_BY_METHOD[method],
+            "M6 mini optimizer credit-formula drift",
+        )
+        _require(
+            checkpoint.get("pilot_authorization_sha256") == pilot_authorization_sha256,
+            "M6 mini optimizer pilot-authorization drift",
+        )
+        _require(checkpoint.get("seed") == seed, "M6 mini optimizer seed drift")
+        _require(
+            checkpoint.get("iteration_index") == iteration_index - 1,
+            "M6 mini optimizer iteration lineage drift",
+        )
         _require(checkpoint.get("protocol_sha256") == protocol_sha256, "M6 mini optimizer protocol drift")
         _require(checkpoint.get("adapter_sha256") == directory_sha256(input_adapter), "M6 mini optimizer/adapter drift")
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -671,7 +707,9 @@ def train_mini_policy_iteration(
     torch.save(
         {
             "schema_version": OPTIMIZER_SCHEMA,
-            "method": METHOD,
+            "method": method,
+            "credit_formula_version": FORMULA_VERSION_BY_METHOD[method],
+            "pilot_authorization_sha256": pilot_authorization_sha256,
             "seed": seed,
             "iteration_index": iteration_index,
             "git_sha": git_sha,
@@ -684,14 +722,20 @@ def train_mini_policy_iteration(
         },
         optimizer_path,
     )
-    collection = audit_collection(groups, all_generated_action_tokens=all_generated_action_tokens)
+    collection = audit_collection(
+        groups,
+        all_generated_action_tokens=all_generated_action_tokens,
+        method=method,
+    )
     report = {
         "schema_version": LEARNER_SCHEMA,
         "complete": True,
         "development_only": True,
         "formal_checkpoint_reusable": False,
-        "method": METHOD,
-        "credit_formula_version": FORMULA_VERSION,
+        "method": method,
+        "credit_formula_version": FORMULA_VERSION_BY_METHOD[method],
+        "verifier_td_lambda": 0.0 if method == BASELINE_METHOD else 0.5,
+        "pilot_authorization_sha256": pilot_authorization_sha256,
         "group_size": GROUP_SIZE,
         "seed": seed,
         "iteration_index": iteration_index,
@@ -744,12 +788,20 @@ def train_mini_policy_iteration(
     return report
 
 
-def validate_learner_report(path: Path) -> dict[str, Any]:
+def validate_learner_report(
+    path: Path,
+    *,
+    expected_method: str | None = None,
+) -> dict[str, Any]:
     report = json.loads(Path(path).read_text(encoding="utf-8"))
     _require(report.get("schema_version") == LEARNER_SCHEMA and report.get("complete") is True, "M6 learner report schema drift")
     _require(report.get("content_sha256") == _self_hash(report), "M6 learner report self-hash drift")
     _require(report.get("development_only") is True and report.get("formal_checkpoint_reusable") is False, "M6 learner scope drift")
-    _require(report.get("method") == METHOD and report.get("group_size") == GROUP_SIZE, "M6 learner method/K drift")
+    method = report.get("method")
+    _require(method in METHODS and report.get("group_size") == GROUP_SIZE, "M6 learner method/K drift")
+    _require(expected_method is None or method == expected_method, "M6 learner expected-method drift")
+    _require(report.get("credit_formula_version") == FORMULA_VERSION_BY_METHOD[method], "M6 learner credit formula drift")
+    _require(report.get("verifier_td_lambda") == (0.0 if method == BASELINE_METHOD else 0.5), "M6 learner lambda/method drift")
     _require(report.get("iteration_optimizer_updates", 0) > 0, "M6 learner made no optimizer update")
     _require(report.get("cumulative_optimizer_updates_after", 0) > report.get("cumulative_optimizer_updates_before", -1), "M6 learner update counter drift")
     _require(report.get("input_adapter_semantic_sha256") != report.get("output_adapter_semantic_sha256"), "M6 learner parameters did not change")
@@ -762,6 +814,13 @@ def validate_learner_report(path: Path) -> dict[str, Any]:
         isinstance(report.get("behavior_sampling_parity"), Mapping)
         and report["behavior_sampling_parity"].get("passed") is True,
         "M6 learner behavior/sampling parity did not pass",
+    )
+    collection = report.get("collection_audit")
+    _require(isinstance(collection, Mapping), "M6 learner collection audit is missing")
+    _require(
+        collection.get("credit_assignment_content_sha256")
+        and int(collection.get("mixed_strict_reward_group_count", 0)) > 0,
+        "M6 learner lacks mixed-reward credit evidence",
     )
     _require(directory_sha256(Path(report["output_adapter"])) == report["output_adapter_sha256"], "M6 learner adapter hash drift")
     _require(sha256_file(Path(report["output_optimizer"])) == report["output_optimizer_sha256"], "M6 learner optimizer hash drift")

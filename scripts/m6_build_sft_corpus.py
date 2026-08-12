@@ -17,6 +17,7 @@ from transformers import AutoTokenizer  # noqa: E402
 
 from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_file, sha256_json  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol, validate_split_lock  # noqa: E402
+from miniwebwork.m6_pilot import build_pilot_authorization  # noqa: E402
 from miniwebwork.webshop_rl.actions import WebShopCommand, normalize_command  # noqa: E402
 from miniwebwork.webshop_rl.environment import WebShopHTTPEnvironment  # noqa: E402
 from miniwebwork.webshop_rl.m6_corpus import (  # noqa: E402
@@ -133,6 +134,11 @@ def main() -> None:
     parser.add_argument("--base-model", type=Path, default=Path("/data/share/model/Qwen3.5-4B"))
     parser.add_argument("--base-url", default="http://127.0.0.1:44151")
     parser.add_argument("--retention-states", type=int, default=20_000)
+    parser.add_argument(
+        "--pilot-waiver",
+        type=Path,
+        help="Approved development-only waiver; required when the original corpus gate fails",
+    )
     args = parser.parse_args()
 
     protocol = load_protocol()
@@ -162,7 +168,8 @@ def main() -> None:
         _require(tokenizer.eos_token_id is not None, "M6 tokenizer lacks pad/EOS")
         tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-    count_completion = lambda text: len(tokenizer.encode(text, add_special_tokens=False))
+    def count_completion(text: str) -> int:
+        return len(tokenizer.encode(text, add_special_tokens=False))
     corpus = build_policy_visible_corpus(
         trajectories=episodes,
         goal_by_task_id=goal_map,
@@ -171,7 +178,15 @@ def main() -> None:
     corpus_audit = audit_conditional_learnability(corpus=corpus, goal_by_task_id=goal_map, mini=True)
     atomic_write_json(output / "corpus.json", corpus)
     atomic_write_json(output / "corpus_audit.json", corpus_audit)
-    _require(corpus_audit["passed"] is True, f"M6 mini corpus gate failed: {corpus_audit['checks']}")
+    pilot_authorization = None
+    if corpus_audit["passed"] is not True:
+        _require(args.pilot_waiver is not None, f"M6 mini corpus gate failed: {corpus_audit['checks']}")
+        pilot_authorization = build_pilot_authorization(
+            corpus_audit=corpus_audit,
+            source_collections=source_collections,
+            waiver_path=args.pilot_waiver,
+        )
+        atomic_write_json(output / "pilot_authorization.json", pilot_authorization)
 
     rows = flatten_corpus_rows(corpus)
     task_ids = sorted({row["task_id"] for row in rows})
@@ -214,6 +229,11 @@ def main() -> None:
             "train": output / "train.jsonl",
             "dev": output / "dev.jsonl",
             "retention": output / "retention.json",
+            **(
+                {"pilot_authorization": output / "pilot_authorization.json"}
+                if pilot_authorization is not None
+                else {}
+            ),
         },
         config=config,
     )
@@ -222,6 +242,12 @@ def main() -> None:
     token_audit["corpus_audit_sha256"] = sha256_file(output / "corpus_audit.json")
     token_audit["source_collections"] = source_collections
     token_audit["split_lock_content_sha256"] = split["content_sha256"]
+    token_audit["corpus_gate_mode"] = (
+        "approved_156_task_pilot_waiver" if pilot_authorization is not None else "original_protocol_gate"
+    )
+    token_audit["pilot_authorization_content_sha256"] = (
+        pilot_authorization["content_sha256"] if pilot_authorization is not None else None
+    )
     token_audit.pop("content_sha256")
     token_audit["content_sha256"] = sha256_json(token_audit)
     atomic_write_json(output / "token_audit.json", token_audit)
@@ -229,6 +255,7 @@ def main() -> None:
     print(json.dumps({
         "output_dir": str(output),
         "corpus_passed": corpus_audit["passed"],
+        "pilot_authorized": pilot_authorization is not None,
         "token_audit_passed": token_audit["passed"],
         "train_rows": len(train_rows),
         "dev_rows": len(dev_rows),

@@ -27,6 +27,7 @@ def main() -> None:
     parser.add_argument("--raw-eval", type=Path, required=True)
     parser.add_argument("--sft-eval", type=Path, required=True)
     parser.add_argument("--corpus-audit", type=Path, required=True)
+    parser.add_argument("--pilot-authorization", type=Path)
     parser.add_argument("--bootstrap-samples", type=int, default=10_000)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -34,6 +35,9 @@ def main() -> None:
         raw=_load(args.raw_eval),
         sft=_load(args.sft_eval),
         corpus_audit=_load(args.corpus_audit),
+        pilot_authorization=(
+            _load(args.pilot_authorization) if args.pilot_authorization is not None else None
+        ),
         bootstrap_samples=args.bootstrap_samples,
     )
     atomic_write_json(args.output, report)

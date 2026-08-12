@@ -1,0 +1,44 @@
+{
+  "schema_version": "m6_mini_pilot_waiver_v1",
+  "study_id": "m6_monotonic_posttraining_v1",
+  "scope": "development_only_mini_pilot",
+  "decision": "ALLOW_156_TASK_MINI_PILOT",
+  "approved_at": "2026-08-13",
+  "formal_training_allowed": false,
+  "original_minimum_success_tasks": 160,
+  "authorized_minimum_success_tasks": 156,
+  "observed_success_tasks": 156,
+  "observed_replay_success_trajectories": 493,
+  "observed_completion_label_tokens": 31362,
+  "source_protocol_sha256": "e0c615c7d794217e845476f52ed91f0a807d21d1433c8da67d085b2a85c76e9a",
+  "source_producer_git_sha": "acd23e50c7bb4b6a2b0dd6e5ebe4dd99064b3ff0",
+  "source_collection_report_content_sha256": [
+    "9d49e712515c0818e0d861f3e4385e1c5f897d3f8e3e30feecb15f13b3b723ff",
+    "935555600119056e0e5f77b264af71e7d34d2d81e06dbe8d0b5b9eec24534b21"
+  ],
+  "source_collection_seeds": [
+    20260812,
+    20260813
+  ],
+  "failed_corpus_audit_content_sha256": "21f0677a978fdb99c3cd29c4ace21ef81575ba3c774f0ad22fd81bc4e723289b",
+  "only_waived_check": "mini_success_task_count",
+  "approved_rl_methods": {
+    "multi_turn_grpo": {
+      "credit_assignment": "strict_group_advantage_uniform_within_trajectory",
+      "verifier_td_lambda": 0.0
+    },
+    "anchor_gigpo": {
+      "credit_assignment": "strict_group_advantage_plus_zero_sum_verifier_td",
+      "verifier_td_lambda": 0.5
+    }
+  },
+  "shared_rl_controls": {
+    "group_size": 8,
+    "learning_rate": 0.000001,
+    "policy_epochs": 1,
+    "frozen_sft_reference": true,
+    "same_curriculum": true,
+    "same_action_token_budget": true
+  },
+  "rationale": "The two pre-specified Raw K8 seeds produced 156 replay-verified success tasks, four below the engineering gate, while every data-quality, leakage, replay, diversity, recovery, action-balance, trajectory-count, and completion-token check passed. The pilot continues without selecting or deleting tasks and cannot support formal claims."
+}

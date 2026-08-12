@@ -18,6 +18,10 @@ test "$(git rev-parse HEAD)" = "$M6_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 study_root="$repo_root/outputs/m6_monotonic_posttraining_v1"
+corpus_output="${M6_CORPUS_OUTPUT:-$study_root/mini/corpus}"
+curriculum_output="${M6_CURRICULUM_OUTPUT:-$study_root/mini/rl_curriculum.json}"
+pilot_waiver="${M6_PILOT_WAIVER:-}"
+curriculum_groups="${M6_CURRICULUM_GROUPS:-$study_root/mini/raw_collection/groups}"
 split_lock="${M6_SPLIT_LOCK:-$study_root/locks/m6_webshop_split_v1.json}"
 if test -n "${M6_SERVICE_BASE_URL:-}"; then
   base_url="$M6_SERVICE_BASE_URL"
@@ -39,13 +43,19 @@ test "${#collection_roots[@]}" -ge 1 && test "${#collection_roots[@]}" -le 2
 for collection_root in "${collection_roots[@]}"; do
   collection_args+=(--collection-root "$collection_root")
 done
+pilot_args=()
+test -z "$pilot_waiver" || pilot_args=(--pilot-waiver "$pilot_waiver")
 "$python_bin" scripts/m6_build_sft_corpus.py \
   "${collection_args[@]}" \
+  "${pilot_args[@]}" \
   --split-lock "$split_lock" \
   --goals outputs/m5_webshop_credit_assignment_v1/upstream/webshop_full/goals.json \
-  --output-dir "$study_root/mini/corpus" --base-url "$base_url"
+  --output-dir "$corpus_output" --base-url "$base_url"
 
+curriculum_pilot_args=()
+test -f "$corpus_output/pilot_authorization.json" && curriculum_pilot_args=(--pilot-authorization "$corpus_output/pilot_authorization.json")
 "$python_bin" scripts/m6_build_rl_curriculum.py \
-  --groups-dir "$study_root/mini/raw_collection/groups" \
+  --groups-dir "$curriculum_groups" \
   --split-lock "$split_lock" \
-  --output "$study_root/mini/rl_curriculum.json"
+  "${curriculum_pilot_args[@]}" \
+  --output "$curriculum_output"

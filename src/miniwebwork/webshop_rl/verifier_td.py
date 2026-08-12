@@ -21,8 +21,16 @@ from .credit import (
     standardized_advantages,
 )
 
-METHOD = "strict_grpo_verifier_td"
-FORMULA_VERSION = "m6_strict_grpo_verifier_td_v1"
+BASELINE_METHOD = "multi_turn_grpo"
+ANCHOR_METHOD = "anchor_gigpo"
+METHODS = (BASELINE_METHOD, ANCHOR_METHOD)
+# Backward-compatible default for callers that only validate rollout evidence.
+METHOD = ANCHOR_METHOD
+FORMULA_VERSION_BY_METHOD = {
+    BASELINE_METHOD: "m6_strict_grpo_uniform_turn_credit_v1",
+    ANCHOR_METHOD: "m6_strict_grpo_verifier_td_v1",
+}
+FORMULA_VERSION = FORMULA_VERSION_BY_METHOD[ANCHOR_METHOD]
 GROUP_SIZE = 8
 VERIFIER_TD_LAMBDA = 0.5
 TELESCOPING_TOLERANCE = 1e-8
@@ -448,13 +456,16 @@ def _validate_group(trajectories: Sequence[Mapping[str, Any]]) -> tuple[Mapping[
 def assign_group_credit(
     trajectories: Sequence[Mapping[str, Any]],
     *,
-    verifier_td_lambda: float = VERIFIER_TD_LAMBDA,
+    method: str = ANCHOR_METHOD,
+    verifier_td_lambda: float | None = None,
     tolerance: float = TELESCOPING_TOLERANCE,
 ) -> dict[str, Any]:
     """Assign strict GRPO macro credit plus zero-sum within-trajectory credit."""
 
-    weight = _finite(verifier_td_lambda, "M6 verifier-TD lambda")
-    _require(weight == VERIFIER_TD_LAMBDA, "M6 verifier-TD lambda drift")
+    _require(method in METHODS, "unsupported M6 mini RL method")
+    expected_weight = 0.0 if method == BASELINE_METHOD else VERIFIER_TD_LAMBDA
+    weight = expected_weight if verifier_td_lambda is None else _finite(verifier_td_lambda, "M6 verifier-TD lambda")
+    _require(weight == expected_weight, "M6 verifier-TD lambda/method drift")
     validated = _validate_group(trajectories)
     strict_rewards = [
         strict_terminal_reward(trajectory.get("task_score", trajectory.get("reward")))
@@ -502,8 +513,8 @@ def assign_group_credit(
     )
     report = {
         "schema_version": "m6_verifier_td_credit_assignment_v1",
-        "formula_version": FORMULA_VERSION,
-        "method": METHOD,
+        "formula_version": FORMULA_VERSION_BY_METHOD[method],
+        "method": method,
         "task_id": validated[0]["task_id"],
         "K": GROUP_SIZE,
         "verifier_td_lambda": weight,
@@ -531,6 +542,12 @@ def assign_group_credit(
             "nonzero_td_turn_fraction": sum(
                 abs(float(item["td_deviation"])) > tolerance for item in flat_turns
             ) / len(flat_turns),
+            "nonzero_optimizer_turn_count": sum(
+                abs(float(item["turn_advantage"])) > tolerance for item in flat_turns
+            ),
+            "nonzero_optimizer_turn_fraction": sum(
+                abs(float(item["turn_advantage"])) > tolerance for item in flat_turns
+            ) / len(flat_turns),
             "maximum_absolute_telescoping_error": max(
                 abs(float(item["telescoping_error"])) for item in trajectory_reports
             ),
@@ -553,8 +570,13 @@ def assign_group_credit(
 def validate_credit_assignment(payload: Mapping[str, Any]) -> dict[str, Any]:
     value = dict(payload)
     _require(value.get("schema_version") == "m6_verifier_td_credit_assignment_v1", "M6 credit schema drift")
-    _require(value.get("formula_version") == FORMULA_VERSION, "M6 credit formula drift")
-    _require(value.get("method") == METHOD and value.get("K") == GROUP_SIZE, "M6 credit method/K drift")
+    method = value.get("method")
+    _require(method in METHODS and value.get("K") == GROUP_SIZE, "M6 credit method/K drift")
+    _require(value.get("formula_version") == FORMULA_VERSION_BY_METHOD[method], "M6 credit formula drift")
+    _require(
+        value.get("verifier_td_lambda") == (0.0 if method == BASELINE_METHOD else VERIFIER_TD_LAMBDA),
+        "M6 credit lambda/method drift",
+    )
     metrics = value.get("metrics")
     _require(isinstance(metrics, Mapping), "M6 credit metrics are missing")
     _require(

@@ -14,6 +14,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.long_horizon_rl.contracts import publish_immutable_json, sha256_json  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol, validate_split_lock  # noqa: E402
+from miniwebwork.m6_pilot import validate_pilot_authorization  # noqa: E402
 from miniwebwork.webshop_rl.m6_online_training import validate_committed_group  # noqa: E402
 
 
@@ -27,6 +28,7 @@ def main() -> None:
     parser.add_argument("--groups-dir", type=Path, required=True)
     parser.add_argument("--split-lock", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--pilot-authorization", type=Path)
     args = parser.parse_args()
     protocol = load_protocol()
     split = validate_split_lock(json.loads(args.split_lock.read_text(encoding="utf-8")))
@@ -41,7 +43,13 @@ def main() -> None:
         [group["task_id"] for group in groups] == split["roles"]["mini_train"]["task_ids"],
         "M6 curriculum groups are not the complete frozen mini_train order",
     )
-    _require(all(group.get("git_sha") == protocol["git_sha"] for group in groups), "M6 curriculum group Git drift")
+    pilot = None
+    if args.pilot_authorization is not None:
+        pilot = validate_pilot_authorization(json.loads(args.pilot_authorization.read_text(encoding="utf-8")))
+        expected_producer_git = pilot["source_producer_git_sha"]
+    else:
+        expected_producer_git = protocol["git_sha"]
+    _require(all(group.get("git_sha") == expected_producer_git for group in groups), "M6 curriculum group Git drift")
     lineage_fields = ("adapter_sha256", "rollout_adapter_sha256", "adapter_semantic_sha256")
     source_lineage = {field: groups[0][field] for field in lineage_fields}
     _require(
@@ -87,7 +95,9 @@ def main() -> None:
         "selection_seed": seed,
         "source_split_lock_content_sha256": split["content_sha256"],
         "git_sha": protocol["git_sha"],
+        "source_producer_git_sha": expected_producer_git,
         "protocol_sha256": protocol["sha256"],
+        "pilot_authorization_content_sha256": pilot["content_sha256"] if pilot is not None else None,
         "source_policy_lineage": source_lineage,
         "source_group_content_sha256": [group["content_sha256"] for group in groups],
         "task_count": len(rows),

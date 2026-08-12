@@ -216,6 +216,7 @@ def build_mini_sft_gate(
     raw: Mapping[str, Any],
     sft: Mapping[str, Any],
     corpus_audit: Mapping[str, Any],
+    pilot_authorization: Mapping[str, Any] | None = None,
     bootstrap_samples: int = 10_000,
     seed: int = 20260812,
     protocol: Mapping[str, Any] | None = None,
@@ -229,13 +230,19 @@ def build_mini_sft_gate(
     from .webshop_rl.m6_corpus import validate_conditional_learnability_audit
 
     corpus = validate_conditional_learnability_audit(corpus_audit)
+    pilot = None
+    if corpus.get("passed") is not True:
+        _require(pilot_authorization is not None, "M6 failed corpus lacks pilot authorization")
+        from .m6_pilot import validate_pilot_authorization
+
+        pilot = validate_pilot_authorization(pilot_authorization, corpus_audit=corpus)
     differences = _paired_differences(raw, sft)
     positive = bootstrap_positive_fraction(differences, samples=bootstrap_samples, seed=seed)
     delta_pp = (float(sft["strict_success_rate"]) - float(raw["strict_success_rate"])) * 100.0
     mini = contract["mini"]
     checks = {
         "development_only": sft.get("development_only") is True,
-        "corpus_audit_passed": corpus.get("passed") is True,
+        "corpus_audit_passed_or_pilot_authorized": corpus.get("passed") is True or pilot is not None,
         "sft_minus_raw_minimum": delta_pp >= float(mini["minimum_sft_minus_raw_pp"]),
         "bootstrap_direction": positive >= float(mini["minimum_bootstrap_positive_fraction"]),
         "search_exhaustion_guardrail": (
@@ -260,6 +267,7 @@ def build_mini_sft_gate(
         "raw_content_sha256": raw["content_sha256"],
         "sft_content_sha256": sft["content_sha256"],
         "corpus_audit_content_sha256": corpus["content_sha256"],
+        "pilot_authorization_content_sha256": pilot["content_sha256"] if pilot is not None else None,
         "paired_task_difference_sha256": sha256_json(differences),
     }
     report["content_sha256"] = sha256_json(report)
@@ -284,6 +292,7 @@ def audit_mini_rl(
     *,
     learner_report: Mapping[str, Any],
     credit_assignments: Sequence[Mapping[str, Any]],
+    pilot_authorization: Mapping[str, Any] | None = None,
     protocol: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = dict(protocol or load_protocol()["payload"])
@@ -292,6 +301,26 @@ def audit_mini_rl(
     rl = contract["rl"]
     _require(bool(credit_assignments), "M6 mini RL credit evidence is empty")
     validated_credit = [validate_credit_assignment(item) for item in credit_assignments]
+    method = learner_report.get("method")
+    pilot = None
+    if pilot_authorization is not None:
+        from .m6_pilot import validate_pilot_authorization, validate_pilot_method
+        from .webshop_rl.verifier_td import FORMULA_VERSION_BY_METHOD
+
+        pilot = validate_pilot_authorization(pilot_authorization)
+        validate_pilot_method(str(method), pilot)
+        _require(
+            learner_report.get("pilot_authorization_sha256") == pilot["content_sha256"],
+            "M6 mini learner pilot-authorization binding drift",
+        )
+        _require(
+            learner_report.get("credit_formula_version") == FORMULA_VERSION_BY_METHOD[str(method)],
+            "M6 mini learner credit-formula drift",
+        )
+        _require(
+            all(item.get("method") == method for item in validated_credit),
+            "M6 mini credit evidence mixes methods",
+        )
     expected_learner = dict(learner_report)
     observed_learner_hash = expected_learner.pop("content_sha256", None)
     _require(observed_learner_hash == sha256_json(expected_learner), "M6 mini learner self-hash drift")
@@ -308,11 +337,23 @@ def audit_mini_rl(
         bool(item.get("mixed_strict_reward_signal")) for item in iterations if isinstance(item, Mapping)
     )
     turn_count = sum(int(item["metrics"]["turn_count"]) for item in validated_credit)
-    nonzero_turns = sum(int(item["metrics"]["nonzero_td_turn_count"]) for item in validated_credit)
+    nonzero_turns = sum(
+        int(item["metrics"].get("nonzero_optimizer_turn_count", 0))
+        for item in validated_credit
+    )
     mixed_groups = sum(bool(item["metrics"]["mixed_strict_reward_signal"]) for item in validated_credit)
     checks = {
         "development_only": learner_report.get("development_only") is True,
-        "method": learner_report.get("method") == rl["method"],
+        "method": (
+            method in pilot["approved_rl_methods"]
+            if pilot is not None
+            else method == rl["method"]
+        ),
+        "pilot_authorization": (
+            pilot is not None
+            if pilot_authorization is not None
+            else True
+        ),
         "group_size": learner_report.get("group_size") == int(rl["group_size"]),
         "generated_action_token_cap": int(learner_report.get("generated_action_tokens", -1)) <= int(mini["maximum_rl_generated_action_tokens"]),
         "minimum_mixed_iterations": mixed_iteration_count >= int(mini["minimum_mixed_rl_iterations"]),
@@ -381,6 +422,10 @@ def audit_mini_rl(
             "nonzero_credit_turn_fraction": nonzero_turns / turn_count,
         },
         "learner_report_content_sha256": learner_report.get("content_sha256"),
+        "method": method,
+        "pilot_authorization_content_sha256": (
+            pilot["content_sha256"] if pilot is not None else None
+        ),
         "credit_assignment_content_sha256": [item["content_sha256"] for item in validated_credit],
     }
     report["content_sha256"] = sha256_json(report)

@@ -21,6 +21,11 @@ from miniwebwork.m6_posttraining_protocol import (
     load_protocol,
     validate_split_lock,
 )
+from miniwebwork.m6_pilot import (
+    load_pilot_waiver,
+    validate_pilot_authorization,
+    validate_pilot_method,
+)
 from miniwebwork.m6_power import build_power_report
 from miniwebwork.webshop_rl import prompt
 from miniwebwork.webshop_rl.m6_corpus import (
@@ -31,6 +36,8 @@ from miniwebwork.webshop_rl.m6_corpus import (
     validate_retention_states,
 )
 from miniwebwork.webshop_rl.verifier_td import (
+    ANCHOR_METHOD,
+    BASELINE_METHOD,
     annotate_episode_with_verifier,
     assign_group_credit,
     public_stage_potential,
@@ -555,6 +562,64 @@ def test_m6_rl_audit_requires_real_updates_and_credit():
     changed["parameter_sha256_after"] = changed["parameter_sha256_before"]
     changed["content_sha256"] = sha256_json({key: value for key, value in changed.items() if key != "content_sha256"})
     assert audit_mini_rl(learner_report=changed, credit_assignments=[credit] * 5)["passed"] is False
+
+
+def test_m6_pilot_waiver_is_exact_and_development_only():
+    waiver_bundle = load_pilot_waiver()
+    waiver = waiver_bundle["payload"]
+    assert waiver["formal_training_allowed"] is False
+    assert waiver["only_waived_check"] == "mini_success_task_count"
+    assert tuple(waiver["approved_rl_methods"]) == (BASELINE_METHOD, ANCHOR_METHOD)
+    authorization = {
+        "schema_version": "m6_mini_pilot_authorization_v1",
+        "study_id": waiver["study_id"],
+        "development_only": True,
+        "formal_training_allowed": False,
+        "passed": True,
+        "decision": waiver["decision"],
+        "waiver_file_sha256": waiver_bundle["sha256"],
+        "original_minimum_success_tasks": 160,
+        "authorized_minimum_success_tasks": 156,
+        "observed_success_tasks": 156,
+        "observed_replay_success_trajectories": 493,
+        "observed_completion_label_tokens": 31362,
+        "only_waived_check": waiver["only_waived_check"],
+        "failed_corpus_audit_content_sha256": waiver["failed_corpus_audit_content_sha256"],
+        "source_protocol_sha256": waiver["source_protocol_sha256"],
+        "source_producer_git_sha": waiver["source_producer_git_sha"],
+        "source_collection_report_content_sha256": waiver["source_collection_report_content_sha256"],
+        "source_collection_seeds": waiver["source_collection_seeds"],
+        "approved_rl_methods": waiver["approved_rl_methods"],
+        "shared_rl_controls": waiver["shared_rl_controls"],
+    }
+    authorization["content_sha256"] = sha256_json(authorization)
+    assert validate_pilot_authorization(authorization)["passed"] is True
+    assert validate_pilot_method(BASELINE_METHOD, authorization)["verifier_td_lambda"] == 0.0
+    changed = copy.deepcopy(authorization)
+    changed["observed_success_tasks"] = 155
+    changed["content_sha256"] = sha256_json(
+        {key: value for key, value in changed.items() if key != "content_sha256"}
+    )
+    with pytest.raises(ValueError, match="task count"):
+        validate_pilot_authorization(changed)
+
+
+def test_m6_dual_methods_share_macro_credit_but_differ_within_trajectory():
+    group = _credit_group()
+    baseline = assign_group_credit(group, method=BASELINE_METHOD)
+    anchor = assign_group_credit(group, method=ANCHOR_METHOD)
+    assert baseline["macro_advantages"] == anchor["macro_advantages"]
+    assert baseline["verifier_td_lambda"] == 0.0
+    assert anchor["verifier_td_lambda"] == 0.5
+    for macro, turns in zip(baseline["macro_advantages"], baseline["turn_credit"]):
+        assert all(turn["turn_advantage"] == pytest.approx(macro) for turn in turns)
+    assert any(
+        baseline_turn["turn_advantage"] != pytest.approx(anchor_turn["turn_advantage"])
+        for baseline_trajectory, anchor_trajectory in zip(
+            baseline["turn_credit"], anchor["turn_credit"]
+        )
+        for baseline_turn, anchor_turn in zip(baseline_trajectory, anchor_trajectory)
+    )
 
 
 def test_m6_power_report_fails_closed_without_empirical_backend(monkeypatch):

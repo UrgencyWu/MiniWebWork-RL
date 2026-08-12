@@ -29,7 +29,7 @@ submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
     successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" \
-      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_SERVICE_BASE_URL=${base_url:-${M6_SERVICE_BASE_URL:-http://127.0.0.1:44151}},M6_SPLIT_LOCK=${M6_SPLIT_LOCK:-},M6_ROLLOUT_MODE=$M6_ROLLOUT_MODE,M6_ROLLOUT_ROLE=$M6_ROLLOUT_ROLE,M6_ROLLOUT_K=$M6_ROLLOUT_K,M6_ROLLOUT_OUTPUT=$M6_ROLLOUT_OUTPUT,M6_ROLLOUT_ADAPTER=${M6_ROLLOUT_ADAPTER:-},M6_ROLLOUT_ITERATION=${M6_ROLLOUT_ITERATION:-0},M6_ROLLOUT_SEED=${M6_ROLLOUT_SEED:-20260812},M6_EVAL_IDENTITY=${M6_EVAL_IDENTITY:-},M6_TASK_ROSTER=${M6_TASK_ROSTER:-},M6_TASK_OFFSET=${M6_TASK_OFFSET:-0},M6_ROLLOUT_MAXIMUM_TOKENS=${M6_ROLLOUT_MAXIMUM_TOKENS:-}" \
+      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_SERVICE_BASE_URL=${base_url:-${M6_SERVICE_BASE_URL:-http://127.0.0.1:44151}},M6_SPLIT_LOCK=${M6_SPLIT_LOCK:-},M6_PILOT_AUTHORIZATION=${M6_PILOT_AUTHORIZATION:-},M6_ROLLOUT_MODE=$M6_ROLLOUT_MODE,M6_ROLLOUT_ROLE=$M6_ROLLOUT_ROLE,M6_ROLLOUT_K=$M6_ROLLOUT_K,M6_ROLLOUT_OUTPUT=$M6_ROLLOUT_OUTPUT,M6_ROLLOUT_ADAPTER=${M6_ROLLOUT_ADAPTER:-},M6_ROLLOUT_ITERATION=${M6_ROLLOUT_ITERATION:-0},M6_ROLLOUT_SEED=${M6_ROLLOUT_SEED:-20260812},M6_EVAL_IDENTITY=${M6_EVAL_IDENTITY:-},M6_TASK_ROSTER=${M6_TASK_ROSTER:-},M6_TASK_OFFSET=${M6_TASK_OFFSET:-0},M6_ROLLOUT_MAXIMUM_TOKENS=${M6_ROLLOUT_MAXIMUM_TOKENS:-}" \
       scripts/run_m6_rollout_job.sh)"
     printf '%s\n' "$successor_job_id" > "$M6_ROLLOUT_OUTPUT/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
@@ -88,4 +88,26 @@ if test "$M6_ROLLOUT_MODE" = "evaluation"; then
     --identity "$M6_EVAL_IDENTITY" --groups-dir "$M6_ROLLOUT_OUTPUT/groups" \
     --collection-report "$M6_ROLLOUT_OUTPUT/collection_report.json" --split-lock "$split_lock" \
     --output "$M6_ROLLOUT_OUTPUT/identity_report.json"
+  if test -n "${M6_PILOT_AUTHORIZATION:-}"; then
+    "$python_bin" - "$M6_ROLLOUT_OUTPUT/identity_report.json" "$M6_PILOT_AUTHORIZATION" <<'PY'
+import json
+import sys
+from pathlib import Path
+from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_json
+from miniwebwork.m6_mini import validate_closed_loop_identity
+from miniwebwork.m6_pilot import validate_pilot_authorization
+
+identity = validate_closed_loop_identity(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")))
+authorization = validate_pilot_authorization(json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
+binding = {
+    "schema_version": "m6_mini_pilot_evaluation_binding_v1",
+    "identity": identity["identity"],
+    "development_only": True,
+    "identity_report_content_sha256": identity["content_sha256"],
+    "pilot_authorization_content_sha256": authorization["content_sha256"],
+}
+binding["content_sha256"] = sha256_json(binding)
+atomic_write_json(Path(sys.argv[1]).parent / "pilot_binding.json", binding)
+PY
+  fi
 fi

@@ -18,6 +18,7 @@ from transformers import AutoTokenizer  # noqa: E402
 
 from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_file, sha256_json  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol  # noqa: E402
+from miniwebwork.m6_pilot import validate_pilot_authorization  # noqa: E402
 from miniwebwork.webshop_rl.m6_corpus import validate_conditional_learnability_audit  # noqa: E402
 from miniwebwork.webshop_rl.m6_sft_training import (  # noqa: E402
     M6SFTConfig,
@@ -47,6 +48,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--base-model", type=Path, default=Path("/data/share/model/Qwen3.5-4B"))
     parser.add_argument("--seed", type=int, default=20260812)
+    parser.add_argument("--pilot-authorization", type=Path)
     args = parser.parse_args()
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "M6 mini SFT requires one Slurm GPU")
     protocol = load_protocol()
@@ -65,7 +67,14 @@ def main() -> None:
     }
     _require(all(path.is_file() for path in required.values()), "M6 mini SFT data files are incomplete")
     corpus_audit = validate_conditional_learnability_audit(json.loads(required["corpus_audit.json"].read_text(encoding="utf-8")))
-    _require(corpus_audit["passed"] is True, "M6 mini SFT corpus did not pass")
+    pilot_authorization = None
+    if corpus_audit["passed"] is not True:
+        _require(args.pilot_authorization is not None, "M6 mini SFT corpus did not pass")
+        pilot_authorization = validate_pilot_authorization(
+            json.loads(args.pilot_authorization.read_text(encoding="utf-8")),
+            corpus_audit=corpus_audit,
+        )
+        required["pilot_authorization.json"] = args.pilot_authorization.expanduser().resolve()
     config = M6SFTConfig.from_protocol(protocol["payload"], seed=args.seed)
     tokenizer = AutoTokenizer.from_pretrained(str(args.base_model.expanduser().resolve()), local_files_only=True, trust_remote_code=True)
     if tokenizer.pad_token_id is None:
@@ -79,6 +88,8 @@ def main() -> None:
         key: required[key]
         for key in ("corpus.json", "corpus_audit.json", "train.jsonl", "dev.jsonl", "retention.json")
     }
+    if pilot_authorization is not None:
+        token_audit_inputs["pilot_authorization.json"] = required["pilot_authorization.json"]
     rebuilt = build_token_audit(
         train_examples=train,
         dev_examples=dev,
@@ -108,6 +119,11 @@ def main() -> None:
     _require(stored_token_audit.get("protocol_sha256") == protocol["sha256"], "M6 token audit protocol drift")
     _require(stored_token_audit.get("git_sha") == protocol["git_sha"], "M6 token audit Git drift")
     _require(
+        stored_token_audit.get("pilot_authorization_content_sha256")
+        == (pilot_authorization["content_sha256"] if pilot_authorization is not None else None),
+        "M6 token audit pilot-authorization drift",
+    )
+    _require(
         stored_token_audit.get("corpus_audit_sha256") == sha256_file(required["corpus_audit.json"]),
         "M6 token/corpus audit binding drift",
     )
@@ -122,6 +138,9 @@ def main() -> None:
         "protocol_sha256": protocol["sha256"],
         "input_sha256": input_sha,
         "config": config.to_payload(),
+        "pilot_authorization_content_sha256": (
+            pilot_authorization["content_sha256"] if pilot_authorization is not None else None
+        ),
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
     }
     invocation["content_sha256"] = sha256_json(invocation)

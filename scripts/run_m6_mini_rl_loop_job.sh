@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Recoverable development-only online loop: K8 collect -> strict GRPO update.
+# Recoverable development-only online loop: K8 collect -> selected GRPO-family update.
 # One GPU is reused sequentially by vLLM collection and HF learning.
 #SBATCH --job-name=m6-mini-rl-loop
 #SBATCH --partition=compute
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=24G
 #SBATCH --gres=gpu:1
 #SBATCH --signal=B:USR1@300
 #SBATCH --output=logs/m6_mini_rl_loop_%j.out
@@ -17,16 +17,25 @@ repo_root="${M6_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL}"
 cd "$repo_root"
 mkdir -p logs
 : "${M6_EXPECTED_GIT_SHA:?set M6_EXPECTED_GIT_SHA}"
+: "${M6_METHOD:?set multi_turn_grpo or anchor_gigpo}"
+: "${M6_PILOT_AUTHORIZATION:?set M6_PILOT_AUTHORIZATION}"
+case "$M6_METHOD" in
+  multi_turn_grpo|anchor_gigpo) ;;
+  *) echo "unsupported M6_METHOD=$M6_METHOD" >&2; exit 2 ;;
+esac
 test "$(git rev-parse HEAD)" = "$M6_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
 
 python_bin="/home/wushaohua/miniconda3/envs/miniwebwork/bin/python"
 slurm_bin="${M6_SLURM_BIN:-/opt/slurm/slurm.25.05/bin}"
 study_root="$repo_root/outputs/m6_monotonic_posttraining_v1"
-rl_root="$study_root/mini/rl"
-sft_adapter="$study_root/mini/sft/final_adapter"
-curriculum="$study_root/mini/rl_curriculum.json"
-sft_gate="$study_root/mini/sft_gate.json"
+rl_root="${M6_RL_OUTPUT:-$study_root/mini/pilot_rl/$M6_METHOD}"
+sft_adapter="${M6_SFT_ADAPTER:-$study_root/mini/pilot_sft/final_adapter}"
+curriculum="${M6_CURRICULUM:-$study_root/mini/rl_curriculum_v2.json}"
+sft_gate="${M6_SFT_GATE:-$study_root/mini/pilot_sft_gate.json}"
+raw_eval_report="${M6_RAW_EVAL_REPORT:-$study_root/mini/pilot_raw_eval/identity_report.json}"
+sft_eval_report="${M6_SFT_EVAL_REPORT:-$study_root/mini/pilot_sft_eval/identity_report.json}"
+corpus_audit="${M6_CORPUS_AUDIT:-$study_root/mini/corpus_v2/corpus_audit.json}"
 split_lock="${M6_SPLIT_LOCK:-$study_root/locks/m6_webshop_split_v1.json}"
 if test -n "${M6_SERVICE_BASE_URL:-}"; then
   base_url="$M6_SERVICE_BASE_URL"
@@ -41,7 +50,7 @@ submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
     successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" \
-      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock" \
+      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_METHOD=$M6_METHOD,M6_PILOT_AUTHORIZATION=$M6_PILOT_AUTHORIZATION,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock,M6_RL_OUTPUT=$rl_root,M6_SFT_ADAPTER=$sft_adapter,M6_CURRICULUM=$curriculum,M6_SFT_GATE=$sft_gate,M6_RAW_EVAL_REPORT=$raw_eval_report,M6_SFT_EVAL_REPORT=$sft_eval_report,M6_CORPUS_AUDIT=$corpus_audit" \
       scripts/run_m6_mini_rl_loop_job.sh)"
     printf '%s\n' "$successor_job_id" > "$rl_root/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
@@ -51,7 +60,7 @@ submit_timeout_successor() {
 trap submit_timeout_successor USR1
 
 export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
-export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export TOKENIZERS_PARALLELISM=false
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
 unset PYTORCH_CUDA_ALLOC_CONF
@@ -62,17 +71,20 @@ curl --fail --silent --show-error --max-time 120 -X POST \
 test -d "$sft_adapter"
 test -f "$curriculum"
 test -f "$sft_gate"
-"$python_bin" - "$sft_gate" "$study_root/mini/raw_eval/identity_report.json" "$study_root/mini/sft_eval/identity_report.json" "$study_root/mini/corpus/corpus_audit.json" <<'PY'
+"$python_bin" - "$sft_gate" "$raw_eval_report" "$sft_eval_report" "$corpus_audit" "$M6_PILOT_AUTHORIZATION" "$M6_METHOD" <<'PY'
 import json
 import sys
 from pathlib import Path
 from miniwebwork.m6_mini import validate_closed_loop_identity, validate_mini_sft_gate
+from miniwebwork.m6_pilot import validate_pilot_authorization, validate_pilot_method
 from miniwebwork.webshop_rl.m6_corpus import validate_conditional_learnability_audit
 
 gate = validate_mini_sft_gate(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")))
 raw = validate_closed_loop_identity(json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
 sft = validate_closed_loop_identity(json.loads(Path(sys.argv[3]).read_text(encoding="utf-8")))
 corpus = validate_conditional_learnability_audit(json.loads(Path(sys.argv[4]).read_text(encoding="utf-8")))
+pilot = validate_pilot_authorization(json.loads(Path(sys.argv[5]).read_text(encoding="utf-8")), corpus_audit=corpus)
+validate_pilot_method(sys.argv[6], pilot)
 if gate.get("passed") is not True or gate.get("decision") != "ALLOW_MINI_RL":
     raise ValueError("M6 mini SFT gate did not authorize RL")
 if gate["raw_content_sha256"] != raw["content_sha256"]:
@@ -81,6 +93,8 @@ if gate["sft_content_sha256"] != sft["content_sha256"]:
     raise ValueError("M6 SFT gate SFT evaluation binding drift")
 if gate["corpus_audit_content_sha256"] != corpus["content_sha256"]:
     raise ValueError("M6 SFT gate corpus binding drift")
+if gate.get("pilot_authorization_content_sha256") != pilot["content_sha256"]:
+    raise ValueError("M6 SFT gate pilot-authorization binding drift")
 PY
 
 identity="$rl_root/sft_adapter_identity.json"
@@ -90,6 +104,22 @@ identity="$rl_root/sft_adapter_identity.json"
   --adapter "$sft_adapter" --view "$rl_root/sft_rollout_adapter" --output "$identity"
 
 curriculum_tasks="$($python_bin -c 'import json,sys; value=json.load(open(sys.argv[1])); print(value["task_count"])' "$curriculum")"
+"$python_bin" - "$curriculum" "$M6_PILOT_AUTHORIZATION" <<'PY'
+import json
+import sys
+from pathlib import Path
+from miniwebwork.long_horizon_rl.contracts import sha256_json
+from miniwebwork.m6_pilot import validate_pilot_authorization
+
+curriculum = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+expected = dict(curriculum)
+observed = expected.pop("content_sha256", None)
+if observed != sha256_json(expected):
+    raise ValueError("M6 RL curriculum self-hash drift")
+pilot = validate_pilot_authorization(json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
+if curriculum.get("pilot_authorization_content_sha256") != pilot["content_sha256"]:
+    raise ValueError("M6 RL curriculum pilot-authorization binding drift")
+PY
 maximum_iterations=12
 test "$curriculum_tasks" -ge "$maximum_iterations" || maximum_iterations="$curriculum_tasks"
 
@@ -179,7 +209,8 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
       --groups-dir "$collection_root/groups" --collection-report "$collection_root/collection_report.json" \
       --input-adapter "$input_adapter" --input-adapter-semantic-sha256 "$input_semantic" \
       --reference-sft-adapter "$sft_adapter" --output-dir "$learner_root" \
-      --iteration-index "$mixed_iterations" "${optimizer_args[@]}"
+      --iteration-index "$mixed_iterations" --seed 20260812 --method "$M6_METHOD" \
+      --pilot-authorization "$M6_PILOT_AUTHORIZATION" "${optimizer_args[@]}"
   fi
   iteration_report="$learner_root/learner_report.json"
   mixed="$($python_bin -c 'import json,sys; print(int(json.load(open(sys.argv[1]))["collection_audit"]["mixed_strict_reward_group_count"] > 0))' "$iteration_report")"
@@ -201,4 +232,5 @@ while test "$index" -lt "$iteration"; do
   index=$((index + 1))
 done
 "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_finalize_rl_audit.py \
-  "${audit_args[@]}" "${collection_args[@]}" --output "$rl_root/rl_audit.json"
+  "${audit_args[@]}" "${collection_args[@]}" --method "$M6_METHOD" \
+  --pilot-authorization "$M6_PILOT_AUTHORIZATION" --output "$rl_root/rl_audit.json"

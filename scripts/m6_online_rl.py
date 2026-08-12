@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply one recoverable M6-mini K8 strict-GRPO verifier-TD update."""
+"""Apply one recoverable M6-mini K8 GRPO-family update."""
 
 from __future__ import annotations
 
@@ -16,10 +16,12 @@ import torch  # noqa: E402
 
 from miniwebwork.long_horizon_rl.contracts import directory_sha256  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol  # noqa: E402
+from miniwebwork.m6_pilot import validate_pilot_authorization, validate_pilot_method  # noqa: E402
 from miniwebwork.webshop_rl.m6_online_training import (  # noqa: E402
     train_mini_policy_iteration,
     validate_committed_group,
 )
+from miniwebwork.webshop_rl.verifier_td import METHODS  # noqa: E402
 
 
 def _require(condition: bool, message: str) -> None:
@@ -40,11 +42,21 @@ def main() -> None:
     parser.add_argument("--iteration-index", type=int, required=True)
     parser.add_argument("--seed", type=int, default=20260812)
     parser.add_argument("--microbatch-size", type=int, default=4)
+    parser.add_argument("--method", choices=METHODS, required=True)
+    parser.add_argument("--pilot-authorization", type=Path, required=True)
     args = parser.parse_args()
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "M6 mini RL requires one Slurm GPU")
     protocol = load_protocol()
     git_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, check=True, capture_output=True, text=True).stdout.strip()
     _require(git_sha == protocol["git_sha"], "M6 mini RL Git/protocol drift")
+    authorization = validate_pilot_authorization(
+        json.loads(args.pilot_authorization.read_text(encoding="utf-8"))
+    )
+    validate_pilot_method(args.method, authorization)
+    _require(
+        authorization.get("source_protocol_sha256") == protocol["sha256"],
+        "M6 pilot authorization/protocol drift",
+    )
     collection = json.loads(args.collection_report.read_text(encoding="utf-8"))
     _require(collection.get("schema_version") == "m6_rollout_collection_report_v1", "M6 RL collection report drift")
     expected_collection = dict(collection)
@@ -105,6 +117,8 @@ def main() -> None:
         protocol_sha256=protocol["sha256"],
         iteration_index=args.iteration_index,
         seed=args.seed,
+        method=args.method,
+        pilot_authorization_sha256=authorization["content_sha256"],
         microbatch_size=args.microbatch_size,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
