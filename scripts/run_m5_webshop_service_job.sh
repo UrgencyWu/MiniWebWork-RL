@@ -13,7 +13,7 @@
 #SBATCH --error=logs/m5_webshop_env_%j.err
 
 set -euo pipefail
-repo_root="/home/wushaohua/data/MiniWebWork-RL"
+repo_root="${M5_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL}"
 cd "$repo_root"
 mkdir -p logs
 : "${M5_EXPECTED_GIT_SHA:?set the frozen M5 preflight commit SHA}"
@@ -84,7 +84,7 @@ renew_service() {
     cd "$repo_root"
     successor_job_id="$(sbatch --parsable \
       --dependency="afterany:${SLURM_JOB_ID}" \
-      --export="ALL,M5_EXPECTED_GIT_SHA=${M5_EXPECTED_GIT_SHA},M5_WEBSHOP_WORKERS=${workers}" \
+      --export="ALL,M5_REPO_ROOT=${repo_root},M5_EXPECTED_GIT_SHA=${M5_EXPECTED_GIT_SHA},M5_WEBSHOP_WORKERS=${workers}" \
       "$repo_root/scripts/run_m5_webshop_service_job.sh")"
     echo "renewal_parent_job_id=$SLURM_JOB_ID"
     echo "renewal_successor_job_id=$successor_job_id"

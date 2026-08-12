@@ -305,7 +305,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=True)
     report_path = output / "run_report.json"
     if report_path.is_file():
-        return validate_eval_report(json.loads(report_path.read_text(encoding="utf-8")))
+        return validate_eval_report(json.loads(report_path.read_text(encoding="utf-8")), root=output)
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "M5 frozen evaluation requires exactly one visible GPU")
     spec = identity_spec(plan, args.identity)
     # Authorization rehashes the full base model once immediately before all
@@ -489,7 +489,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         }
     )
     atomic_write_json(report_path, report)
-    return validate_eval_report(report)
+    return validate_eval_report(report, root=output)
 
 
 def parse_args() -> argparse.Namespace:

@@ -98,6 +98,8 @@ def test_slurm_service_renews_without_privileged_scontrol_and_cpu_jobs_hide_gpus
     assert "scontrol" not in service
     assert "sbatch --parsable" in service
     assert 'afterany:${SLURM_JOB_ID}' in service
+    assert 'M5_REPO_ROOT:-/home/wushaohua/data/MiniWebWork-RL' in service
+    assert "M5_REPO_ROOT=${repo_root}" in service
     assert "#SBATCH --cpus-per-task=24" in service
     assert "#SBATCH --mem=96G" in service
     assert "miniwebwork.webshop_rl.serialized_service:app" in service

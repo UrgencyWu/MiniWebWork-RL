@@ -360,11 +360,34 @@ def summarize_groups(groups: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
-def validate_eval_report(payload: Mapping[str, Any]) -> dict[str, Any]:
+def validate_eval_report(
+    payload: Mapping[str, Any],
+    *,
+    root: Path | None = None,
+) -> dict[str, Any]:
     report = validate_self_hashed(payload, schema=RUN_REPORT_SCHEMA)
     _require(report.get("complete") is True and report.get("passed") is True, "M5 frozen evaluation is incomplete")
     _require(report.get("formal_evaluation") is True and report.get("training_updates_allowed") is False, "M5 evaluation/training boundary drift")
     _require(report.get("identity") in IDENTITIES, "M5 evaluation report identity drift")
     summary = report.get("metrics")
     _require(isinstance(summary, Mapping) and summary.get("task_count") == 500 and summary.get("trajectory_count") == 2000, "M5 evaluation report matrix drift")
+    _require(report.get("optimizer_state_loaded") is False, "M5 evaluation report loaded optimizer state")
+    _require(_sha(report.get("protocol_sha256")) and _sha(report.get("eval_plan_sha256")) and _sha(report.get("authorization_sha256")), "M5 evaluation report lineage drift")
+    groups = report.get("group_content_sha256")
+    _require(isinstance(groups, Mapping) and len(groups) == 500, "M5 evaluation report group inventory drift")
+    _require(tuple(groups) == tuple(f"e{index:04d}" for index in range(500)), "M5 evaluation report group order drift")
+    _require(all(_sha(value) for value in groups.values()), "M5 evaluation report group hash drift")
+    gates = report.get("gates")
+    _require(isinstance(gates, Mapping) and gates and all(value is True for value in gates.values()), "M5 evaluation report gates failed")
+    _require(report.get("unmet_gates") == [], "M5 evaluation report has unmet gates")
+    if root is not None:
+        resolved = Path(root).expanduser().resolve()
+        _require(resolved == evaluation_run_root(report["identity"]), "M5 evaluation report root drift")
+        invocation = resolved / "invocation.json"
+        _require(invocation.is_file() and sha256_file(invocation) == report.get("invocation_file_sha256"), "M5 evaluation invocation file drift")
+        for group_id, expected_sha in groups.items():
+            group_path = resolved / "groups" / f"{group_id}.json"
+            _require(group_path.is_file(), f"M5 evaluation group file missing: {group_id}")
+            group = _json(group_path)
+            _require(group.get("content_sha256") == expected_sha and self_hash(group) == expected_sha, f"M5 evaluation group content drift: {group_id}")
     return report

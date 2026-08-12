@@ -16,6 +16,7 @@ from miniwebwork.webshop_rl.formal_evaluation import (
     summarize_groups,
     validate_eval_authorization,
     validate_eval_plan,
+    validate_eval_report,
 )
 from miniwebwork.webshop_rl.formal_training import self_hash
 
@@ -166,3 +167,25 @@ def test_eval_authorization_tool_never_submits_jobs():
     tool = (ROOT / "scripts" / "m5_webshop_authorize_frozen_eval.py").read_text()
     assert "I_APPROVE_EIGHT_FROZEN_EVALS" in tool
     assert "sbatch" not in tool
+
+
+def test_eval_report_rejects_incomplete_group_inventory():
+    payload = {
+        "schema_version": "m5_webshop_frozen_eval_run_v1",
+        "complete": True,
+        "passed": True,
+        "formal_evaluation": True,
+        "training_updates_allowed": False,
+        "optimizer_state_loaded": False,
+        "identity": "raw_base_model",
+        "protocol_sha256": "a" * 64,
+        "eval_plan_sha256": "b" * 64,
+        "authorization_sha256": "c" * 64,
+        "metrics": {"task_count": 500, "trajectory_count": 2000},
+        "group_content_sha256": {},
+        "gates": {"task_count": True},
+        "unmet_gates": [],
+    }
+    payload["content_sha256"] = self_hash(payload)
+    with pytest.raises(ValueError, match="group inventory"):
+        validate_eval_report(payload)
