@@ -172,3 +172,10 @@ optimizer；它只在共同的 500 个官方 test goals 上，以相同采样设
 成功率，辅指标包括 dense score、类别/约束复杂度分层、token、环境步数、耗时和无效动作。
 任何测试结果都不得反向选择 checkpoint、修改模型或触发补训。八身份全部完成后，才执行
 task-cluster bootstrap、成对 seed-aware permutation、失败分类和最终对比结论。
+
+最终评测完成后，使用 `scripts/m5_webshop_analyze_final.py` 生成独立的
+`formal/analysis/final_statistical_report.json` 与 Markdown 摘要。单身份区间以
+任务为聚类单位；三种子方法区间先重采样训练种子、再重采样任务；
+`Anchor-GiGPO - GRPO` 是预注册主比较，使用按 seed/task 配对的双侧符号置换。
+其余五个基线/恢复比较属于解释性比较，并统一做 Holm 校正。失败轨迹只分配
+一个互斥主类，格式无效、公开动作错误、终止原因和最后页面另作正交诊断标签。
