@@ -21,6 +21,7 @@ RL_AUDIT_SCHEMA = "m6_mini_rl_audit_v1"
 CHAIN_SCHEMA = "m6_mini_chain_report_v1"
 SFT_GATE_SCHEMA = "m6_mini_sft_gate_v1"
 EVAL_SEMANTICS_SCHEMA = "m6_mini_evaluation_semantics_v2"
+EVALUATION_ROLES = {"mini_dev", "formal_dev"}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -68,7 +69,7 @@ def build_evaluation_semantics(
     for field in ("protocol_sha256", "split_lock_content_sha256", "role", "K", "task_order_sha256"):
         _require(collection.get(field) == invocation.get(field), f"M6 evaluation {field} binding drift")
     _require(collection.get("git_sha") == invocation.get("git_sha"), "M6 evaluation producer Git binding drift")
-    _require(invocation.get("role") == "mini_dev", "M6 evaluation semantic role drift")
+    _require(invocation.get("role") in EVALUATION_ROLES, "M6 evaluation semantic role drift")
     _require(invocation.get("K") == int(contract["mini"]["evaluation_K"]), "M6 evaluation semantic K drift")
     _require(
         invocation.get("split_lock_content_sha256") == split_lock_content_sha256,
@@ -103,12 +104,15 @@ def summarize_closed_loop_identity(
     development_only: bool,
     evaluation_contract_sha256: str | None = None,
     source_bindings: Mapping[str, Any] | None = None,
+    evaluation_role: str = "mini_dev",
     protocol: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = dict(protocol or load_protocol()["payload"])
     validate_protocol(contract)
     _require(isinstance(identity, str) and identity in {"raw", "mini_sft", "mini_rl"}, "M6 mini identity drift")
-    _require(len(groups) == int(contract["split"]["mini_dev_tasks"]), "M6 mini-dev task count drift")
+    _require(evaluation_role in EVALUATION_ROLES, "M6 evaluation role drift")
+    expected_tasks = int(contract["split"][f"{evaluation_role}_tasks"])
+    _require(len(groups) == expected_tasks, "M6 evaluation task count drift")
     task_rows: dict[str, dict[str, Any]] = {}
     schema_errors = 0
     action_errors = 0
@@ -171,6 +175,7 @@ def summarize_closed_loop_identity(
         "schema_version": EVAL_SCHEMA,
         "study_id": contract["study_id"],
         "identity": identity,
+        "evaluation_role": evaluation_role,
         "development_only": development_only,
         "evaluation_contract_sha256": evaluation_contract_sha256,
         "source_bindings": dict(source_bindings or {}),
@@ -199,7 +204,14 @@ def validate_closed_loop_identity(payload: Mapping[str, Any]) -> dict[str, Any]:
     value = dict(payload)
     _require(value.get("schema_version") == EVAL_SCHEMA, "M6 mini evaluation schema drift")
     _require(value.get("identity") in {"raw", "mini_sft", "mini_rl"}, "M6 mini evaluation identity drift")
-    _require(value.get("task_count") == 200 and value.get("trajectory_count") == 800, "M6 mini evaluation size drift")
+    role = value.get("evaluation_role", "mini_dev")
+    _require(role in EVALUATION_ROLES, "M6 evaluation role drift")
+    expected_tasks = 200 if role == "mini_dev" else 500
+    _require(
+        value.get("task_count") == expected_tasks
+        and value.get("trajectory_count") == expected_tasks * 4,
+        "M6 evaluation size drift",
+    )
     _require(value.get("K") == 4, "M6 mini evaluation K drift")
     evaluation_contract = value.get("evaluation_contract_sha256")
     _require(
@@ -208,7 +220,7 @@ def validate_closed_loop_identity(payload: Mapping[str, Any]) -> dict[str, Any]:
         "M6 mini evaluation contract hash drift",
     )
     rows = value.get("task_rows")
-    _require(isinstance(rows, Mapping) and len(rows) == 200, "M6 mini task rows drift")
+    _require(isinstance(rows, Mapping) and len(rows) == expected_tasks, "M6 task rows drift")
     _require(value.get("task_roster_sha256") == sha256_json(list(rows)), "M6 mini task roster hash drift")
     _require(
         value.get("rollout_key_roster_sha256")

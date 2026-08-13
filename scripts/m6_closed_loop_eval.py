@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize one completed M6 mini-dev K4 identity."""
+"""Summarize one completed M6 frozen development K4 identity."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from miniwebwork.webshop_rl.m6_online_training import validate_committed_group  
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--identity", choices=("raw", "mini_sft", "mini_rl"), required=True)
+    parser.add_argument("--role", choices=("mini_dev", "formal_dev"), default="mini_dev")
     parser.add_argument(
         "--source-identity-report",
         type=Path,
@@ -46,8 +47,8 @@ def main() -> None:
         raise ValueError("M6 evaluation collection report self-hash drift")
     if collection.get("complete") is not True or collection.get("mode") != "evaluation" or collection.get("K") != 4:
         raise ValueError("M6 evaluation collection report is incomplete")
-    if collection.get("role") != "mini_dev":
-        raise ValueError("M6 evaluation did not use frozen mini_dev")
+    if collection.get("role") != args.role:
+        raise ValueError("M6 evaluation role binding drift")
     if collection.get("split_lock_content_sha256") != split["content_sha256"]:
         raise ValueError("M6 evaluation collection/split drift")
     paths = sorted(args.groups_dir.expanduser().resolve().glob("g*.json"))
@@ -55,7 +56,7 @@ def main() -> None:
         validate_committed_group(json.loads(path.read_text(encoding="utf-8")), require_k=4)
         for path in paths
     ]
-    expected_tasks = split["roles"]["mini_dev"]["task_ids"]
+    expected_tasks = split["roles"][args.role]["task_ids"]
     if [group["task_id"] for group in groups] != expected_tasks:
         raise ValueError("M6 evaluation group roster is not the frozen mini_dev order")
     if collection.get("group_content_sha256") != [group["content_sha256"] for group in groups]:
@@ -74,7 +75,7 @@ def main() -> None:
         split_lock_content_sha256=split["content_sha256"],
         protocol=protocol["payload"],
     )
-    development_only = args.identity != "raw"
+    development_only = args.role == "formal_dev" or args.identity != "raw"
     if args.source_identity_report is not None:
         source_identity = json.loads(args.source_identity_report.read_text(encoding="utf-8"))
         if source_identity.get("identity") != args.identity:
@@ -97,6 +98,7 @@ def main() -> None:
             "group_content_sha256": collection["group_content_sha256"],
             "evaluation_semantics": evaluation_semantics,
         },
+        evaluation_role=args.role,
     )
     atomic_write_json(args.output, report)
     if args.pilot_authorization is not None:

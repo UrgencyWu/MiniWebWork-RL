@@ -37,6 +37,12 @@ successor；确定性失败停止并写入 `TRAINING_FAILURE_LEDGER.md`。
 不得挑选 M6.2 checkpoint。晋级要求：平均 RL-SFT 至少 +3 pp、至少 2/3 seeds 为正、
 bootstrap 正方向比例至少 0.8，且信用、更新、成本和失败类型门禁全部通过。
 
+M6.2 的冻结中等规模评测使用尚未用于本轮选择的 `formal_dev` 500-task roster，所有身份
+共享 K=4、rollout seed `20260815`、18 model turns 与 15 environment steps。矩阵为 Raw、
+共享 SFT、以及 2 methods × 3 seeds，共 8 个无梯度 GPU 作业；最多并行 6 个，以避开
+WebShop 服务和其他用户的 GPU。只有 8 个身份均成功后才运行 CPU 配对统计。该阶段不会
+读取 promotion 或 holdout；结果最多允许请求用户批准打开 promotion，不能自动提交。
+
 ## M6.1：批准继续的 156-task 开发验证
 
 原始 M6 门槛仍是 160 个 replay-verified task，不回写、不降低。两个冻结 Raw K8

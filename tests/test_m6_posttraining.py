@@ -14,6 +14,7 @@ from miniwebwork.m6_mini import (
     build_mini_chain_report,
     build_mini_sft_gate,
     summarize_closed_loop_identity,
+    validate_closed_loop_identity,
 )
 from miniwebwork.m6_posttraining_protocol import (
     audit_behavior_sampling_logprobs,
@@ -613,6 +614,43 @@ def test_m6_run_mini_chain_cli_can_preserve_nonpassing_diagnostics():
     )
     assert '"--allow-nonpassing"' in script
     assert 'if not report["passed"] and not args.allow_nonpassing' in script
+
+
+def test_m6_formal_dev_identity_uses_frozen_500_task_contract():
+    groups = _eval_groups("mini_rl", 60)
+    for task_index in range(200, 500):
+        groups.append(
+            {
+                "task_id": task_id_for_goal_index(2000 + task_index),
+                "trajectories": [
+                    {
+                        "rollout_seed": rollout,
+                        "success": False,
+                        "task_score": 0.0,
+                        "termination_reason": "max_model_turns",
+                        "generated_action_tokens": 10,
+                        "environment_steps": 2,
+                        "turns": [{
+                            "schema_valid": True,
+                            "action_result": {"error_code": ""},
+                            "observation": {"page_type": "item"},
+                        }],
+                    }
+                    for rollout in range(4)
+                ],
+            }
+        )
+    report = summarize_closed_loop_identity(
+        identity="mini_rl",
+        groups=groups,
+        development_only=True,
+        evaluation_role="formal_dev",
+        evaluation_contract_sha256="f" * 64,
+    )
+    assert report["evaluation_role"] == "formal_dev"
+    assert report["task_count"] == 500
+    assert report["trajectory_count"] == 2000
+    assert validate_closed_loop_identity(report) == report
 
 
 def test_m6_finalize_job_reuses_frozen_baselines_and_compares_both_methods():

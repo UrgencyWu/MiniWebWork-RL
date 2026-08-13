@@ -1,0 +1,45 @@
+{
+  "schema_version": "m6_medium_eval_plan_v1",
+  "study_id": "m6_monotonic_posttraining_v1",
+  "scope": "development_only_formal_dev_evaluation",
+  "formal_training": false,
+  "role": "formal_dev",
+  "task_count": 500,
+  "group_size": 4,
+  "rollout_seed": 20260815,
+  "max_model_turns": 18,
+  "max_environment_steps": 15,
+  "identities": [
+    "raw",
+    "sft",
+    "multi_turn_grpo_seed_20260812",
+    "anchor_gigpo_seed_20260812",
+    "multi_turn_grpo_seed_20260813",
+    "anchor_gigpo_seed_20260813",
+    "multi_turn_grpo_seed_20260814",
+    "anchor_gigpo_seed_20260814"
+  ],
+  "paired_training_seeds": [
+    20260812,
+    20260813,
+    20260814
+  ],
+  "success_rule": {
+    "mean_rl_minus_sft_pp": 3.0,
+    "minimum_positive_seeds": 2,
+    "minimum_bootstrap_positive_fraction": 0.8,
+    "all_rl_audits_must_pass": true
+  },
+  "statistics": {
+    "bootstrap_samples": 20000,
+    "permutation_samples": 20000,
+    "confidence_level": 0.95,
+    "task_is_resampling_unit": true,
+    "training_seed_is_paired_unit": true
+  },
+  "isolation": {
+    "mini_dev_reuse_for_selection": false,
+    "promotion_opened": false,
+    "holdout_opened": false
+  }
+}

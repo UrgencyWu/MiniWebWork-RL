@@ -435,9 +435,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         _require(args.adapter is None and args.task_roster is None and args.task_offset == 0, "M6 Raw collection policy/roster drift")
         _require(len(task_ids) == int(protocol["split"]["mini_train_tasks"]), "M6 Raw collection task count drift")
     elif args.mode == "evaluation":
-        _require(args.role == "mini_dev", "M6 development evaluation must use mini_dev")
+        _require(args.role in {"mini_dev", "formal_dev"}, "M6 evaluation role drift")
         _require(args.task_roster is None and args.task_offset == 0, "M6 evaluation roster drift")
-        _require(len(task_ids) == int(protocol["split"]["mini_dev_tasks"]), "M6 evaluation task count drift")
+        expected_tasks = int(protocol["split"][f"{args.role}_tasks"])
+        _require(len(task_ids) == expected_tasks, "M6 evaluation task count drift")
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
