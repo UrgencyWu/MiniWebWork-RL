@@ -84,11 +84,15 @@ def main() -> None:
         torch.cuda.manual_seed_all(args.seed)
         model, tokenizer = load_trainable_policy_model(base_model=base_model, adapter_path=adapter)
         current = _active_adapter_name(model)
+        # Capture the policy parameters before loading a frozen reference
+        # adapter. PEFT may otherwise switch the model-wide trainability view
+        # to the newly loaded inference-only adapter and expose an empty list.
+        parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+        _require(parameters, "M6 phase-one probe found no trainable policy parameters")
         model.load_adapter(str(adapter), adapter_name=REFERENCE_ADAPTER_NAME, is_trainable=False)
         for name, parameter in model.named_parameters():
             if REFERENCE_ADAPTER_NAME in name:
                 parameter.requires_grad_(False)
-        parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
         return model, tokenizer, parameters, current
 
     def gradient(method: str) -> tuple[Any, float, float]:

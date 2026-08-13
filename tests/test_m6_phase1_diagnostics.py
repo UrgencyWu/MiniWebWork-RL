@@ -84,3 +84,14 @@ def test_active_adapter_name_handles_property_and_method():
 
     assert module._active_adapter_name(PropertyModel()) == "default"
     assert module._active_adapter_name(MethodModel()) == "policy"
+
+
+def test_gpu_probe_captures_policy_parameters_before_frozen_reference_load():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "m6_phase1_gpu_probe.py"
+    ).read_text(encoding="utf-8")
+    capture = source.index("parameters = [parameter for parameter in model.parameters()")
+    reference = source.index("model.load_adapter(str(adapter), adapter_name=REFERENCE_ADAPTER_NAME")
+    assert capture < reference
