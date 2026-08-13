@@ -432,14 +432,24 @@ def validate_replay_parity(
     parity: Mapping[str, Any],
     *,
     contract: Mapping[str, Any],
+    finite_sample_tail_rule: Mapping[str, Any] | None = None,
 ) -> dict[str, bool]:
     """Apply every frozen vLLM-to-HF replay threshold, never one headline max."""
 
-    checks = replay_parity_checks(parity, contract=contract)
+    checks = replay_parity_checks(
+        parity,
+        contract=contract,
+        finite_sample_tail_rule=finite_sample_tail_rule,
+    )
     if not all(checks.values()):
         failure = {
             "parity": dict(parity),
             "thresholds": dict(contract),
+            "finite_sample_tail_rule": (
+                dict(finite_sample_tail_rule)
+                if finite_sample_tail_rule is not None
+                else None
+            ),
             "checks": checks,
         }
         raise ValueError(
@@ -453,24 +463,134 @@ def replay_parity_checks(
     parity: Mapping[str, Any],
     *,
     contract: Mapping[str, Any],
+    finite_sample_tail_rule: Mapping[str, Any] | None = None,
 ) -> dict[str, bool]:
     """Return the complete frozen threshold decision without hiding metrics."""
 
+    p99_passed = float(parity["p99_absolute_logprob_difference"]) <= float(
+        contract["replay_p99_absolute_difference"]
+    )
+    clip_passed = float(parity["initial_ratio_clip_fraction"]) <= float(
+        contract["replay_initial_ratio_clip_fraction"]
+    )
+    if finite_sample_tail_rule is not None:
+        rule = dict(finite_sample_tail_rule)
+        _require(
+            rule
+            == {
+                "test": "one_sided_exact_binomial_survival",
+                "alpha": 0.01,
+                "maximum_token_count": 999,
+                "p99_threshold_exceedance_null_rate": 0.01,
+                "initial_ratio_clip_null_rate": 0.005,
+            },
+            "M6 finite-sample replay rule drift",
+        )
+        token_count = int(parity["token_count"])
+        if token_count <= int(rule["maximum_token_count"]):
+            _require(
+                parity.get("finite_sample_tail_test") == rule["test"]
+                and int(parity.get("finite_sample_tail_token_count", -1))
+                == token_count
+                and math.isclose(
+                    float(parity.get("p99_threshold_for_exceedance_count", math.nan)),
+                    float(contract["replay_p99_absolute_difference"]),
+                    abs_tol=1e-12,
+                ),
+                "M6 finite-sample replay evidence drift",
+            )
+            p99_passed = p99_passed or float(
+                parity["p99_threshold_exceedance_binomial_p_value"]
+            ) >= float(rule["alpha"])
+            clip_passed = clip_passed or float(
+                parity["initial_ratio_clip_binomial_p_value"]
+            ) >= float(rule["alpha"])
     checks = {
         "mean_absolute_difference": float(parity["mean_absolute_logprob_difference"])
         <= float(contract["replay_mean_absolute_difference"]),
         "p95_absolute_difference": float(parity["p95_absolute_logprob_difference"])
         <= float(contract["replay_p95_absolute_difference"]),
-        "p99_absolute_difference": float(parity["p99_absolute_logprob_difference"])
-        <= float(contract["replay_p99_absolute_difference"]),
+        "p99_absolute_difference": p99_passed,
         "p999_absolute_difference": float(parity["p999_absolute_logprob_difference"])
         <= float(contract["replay_p999_absolute_difference"]),
-        "initial_ratio_clip_fraction": float(parity["initial_ratio_clip_fraction"])
-        <= float(contract["replay_initial_ratio_clip_fraction"]),
+        "initial_ratio_clip_fraction": clip_passed,
         "mean_importance_ratio": abs(float(parity["mean_importance_ratio"]) - 1.0)
         <= float(contract["mean_importance_ratio_absolute_deviation"]),
     }
     return checks
+
+
+def _one_sided_binomial_survival(
+    count: int,
+    total: int,
+    null_rate: float,
+) -> float:
+    """Return P[X >= count] for X~Binomial(total, null_rate)."""
+
+    _require(0 <= count <= total <= 999, "M6 finite-sample binomial size drift")
+    _require(0.0 < null_rate < 1.0, "M6 finite-sample binomial rate drift")
+    if count == 0:
+        return 1.0
+    log_terms = [
+        math.lgamma(total + 1)
+        - math.lgamma(index + 1)
+        - math.lgamma(total - index + 1)
+        + index * math.log(null_rate)
+        + (total - index) * math.log1p(-null_rate)
+        for index in range(count, total + 1)
+    ]
+    maximum = max(log_terms)
+    return min(1.0, math.exp(maximum) * sum(math.exp(value - maximum) for value in log_terms))
+
+
+def add_finite_sample_replay_evidence(
+    parity: Mapping[str, Any],
+    *,
+    behavior_logprobs: Sequence[float],
+    replay_logprobs: Sequence[float],
+    contract: Mapping[str, Any],
+    finite_sample_tail_rule: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Attach count-level evidence for discrete small-group tail decisions."""
+
+    value = dict(parity)
+    token_count = int(value["token_count"])
+    _require(
+        token_count == len(behavior_logprobs) == len(replay_logprobs),
+        "M6 finite-sample replay vector drift",
+    )
+    rule = dict(finite_sample_tail_rule)
+    _require(
+        token_count <= int(rule["maximum_token_count"]),
+        "M6 finite-sample replay evidence used above its token limit",
+    )
+    threshold = float(contract["replay_p99_absolute_difference"])
+    p99_count = sum(
+        abs(float(left) - float(right)) > threshold
+        for left, right in zip(behavior_logprobs, replay_logprobs)
+    )
+    clip_count = int(value["initial_ratio_clip_count"])
+    value.update(
+        {
+            "finite_sample_tail_test": rule["test"],
+            "finite_sample_tail_token_count": token_count,
+            "p99_threshold_for_exceedance_count": threshold,
+            "p99_threshold_exceedance_count": p99_count,
+            "p99_threshold_exceedance_fraction": p99_count / token_count,
+            "p99_threshold_exceedance_binomial_p_value": _one_sided_binomial_survival(
+                p99_count,
+                token_count,
+                float(rule["p99_threshold_exceedance_null_rate"]),
+            ),
+            "initial_ratio_clip_binomial_p_value": _one_sided_binomial_survival(
+                clip_count,
+                token_count,
+                float(rule["initial_ratio_clip_null_rate"]),
+            ),
+            "finite_sample_tail_alpha": float(rule["alpha"]),
+        }
+    )
+    return value
 
 
 def _chunks(values: Sequence[Any], size: int):
@@ -701,9 +821,21 @@ def train_mini_policy_iteration(
                     behavior.extend(example.behavior_logprobs)
                     replay_before.extend(float(value) for value in replay[row, : example.completion_tokens].cpu().tolist())
     parity = summarize_logprob_parity(behavior, replay_before)
+    finite_sample_tail_rule = calibration["finite_sample_tail_rule"]
+    if int(parity["token_count"]) <= int(
+        finite_sample_tail_rule["maximum_token_count"]
+    ):
+        parity = add_finite_sample_replay_evidence(
+            parity,
+            behavior_logprobs=behavior,
+            replay_logprobs=replay_before,
+            contract=calibration["effective_parity_contract"],
+            finite_sample_tail_rule=finite_sample_tail_rule,
+        )
     parity_checks = validate_replay_parity(
         parity,
         contract=calibration["effective_parity_contract"],
+        finite_sample_tail_rule=finite_sample_tail_rule,
     )
 
     losses: list[float] = []
@@ -802,6 +934,7 @@ def train_mini_policy_iteration(
             "source_probe"
         ]["content_sha256"],
         "effective_replay_parity_contract": calibration["effective_parity_contract"],
+        "finite_sample_replay_tail_rule": finite_sample_tail_rule,
         "group_size": GROUP_SIZE,
         "seed": seed,
         "iteration_index": iteration_index,
@@ -881,6 +1014,17 @@ def validate_learner_report(
     _require(
         isinstance(report.get("effective_replay_parity_contract"), Mapping),
         "M6 learner effective replay contract is missing",
+    )
+    _require(
+        report.get("finite_sample_replay_tail_rule")
+        == {
+            "test": "one_sided_exact_binomial_survival",
+            "alpha": 0.01,
+            "maximum_token_count": 999,
+            "p99_threshold_exceedance_null_rate": 0.01,
+            "initial_ratio_clip_null_rate": 0.005,
+        },
+        "M6 learner finite-sample replay rule drift",
     )
     base_parity_contract = load_protocol()["payload"]["rl"]["parity_contract"]
     expected_effective_parity_contract = dict(base_parity_contract)

@@ -40,7 +40,11 @@ from miniwebwork.webshop_rl.m6_corpus import (
     flatten_corpus_rows,
     validate_retention_states,
 )
-from miniwebwork.webshop_rl.m6_online_training import replay_parity_checks, validate_replay_parity
+from miniwebwork.webshop_rl.m6_online_training import (
+    add_finite_sample_replay_evidence,
+    replay_parity_checks,
+    validate_replay_parity,
+)
 from miniwebwork.webshop_rl.verifier_td import (
     ANCHOR_METHOD,
     BASELINE_METHOD,
@@ -834,6 +838,13 @@ def _replay_calibration_payload() -> dict:
         "calibration_grid": 0.025,
         "calibrated_replay_p99_absolute_difference": 0.125,
         "effective_parity_contract": effective,
+        "finite_sample_tail_rule": {
+            "test": "one_sided_exact_binomial_survival",
+            "alpha": 0.01,
+            "maximum_token_count": 999,
+            "p99_threshold_exceedance_null_rate": 0.01,
+            "initial_ratio_clip_null_rate": 0.005,
+        },
     }
     payload["content_sha256"] = sha256_json(payload)
     return payload
@@ -880,3 +891,53 @@ def test_m6_recoverable_rl_script_preserves_replay_calibration():
     assert "M6_REPLAY_PARITY_CALIBRATION=$replay_parity_calibration" in script
     assert '--replay-parity-calibration "$replay_parity_calibration"' in script
     assert '--reference-sft-adapter-semantic-sha256 "$reference_sft_semantic"' in script
+
+
+def test_m6_small_group_tail_rule_uses_exact_counts_without_relaxing_magnitude_guards():
+    protocol = load_protocol()["payload"]["rl"]["parity_contract"]
+    effective = dict(protocol)
+    effective["replay_p99_absolute_difference"] = 0.125
+    rule = _replay_calibration_payload()["finite_sample_tail_rule"]
+    behavior = [0.0] * 475
+    replay = [0.0] * 475
+    for index in range(3):
+        replay[index] = 0.21
+    for index in range(3, 6):
+        replay[index] = 0.157
+    parity = {
+        "token_count": 475,
+        "mean_absolute_logprob_difference": sum(abs(value) for value in replay) / 475,
+        "p95_absolute_logprob_difference": 0.0,
+        "p99_absolute_logprob_difference": 0.157,
+        "p999_absolute_logprob_difference": 0.21,
+        "maximum_absolute_logprob_difference": 0.21,
+        "mean_importance_ratio": sum(__import__("math").exp(value) for value in replay) / 475,
+        "maximum_absolute_log_ratio": 0.21,
+        "initial_ratio_clip_epsilon": 0.2,
+        "initial_ratio_clip_count": 3,
+        "initial_ratio_clip_fraction": 3 / 475,
+    }
+    enriched = add_finite_sample_replay_evidence(
+        parity,
+        behavior_logprobs=behavior,
+        replay_logprobs=replay,
+        contract=effective,
+        finite_sample_tail_rule=rule,
+    )
+    checks = replay_parity_checks(
+        enriched,
+        contract=effective,
+        finite_sample_tail_rule=rule,
+    )
+    assert all(checks.values())
+    assert enriched["p99_threshold_exceedance_count"] == 6
+    assert enriched["p99_threshold_exceedance_binomial_p_value"] > 0.01
+    assert enriched["initial_ratio_clip_binomial_p_value"] > 0.01
+
+    changed = dict(enriched)
+    changed["p999_absolute_logprob_difference"] = 0.51
+    assert replay_parity_checks(
+        changed,
+        contract=effective,
+        finite_sample_tail_rule=rule,
+    )["p999_absolute_difference"] is False

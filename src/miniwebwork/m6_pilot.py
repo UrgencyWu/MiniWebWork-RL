@@ -437,6 +437,17 @@ def validate_pilot_replay_parity_calibration(
         isinstance(effective, Mapping) and dict(effective) == expected_effective,
         "M6 replay calibration changed an independent guardrail",
     )
+    _require(
+        value.get("finite_sample_tail_rule")
+        == {
+            "test": "one_sided_exact_binomial_survival",
+            "alpha": 0.01,
+            "maximum_token_count": 999,
+            "p99_threshold_exceedance_null_rate": 0.01,
+            "initial_ratio_clip_null_rate": 0.005,
+        },
+        "M6 replay calibration finite-sample rule drift",
+    )
     expected = dict(value)
     observed = expected.pop("content_sha256", None)
     _require(observed == sha256_json(expected), "M6 replay calibration self-hash drift")

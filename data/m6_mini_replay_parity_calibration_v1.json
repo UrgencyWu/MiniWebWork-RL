@@ -67,5 +67,12 @@
     "replay_initial_ratio_clip_fraction": 0.005,
     "mean_importance_ratio_absolute_deviation": 0.02
   },
-  "content_sha256": "1d3d689eb2f0b7d3ee9bf792789728dc313418c7c9e7450a27b65d3a35290a1c"
+  "finite_sample_tail_rule": {
+    "test": "one_sided_exact_binomial_survival",
+    "alpha": 0.01,
+    "maximum_token_count": 999,
+    "p99_threshold_exceedance_null_rate": 0.01,
+    "initial_ratio_clip_null_rate": 0.005
+  },
+  "content_sha256": "6149eadd435b6061de4b4945116a1e685b36ec5a77f2e1017aa14955ca6add59"
 }
