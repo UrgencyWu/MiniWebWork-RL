@@ -591,6 +591,27 @@ def test_m6_evaluation_semantics_separate_policy_and_git_lineage():
     )["content_sha256"] != raw["content_sha256"]
 
 
+def test_m6_run_mini_chain_cli_can_preserve_nonpassing_diagnostics():
+    script = (Path(__file__).resolve().parents[1] / "scripts" / "m6_run_mini_chain.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"--allow-nonpassing"' in script
+    assert 'if not report["passed"] and not args.allow_nonpassing' in script
+
+
+def test_m6_finalize_job_reuses_frozen_baselines_and_compares_both_methods():
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "run_m6_mini_rl_eval_finalize_job.sh"
+    ).read_text(encoding="utf-8")
+    assert "pilot_raw_eval" in script
+    assert "pilot_sft_eval_v2" in script
+    assert "multi_turn_grpo_chain_report.json" in script
+    assert "anchor_gigpo_chain_report.json" in script
+    assert "--bootstrap-samples 20000 --allow-nonpassing" in script
+
+
 def test_m6_rl_audit_requires_real_updates_and_credit():
     credit = assign_group_credit(_credit_group())
     learner = {

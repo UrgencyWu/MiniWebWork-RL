@@ -32,6 +32,11 @@ def main() -> None:
     parser.add_argument("--rl-audit", type=Path, required=True)
     parser.add_argument("--bootstrap-samples", type=int, default=10_000)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--allow-nonpassing",
+        action="store_true",
+        help="write the complete diagnostic report and exit zero even when the promotion gate fails",
+    )
     args = parser.parse_args()
     report = build_mini_chain_report(
         raw=_json(args.raw_eval),
@@ -48,6 +53,8 @@ def main() -> None:
         "decision": report["decision"],
         "content_sha256": report["content_sha256"],
     }, indent=2, sort_keys=True))
+    if not report["passed"] and not args.allow_nonpassing:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

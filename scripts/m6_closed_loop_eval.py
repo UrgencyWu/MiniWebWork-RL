@@ -21,6 +21,11 @@ from miniwebwork.webshop_rl.m6_online_training import validate_committed_group  
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--identity", choices=("raw", "mini_sft", "mini_rl"), required=True)
+    parser.add_argument(
+        "--source-identity-report",
+        type=Path,
+        help="optional prior identity report whose development-only flag is preserved when rebuilding semantics",
+    )
     parser.add_argument("--groups-dir", type=Path, required=True)
     parser.add_argument("--collection-report", type=Path, required=True)
     parser.add_argument("--split-lock", type=Path, required=True)
@@ -69,10 +74,18 @@ def main() -> None:
         split_lock_content_sha256=split["content_sha256"],
         protocol=protocol["payload"],
     )
+    development_only = args.identity != "raw"
+    if args.source_identity_report is not None:
+        source_identity = json.loads(args.source_identity_report.read_text(encoding="utf-8"))
+        if source_identity.get("identity") != args.identity:
+            raise ValueError("M6 source identity/report mismatch")
+        if not isinstance(source_identity.get("development_only"), bool):
+            raise ValueError("M6 source identity development-only flag is invalid")
+        development_only = source_identity["development_only"]
     report = summarize_closed_loop_identity(
         identity=args.identity,
         groups=groups,
-        development_only=args.identity != "raw",
+        development_only=development_only,
         evaluation_contract_sha256=evaluation_semantics["content_sha256"],
         source_bindings={
             "producer_git_sha": collection["git_sha"],
