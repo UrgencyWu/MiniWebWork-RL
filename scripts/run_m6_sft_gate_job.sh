@@ -25,7 +25,9 @@ export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
 pilot_args=()
 : "${M6_PILOT_AUTHORIZATION:?set M6_PILOT_AUTHORIZATION}"
 pilot_args=(--pilot-authorization "$M6_PILOT_AUTHORIZATION")
-"$python_bin" - "$M6_RAW_EVAL_REPORT" "$M6_SFT_EVAL_REPORT" "$M6_PILOT_AUTHORIZATION" <<'PY'
+raw_binding="${M6_RAW_EVAL_BINDING:-$(dirname "$M6_RAW_EVAL_REPORT")/pilot_binding.json}"
+sft_binding="${M6_SFT_EVAL_BINDING:-$(dirname "$M6_SFT_EVAL_REPORT")/pilot_binding.json}"
+"$python_bin" - "$M6_RAW_EVAL_REPORT" "$M6_SFT_EVAL_REPORT" "$M6_PILOT_AUTHORIZATION" "$raw_binding" "$sft_binding" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -33,10 +35,10 @@ from miniwebwork.long_horizon_rl.contracts import sha256_json
 from miniwebwork.m6_pilot import validate_pilot_authorization
 
 authorization = validate_pilot_authorization(json.loads(Path(sys.argv[3]).read_text(encoding="utf-8")))
-for report_name in sys.argv[1:3]:
+for report_name, binding_name in zip(sys.argv[1:3], sys.argv[4:6]):
     report = Path(report_name)
     identity = json.loads(report.read_text(encoding="utf-8"))
-    binding = json.loads((report.parent / "pilot_binding.json").read_text(encoding="utf-8"))
+    binding = json.loads(Path(binding_name).read_text(encoding="utf-8"))
     expected = dict(binding)
     observed = expected.pop("content_sha256", None)
     if observed != sha256_json(expected):

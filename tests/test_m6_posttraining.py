@@ -10,6 +10,7 @@ from miniwebwork.long_horizon_rl.contracts import publish_immutable_json, sha256
 from miniwebwork.m5_webshop_protocol import task_id_for_goal_index
 from miniwebwork.m6_mini import (
     audit_mini_rl,
+    build_evaluation_semantics,
     build_mini_chain_report,
     build_mini_sft_gate,
     summarize_closed_loop_identity,
@@ -24,6 +25,7 @@ from miniwebwork.m6_posttraining_protocol import (
 from miniwebwork.m6_pilot import (
     canonical_sft_audit_input_key,
     load_pilot_waiver,
+    validate_artifact_git_compatibility,
     validate_pilot_authorization,
     validate_pilot_method,
     validate_sft_corpus_git_compatibility,
@@ -532,6 +534,57 @@ def test_m6_paired_gate_rejects_evaluation_contract_drift():
         build_mini_sft_gate(raw=raw, sft=sft, corpus_audit=corpus)
 
 
+def test_m6_evaluation_semantics_separate_policy_and_git_lineage():
+    protocol = load_protocol()["payload"]
+    split_hash = "c" * 64
+
+    def evidence(git_sha: str, adapter: str | None) -> tuple[dict, dict]:
+        invocation = {
+            "mode": "evaluation",
+            "role": "mini_dev",
+            "K": 4,
+            "task_order_sha256": "d" * 64,
+            "seed": 20260812,
+            "iteration_index": 0,
+            "max_model_turns": 18,
+            "max_environment_steps": 15,
+            "protocol_sha256": "e" * 64,
+            "git_sha": git_sha,
+            "split_lock_content_sha256": split_hash,
+            "base_model": protocol["sft"]["base_model"],
+            "adapter": adapter,
+        }
+        collection = {
+            key: invocation[key]
+            for key in ("mode", "role", "K", "task_order_sha256", "protocol_sha256", "git_sha", "split_lock_content_sha256")
+        }
+        return collection, invocation
+
+    raw_collection, raw_invocation = evidence("a" * 40, None)
+    sft_collection, sft_invocation = evidence("b" * 40, "/tmp/sft-adapter")
+    raw = build_evaluation_semantics(
+        collection=raw_collection,
+        invocation=raw_invocation,
+        split_lock_content_sha256=split_hash,
+        protocol=protocol,
+    )
+    sft = build_evaluation_semantics(
+        collection=sft_collection,
+        invocation=sft_invocation,
+        split_lock_content_sha256=split_hash,
+        protocol=protocol,
+    )
+    assert raw == sft
+    changed = copy.deepcopy(sft_invocation)
+    changed["seed"] += 1
+    assert build_evaluation_semantics(
+        collection=sft_collection,
+        invocation=changed,
+        split_lock_content_sha256=split_hash,
+        protocol=protocol,
+    )["content_sha256"] != raw["content_sha256"]
+
+
 def test_m6_rl_audit_requires_real_updates_and_credit():
     credit = assign_group_credit(_credit_group())
     learner = {
@@ -633,6 +686,24 @@ def test_m6_sft_corpus_git_bridge_is_explicit_and_fail_closed():
             corpus_producer_git_sha=producer,
             consumer_git_sha=consumer,
             explicitly_authorized_producer_git_sha="c" * 40,
+        )
+
+
+def test_m6_derived_artifact_git_bridge_is_explicit_and_scoped():
+    producer = "a" * 40
+    consumer = "b" * 40
+    assert validate_artifact_git_compatibility(
+        artifact_name="RL curriculum",
+        producer_git_sha=producer,
+        consumer_git_sha=consumer,
+        explicitly_authorized_producer_git_sha=producer,
+    ) == producer
+    with pytest.raises(ValueError, match="RL curriculum.*explicitly authorized"):
+        validate_artifact_git_compatibility(
+            artifact_name="RL curriculum",
+            producer_git_sha=producer,
+            consumer_git_sha=consumer,
+            explicitly_authorized_producer_git_sha=None,
         )
 
 

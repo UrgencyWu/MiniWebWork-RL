@@ -38,6 +38,7 @@ from miniwebwork.m6_posttraining_protocol import (  # noqa: E402
     load_protocol,
     validate_split_lock,
 )
+from miniwebwork.m6_pilot import validate_artifact_git_compatibility  # noqa: E402
 from miniwebwork.model_agent.agent_loop import run_model_episode  # noqa: E402
 from miniwebwork.webshop_rl.agent import QwenWebShopAgent  # noqa: E402
 from miniwebwork.webshop_rl.environment import WebShopHTTPEnvironment  # noqa: E402
@@ -399,6 +400,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _require(split_lock["protocol_sha256"] == protocol_bundle["sha256"], "M6 rollout split/protocol drift")
     task_ids = list(split_lock["roles"][args.role]["task_ids"])
     roster_sha256 = None
+    roster_producer_git_sha = None
     if args.task_roster is not None:
         selected, roster_sha256, roster_split_sha256, roster_protocol_sha256, roster_git_sha = _task_roster(args.task_roster)
         _require(
@@ -407,8 +409,18 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         )
         _require(set(selected) <= set(task_ids), "M6 task roster escapes the frozen role")
         _require(roster_protocol_sha256 == protocol_bundle["sha256"], "M6 task roster protocol drift")
-        _require(roster_git_sha == git_sha, "M6 task roster Git drift")
+        roster_producer_git_sha = validate_artifact_git_compatibility(
+            artifact_name="RL curriculum",
+            producer_git_sha=roster_git_sha,
+            consumer_git_sha=git_sha,
+            explicitly_authorized_producer_git_sha=args.task_roster_producer_git_sha,
+        )
         task_ids = selected
+    else:
+        _require(
+            args.task_roster_producer_git_sha is None,
+            "M6 task-roster producer Git was provided without a task roster",
+        )
     _require(args.task_offset >= 0, "M6 task offset must be non-negative")
     task_ids = task_ids[args.task_offset :]
     if args.maximum_tasks is not None:
@@ -476,6 +488,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "task_count": len(task_ids),
             "task_order_sha256": sha256_json(task_ids),
             "task_roster_content_sha256": roster_sha256,
+            "task_roster_producer_git_sha": roster_producer_git_sha,
+            "task_roster_consumer_git_sha": git_sha if roster_sha256 is not None else None,
             "task_offset": args.task_offset,
             "seed": args.seed,
             "iteration_index": args.iteration_index,
@@ -616,6 +630,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "split_lock_content_sha256": split_lock["content_sha256"],
         "task_order_sha256": sha256_json(task_ids),
         "task_roster_content_sha256": roster_sha256,
+        "task_roster_producer_git_sha": roster_producer_git_sha,
+        "task_roster_consumer_git_sha": git_sha if roster_sha256 is not None else None,
         "invocation_content_sha256": invocation["content_sha256"],
         "policy_lineage": dict(lineage),
         "group_content_sha256": [group["content_sha256"] for group in groups],
@@ -640,6 +656,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iteration-index", type=int, default=0)
     parser.add_argument("--maximum-tasks", type=int)
     parser.add_argument("--task-roster", type=Path)
+    parser.add_argument("--task-roster-producer-git-sha")
     parser.add_argument("--task-offset", type=int, default=0)
     parser.add_argument("--max-model-turns", type=int, default=18)
     parser.add_argument("--max-environment-steps", type=int, default=15)

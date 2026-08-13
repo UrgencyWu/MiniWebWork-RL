@@ -68,6 +68,35 @@ def validate_sft_corpus_git_compatibility(
     return producer
 
 
+def validate_artifact_git_compatibility(
+    *,
+    artifact_name: str,
+    producer_git_sha: Any,
+    consumer_git_sha: str,
+    explicitly_authorized_producer_git_sha: str | None,
+) -> str:
+    """Fail closed when a derived artifact crosses a repair-only Git boundary."""
+
+    _require(isinstance(artifact_name, str) and artifact_name, "M6 artifact name is missing")
+    producer = str(producer_git_sha)
+    for value, label in ((producer, "producer"), (consumer_git_sha, "consumer")):
+        _require(
+            len(value) == 40 and all(character in "0123456789abcdef" for character in value),
+            f"M6 {artifact_name} {label} Git drift",
+        )
+    if producer != consumer_git_sha:
+        _require(
+            explicitly_authorized_producer_git_sha == producer,
+            f"M6 {artifact_name} producer/consumer Git compatibility was not explicitly authorized",
+        )
+    elif explicitly_authorized_producer_git_sha is not None:
+        _require(
+            explicitly_authorized_producer_git_sha == producer,
+            f"M6 redundant {artifact_name} producer Git authorization drift",
+        )
+    return producer
+
+
 def validate_pilot_waiver(payload: Mapping[str, Any]) -> dict[str, Any]:
     value = dict(payload)
     _require(value.get("schema_version") == WAIVER_SCHEMA, "M6 pilot waiver schema drift")

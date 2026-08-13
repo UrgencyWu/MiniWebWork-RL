@@ -20,6 +20,7 @@ EVAL_SCHEMA = "m6_mini_closed_loop_identity_v1"
 RL_AUDIT_SCHEMA = "m6_mini_rl_audit_v1"
 CHAIN_SCHEMA = "m6_mini_chain_report_v1"
 SFT_GATE_SCHEMA = "m6_mini_sft_gate_v1"
+EVAL_SEMANTICS_SCHEMA = "m6_mini_evaluation_semantics_v2"
 
 
 def _require(condition: bool, message: str) -> None:
@@ -45,6 +46,54 @@ def _trajectory_key(trajectory: Mapping[str, Any]) -> tuple[Any, ...]:
     rollout_index = trajectory.get("rollout_index")
     _require(isinstance(rollout_index, int) and not isinstance(rollout_index, bool), "M6 rollout identity is missing")
     return ("index", rollout_index)
+
+
+def build_evaluation_semantics(
+    *,
+    collection: Mapping[str, Any],
+    invocation: Mapping[str, Any],
+    split_lock_content_sha256: str,
+    protocol: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Bind paired-evaluation semantics without conflating policy lineage.
+
+    Raw and SFT necessarily have different adapters and may have different
+    producer commits.  Those identities remain in source bindings, while this
+    contract contains only conditions that must be equal for a paired test.
+    """
+
+    contract = dict(protocol or load_protocol()["payload"])
+    validate_protocol(contract)
+    _require(collection.get("mode") == invocation.get("mode") == "evaluation", "M6 evaluation mode drift")
+    for field in ("protocol_sha256", "split_lock_content_sha256", "role", "K", "task_order_sha256"):
+        _require(collection.get(field) == invocation.get(field), f"M6 evaluation {field} binding drift")
+    _require(collection.get("git_sha") == invocation.get("git_sha"), "M6 evaluation producer Git binding drift")
+    _require(invocation.get("role") == "mini_dev", "M6 evaluation semantic role drift")
+    _require(invocation.get("K") == int(contract["mini"]["evaluation_K"]), "M6 evaluation semantic K drift")
+    _require(
+        invocation.get("split_lock_content_sha256") == split_lock_content_sha256,
+        "M6 evaluation semantic split drift",
+    )
+    _require(invocation.get("base_model") == contract["sft"]["base_model"], "M6 evaluation base-model path drift")
+    semantics = {
+        "schema_version": EVAL_SEMANTICS_SCHEMA,
+        "protocol_sha256": invocation["protocol_sha256"],
+        "split_lock_content_sha256": split_lock_content_sha256,
+        "role": invocation["role"],
+        "K": invocation["K"],
+        "task_order_sha256": invocation["task_order_sha256"],
+        "seed": invocation["seed"],
+        "iteration_index": invocation["iteration_index"],
+        "max_model_turns": invocation["max_model_turns"],
+        "max_environment_steps": invocation["max_environment_steps"],
+        "base_model": invocation["base_model"],
+        "prompt_contract": contract["sft"]["prompt_contract"],
+        "chat_template_kwargs": contract["sft"]["chat_template_kwargs"],
+        "sampling": {"temperature": 1.0, "top_p": 1.0, "top_k": 0},
+        "maximum_turn_completion_tokens": 128,
+    }
+    semantics["content_sha256"] = sha256_json(semantics)
+    return semantics
 
 
 def summarize_closed_loop_identity(
@@ -166,6 +215,17 @@ def validate_closed_loop_identity(payload: Mapping[str, Any]) -> dict[str, Any]:
         == sha256_json({task_id: row["rollout_keys"] for task_id, row in rows.items()}),
         "M6 mini rollout-key roster hash drift",
     )
+    source_bindings = value.get("source_bindings")
+    if isinstance(source_bindings, Mapping) and "evaluation_semantics" in source_bindings:
+        semantics = source_bindings["evaluation_semantics"]
+        _require(isinstance(semantics, Mapping), "M6 evaluation semantics binding is malformed")
+        expected_semantics = dict(semantics)
+        observed_semantics = expected_semantics.pop("content_sha256", None)
+        _require(observed_semantics == sha256_json(expected_semantics), "M6 evaluation semantics self-hash drift")
+        _require(
+            observed_semantics == evaluation_contract,
+            "M6 evaluation report/semantics binding drift",
+        )
     expected = dict(value)
     observed = expected.pop("content_sha256", None)
     _require(observed == sha256_json(expected), "M6 mini evaluation self-hash drift")
