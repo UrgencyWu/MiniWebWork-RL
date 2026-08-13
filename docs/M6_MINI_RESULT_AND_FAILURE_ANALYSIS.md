@@ -157,6 +157,34 @@ Corpus audit 的唯一失败项是 `mini_success_task_count=156 < 160`。以下�
 development-only waiver 是合理的快速验证；最终 chain 仍把
 `corpus_audit_passed=false` 记为失败，也是正确的治理行为。
 
+## 5.1 预算在当前 RL 中扮演什么角色
+
+当前 M6 把预算作为**实验控制、停止条件和成本指标**，但没有把计算成本作为
+reward/advantage 的一个优化维度：
+
+| 层面 | 当前实现 | 是否进入优化目标 |
+|---|---|---:|
+| mini RL 总 generated action tokens | 每方法最多 50,000 | 否，只负责停止与审计 |
+| 单次 collection | 最多 12,288 action tokens、1 个 K8 group | 否 |
+| 交互长度 | 每条轨迹最多 6 model turns / 6 environment steps | 否，只截断执行 |
+| 正式方案 | 每 seed 最多 500,000 action tokens | 否，尚未获准执行 |
+| 模型偏移 | adaptive KL 目标区间 0.005–0.03 | 是，以 KL regularization 约束策略更新，但它不是成本奖励 |
+| 评测成本 | mean generated action tokens、mean environment steps | 否，作为 secondary metric 报告 |
+
+所有生成 action token——包括失败尝试与恢复前已经生成的 token——都计入 ledger；同一
+方法的中断恢复不会重置已消耗预算。两种 RL 使用同一预算合同，因此当前比较回答的是
+“在近似相同训练成本下哪种信用分配更有效”。
+
+但是当前 terminal reward 仍只有
+`1[official task_score >= 0.999]`；verifier-TD 只按公开状态的任务进度重分配 turn credit，
+没有 `-λ_token × tokens`、`-λ_step × steps` 或 wall-time penalty。训练 objective 还会先在
+每条 trajectory 内按 token 数取平均，再对 trajectories 等权平均，所以长轨迹不会仅因
+token 更多而获得更大梯度权重，但模型也不会因为更省 token/step 而得到额外奖励。
+
+因此准确表述是：**当前是 budget-matched / budget-capped RL，不是 budget-aware
+multi-objective RL。** WebShop goal 中的商品价格上限属于任务正确性约束，可能影响官方
+task score，但它与 GPU、token、step 等推理成本预算不是同一概念。
+
 ## 6. 可从本轮学习的经验
 
 1. **先修数据语义，再谈 RL 算法。** 从 M5 的 0.65% SFT 到 M6 的 41.625%，最大提升
