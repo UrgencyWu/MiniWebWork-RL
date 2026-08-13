@@ -207,6 +207,15 @@ def _task_roster(path: Path) -> tuple[list[str], str, str, str, str]:
     return list(task_ids), str(observed), split_hash, protocol_hash, git_sha
 
 
+def validate_diagnostic_evaluation_contract(args: argparse.Namespace) -> None:
+    """Keep phase-one seen-task evaluation outside every training path."""
+
+    _require(args.role == "mini_train" and args.task_roster is not None, "M6 diagnostic evaluation roster drift")
+    _require(args.adapter is not None, "M6 diagnostic evaluation requires an SFT or RL adapter")
+    _require(args.max_model_turns == 6 and args.max_environment_steps == 6, "M6 seen-task diagnostic horizon drift")
+    _require(args.maximum_action_tokens is None, "M6 diagnostic evaluation cannot claim a training token budget")
+
+
 def _validate_group_run_contract(
     group: Mapping[str, Any],
     *,
@@ -439,6 +448,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         _require(args.task_roster is None and args.task_offset == 0, "M6 evaluation roster drift")
         expected_tasks = int(protocol["split"][f"{args.role}_tasks"])
         _require(len(task_ids) == expected_tasks, "M6 evaluation task count drift")
+    elif args.mode == "diagnostic_evaluation":
+        validate_diagnostic_evaluation_contract(args)
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -645,7 +656,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("raw_collection", "evaluation", "rl_collection"), required=True)
+    parser.add_argument("--mode", choices=("raw_collection", "evaluation", "diagnostic_evaluation", "rl_collection"), required=True)
     parser.add_argument("--role", choices=("mini_train", "mini_dev", "formal_dev", "train"), required=True)
     parser.add_argument("--split-lock", type=Path, required=True)
     parser.add_argument("--goals", type=Path, required=True)
