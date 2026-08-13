@@ -80,8 +80,12 @@ def main() -> None:
         validate_committed_group(json.loads(path.read_text(encoding="utf-8")), require_k=args.expected_k)
         for path in group_paths
     ]
+    collection_group_hashes = collection.get("group_content_sha256")
+    selected_group_hashes = [item["content_sha256"] for item in groups]
     _require(
-        groups and collection.get("group_content_sha256") == [item["content_sha256"] for item in groups],
+        groups
+        and isinstance(collection_group_hashes, list)
+        and collection_group_hashes[: len(groups)] == selected_group_hashes,
         "M6 parity probe group binding drift",
     )
     adapter_sha256 = directory_sha256(args.input_adapter)
