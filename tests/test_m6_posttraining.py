@@ -39,6 +39,7 @@ from miniwebwork.webshop_rl.m6_corpus import (
     flatten_corpus_rows,
     validate_retention_states,
 )
+from miniwebwork.webshop_rl.m6_online_training import replay_parity_checks, validate_replay_parity
 from miniwebwork.webshop_rl.verifier_td import (
     ANCHOR_METHOD,
     BASELINE_METHOD,
@@ -748,3 +749,24 @@ def test_m6_behavior_sampling_logprob_parity_is_fail_closed():
             [-0.5, -0.69],
             maximum_absolute_difference=1e-6,
         )
+
+
+def test_m6_replay_parity_failure_preserves_numeric_evidence():
+    contract = load_protocol()["payload"]["rl"]["parity_contract"]
+    parity = {
+        "mean_absolute_logprob_difference": 0.01,
+        "p95_absolute_logprob_difference": 0.04,
+        "p99_absolute_logprob_difference": 0.101,
+        "p999_absolute_logprob_difference": 0.2,
+        "initial_ratio_clip_fraction": 0.0,
+        "mean_importance_ratio": 1.0,
+    }
+    checks = replay_parity_checks(parity, contract=contract)
+    assert checks["p99_absolute_difference"] is False
+    assert sum(not value for value in checks.values()) == 1
+    with pytest.raises(ValueError) as captured:
+        validate_replay_parity(parity, contract=contract)
+    failure = json.loads(str(captured.value).split(": ", 1)[1])
+    assert failure["parity"]["p99_absolute_logprob_difference"] == pytest.approx(0.101)
+    assert failure["thresholds"]["replay_p99_absolute_difference"] == pytest.approx(0.1)
+    assert failure["checks"] == checks

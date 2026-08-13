@@ -434,6 +434,27 @@ def validate_replay_parity(
 ) -> dict[str, bool]:
     """Apply every frozen vLLM-to-HF replay threshold, never one headline max."""
 
+    checks = replay_parity_checks(parity, contract=contract)
+    if not all(checks.values()):
+        failure = {
+            "parity": dict(parity),
+            "thresholds": dict(contract),
+            "checks": checks,
+        }
+        raise ValueError(
+            "M6 initial behavior/HF replay parity failed: "
+            f"{json.dumps(failure, sort_keys=True)}"
+        )
+    return checks
+
+
+def replay_parity_checks(
+    parity: Mapping[str, Any],
+    *,
+    contract: Mapping[str, Any],
+) -> dict[str, bool]:
+    """Return the complete frozen threshold decision without hiding metrics."""
+
     checks = {
         "mean_absolute_difference": float(parity["mean_absolute_logprob_difference"])
         <= float(contract["replay_mean_absolute_difference"]),
@@ -448,7 +469,6 @@ def validate_replay_parity(
         "mean_importance_ratio": abs(float(parity["mean_importance_ratio"]) - 1.0)
         <= float(contract["mean_importance_ratio_absolute_deviation"]),
     }
-    _require(all(checks.values()), f"M6 initial behavior/HF replay parity failed: {checks}")
     return checks
 
 
@@ -530,6 +550,7 @@ def train_mini_policy_iteration(
     _require(groups and all_generated_action_tokens > 0, "M6 mini learner input is empty")
     _require(iteration_index >= 0 and seed >= 0, "M6 mini learner identity drift")
     _require(method in METHODS, "unsupported M6 mini RL method")
+    _require(microbatch_size in {1, 2, 4, 8}, "M6 mini learner microbatch drift")
     prepared_all = [prepare_group_training_examples(group, method=method) for group in groups]
     prepared = [item for item in prepared_all if not item["zero_advantage_group"]]
     _require(prepared, "M6 mini learner iteration has no nonzero policy credit")
@@ -743,6 +764,7 @@ def train_mini_policy_iteration(
         "protocol_sha256": protocol_sha256,
         "group_count": len(groups),
         "nonzero_group_count": len(prepared),
+        "learner_microbatch_size": microbatch_size,
         "iteration_optimizer_updates": updates,
         "cumulative_optimizer_updates_before": cumulative_updates_before,
         "cumulative_optimizer_updates_after": cumulative_updates_after,
@@ -800,6 +822,7 @@ def validate_learner_report(
     method = report.get("method")
     _require(method in METHODS and report.get("group_size") == GROUP_SIZE, "M6 learner method/K drift")
     _require(expected_method is None or method == expected_method, "M6 learner expected-method drift")
+    _require(report.get("learner_microbatch_size") in {1, 2, 4, 8}, "M6 learner microbatch drift")
     _require(report.get("credit_formula_version") == FORMULA_VERSION_BY_METHOD[method], "M6 learner credit formula drift")
     _require(report.get("verifier_td_lambda") == (0.0 if method == BASELINE_METHOD else 0.5), "M6 learner lambda/method drift")
     _require(report.get("iteration_optimizer_updates", 0) > 0, "M6 learner made no optimizer update")

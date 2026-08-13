@@ -33,11 +33,16 @@ rl_root="${M6_RL_OUTPUT:-$study_root/mini/pilot_rl/$M6_METHOD}"
 sft_adapter="${M6_SFT_ADAPTER:-$study_root/mini/pilot_sft/final_adapter}"
 curriculum="${M6_CURRICULUM:-$study_root/mini/rl_curriculum_v2.json}"
 curriculum_producer_git_sha="${M6_CURRICULUM_PRODUCER_GIT_SHA:-}"
+learner_microbatch_size="${M6_LEARNER_MICROBATCH_SIZE:-4}"
 sft_gate="${M6_SFT_GATE:-$study_root/mini/pilot_sft_gate.json}"
 raw_eval_report="${M6_RAW_EVAL_REPORT:-$study_root/mini/pilot_raw_eval/identity_report.json}"
 sft_eval_report="${M6_SFT_EVAL_REPORT:-$study_root/mini/pilot_sft_eval/identity_report.json}"
 corpus_audit="${M6_CORPUS_AUDIT:-$study_root/mini/corpus_v2/corpus_audit.json}"
 split_lock="${M6_SPLIT_LOCK:-$study_root/locks/m6_webshop_split_v1.json}"
+case "$learner_microbatch_size" in
+  1|2|4|8) ;;
+  *) echo "unsupported M6_LEARNER_MICROBATCH_SIZE=$learner_microbatch_size" >&2; exit 2 ;;
+esac
 if test -n "${M6_SERVICE_BASE_URL:-}"; then
   base_url="$M6_SERVICE_BASE_URL"
 elif test -f "$study_root/service_base_url"; then
@@ -51,7 +56,7 @@ submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
     successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" \
-      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_METHOD=$M6_METHOD,M6_PILOT_AUTHORIZATION=$M6_PILOT_AUTHORIZATION,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock,M6_RL_OUTPUT=$rl_root,M6_SFT_ADAPTER=$sft_adapter,M6_CURRICULUM=$curriculum,M6_CURRICULUM_PRODUCER_GIT_SHA=$curriculum_producer_git_sha,M6_SFT_GATE=$sft_gate,M6_RAW_EVAL_REPORT=$raw_eval_report,M6_SFT_EVAL_REPORT=$sft_eval_report,M6_CORPUS_AUDIT=$corpus_audit" \
+      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_METHOD=$M6_METHOD,M6_PILOT_AUTHORIZATION=$M6_PILOT_AUTHORIZATION,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock,M6_RL_OUTPUT=$rl_root,M6_SFT_ADAPTER=$sft_adapter,M6_CURRICULUM=$curriculum,M6_CURRICULUM_PRODUCER_GIT_SHA=$curriculum_producer_git_sha,M6_LEARNER_MICROBATCH_SIZE=$learner_microbatch_size,M6_SFT_GATE=$sft_gate,M6_RAW_EVAL_REPORT=$raw_eval_report,M6_SFT_EVAL_REPORT=$sft_eval_report,M6_CORPUS_AUDIT=$corpus_audit" \
       scripts/run_m6_mini_rl_loop_job.sh)"
     printf '%s\n' "$successor_job_id" > "$rl_root/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
@@ -214,7 +219,8 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
       --input-adapter "$input_adapter" --input-adapter-semantic-sha256 "$input_semantic" \
       --reference-sft-adapter "$sft_adapter" --output-dir "$learner_root" \
       --iteration-index "$mixed_iterations" --seed 20260812 --method "$M6_METHOD" \
-      --pilot-authorization "$M6_PILOT_AUTHORIZATION" "${optimizer_args[@]}"
+      --pilot-authorization "$M6_PILOT_AUTHORIZATION" --microbatch-size "$learner_microbatch_size" \
+      "${optimizer_args[@]}"
   fi
   iteration_report="$learner_root/learner_report.json"
   mixed="$($python_bin -c 'import json,sys; print(int(json.load(open(sys.argv[1]))["collection_audit"]["mixed_strict_reward_group_count"] > 0))' "$iteration_report")"
