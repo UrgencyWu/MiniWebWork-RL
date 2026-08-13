@@ -29,6 +29,7 @@ from ..m6_posttraining_protocol import (
     load_protocol,
     validate_protocol,
 )
+from ..m6_pilot import validate_pilot_replay_parity_calibration
 from .credit import policy_context_signature, public_state_anchor_signature
 from .verifier_td import (
     ANCHOR_METHOD,
@@ -525,6 +526,7 @@ def train_mini_policy_iteration(
     input_adapter: Path,
     input_adapter_semantic_sha256: str,
     reference_sft_adapter: Path,
+    reference_sft_adapter_semantic_sha256: str,
     input_optimizer: Path | None,
     output_root: Path,
     git_sha: str,
@@ -533,6 +535,8 @@ def train_mini_policy_iteration(
     seed: int,
     method: str = ANCHOR_METHOD,
     pilot_authorization_sha256: str | None = None,
+    replay_parity_calibration: Mapping[str, Any] | None = None,
+    replay_parity_calibration_file_sha256: str | None = None,
     microbatch_size: int = 4,
 ) -> dict[str, Any]:
     """Apply one recoverable M6-mini update from same-policy K8 groups."""
@@ -551,6 +555,20 @@ def train_mini_policy_iteration(
     _require(iteration_index >= 0 and seed >= 0, "M6 mini learner identity drift")
     _require(method in METHODS, "unsupported M6 mini RL method")
     _require(microbatch_size in {1, 2, 4, 8}, "M6 mini learner microbatch drift")
+    _require(
+        isinstance(replay_parity_calibration, Mapping)
+        and SHA256_PATTERN.fullmatch(str(replay_parity_calibration_file_sha256 or ""))
+        is not None,
+        "M6 mini learner requires a hashed replay calibration",
+    )
+    calibration = validate_pilot_replay_parity_calibration(
+        replay_parity_calibration,
+        protocol_sha256=protocol_sha256,
+        parity_contract=contract["rl"]["parity_contract"],
+        learner_microbatch_size=microbatch_size,
+        frozen_sft_adapter_sha256=directory_sha256(reference_sft_adapter),
+        frozen_sft_adapter_semantic_sha256=reference_sft_adapter_semantic_sha256,
+    )
     prepared_all = [prepare_group_training_examples(group, method=method) for group in groups]
     prepared = [item for item in prepared_all if not item["zero_advantage_group"]]
     _require(prepared, "M6 mini learner iteration has no nonzero policy credit")
@@ -584,7 +602,19 @@ def train_mini_policy_iteration(
         _require(report.get("input_adapter_sha256") == directory_sha256(input_adapter), "M6 recovered learner input-adapter drift")
         _require(report.get("input_adapter_semantic_sha256") == input_adapter_semantic_sha256, "M6 recovered learner semantic input drift")
         _require(report.get("reference_sft_adapter_sha256") == directory_sha256(reference_sft_adapter), "M6 recovered learner reference drift")
+        _require(
+            report.get("reference_sft_adapter_semantic_sha256")
+            == reference_sft_adapter_semantic_sha256,
+            "M6 recovered learner reference semantic drift",
+        )
         _require(report.get("pilot_authorization_sha256") == pilot_authorization_sha256, "M6 recovered learner pilot authorization drift")
+        _require(
+            report.get("replay_parity_calibration_content_sha256")
+            == calibration["content_sha256"]
+            and report.get("replay_parity_calibration_file_sha256")
+            == replay_parity_calibration_file_sha256,
+            "M6 recovered learner replay-calibration drift",
+        )
         expected_optimizer_sha = sha256_file(input_optimizer) if input_optimizer is not None else None
         _require(report.get("input_optimizer_sha256") == expected_optimizer_sha, "M6 recovered learner optimizer drift")
         return report
@@ -639,6 +669,13 @@ def train_mini_policy_iteration(
             checkpoint.get("pilot_authorization_sha256") == pilot_authorization_sha256,
             "M6 mini optimizer pilot-authorization drift",
         )
+        _require(
+            checkpoint.get("replay_parity_calibration_content_sha256")
+            == calibration["content_sha256"]
+            and checkpoint.get("replay_parity_calibration_file_sha256")
+            == replay_parity_calibration_file_sha256,
+            "M6 mini optimizer replay-calibration drift",
+        )
         _require(checkpoint.get("seed") == seed, "M6 mini optimizer seed drift")
         _require(
             checkpoint.get("iteration_index") == iteration_index - 1,
@@ -666,7 +703,7 @@ def train_mini_policy_iteration(
     parity = summarize_logprob_parity(behavior, replay_before)
     parity_checks = validate_replay_parity(
         parity,
-        contract=contract["rl"]["parity_contract"],
+        contract=calibration["effective_parity_contract"],
     )
 
     losses: list[float] = []
@@ -731,6 +768,8 @@ def train_mini_policy_iteration(
             "method": method,
             "credit_formula_version": FORMULA_VERSION_BY_METHOD[method],
             "pilot_authorization_sha256": pilot_authorization_sha256,
+            "replay_parity_calibration_content_sha256": calibration["content_sha256"],
+            "replay_parity_calibration_file_sha256": replay_parity_calibration_file_sha256,
             "seed": seed,
             "iteration_index": iteration_index,
             "git_sha": git_sha,
@@ -757,6 +796,12 @@ def train_mini_policy_iteration(
         "credit_formula_version": FORMULA_VERSION_BY_METHOD[method],
         "verifier_td_lambda": 0.0 if method == BASELINE_METHOD else 0.5,
         "pilot_authorization_sha256": pilot_authorization_sha256,
+        "replay_parity_calibration_content_sha256": calibration["content_sha256"],
+        "replay_parity_calibration_file_sha256": replay_parity_calibration_file_sha256,
+        "replay_parity_calibration_source_probe_content_sha256": calibration[
+            "source_probe"
+        ]["content_sha256"],
+        "effective_replay_parity_contract": calibration["effective_parity_contract"],
         "group_size": GROUP_SIZE,
         "seed": seed,
         "iteration_index": iteration_index,
@@ -786,6 +831,7 @@ def train_mini_policy_iteration(
         "input_adapter_semantic_sha256": input_adapter_semantic_sha256,
         "reference_sft_adapter": str(Path(reference_sft_adapter).expanduser().resolve()),
         "reference_sft_adapter_sha256": directory_sha256(reference_sft_adapter),
+        "reference_sft_adapter_semantic_sha256": reference_sft_adapter_semantic_sha256,
         "input_optimizer": str(Path(input_optimizer).expanduser().resolve()) if input_optimizer else None,
         "input_optimizer_sha256": input_optimizer_sha256,
         "base_model": str(Path(base_model).expanduser().resolve()),
@@ -823,6 +869,34 @@ def validate_learner_report(
     _require(method in METHODS and report.get("group_size") == GROUP_SIZE, "M6 learner method/K drift")
     _require(expected_method is None or method == expected_method, "M6 learner expected-method drift")
     _require(report.get("learner_microbatch_size") in {1, 2, 4, 8}, "M6 learner microbatch drift")
+    for field in (
+        "replay_parity_calibration_content_sha256",
+        "replay_parity_calibration_file_sha256",
+        "replay_parity_calibration_source_probe_content_sha256",
+    ):
+        _require(
+            SHA256_PATTERN.fullmatch(str(report.get(field, ""))) is not None,
+            f"M6 learner {field} drift",
+        )
+    _require(
+        isinstance(report.get("effective_replay_parity_contract"), Mapping),
+        "M6 learner effective replay contract is missing",
+    )
+    base_parity_contract = load_protocol()["payload"]["rl"]["parity_contract"]
+    expected_effective_parity_contract = dict(base_parity_contract)
+    expected_effective_parity_contract["replay_p99_absolute_difference"] = 0.125
+    _require(
+        dict(report["effective_replay_parity_contract"])
+        == expected_effective_parity_contract,
+        "M6 learner effective replay contract drift",
+    )
+    _require(
+        SHA256_PATTERN.fullmatch(
+            str(report.get("reference_sft_adapter_semantic_sha256", ""))
+        )
+        is not None,
+        "M6 learner reference semantic SHA drift",
+    )
     _require(report.get("credit_formula_version") == FORMULA_VERSION_BY_METHOD[method], "M6 learner credit formula drift")
     _require(report.get("verifier_td_lambda") == (0.0 if method == BASELINE_METHOD else 0.5), "M6 learner lambda/method drift")
     _require(report.get("iteration_optimizer_updates", 0) > 0, "M6 learner made no optimizer update")

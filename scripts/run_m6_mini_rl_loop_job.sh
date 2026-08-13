@@ -34,6 +34,7 @@ sft_adapter="${M6_SFT_ADAPTER:-$study_root/mini/pilot_sft/final_adapter}"
 curriculum="${M6_CURRICULUM:-$study_root/mini/rl_curriculum_v2.json}"
 curriculum_producer_git_sha="${M6_CURRICULUM_PRODUCER_GIT_SHA:-}"
 learner_microbatch_size="${M6_LEARNER_MICROBATCH_SIZE:-4}"
+replay_parity_calibration="${M6_REPLAY_PARITY_CALIBRATION:-$repo_root/data/m6_mini_replay_parity_calibration_v1.json}"
 sft_gate="${M6_SFT_GATE:-$study_root/mini/pilot_sft_gate.json}"
 raw_eval_report="${M6_RAW_EVAL_REPORT:-$study_root/mini/pilot_raw_eval/identity_report.json}"
 sft_eval_report="${M6_SFT_EVAL_REPORT:-$study_root/mini/pilot_sft_eval/identity_report.json}"
@@ -56,7 +57,7 @@ submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
     successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" \
-      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_METHOD=$M6_METHOD,M6_PILOT_AUTHORIZATION=$M6_PILOT_AUTHORIZATION,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock,M6_RL_OUTPUT=$rl_root,M6_SFT_ADAPTER=$sft_adapter,M6_CURRICULUM=$curriculum,M6_CURRICULUM_PRODUCER_GIT_SHA=$curriculum_producer_git_sha,M6_LEARNER_MICROBATCH_SIZE=$learner_microbatch_size,M6_SFT_GATE=$sft_gate,M6_RAW_EVAL_REPORT=$raw_eval_report,M6_SFT_EVAL_REPORT=$sft_eval_report,M6_CORPUS_AUDIT=$corpus_audit" \
+      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_METHOD=$M6_METHOD,M6_PILOT_AUTHORIZATION=$M6_PILOT_AUTHORIZATION,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock,M6_RL_OUTPUT=$rl_root,M6_SFT_ADAPTER=$sft_adapter,M6_CURRICULUM=$curriculum,M6_CURRICULUM_PRODUCER_GIT_SHA=$curriculum_producer_git_sha,M6_LEARNER_MICROBATCH_SIZE=$learner_microbatch_size,M6_REPLAY_PARITY_CALIBRATION=$replay_parity_calibration,M6_SFT_GATE=$sft_gate,M6_RAW_EVAL_REPORT=$raw_eval_report,M6_SFT_EVAL_REPORT=$sft_eval_report,M6_CORPUS_AUDIT=$corpus_audit" \
       scripts/run_m6_mini_rl_loop_job.sh)"
     printf '%s\n' "$successor_job_id" > "$rl_root/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
@@ -77,6 +78,7 @@ curl --fail --silent --show-error --max-time 120 -X POST \
 test -d "$sft_adapter"
 test -f "$curriculum"
 test -f "$sft_gate"
+test -f "$replay_parity_calibration"
 "$python_bin" - "$sft_gate" "$raw_eval_report" "$sft_eval_report" "$corpus_audit" "$M6_PILOT_AUTHORIZATION" "$M6_METHOD" <<'PY'
 import json
 import sys
@@ -168,10 +170,12 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
   if test -z "$latest_learner_report"; then
     input_adapter="$sft_adapter"
     input_semantic="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["adapter_semantic_sha256"])' "$identity")"
+    reference_sft_semantic="$input_semantic"
     input_optimizer=""
   else
     input_adapter="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["output_adapter"])' "$latest_learner_report")"
     input_semantic="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["output_adapter_semantic_sha256"])' "$latest_learner_report")"
+    reference_sft_semantic="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["reference_sft_adapter_semantic_sha256"])' "$latest_learner_report")"
     input_optimizer="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["output_optimizer"])' "$latest_learner_report")"
   fi
 
@@ -217,7 +221,8 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
     "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_online_rl.py \
       --groups-dir "$collection_root/groups" --collection-report "$collection_root/collection_report.json" \
       --input-adapter "$input_adapter" --input-adapter-semantic-sha256 "$input_semantic" \
-      --reference-sft-adapter "$sft_adapter" --output-dir "$learner_root" \
+      --reference-sft-adapter "$sft_adapter" --reference-sft-adapter-semantic-sha256 "$reference_sft_semantic" \
+      --replay-parity-calibration "$replay_parity_calibration" --output-dir "$learner_root" \
       --iteration-index "$mixed_iterations" --seed 20260812 --method "$M6_METHOD" \
       --pilot-authorization "$M6_PILOT_AUTHORIZATION" --microbatch-size "$learner_microbatch_size" \
       "${optimizer_args[@]}"

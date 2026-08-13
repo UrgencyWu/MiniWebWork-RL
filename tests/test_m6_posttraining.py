@@ -28,6 +28,7 @@ from miniwebwork.m6_pilot import (
     validate_artifact_git_compatibility,
     validate_pilot_authorization,
     validate_pilot_method,
+    validate_pilot_replay_parity_calibration,
     validate_sft_corpus_git_compatibility,
 )
 from miniwebwork.m6_power import build_power_report
@@ -770,3 +771,112 @@ def test_m6_replay_parity_failure_preserves_numeric_evidence():
     assert failure["parity"]["p99_absolute_logprob_difference"] == pytest.approx(0.101)
     assert failure["thresholds"]["replay_p99_absolute_difference"] == pytest.approx(0.1)
     assert failure["checks"] == checks
+
+
+def _replay_calibration_payload() -> dict:
+    protocol = load_protocol()
+    parity_contract = protocol["payload"]["rl"]["parity_contract"]
+    adapter_sha = "a" * 64
+    semantic_sha = "b" * 64
+    observed = {
+        "token_count": 90_000,
+        "mean_absolute_logprob_difference": 0.006,
+        "p95_absolute_logprob_difference": 0.04,
+        "p99_absolute_logprob_difference": 0.1137,
+        "p999_absolute_logprob_difference": 0.25,
+        "maximum_absolute_logprob_difference": 0.48,
+        "mean_importance_ratio": 1.0,
+        "maximum_absolute_log_ratio": 0.48,
+        "initial_ratio_clip_epsilon": 0.2,
+        "initial_ratio_clip_count": 30,
+        "initial_ratio_clip_fraction": 30 / 90_000,
+    }
+    effective = dict(parity_contract)
+    effective["replay_p99_absolute_difference"] = 0.125
+    payload = {
+        "schema_version": "m6_mini_replay_parity_calibration_v1",
+        "study_id": "m6_monotonic_posttraining_v1",
+        "scope": "development_only_156_task_mini_pilot",
+        "development_only": True,
+        "formal_training_allowed": False,
+        "only_adjusted_check": "replay_p99_absolute_difference",
+        "source_protocol_sha256": protocol["sha256"],
+        "base_parity_contract": parity_contract,
+        "learner_microbatch_size": 4,
+        "logprob_precision": "float32",
+        "frozen_sft_adapter_sha256": adapter_sha,
+        "frozen_sft_adapter_semantic_sha256": semantic_sha,
+        "source_probe": {
+            "content_sha256": "c" * 64,
+            "producer_git_sha": "d" * 40,
+            "consumer_git_sha": "e" * 40,
+            "collection_report_content_sha256": "f" * 64,
+            "protocol_sha256": protocol["sha256"],
+            "input_adapter_sha256": adapter_sha,
+            "input_adapter_semantic_sha256": semantic_sha,
+            "expected_K": 4,
+            "group_count": 200,
+            "token_count": 90_000,
+            "microbatch_size": 4,
+            "logprob_precision": "float32",
+            "training_updates_performed": 0,
+            "checks": {
+                "mean_absolute_difference": True,
+                "p95_absolute_difference": True,
+                "p99_absolute_difference": False,
+                "p999_absolute_difference": True,
+                "initial_ratio_clip_fraction": True,
+                "mean_importance_ratio": True,
+            },
+            "parity": observed,
+        },
+        "calibration_rule": "ceil_full_k4_p99_to_next_0.025",
+        "calibration_grid": 0.025,
+        "calibrated_replay_p99_absolute_difference": 0.125,
+        "effective_parity_contract": effective,
+    }
+    payload["content_sha256"] = sha256_json(payload)
+    return payload
+
+
+def test_m6_pilot_replay_calibration_is_p99_only_and_fail_closed():
+    protocol = load_protocol()
+    payload = _replay_calibration_payload()
+    validated = validate_pilot_replay_parity_calibration(
+        payload,
+        protocol_sha256=protocol["sha256"],
+        parity_contract=protocol["payload"]["rl"]["parity_contract"],
+        learner_microbatch_size=4,
+        frozen_sft_adapter_sha256="a" * 64,
+        frozen_sft_adapter_semantic_sha256="b" * 64,
+    )
+    assert validated["effective_parity_contract"]["replay_p99_absolute_difference"] == 0.125
+    for key, value in protocol["payload"]["rl"]["parity_contract"].items():
+        if key != "replay_p99_absolute_difference":
+            assert validated["effective_parity_contract"][key] == value
+
+    changed = copy.deepcopy(payload)
+    changed["effective_parity_contract"]["replay_p95_absolute_difference"] = 0.09
+    changed["content_sha256"] = sha256_json(
+        {key: value for key, value in changed.items() if key != "content_sha256"}
+    )
+    with pytest.raises(ValueError, match="independent guardrail"):
+        validate_pilot_replay_parity_calibration(
+            changed,
+            protocol_sha256=protocol["sha256"],
+            parity_contract=protocol["payload"]["rl"]["parity_contract"],
+            learner_microbatch_size=4,
+            frozen_sft_adapter_sha256="a" * 64,
+            frozen_sft_adapter_semantic_sha256="b" * 64,
+        )
+
+
+def test_m6_recoverable_rl_script_preserves_replay_calibration():
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "run_m6_mini_rl_loop_job.sh"
+    ).read_text(encoding="utf-8")
+    assert "M6_REPLAY_PARITY_CALIBRATION=$replay_parity_calibration" in script
+    assert '--replay-parity-calibration "$replay_parity_calibration"' in script
+    assert '--reference-sft-adapter-semantic-sha256 "$reference_sft_semantic"' in script

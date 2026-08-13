@@ -14,9 +14,13 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 import torch  # noqa: E402
 
-from miniwebwork.long_horizon_rl.contracts import directory_sha256  # noqa: E402
+from miniwebwork.long_horizon_rl.contracts import directory_sha256, sha256_file  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol  # noqa: E402
-from miniwebwork.m6_pilot import validate_pilot_authorization, validate_pilot_method  # noqa: E402
+from miniwebwork.m6_pilot import (  # noqa: E402
+    load_pilot_replay_parity_calibration,
+    validate_pilot_authorization,
+    validate_pilot_method,
+)
 from miniwebwork.webshop_rl.m6_online_training import (  # noqa: E402
     train_mini_policy_iteration,
     validate_committed_group,
@@ -37,6 +41,7 @@ def main() -> None:
     parser.add_argument("--input-adapter", type=Path, required=True)
     parser.add_argument("--input-adapter-semantic-sha256", required=True)
     parser.add_argument("--reference-sft-adapter", type=Path, required=True)
+    parser.add_argument("--reference-sft-adapter-semantic-sha256", required=True)
     parser.add_argument("--input-optimizer", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--iteration-index", type=int, required=True)
@@ -44,6 +49,7 @@ def main() -> None:
     parser.add_argument("--microbatch-size", type=int, default=4)
     parser.add_argument("--method", choices=METHODS, required=True)
     parser.add_argument("--pilot-authorization", type=Path, required=True)
+    parser.add_argument("--replay-parity-calibration", type=Path, required=True)
     args = parser.parse_args()
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "M6 mini RL requires one Slurm GPU")
     protocol = load_protocol()
@@ -90,6 +96,15 @@ def main() -> None:
         "M6 collection report policy lineage drift",
     )
     input_adapter_sha256 = directory_sha256(args.input_adapter)
+    reference_sft_adapter_sha256 = directory_sha256(args.reference_sft_adapter)
+    replay_calibration = load_pilot_replay_parity_calibration(
+        args.replay_parity_calibration,
+        protocol_sha256=protocol["sha256"],
+        parity_contract=protocol["payload"]["rl"]["parity_contract"],
+        learner_microbatch_size=args.microbatch_size,
+        frozen_sft_adapter_sha256=reference_sft_adapter_sha256,
+        frozen_sft_adapter_semantic_sha256=args.reference_sft_adapter_semantic_sha256,
+    )
     _require(
         all(group.get("adapter_sha256") == input_adapter_sha256 for group in groups),
         "M6 RL behavior adapter bytes do not match learner input",
@@ -111,6 +126,7 @@ def main() -> None:
         input_adapter=args.input_adapter,
         input_adapter_semantic_sha256=args.input_adapter_semantic_sha256,
         reference_sft_adapter=args.reference_sft_adapter,
+        reference_sft_adapter_semantic_sha256=args.reference_sft_adapter_semantic_sha256,
         input_optimizer=args.input_optimizer,
         output_root=args.output_dir,
         git_sha=git_sha,
@@ -119,6 +135,10 @@ def main() -> None:
         seed=args.seed,
         method=args.method,
         pilot_authorization_sha256=authorization["content_sha256"],
+        replay_parity_calibration=replay_calibration["payload"],
+        replay_parity_calibration_file_sha256=sha256_file(
+            args.replay_parity_calibration
+        ),
         microbatch_size=args.microbatch_size,
     )
     print(json.dumps(report, indent=2, sort_keys=True))
