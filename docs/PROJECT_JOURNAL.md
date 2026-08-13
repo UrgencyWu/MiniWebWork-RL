@@ -263,4 +263,26 @@ failed, cancelled or rejected M6 job and its successor is recorded in
 11. Paired win/loss flips and uncertainty must accompany point success rates.
 12. A burned development slice cannot be reused to select the next checkpoint.
 
-*Last updated: 2026-08-13*
+## 14. 2026-08-14 M6.2 Medium RL and Formal-Dev Result
+
+M6.2 expanded the development validation to two credit-assignment methods, three paired
+training seeds, and 20 effective K8 optimizer updates per method/seed. All six learners
+passed finite loss/gradient/KL, real parameter change, credit conservation, token budget,
+and lineage audits. Replay-parity tail failures in four branches were handled as explicit
+zero-update rejections and same-root recovery; configuration-only recovery failures were
+preserved in the append-only ledger rather than hidden.
+
+The frozen evaluation covered Raw, shared SFT, and all six RL adapters on 500 new
+`formal_dev` tasks × K4: 16,000 trajectories in total. Strict success was Raw 37.000%,
+SFT 42.350%, three-seed GRPO mean 41.967%, and three-seed Anchor-GiGPO mean 42.350%.
+SFT-Raw was +5.350 pp with 95% CI [+3.700, +7.000] pp and paired permutation
+`p=0.000050`. GRPO-SFT was -0.383 pp and Anchor-SFT was 0.000 pp; both crossed
+seed-task confidence intervals included zero and both missed the frozen +3 pp gate.
+
+Decision: `STOP_MEDIUM_RL`. Promotion and holdout remain unopened. The durable result is
+that the corrected SFT data contract transfers positively, while the current RL reward,
+coverage, and update scheme performs real learning without measurable improvement beyond
+SFT. See `M6_MEDIUM_TRAINING_AND_EVALUATION_REPORT.md` for the full matrix, costs, recovery
+chain, statistics, and artifact hashes.
+
+*Last updated: 2026-08-14*

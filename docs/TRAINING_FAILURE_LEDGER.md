@@ -45,6 +45,7 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2242_[0,2,3,5] | M6.2 recovery submission | FAILED 1:0；均在 0–1 秒退出 | 重提时未显式传入版本化 `pilot_sft_gate_v3.json` 与 `pilot_sft_eval_v2/identity_report.json`，默认路径不存在；日志为空且 learner 未启动 | 保留原检查点；补齐两项环境绑定后重提同根恢复作业 | 基础设施失败；无新增采样、梯度或参数更新，不进入算法结果 |
 | 2246_[0,2,3,5] | M6.2 recovery submission r2 | FAILED 1:0；均在 1–2 秒退出 | 虽补齐文件路径，但 v3 gate 绑定的是 Job 2206 同协议重建报告，而重提错误引用了后来分别生成的 Raw/SFT identity；入口正确拒绝 `Raw evaluation binding drift` | 从不可变的原 Raw/SFT K4 collections 在同一当前代码上重建一对 identity/binding，生成版本化 v4 gate 后再同根续跑 | 门禁基础设施失败；无新增采样、梯度或参数更新，不进入算法结果 |
 | 2251_[0,2,3,5] | M6.2 recovery submission r3 | FAILED 1:0；均在约 30 秒退出 | 修复逻辑已将原 parity 失败组结构化记录为零更新 skip，随后采集下一 curriculum task 时，提交参数错误地把上游 Raw K8 group producer `acd23e5…` 作为 curriculum producer；curriculum 文件自身的 producer 是 `e0c7bc6…`，显式兼容门正确拒绝 | 保留新 parity rejection/skip 证据与原 learner checkpoints；以 curriculum `git_sha=e0c7bc6…` 作为 roster producer bridge 同根重提 | 恢复配置失败；拒绝组不产生梯度，新 collection 未开始，不进入算法结果 |
+| M6.2 final gate | formal-dev performance | STOP | 六个 RL audit 全通过，但 GRPO 三 seed 平均相对 SFT `-0.383 pp`、Anchor `+0.000 pp`；crossed 95% CI 分别为 `[-1.033,+0.283]` 与 `[-0.633,+0.633] pp`，均未达到预注册 `+3 pp` 与 bootstrap 门 | 保留全部训练和 16,000 条 formal-dev 评测轨迹；停止中等规模 RL，不打开 promotion/holdout | 权威性能负结果；工程成功不改写为算法晋级 |
 
 ## 3. M6 成功替代链
 
@@ -61,23 +62,28 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2232 | Anchor-GiGPO v7 learner | COMPLETED；5 次真实更新 |
 | 2233/2234 | 两个冻结 mini-dev 评测 | COMPLETED；各 800 条轨迹 |
 | 2235 | 最终配对统计 | COMPLETED；结论 STOP |
+| 2250 | Raw/SFT identity 与 v4 gate 重建 | COMPLETED；SFT-Raw +5.875 pp，允许原分支同根恢复 |
+| 2255_[0–3] | 四个中断分支最终恢复 | COMPLETED；六个 method×seed 分支均达到 20/20 更新，全部 RL audit PASS |
+| 2259 matrix（Jobs 2259, 2261–2267） | M6.2 formal-dev 冻结评测 | COMPLETED；8 identities × 500 tasks × K4，共 16,000 条轨迹 |
+| 2260 | M6.2 配对统计 | COMPLETED；报告 SHA `dd600451…eb1637`，决策 `STOP_MEDIUM_RL` |
 
 关键修复提交包括：`1543a20`（校准测试）、`d6b48f6`（冻结 K4 校准）、
 `2266743`（绑定冻结 prefix）、`7bc3c4f`（replay parity 校准）、`ed99ea3`
-（有限样本尾部检验）、`9ca3078`（小样本 P99.9 语义）和 `d2560c3`
-（最终配对评测收口）。
+（有限样本尾部检验）、`9ca3078`（小样本 P99.9 语义）、`924b4b3`
+（安全 parity rejection 与恢复）、`acf0f35`（中等规模评测链）、`c7b6ec6`
+（按审计更新链解析最终 adapter）和 `d2560c3`（M6.1 最终配对评测收口）。
 
 ## 4. 操作事件
 
 Jobs `2186, 2191, 2199, 2205, 2222, 2227` 为被后继服务替代后的用户取消/正常
-关闭，不计作模型训练失败。当前服务 Job `2230` 在结果审计时仍运行；除非明确要求，
-本报告不改变其状态。
+关闭，不计作模型训练失败。服务 Job `2230` 在 2026-08-14 本次文档审计时仍运行；
+除非明确要求，本报告不改变其状态。
 
 ## 5. 后续追加模板
 
-M6.2 中等规模矩阵已冻结为 2 methods × 3 paired seeds、每 run 32 个候选 task、目标
-20 次 mixed update、50,000 action-token 上限。此处不预先写入成功或失败；Job 提交后
-若出现失败，必须按下方模板追加，且不得覆盖 M6.1 记录。
+M6.2 已结束，完整结果见
+[`M6_MEDIUM_TRAINING_AND_EVALUATION_REPORT.md`](M6_MEDIUM_TRAINING_AND_EVALUATION_REPORT.md)。
+后续若启动新 study，仍按下方模板追加，不得覆盖 M6.1/M6.2 记录。
 
 ```text
 日期 / commit:

@@ -1,11 +1,12 @@
 # MiniWebWork-RL 当前实现状态
 
-> 权威状态页。最后更新：2026-08-13。
+> 权威状态页。最后更新：2026-08-14。
 
 ## 项目定位
 
 当前方向是公开 WebShop benchmark 上的文本 Agent 后训练研究。M6 已实现并完成
-development-only Raw → SFT → RL 最小链；SFT 超过 Raw，但 RL 未继续超过 SFT。
+development-only Raw → SFT → RL 最小链和 2 方法 × 3 seed 中等规模验证；SFT 稳定超过
+Raw，但 RL 未继续超过 SFT。
 原确定性采购
 网站实现保留为基础设施与失败诊断，不再承担 M5 正式效果结论。
 
@@ -16,8 +17,28 @@ Task → Browser Environment → Qwen Policy → Multi-turn Rollout
 
 ## M6 当前状态
 
-M6.1 development-only mini chain 已完成，最终状态为
-`STOP_AND_BURN_MINI_DEV`；没有授权全量正式训练。实现针对 M5 负迁移做三项核心修复：
+M6.2 development-only 中等规模验证已完成，最终状态为 `STOP_MEDIUM_RL`；没有打开
+promotion/holdout，也没有授权全量正式训练。六个 RL 分支为 2 methods × 3 paired
+seeds，每个分支完成 20 次 K8 mixed optimizer update，全部通过有限 loss/gradient、真实
+参数变化、信用守恒、成本和 lineage 审计。正式开发评测使用全新的 500 tasks × K4，8 个
+身份合计 16,000 条轨迹：
+
+| 身份 | strict success | 相对 SFT |
+|---|---:|---:|
+| Raw | 37.000% | -5.350 pp |
+| shared SFT | 42.350% | — |
+| multi-turn GRPO（3-seed mean） | 41.967% | -0.383 pp |
+| Anchor-GiGPO（3-seed mean） | 42.350% | +0.000 pp |
+
+SFT-Raw 为 `+5.35 pp`，95% CI `[+3.70, +7.00] pp`，paired permutation
+`p=0.000050`。GRPO-SFT 的 crossed seed-task 95% CI 为 `[-1.033, +0.283] pp`，
+Anchor-SFT 为 `[-0.633, +0.633] pp`，均未满足预注册 `+3 pp` 晋级门。结论是
+**工程训练链成功、SFT 数据修复成功、RL 性能晋级失败**，不是 learner 未运行，也不是
+已经证明 RL 显著损害 SFT。完整记录见
+[`M6_MEDIUM_TRAINING_AND_EVALUATION_REPORT.md`](M6_MEDIUM_TRAINING_AND_EVALUATION_REPORT.md)。
+
+M6.1 development-only mini chain 的历史状态为 `STOP_AND_BURN_MINI_DEV`。实现针对 M5
+负迁移做三项核心修复：
 
 1. SFT 从 Raw policy 在公开 observation 下产生的 strict-success/recovery 轨迹蒸馏，禁止
    hidden-title 和 target-ASIN 标签；
@@ -68,10 +89,14 @@ M1–M4 状态均为历史证据。
 
 | 阶段 | 状态 |
 |---|---|
+| M6.2 medium RL（2 methods × 3 seeds） | COMPLETE / 6 audits PASS; 120 effective updates |
+| M6.2 formal-dev（8 identities × 500 tasks × K4） | COMPLETE / 16,000 trajectories |
+| M6.2 performance gate | STOP / GRPO -0.383 pp; Anchor +0.000 pp vs SFT |
+| M6 promotion / holdout | NOT OPENED |
 | M6 Phase A/B implementation | COMPLETE / cluster chain exercised |
 | M6 mini Raw→SFT gate | PASS / +5.875 pp |
 | M6 mini SFT→RL gate | STOP / both methods -0.250 pp; not significant; promotion threshold missed |
-| M6 formal expansion | NOT AUTHORIZED / current mini-dev burned |
+| M6 full expansion | NOT AUTHORIZED / mini-dev and formal-dev are development-visible |
 | M5 verified SFT | COMPLETE / negative closed-loop transfer identified |
 | M5 online RL（2 methods × 3 seeds） | COMPLETE |
 | M5 frozen test（8 identities × 500 tasks × K4） | COMPLETE |
@@ -90,6 +115,15 @@ M1–M4 状态均为历史证据。
 | M3.0C frozen paired comparison | COMPLETE / no improvement supported |
 
 ```text
+M6_MEDIUM_RAW_SUCCESS_RATE=0.37000
+M6_MEDIUM_SFT_SUCCESS_RATE=0.42350
+M6_MEDIUM_GRPO_MEAN_SUCCESS_RATE=0.41967
+M6_MEDIUM_ANCHOR_MEAN_SUCCESS_RATE=0.42350
+M6_MEDIUM_RL_AUDITS_PASS=6/6
+M6_MEDIUM_EFFECTIVE_UPDATES=120
+M6_MEDIUM_DECISION=STOP_MEDIUM_RL
+M6_PROMOTION_OPENED=false
+M6_HOLDOUT_OPENED=false
 M6_MINI_RAW_SUCCESS=286/800
 M6_MINI_SFT_SUCCESS=333/800
 M6_MINI_GRPO_SUCCESS=331/800

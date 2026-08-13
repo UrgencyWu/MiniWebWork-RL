@@ -1,11 +1,13 @@
 # M6 最小 Raw → SFT → RL 执行手册
 
-> 状态：M6.1 Phase A/B 已执行并在 SFT→RL 晋级门停止；正式 Phase C–F 未授权
+> 状态：M6.1 与 M6.2 development-only 验证均已结束；M6.2 决策为 `STOP_MEDIUM_RL`，
+> promotion/holdout 未打开，正式 Phase C–F 未授权
 >
 > 所有 GPU 作业为 24 小时 allocation；只有 Slurm `USR1` 超时边界可提交同根 successor。
 > 确定性失败不自动重试。正式作业提交后只确认一次 job ID，不自动轮询。
 >
-> 最终结果与失败记录：[`M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md`](M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md)、
+> 最终结果与失败记录：[`M6_MEDIUM_TRAINING_AND_EVALUATION_REPORT.md`](M6_MEDIUM_TRAINING_AND_EVALUATION_REPORT.md)、
+> [`M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md`](M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md)、
 > [`TRAINING_FAILURE_LEDGER.md`](TRAINING_FAILURE_LEDGER.md)。当前 mini-dev 已 burn，本文保留为
 > 冻结执行记录，不得据此在原 slice 继续调参。
 
@@ -42,6 +44,11 @@ M6.2 的冻结中等规模评测使用尚未用于本轮选择的 `formal_dev` 5
 共享 SFT、以及 2 methods × 3 seeds，共 8 个无梯度 GPU 作业；最多并行 6 个，以避开
 WebShop 服务和其他用户的 GPU。只有 8 个身份均成功后才运行 CPU 配对统计。该阶段不会
 读取 promotion 或 holdout；结果最多允许请求用户批准打开 promotion，不能自动提交。
+
+执行结果：六个 learner 均完成 20 次有效更新并通过审计；500-task × K4 评测中，SFT
+相对 Raw `+5.35 pp`，GRPO 三 seed 平均相对 SFT `-0.383 pp`，Anchor-GiGPO
+`+0.000 pp`。两方法均未达到冻结晋级门，最终决策为 `STOP_MEDIUM_RL`。本节因此只
+保留为已执行合同，不再授权同一 `formal_dev` 上的 checkpoint 选择或调参。
 
 ## M6.1：批准继续的 156-task 开发验证
 
