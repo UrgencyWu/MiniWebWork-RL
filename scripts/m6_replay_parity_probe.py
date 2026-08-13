@@ -64,7 +64,13 @@ def main() -> None:
     observed_collection = expected_collection.pop("content_sha256", None)
     _require(observed_collection == sha256_json(expected_collection), "M6 parity probe collection self-hash drift")
     _require(collection.get("git_sha") == args.collection_producer_git_sha, "M6 parity probe producer Git drift")
-    _require(collection.get("complete") is True and collection.get("mode") == "rl_collection", "M6 parity probe collection drift")
+    expected_mode = "rl_collection" if args.expected_k == 8 else "evaluation"
+    _require(
+        collection.get("complete") is True
+        and collection.get("mode") == expected_mode
+        and collection.get("K") == args.expected_k,
+        "M6 parity probe collection drift",
+    )
 
     group_paths = sorted(args.groups_dir.glob("g*.json"))
     if args.maximum_groups is not None:
