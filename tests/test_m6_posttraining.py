@@ -661,6 +661,15 @@ def test_m6_finalize_job_reuses_frozen_baselines_and_compares_both_methods():
     ).read_text(encoding="utf-8")
     assert "pilot_raw_eval" in script
     assert "pilot_sft_eval_v2" in script
+
+
+def test_m6_medium_eval_resolver_orders_by_update_index_not_path_name():
+    script = (
+        Path(__file__).resolve().parents[1] / "scripts" / "m6_resolve_medium_adapter.py"
+    ).read_text(encoding="utf-8")
+    assert 'reports.sort(key=lambda item: int(item["iteration_index"]))' in script
+    assert 'list(range(20))' in script
+    assert 'credit_hashes != audit["credit_assignment_content_sha256"]' in script
     assert "multi_turn_grpo_chain_report.json" in script
     assert "anchor_gigpo_chain_report.json" in script
     assert "--bootstrap-samples 20000 --allow-nonpassing" in script

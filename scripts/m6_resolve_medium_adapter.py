@@ -26,13 +26,39 @@ def main() -> None:
         raise ValueError("M6 medium RL audit did not authorize evaluation")
     reports = [
         validate_learner_report(path, expected_method=args.method)
-        for path in sorted(root.glob("iteration_*/learner/learner_report.json"))
+        for path in root.glob("iteration_*/learner/learner_report.json")
     ]
-    matches = [item for item in reports if item["content_sha256"] == audit["learner_report_content_sha256"]]
-    if len(matches) != 1:
-        raise ValueError("M6 medium final learner/audit binding drift")
-    report = matches[0]
-    if report.get("cumulative_optimizer_updates_after") != 20:
+    reports.sort(key=lambda item: int(item["iteration_index"]))
+    if [item["iteration_index"] for item in reports] != list(range(20)):
+        raise ValueError("M6 medium learner iteration chain drift")
+    for index, report in enumerate(reports):
+        if (
+            report["cumulative_optimizer_updates_before"] != index
+            or report["cumulative_optimizer_updates_after"] != index + 1
+        ):
+            raise ValueError("M6 medium learner update counter drift")
+        if index:
+            previous = reports[index - 1]
+            if (
+                report["input_adapter_sha256"] != previous["output_adapter_sha256"]
+                or report["input_adapter_semantic_sha256"]
+                != previous["output_adapter_semantic_sha256"]
+                or report["input_optimizer_sha256"] != previous["output_optimizer_sha256"]
+            ):
+                raise ValueError("M6 medium learner adapter/optimizer lineage drift")
+    credit_hashes = [
+        value
+        for report in reports
+        for value in report["collection_audit"]["credit_assignment_content_sha256"]
+    ]
+    if credit_hashes != audit["credit_assignment_content_sha256"]:
+        raise ValueError("M6 medium learner/audit credit-chain binding drift")
+    report = reports[-1]
+    if (
+        audit.get("metrics", {}).get("optimizer_updates") != 20
+        or audit.get("metrics", {}).get("iteration_count") != 20
+        or report.get("cumulative_optimizer_updates_after") != 20
+    ):
         raise ValueError("M6 medium final adapter does not have 20 updates")
     print(report["output_adapter"])
 
