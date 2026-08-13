@@ -43,6 +43,7 @@ from miniwebwork.webshop_rl.m6_corpus import (
     validate_retention_states,
 )
 from miniwebwork.webshop_rl.m6_online_training import (
+    ReplayParityError,
     add_finite_sample_replay_evidence,
     replay_parity_checks,
     validate_replay_parity,
@@ -928,6 +929,9 @@ def test_m6_recoverable_rl_script_preserves_replay_calibration():
     assert "M6_REPLAY_PARITY_CALIBRATION=$replay_parity_calibration" in script
     assert '--replay-parity-calibration "$replay_parity_calibration"' in script
     assert '--reference-sft-adapter-semantic-sha256 "$reference_sft_semantic"' in script
+    assert 'learner_status" -eq 42' in script
+    assert "behavior_hf_replay_parity_rejected_no_update" in script
+    assert "--parity-rejection-report" in script
 
 
 def test_m6_small_group_tail_rule_uses_exact_counts_without_relaxing_magnitude_guards():
@@ -972,6 +976,16 @@ def test_m6_small_group_tail_rule_uses_exact_counts_without_relaxing_magnitude_g
     assert enriched["initial_ratio_clip_binomial_p_value"] > 0.01
 
     assert enriched["p999_threshold_exceedance_count"] == 0
+
+    p95_failure = dict(enriched)
+    p95_failure["p95_absolute_logprob_difference"] = 0.081
+    with pytest.raises(ReplayParityError) as error:
+        validate_replay_parity(
+            p95_failure,
+            contract=effective,
+            finite_sample_tail_rule=rule,
+        )
+    assert error.value.evidence["checks"]["p95_absolute_difference"] is False
 
     one_p999_outlier = dict(enriched)
     one_p999_outlier.update(

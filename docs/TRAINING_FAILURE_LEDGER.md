@@ -38,6 +38,10 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2228 | GRPO v6 | FAILED 1:0 | P99/clip 二项检验已通过，但实现仍以单个 P99.9 极值 `0.616 > 0.5` 拒绝小样本 | 提交 `9ca3078` 修复小样本 P99.9 语义，v7 为 2231 | 无 adapter 纳入评测 |
 | 2229 | Anchor-GiGPO v6 | CANCELLED | 用户取消并以 v7 替换；日志同时出现一个无关 prompt-matrix 调用缺参，无法证明是本 learner 的确定性失败 | 不复用部分工件；v7 为 2232 | 非正式结果 |
 | M6 final chain | RL promotion | STOP | 两方法均为 331/800，比 SFT 少 2/800；CI 跨 0，bootstrap 正方向比例低于 0.8，且 corpus 正式门仍未通过 | 停止扩展并 burn 当前 mini-dev；不得在该 slice 继续调参 | 权威负结果，见 M6 结果报告 |
+| 2236_0 | M6.2 GRPO seed 20260812 | FAILED 1:0；16/20 更新后停止 | 第 17 个 collection 的 HF replay P99 `0.1672 > 0.125`，且有限样本尾检验 `p=0.0007247`；其余 parity、loss、gradient 与资源检查通过 | 保留 collection 和 staging；修复为只跳过该不可信组、计入成本、沿冻结 curriculum 同根恢复 | 已完成的 16 个更新保留；被拒组不产生梯度 |
+| 2236_2 | M6.2 GRPO seed 20260813 | FAILED 1:0；15/20 更新后停止 | 第 17 个 collection 的 HF replay P95 `0.08525 > 0.08`；其余检查通过 | 同上，结构化记录 parity rejection 后同根恢复 | 已完成的 15 个更新保留；被拒组不产生梯度 |
+| 2236_3 | M6.2 Anchor-GiGPO seed 20260813 | FAILED 1:0；15/20 更新后停止 | 第 17 个 collection 的 HF replay P95 `0.08356 > 0.08`；其余检查通过 | 同上 | 已完成的 15 个更新保留；被拒组不产生梯度 |
+| 2236_5 | M6.2 Anchor-GiGPO seed 20260814 | FAILED 1:0；16/20 更新后停止 | 第 17 个 collection 的 HF replay P95 `0.08182 > 0.08`；其余检查通过 | 同上 | 已完成的 16 个更新保留；被拒组不产生梯度 |
 
 ## 3. M6 成功替代链
 

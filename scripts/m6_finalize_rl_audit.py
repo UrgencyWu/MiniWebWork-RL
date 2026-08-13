@@ -23,6 +23,7 @@ def main() -> None:
     parser.add_argument("--iteration", type=Path, action="append", required=True, help="Repeat learner_report.json")
     parser.add_argument("--groups-dir", type=Path, action="append", required=True, help="Repeat matching K8 groups directory")
     parser.add_argument("--collection-report", type=Path, action="append", required=True, help="Repeat every attempted curriculum collection, including no-update groups")
+    parser.add_argument("--parity-rejection", type=Path, action="append", default=[], help="Repeat every replay-parity group rejection")
     parser.add_argument("--method", choices=METHODS, required=True)
     parser.add_argument("--pilot-authorization", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -89,7 +90,9 @@ def main() -> None:
     latest = reports[-1]
     collection_reports = [json.loads(path.read_text(encoding="utf-8")) for path in args.collection_report]
     collection_hashes: set[str] = set()
+    collection_by_hash: dict[str, dict] = {}
     collection_by_group_hashes: dict[tuple[str, ...], dict] = {}
+    learned_collection_hashes: set[str] = set()
     for collection in collection_reports:
         expected_collection = dict(collection)
         observed_collection = expected_collection.pop("content_sha256", None)
@@ -104,6 +107,7 @@ def main() -> None:
         if collection["content_sha256"] in collection_hashes:
             raise ValueError("M6 collection report was counted more than once")
         collection_hashes.add(collection["content_sha256"])
+        collection_by_hash[collection["content_sha256"]] = collection
         group_hashes = collection.get("group_content_sha256")
         if not isinstance(group_hashes, list) or not group_hashes:
             raise ValueError("M6 collection report group binding is missing")
@@ -115,6 +119,7 @@ def main() -> None:
         collection = collection_by_group_hashes.get(tuple(group_hashes))
         if collection is None:
             raise ValueError("M6 learner has no matching collection report")
+        learned_collection_hashes.add(collection["content_sha256"])
         audit = report.get("collection_audit", {})
         if (
             audit.get("all_generated_action_tokens")
@@ -123,6 +128,43 @@ def main() -> None:
             != collection.get("generated_action_tokens")
         ):
             raise ValueError("M6 learner/collection token binding drift")
+    parity_rejections = []
+    rejected_collection_hashes: set[str] = set()
+    for path in args.parity_rejection:
+        rejection = json.loads(path.read_text(encoding="utf-8"))
+        expected_rejection = dict(rejection)
+        observed_rejection = expected_rejection.pop("content_sha256", None)
+        if observed_rejection != sha256_json(expected_rejection):
+            raise ValueError("M6 parity-rejection report self-hash drift")
+        if (
+            rejection.get("schema_version") != "m6_replay_parity_rejection_v1"
+            or rejection.get("complete") is not True
+            or rejection.get("decision") != "SKIP_UNTRUSTED_GROUP_WITHOUT_UPDATE"
+            or rejection.get("method") != args.method
+            or rejection.get("seed") != reports[0]["seed"]
+            or rejection.get("protocol_sha256") != reports[0]["protocol_sha256"]
+            or rejection.get("pilot_authorization_sha256")
+            != authorization["content_sha256"]
+            or rejection.get("optimizer_updates_performed") != 0
+        ):
+            raise ValueError("M6 parity-rejection report contract drift")
+        checks = rejection.get("failure", {}).get("checks")
+        if not isinstance(checks, dict) or all(bool(value) for value in checks.values()):
+            raise ValueError("M6 parity rejection lacks a failed replay check")
+        collection_hash = rejection.get("collection_report_content_sha256")
+        collection = collection_by_hash.get(collection_hash)
+        if (
+            collection is None
+            or collection_hash in rejected_collection_hashes
+            or collection_hash in learned_collection_hashes
+        ):
+            raise ValueError("M6 parity rejection collection binding drift")
+        if int(rejection.get("all_attempt_generated_action_tokens", -1)) != int(
+            collection["all_attempt_generated_action_tokens"]
+        ):
+            raise ValueError("M6 parity rejection token binding drift")
+        rejected_collection_hashes.add(collection_hash)
+        parity_rejections.append(rejection)
     learner = {
         "development_only": True,
         "method": args.method,
@@ -132,6 +174,10 @@ def main() -> None:
         "generated_action_tokens": sum(int(report["all_attempt_generated_action_tokens"]) for report in collection_reports),
         "collection_attempt_count": len(collection_reports),
         "collection_report_content_sha256": [report["content_sha256"] for report in collection_reports],
+        "replay_parity_rejection_count": len(parity_rejections),
+        "replay_parity_rejection_content_sha256": [
+            report["content_sha256"] for report in parity_rejections
+        ],
         "optimizer_updates": latest["cumulative_optimizer_updates_after"],
         "parameters_changed": all(report["input_adapter_semantic_sha256"] != report["output_adapter_semantic_sha256"] for report in reports),
         "lineage_chain_complete": True,

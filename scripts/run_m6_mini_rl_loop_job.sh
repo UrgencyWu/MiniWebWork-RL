@@ -278,7 +278,20 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
 
   optimizer_args=()
   test -z "$input_optimizer" || optimizer_args=(--input-optimizer "$input_optimizer")
+  collection_bridge_args=()
+  collection_producer_git_sha="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["git_sha"])' "$collection_root/collection_report.json")"
+  if test "$collection_producer_git_sha" != "$M6_EXPECTED_GIT_SHA"; then
+    collection_bridge_args=(--collection-producer-git-sha "$collection_producer_git_sha")
+  fi
+  input_state_bridge_args=()
+  if test -n "$latest_learner_report"; then
+    input_state_producer_git_sha="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["git_sha"])' "$latest_learner_report")"
+    if test "$input_state_producer_git_sha" != "$M6_EXPECTED_GIT_SHA"; then
+      input_state_bridge_args=(--input-state-producer-git-sha "$input_state_producer_git_sha")
+    fi
+  fi
   if ! test -f "$learner_root/learner_report.json"; then
+    set +e
     "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_online_rl.py \
       --groups-dir "$collection_root/groups" --collection-report "$collection_root/collection_report.json" \
       --input-adapter "$input_adapter" --input-adapter-semantic-sha256 "$input_semantic" \
@@ -286,7 +299,17 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
       --replay-parity-calibration "$replay_parity_calibration" --output-dir "$learner_root" \
       --iteration-index "$mixed_iterations" --seed "$run_seed" --method "$M6_METHOD" \
       --pilot-authorization "$M6_PILOT_AUTHORIZATION" --microbatch-size "$learner_microbatch_size" \
-      "${optimizer_args[@]}"
+      --parity-rejection-report "$iteration_root/parity_rejection.json" \
+      "${optimizer_args[@]}" "${collection_bridge_args[@]}" "${input_state_bridge_args[@]}"
+    learner_status=$?
+    set -e
+    if test "$learner_status" -eq 42; then
+      test -f "$iteration_root/parity_rejection.json"
+      printf '%s\n' "behavior_hf_replay_parity_rejected_no_update" > "$iteration_root/skip_reason"
+      iteration=$((iteration + 1))
+      continue
+    fi
+    test "$learner_status" -eq 0 || exit "$learner_status"
   fi
   iteration_report="$learner_root/learner_report.json"
   mixed="$($python_bin -c 'import json,sys; print(int(json.load(open(sys.argv[1]))["collection_audit"]["mixed_strict_reward_group_count"] > 0))' "$iteration_report")"
@@ -298,9 +321,13 @@ test "$mixed_iterations" -ge "$target_mixed_iterations"
 
 audit_args=()
 collection_args=()
+parity_rejection_args=()
 index=0
 while test "$index" -lt "$iteration"; do
   collection_args+=(--collection-report "$rl_root/iteration_${index}/collection/collection_report.json")
+  if test -f "$rl_root/iteration_${index}/parity_rejection.json"; then
+    parity_rejection_args+=(--parity-rejection "$rl_root/iteration_${index}/parity_rejection.json")
+  fi
   if test -f "$rl_root/iteration_${index}/learner/learner_report.json"; then
     audit_args+=(--iteration "$rl_root/iteration_${index}/learner/learner_report.json")
     audit_args+=(--groups-dir "$rl_root/iteration_${index}/collection/groups")
@@ -308,5 +335,5 @@ while test "$index" -lt "$iteration"; do
   index=$((index + 1))
 done
 "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_finalize_rl_audit.py \
-  "${audit_args[@]}" "${collection_args[@]}" --method "$M6_METHOD" \
+  "${audit_args[@]}" "${collection_args[@]}" "${parity_rejection_args[@]}" --method "$M6_METHOD" \
   --pilot-authorization "$M6_PILOT_AUTHORIZATION" --output "$rl_root/rl_audit.json"

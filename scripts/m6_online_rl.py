@@ -14,14 +14,21 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 import torch  # noqa: E402
 
-from miniwebwork.long_horizon_rl.contracts import directory_sha256, sha256_file  # noqa: E402
+from miniwebwork.long_horizon_rl.contracts import (  # noqa: E402
+    atomic_write_json,
+    directory_sha256,
+    sha256_file,
+    sha256_json,
+)
 from miniwebwork.m6_posttraining_protocol import load_protocol  # noqa: E402
 from miniwebwork.m6_pilot import (  # noqa: E402
     load_pilot_replay_parity_calibration,
+    validate_artifact_git_compatibility,
     validate_pilot_authorization,
     validate_pilot_method,
 )
 from miniwebwork.webshop_rl.m6_online_training import (  # noqa: E402
+    ReplayParityError,
     train_mini_policy_iteration,
     validate_committed_group,
 )
@@ -50,6 +57,9 @@ def main() -> None:
     parser.add_argument("--method", choices=METHODS, required=True)
     parser.add_argument("--pilot-authorization", type=Path, required=True)
     parser.add_argument("--replay-parity-calibration", type=Path, required=True)
+    parser.add_argument("--collection-producer-git-sha")
+    parser.add_argument("--input-state-producer-git-sha")
+    parser.add_argument("--parity-rejection-report", type=Path)
     args = parser.parse_args()
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "M6 mini RL requires one Slurm GPU")
     protocol = load_protocol()
@@ -74,7 +84,13 @@ def main() -> None:
     _require(collection.get("role") == "mini_train" and collection.get("K") == 8, "M6 RL collection role/K drift")
     _require(collection.get("action_token_budget_respected") is True, "M6 RL collection exceeded its token budget")
     _require(collection.get("training_updates_allowed") is True, "M6 collection report is not update-authorized")
-    _require(collection.get("git_sha") == git_sha and collection.get("protocol_sha256") == protocol["sha256"], "M6 collection report Git/protocol drift")
+    collection_producer_git_sha = validate_artifact_git_compatibility(
+        artifact_name="RL recovery collection",
+        producer_git_sha=collection.get("git_sha"),
+        consumer_git_sha=git_sha,
+        explicitly_authorized_producer_git_sha=args.collection_producer_git_sha,
+    )
+    _require(collection.get("protocol_sha256") == protocol["sha256"], "M6 collection report protocol drift")
     groups = [
         validate_committed_group(json.loads(path.read_text(encoding="utf-8")), require_k=8)
         for path in sorted(args.groups_dir.glob("g*.json"))
@@ -110,7 +126,11 @@ def main() -> None:
         "M6 RL behavior adapter bytes do not match learner input",
     )
     _require(
-        all(group.get("protocol_sha256") == protocol["sha256"] and group.get("git_sha") == git_sha for group in groups),
+        all(
+            group.get("protocol_sha256") == protocol["sha256"]
+            and group.get("git_sha") == collection_producer_git_sha
+            for group in groups
+        ),
         "M6 RL group protocol/Git lineage drift",
     )
     _require(
@@ -119,28 +139,57 @@ def main() -> None:
         == args.input_adapter_semantic_sha256,
         "M6 collection policy does not match learner input",
     )
-    report = train_mini_policy_iteration(
-        groups=groups,
-        all_generated_action_tokens=int(collection["all_attempt_generated_action_tokens"]),
-        base_model=args.base_model,
-        input_adapter=args.input_adapter,
-        input_adapter_semantic_sha256=args.input_adapter_semantic_sha256,
-        reference_sft_adapter=args.reference_sft_adapter,
-        reference_sft_adapter_semantic_sha256=args.reference_sft_adapter_semantic_sha256,
-        input_optimizer=args.input_optimizer,
-        output_root=args.output_dir,
-        git_sha=git_sha,
-        protocol_sha256=protocol["sha256"],
-        iteration_index=args.iteration_index,
-        seed=args.seed,
-        method=args.method,
-        pilot_authorization_sha256=authorization["content_sha256"],
-        replay_parity_calibration=replay_calibration["payload"],
-        replay_parity_calibration_file_sha256=sha256_file(
-            args.replay_parity_calibration
-        ),
-        microbatch_size=args.microbatch_size,
-    )
+    try:
+        report = train_mini_policy_iteration(
+            groups=groups,
+            all_generated_action_tokens=int(collection["all_attempt_generated_action_tokens"]),
+            base_model=args.base_model,
+            input_adapter=args.input_adapter,
+            input_adapter_semantic_sha256=args.input_adapter_semantic_sha256,
+            reference_sft_adapter=args.reference_sft_adapter,
+            reference_sft_adapter_semantic_sha256=args.reference_sft_adapter_semantic_sha256,
+            input_optimizer=args.input_optimizer,
+            output_root=args.output_dir,
+            git_sha=git_sha,
+            protocol_sha256=protocol["sha256"],
+            iteration_index=args.iteration_index,
+            seed=args.seed,
+            method=args.method,
+            pilot_authorization_sha256=authorization["content_sha256"],
+            replay_parity_calibration=replay_calibration["payload"],
+            replay_parity_calibration_file_sha256=sha256_file(
+                args.replay_parity_calibration
+            ),
+            input_state_producer_git_sha=args.input_state_producer_git_sha,
+            microbatch_size=args.microbatch_size,
+        )
+    except ReplayParityError as error:
+        if args.parity_rejection_report is None:
+            raise
+        rejection = {
+            "schema_version": "m6_replay_parity_rejection_v1",
+            "complete": True,
+            "decision": "SKIP_UNTRUSTED_GROUP_WITHOUT_UPDATE",
+            "method": args.method,
+            "seed": args.seed,
+            "iteration_index": args.iteration_index,
+            "git_sha": git_sha,
+            "protocol_sha256": protocol["sha256"],
+            "pilot_authorization_sha256": authorization["content_sha256"],
+            "collection_report_content_sha256": collection["content_sha256"],
+            "collection_producer_git_sha": collection_producer_git_sha,
+            "input_adapter_sha256": input_adapter_sha256,
+            "input_adapter_semantic_sha256": args.input_adapter_semantic_sha256,
+            "all_attempt_generated_action_tokens": int(
+                collection["all_attempt_generated_action_tokens"]
+            ),
+            "optimizer_updates_performed": 0,
+            "failure": error.evidence,
+        }
+        rejection["content_sha256"] = sha256_json(rejection)
+        atomic_write_json(args.parity_rejection_report, rejection)
+        print(json.dumps(rejection, indent=2, sort_keys=True))
+        raise SystemExit(42) from error
     print(json.dumps(report, indent=2, sort_keys=True))
 
 

@@ -29,7 +29,10 @@ from ..m6_posttraining_protocol import (
     load_protocol,
     validate_protocol,
 )
-from ..m6_pilot import validate_pilot_replay_parity_calibration
+from ..m6_pilot import (
+    validate_artifact_git_compatibility,
+    validate_pilot_replay_parity_calibration,
+)
 from .credit import policy_context_signature, public_state_anchor_signature
 from .verifier_td import (
     ANCHOR_METHOD,
@@ -47,6 +50,17 @@ LEARNER_SCHEMA = "m6_webshop_mini_rl_iteration_v1"
 OPTIMIZER_SCHEMA = "m6_webshop_mini_rl_optimizer_v1"
 MAX_SEQUENCE_TOKENS = 8192
 REFERENCE_ADAPTER_NAME = "m6_frozen_sft_reference"
+
+
+class ReplayParityError(ValueError):
+    """A recoverable on-policy group rejection with complete numeric evidence."""
+
+    def __init__(self, evidence: Mapping[str, Any]) -> None:
+        self.evidence = dict(evidence)
+        super().__init__(
+            "M6 initial behavior/HF replay parity failed: "
+            f"{json.dumps(self.evidence, sort_keys=True)}"
+        )
 
 
 def _require(condition: bool, message: str) -> None:
@@ -452,10 +466,7 @@ def validate_replay_parity(
             ),
             "checks": checks,
         }
-        raise ValueError(
-            "M6 initial behavior/HF replay parity failed: "
-            f"{json.dumps(failure, sort_keys=True)}"
-        )
+        raise ReplayParityError(failure)
     return checks
 
 
@@ -691,6 +702,7 @@ def train_mini_policy_iteration(
     pilot_authorization_sha256: str | None = None,
     replay_parity_calibration: Mapping[str, Any] | None = None,
     replay_parity_calibration_file_sha256: str | None = None,
+    input_state_producer_git_sha: str | None = None,
     microbatch_size: int = 4,
 ) -> dict[str, Any]:
     """Apply one recoverable M6-mini update from same-policy K8 groups."""
@@ -831,6 +843,12 @@ def train_mini_policy_iteration(
             "M6 mini optimizer replay-calibration drift",
         )
         _require(checkpoint.get("seed") == seed, "M6 mini optimizer seed drift")
+        checkpoint_producer_git_sha = validate_artifact_git_compatibility(
+            artifact_name="RL recovery optimizer",
+            producer_git_sha=checkpoint.get("git_sha"),
+            consumer_git_sha=git_sha,
+            explicitly_authorized_producer_git_sha=input_state_producer_git_sha,
+        )
         _require(
             checkpoint.get("iteration_index") == iteration_index - 1,
             "M6 mini optimizer iteration lineage drift",
@@ -1001,6 +1019,9 @@ def train_mini_policy_iteration(
         "reference_sft_adapter_semantic_sha256": reference_sft_adapter_semantic_sha256,
         "input_optimizer": str(Path(input_optimizer).expanduser().resolve()) if input_optimizer else None,
         "input_optimizer_sha256": input_optimizer_sha256,
+        "input_state_producer_git_sha": (
+            checkpoint_producer_git_sha if input_optimizer is not None else None
+        ),
         "base_model": str(Path(base_model).expanduser().resolve()),
         "output_adapter": str(root / "adapter"),
         "output_adapter_sha256": directory_sha256(adapter),
