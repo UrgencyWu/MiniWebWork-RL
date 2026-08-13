@@ -191,9 +191,12 @@ def collate_turn_training_examples(
 def extract_tail_completion_logprobs(
     logits: torch.Tensor,
     batch: Mapping[str, Any],
+    *,
+    logprob_precision: str = "float32",
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Extract chosen-token log-probs from left-padded, tail-only model logits."""
 
+    _require(logprob_precision in {"float32", "model"}, "learner logprob precision drift")
     _require(logits.ndim == 3, f"learner logits must be [batch,seq,vocab], got {tuple(logits.shape)}")
     generated_ids = batch["generated_token_ids"].to(logits.device)
     mask = batch["completion_mask"].to(logits.device)
@@ -218,7 +221,9 @@ def extract_tail_completion_logprobs(
     for row, completion_length in enumerate(lengths):
         _require(completion_length > 0, "learner completion length must be positive")
         start = maximum_completion - completion_length
-        token_logits = tail[row, start:maximum_completion, :].float()
+        token_logits = tail[row, start:maximum_completion, :]
+        if logprob_precision == "float32":
+            token_logits = token_logits.float()
         token_ids = generated_ids[row, :completion_length]
         _require(
             bool((token_ids >= 0).all()) and bool((token_ids < token_logits.shape[-1]).all()),
@@ -361,7 +366,12 @@ def _move_replay_batch(batch: Mapping[str, Any], device: torch.device) -> dict[s
     return moved
 
 
-def _forward_replay(model: Any, batch: Mapping[str, Any]) -> tuple[torch.Tensor, torch.Tensor]:
+def _forward_replay(
+    model: Any,
+    batch: Mapping[str, Any],
+    *,
+    logprob_precision: str = "float32",
+) -> tuple[torch.Tensor, torch.Tensor]:
     output = model(
         input_ids=batch["input_ids"],
         attention_mask=batch["attention_mask"],
@@ -370,7 +380,11 @@ def _forward_replay(model: Any, batch: Mapping[str, Any]) -> tuple[torch.Tensor,
         logits_to_keep=int(batch["logits_to_keep"]),
     )
     logits = output.logits if hasattr(output, "logits") else output[0]
-    return extract_tail_completion_logprobs(logits, batch)
+    return extract_tail_completion_logprobs(
+        logits,
+        batch,
+        logprob_precision=logprob_precision,
+    )
 
 
 def _chunked(sequence: Sequence[Any], size: int):
@@ -386,6 +400,7 @@ def replay_examples(
     pad_token_id: int,
     microbatch_size: int,
     device: torch.device,
+    logprob_precision: str = "float32",
 ) -> list[float]:
     """Teacher-force exact prompt+completion IDs under the current adapter."""
 
@@ -398,7 +413,11 @@ def replay_examples(
                 collate_turn_training_examples(chunk, pad_token_id=pad_token_id),
                 device,
             )
-            replay, _ = _forward_replay(model, batch)
+            replay, _ = _forward_replay(
+                model,
+                batch,
+                logprob_precision=logprob_precision,
+            )
             for row, example in enumerate(chunk):
                 values.extend(
                     float(value)

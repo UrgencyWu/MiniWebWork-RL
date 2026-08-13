@@ -48,6 +48,7 @@ def main() -> None:
     parser.add_argument("--base-model", type=Path, default=Path("/data/share/model/Qwen3.5-4B"))
     parser.add_argument("--method", choices=METHODS, required=True)
     parser.add_argument("--microbatch-sizes", type=int, nargs="+", default=[1, 2, 4, 8])
+    parser.add_argument("--logprob-precisions", choices=("float32", "model"), nargs="+", default=["float32"])
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -103,42 +104,45 @@ def main() -> None:
     protocol = load_protocol()
     thresholds = protocol["payload"]["rl"]["parity_contract"]
     results = []
-    for microbatch_size in args.microbatch_sizes:
-        replay = replay_examples(
-            model=model,
-            examples=examples,
-            pad_token_id=tokenizer.pad_token_id,
-            microbatch_size=microbatch_size,
-            device=torch.device("cuda:0"),
-        )
-        parity = summarize_logprob_parity(behavior, replay)
-        checks = replay_parity_checks(parity, contract=thresholds)
-        ranked = sorted(
-            range(len(behavior)),
-            key=lambda index: abs(replay[index] - behavior[index]),
-            reverse=True,
-        )[:20]
-        outliers = []
-        for index in ranked:
-            item = dict(token_metadata[index])
-            item.update(
+    for logprob_precision in args.logprob_precisions:
+        for microbatch_size in args.microbatch_sizes:
+            replay = replay_examples(
+                model=model,
+                examples=examples,
+                pad_token_id=tokenizer.pad_token_id,
+                microbatch_size=microbatch_size,
+                device=torch.device("cuda:0"),
+                logprob_precision=logprob_precision,
+            )
+            parity = summarize_logprob_parity(behavior, replay)
+            checks = replay_parity_checks(parity, contract=thresholds)
+            ranked = sorted(
+                range(len(behavior)),
+                key=lambda index: abs(replay[index] - behavior[index]),
+                reverse=True,
+            )[:20]
+            outliers = []
+            for index in ranked:
+                item = dict(token_metadata[index])
+                item.update(
+                    {
+                        "flat_token_index": index,
+                        "behavior_logprob": behavior[index],
+                        "replay_logprob": replay[index],
+                        "absolute_difference": abs(replay[index] - behavior[index]),
+                    }
+                )
+                outliers.append(item)
+            results.append(
                 {
-                    "flat_token_index": index,
-                    "behavior_logprob": behavior[index],
-                    "replay_logprob": replay[index],
-                    "absolute_difference": abs(replay[index] - behavior[index]),
+                    "logprob_precision": logprob_precision,
+                    "microbatch_size": microbatch_size,
+                    "passed": all(checks.values()),
+                    "checks": checks,
+                    "parity": parity,
+                    "top_outliers": outliers,
                 }
             )
-            outliers.append(item)
-        results.append(
-            {
-                "microbatch_size": microbatch_size,
-                "passed": all(checks.values()),
-                "checks": checks,
-                "parity": parity,
-                "top_outliers": outliers,
-            }
-        )
 
     report = {
         "schema_version": "m6_replay_parity_probe_v1",

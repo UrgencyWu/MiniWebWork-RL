@@ -107,6 +107,19 @@ def test_left_padded_tail_logits_align_every_completion_token():
     assert torch.isfinite(entropy[batch["completion_mask"]]).all()
 
 
+def test_tail_logprob_precision_is_explicit_and_validated():
+    examples = (_example(0, 1, tokens=1, turns=1, advantage=1.0),)
+    batch = collate_turn_training_examples(examples, pad_token_id=0)
+    logits = torch.zeros((1, batch["logits_to_keep"], 10), dtype=torch.bfloat16)
+    float32, _ = extract_tail_completion_logprobs(logits, batch, logprob_precision="float32")
+    model, _ = extract_tail_completion_logprobs(logits, batch, logprob_precision="model")
+    assert float32.dtype == model.dtype == torch.float32
+    assert torch.isfinite(float32[batch["completion_mask"]]).all()
+    assert torch.isfinite(model[batch["completion_mask"]]).all()
+    with pytest.raises(ValueError, match="logprob precision"):
+        extract_tail_completion_logprobs(logits, batch, logprob_precision="invalid")
+
+
 def test_behavior_sampling_parity_is_explicit_and_fail_closed():
     group = _group("multi_turn_grpo")
     report = audit_group_behavior_sampling_parity(
