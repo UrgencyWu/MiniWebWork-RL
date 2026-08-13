@@ -18,7 +18,11 @@ from transformers import AutoTokenizer  # noqa: E402
 
 from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_file, sha256_json  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol  # noqa: E402
-from miniwebwork.m6_pilot import validate_pilot_authorization  # noqa: E402
+from miniwebwork.m6_pilot import (  # noqa: E402
+    canonical_sft_audit_input_key,
+    validate_pilot_authorization,
+    validate_sft_corpus_git_compatibility,
+)
 from miniwebwork.webshop_rl.m6_corpus import validate_conditional_learnability_audit  # noqa: E402
 from miniwebwork.webshop_rl.m6_sft_training import (  # noqa: E402
     M6SFTConfig,
@@ -49,6 +53,7 @@ def main() -> None:
     parser.add_argument("--base-model", type=Path, default=Path("/data/share/model/Qwen3.5-4B"))
     parser.add_argument("--seed", type=int, default=20260812)
     parser.add_argument("--pilot-authorization", type=Path)
+    parser.add_argument("--corpus-producer-git-sha")
     args = parser.parse_args()
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "M6 mini SFT requires one Slurm GPU")
     protocol = load_protocol()
@@ -96,7 +101,7 @@ def main() -> None:
         retention_examples=retention,
         base_model=args.base_model,
         input_files={
-            key.replace(".json", "").replace(".jsonl", ""): value
+            canonical_sft_audit_input_key(key): value
             for key, value in token_audit_inputs.items()
         },
         config=config,
@@ -117,7 +122,11 @@ def main() -> None:
     )
     _require(stored_token_audit.get("tokenizer_file_sha256") == rebuilt.get("tokenizer_file_sha256"), "M6 tokenizer binding drift")
     _require(stored_token_audit.get("protocol_sha256") == protocol["sha256"], "M6 token audit protocol drift")
-    _require(stored_token_audit.get("git_sha") == protocol["git_sha"], "M6 token audit Git drift")
+    corpus_producer_git_sha = validate_sft_corpus_git_compatibility(
+        corpus_producer_git_sha=stored_token_audit.get("git_sha"),
+        consumer_git_sha=protocol["git_sha"],
+        explicitly_authorized_producer_git_sha=args.corpus_producer_git_sha,
+    )
     _require(
         stored_token_audit.get("pilot_authorization_content_sha256")
         == (pilot_authorization["content_sha256"] if pilot_authorization is not None else None),
@@ -135,6 +144,8 @@ def main() -> None:
         "development_only": True,
         "formal_training": False,
         "git_sha": protocol["git_sha"],
+        "corpus_producer_git_sha": corpus_producer_git_sha,
+        "consumer_git_sha": protocol["git_sha"],
         "protocol_sha256": protocol["sha256"],
         "input_sha256": input_sha,
         "config": config.to_payload(),

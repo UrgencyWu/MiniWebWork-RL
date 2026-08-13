@@ -22,9 +22,11 @@ from miniwebwork.m6_posttraining_protocol import (
     validate_split_lock,
 )
 from miniwebwork.m6_pilot import (
+    canonical_sft_audit_input_key,
     load_pilot_waiver,
     validate_pilot_authorization,
     validate_pilot_method,
+    validate_sft_corpus_git_compatibility,
 )
 from miniwebwork.m6_power import build_power_report
 from miniwebwork.webshop_rl import prompt
@@ -602,6 +604,36 @@ def test_m6_pilot_waiver_is_exact_and_development_only():
     )
     with pytest.raises(ValueError, match="task count"):
         validate_pilot_authorization(changed)
+
+
+def test_m6_sft_runtime_rebuild_uses_corpus_audit_input_keys():
+    assert canonical_sft_audit_input_key("train.jsonl") == "train"
+    assert canonical_sft_audit_input_key("dev.jsonl") == "dev"
+    assert canonical_sft_audit_input_key("pilot_authorization.json") == "pilot_authorization"
+    with pytest.raises(ValueError, match="filename drift"):
+        canonical_sft_audit_input_key("trainl")
+
+
+def test_m6_sft_corpus_git_bridge_is_explicit_and_fail_closed():
+    producer = "a" * 40
+    consumer = "b" * 40
+    assert validate_sft_corpus_git_compatibility(
+        corpus_producer_git_sha=producer,
+        consumer_git_sha=consumer,
+        explicitly_authorized_producer_git_sha=producer,
+    ) == producer
+    with pytest.raises(ValueError, match="explicitly authorized"):
+        validate_sft_corpus_git_compatibility(
+            corpus_producer_git_sha=producer,
+            consumer_git_sha=consumer,
+            explicitly_authorized_producer_git_sha=None,
+        )
+    with pytest.raises(ValueError, match="explicitly authorized"):
+        validate_sft_corpus_git_compatibility(
+            corpus_producer_git_sha=producer,
+            consumer_git_sha=consumer,
+            explicitly_authorized_producer_git_sha="c" * 40,
+        )
 
 
 def test_m6_dual_methods_share_macro_credit_but_differ_within_trajectory():

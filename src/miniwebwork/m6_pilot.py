@@ -19,11 +19,53 @@ WAIVER_PATH = PROJECT_ROOT / "data" / "m6_mini_pilot_waiver_v1.json"
 WAIVER_SCHEMA = "m6_mini_pilot_waiver_v1"
 AUTHORIZATION_SCHEMA = "m6_mini_pilot_authorization_v1"
 APPROVED_METHODS = ("multi_turn_grpo", "anchor_gigpo")
+SFT_AUDIT_INPUT_FILES = (
+    "corpus.json",
+    "corpus_audit.json",
+    "train.jsonl",
+    "dev.jsonl",
+    "retention.json",
+    "pilot_authorization.json",
+)
 
 
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def canonical_sft_audit_input_key(filename: str) -> str:
+    """Return the exact key used when the M6 corpus token audit was built."""
+
+    _require(filename in SFT_AUDIT_INPUT_FILES, "M6 SFT audit input filename drift")
+    return Path(filename).stem
+
+
+def validate_sft_corpus_git_compatibility(
+    *,
+    corpus_producer_git_sha: Any,
+    consumer_git_sha: str,
+    explicitly_authorized_producer_git_sha: str | None,
+) -> str:
+    """Fail closed when an existing corpus crosses a repair-only Git boundary."""
+
+    producer = str(corpus_producer_git_sha)
+    for value, label in ((producer, "producer"), (consumer_git_sha, "consumer")):
+        _require(
+            len(value) == 40 and all(character in "0123456789abcdef" for character in value),
+            f"M6 SFT corpus {label} Git drift",
+        )
+    if producer != consumer_git_sha:
+        _require(
+            explicitly_authorized_producer_git_sha == producer,
+            "M6 corpus producer/consumer Git compatibility was not explicitly authorized",
+        )
+    elif explicitly_authorized_producer_git_sha is not None:
+        _require(
+            explicitly_authorized_producer_git_sha == producer,
+            "M6 redundant corpus producer Git authorization drift",
+        )
+    return producer
 
 
 def validate_pilot_waiver(payload: Mapping[str, Any]) -> dict[str, Any]:

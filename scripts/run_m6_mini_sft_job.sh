@@ -23,12 +23,13 @@ output="$repo_root/outputs/m6_monotonic_posttraining_v1/mini/sft"
 data_dir="${M6_CORPUS_DIR:-$repo_root/outputs/m6_monotonic_posttraining_v1/mini/corpus}"
 output="${M6_SFT_OUTPUT:-$output}"
 pilot_authorization="${M6_PILOT_AUTHORIZATION:-}"
+corpus_producer_git_sha="${M6_CORPUS_PRODUCER_GIT_SHA:-}"
 mkdir -p "$output"
 
 submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
-    successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_CORPUS_DIR=$data_dir,M6_SFT_OUTPUT=$output,M6_PILOT_AUTHORIZATION=$pilot_authorization" scripts/run_m6_mini_sft_job.sh)"
+    successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_CORPUS_DIR=$data_dir,M6_SFT_OUTPUT=$output,M6_PILOT_AUTHORIZATION=$pilot_authorization,M6_CORPUS_PRODUCER_GIT_SHA=$corpus_producer_git_sha" scripts/run_m6_mini_sft_job.sh)"
     printf '%s\n' "$successor_job_id" > "$output/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
   fi
@@ -42,7 +43,10 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export TOKENIZERS_PARALLELISM=false
 pilot_args=()
 test -z "$pilot_authorization" || pilot_args=(--pilot-authorization "$pilot_authorization")
+producer_args=()
+test -z "$corpus_producer_git_sha" || producer_args=(--corpus-producer-git-sha "$corpus_producer_git_sha")
 "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_sft_train.py \
   --data-dir "$data_dir" \
   --output-dir "$output" \
-  "${pilot_args[@]}"
+  "${pilot_args[@]}" \
+  "${producer_args[@]}"
