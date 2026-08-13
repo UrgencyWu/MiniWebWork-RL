@@ -14,7 +14,10 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.long_horizon_rl.contracts import publish_immutable_json, sha256_json  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol, validate_split_lock  # noqa: E402
-from miniwebwork.m6_pilot import validate_pilot_authorization  # noqa: E402
+from miniwebwork.m6_pilot import (  # noqa: E402
+    load_medium_rl_authorization,
+    validate_pilot_authorization,
+)
 from miniwebwork.webshop_rl.m6_online_training import validate_committed_group  # noqa: E402
 
 
@@ -29,6 +32,7 @@ def main() -> None:
     parser.add_argument("--split-lock", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--pilot-authorization", type=Path)
+    parser.add_argument("--medium-authorization", type=Path)
     args = parser.parse_args()
     protocol = load_protocol()
     split = validate_split_lock(json.loads(args.split_lock.read_text(encoding="utf-8")))
@@ -76,6 +80,14 @@ def main() -> None:
                     "source_group_content_sha256": group["content_sha256"],
                 }
             )
+    minimum = int(protocol["payload"]["mini"]["minimum_mixed_rl_iterations"])
+    maximum = int(protocol["payload"]["mini"]["maximum_rl_iterations"])
+    medium = None
+    if args.medium_authorization is not None:
+        _require(pilot is not None, "M6 medium curriculum requires the pilot authorization")
+        medium = load_medium_rl_authorization(args.medium_authorization)
+        maximum = int(medium["payload"]["shared_controls"]["curriculum_candidate_tasks"])
+        minimum = int(medium["payload"]["shared_controls"]["target_mixed_optimizer_updates"])
     seed = int(protocol["payload"]["split"]["selection_seed"])
     rows.sort(
         key=lambda item: (
@@ -83,8 +95,6 @@ def main() -> None:
             item["task_id"],
         )
     )
-    minimum = int(protocol["payload"]["mini"]["minimum_mixed_rl_iterations"])
-    maximum = int(protocol["payload"]["mini"]["maximum_rl_iterations"])
     _require(len(rows) >= minimum, "M6 Raw K8 has too few informative tasks for five mixed RL iterations")
     rows = rows[:maximum]
     report = {
@@ -98,6 +108,7 @@ def main() -> None:
         "source_producer_git_sha": expected_producer_git,
         "protocol_sha256": protocol["sha256"],
         "pilot_authorization_content_sha256": pilot["content_sha256"] if pilot is not None else None,
+        "medium_authorization_file_sha256": medium["sha256"] if medium is not None else None,
         "source_policy_lineage": source_lineage,
         "source_group_content_sha256": [group["content_sha256"] for group in groups],
         "task_count": len(rows),

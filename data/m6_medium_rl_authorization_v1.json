@@ -1,0 +1,48 @@
+{
+  "schema_version": "m6_medium_rl_authorization_v1",
+  "study_id": "m6_monotonic_posttraining_v1",
+  "scope": "development_only_medium_rl_validation",
+  "decision": "ALLOW_MEDIUM_RL_2_METHODS_X_3_SEEDS",
+  "approved_at": "2026-08-13",
+  "formal_training_allowed": false,
+  "source_mini_decision": "STOP_AND_BURN_MINI_DEV",
+  "reuse_burned_mini_dev_for_evaluation": false,
+  "fresh_evaluation_slice_required": true,
+  "approved_methods": [
+    "multi_turn_grpo",
+    "anchor_gigpo"
+  ],
+  "paired_seeds": [
+    20260812,
+    20260813,
+    20260814
+  ],
+  "shared_controls": {
+    "group_size": 8,
+    "curriculum_candidate_tasks": 32,
+    "maximum_iterations": 32,
+    "target_mixed_optimizer_updates": 20,
+    "generated_action_token_cap_per_run": 50000,
+    "learning_rate": 0.000001,
+    "policy_epochs": 1,
+    "same_sft_adapter": true,
+    "same_curriculum_within_seed_pair": true,
+    "same_action_token_budget": true
+  },
+  "slurm": {
+    "submit_matrix_tasks": 6,
+    "maximum_concurrent_gpu_tasks": 6,
+    "gpus_per_task": 1,
+    "cpus_per_task": 4,
+    "memory_gib_per_task": 24,
+    "wall_time_per_task": "24:00:00",
+    "timeout_recovery": "same_root_successor_only"
+  },
+  "success_rule": {
+    "mean_rl_minus_sft_pp": 3.0,
+    "minimum_positive_seeds": 2,
+    "minimum_bootstrap_positive_fraction": 0.8,
+    "all_credit_update_and_cost_audits_must_pass": true
+  },
+  "rationale": "The five-update mini run verified both credit implementations but was underpowered. This authorization expands only the RL development validation across paired seeds and task coverage; it does not reopen the burned mini-dev or authorize formal training."
+}

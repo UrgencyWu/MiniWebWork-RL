@@ -33,6 +33,11 @@ rl_root="${M6_RL_OUTPUT:-$study_root/mini/pilot_rl/$M6_METHOD}"
 sft_adapter="${M6_SFT_ADAPTER:-$study_root/mini/pilot_sft/final_adapter}"
 curriculum="${M6_CURRICULUM:-$study_root/mini/rl_curriculum_v2.json}"
 curriculum_producer_git_sha="${M6_CURRICULUM_PRODUCER_GIT_SHA:-}"
+medium_authorization="${M6_MEDIUM_AUTHORIZATION:-}"
+run_seed="${M6_RUN_SEED:-20260812}"
+maximum_iterations="${M6_MAXIMUM_ITERATIONS:-12}"
+target_mixed_iterations="${M6_TARGET_MIXED_ITERATIONS:-5}"
+total_action_token_cap="${M6_TOTAL_ACTION_TOKEN_CAP:-50000}"
 learner_microbatch_size="${M6_LEARNER_MICROBATCH_SIZE:-4}"
 replay_parity_calibration="${M6_REPLAY_PARITY_CALIBRATION:-$repo_root/data/m6_mini_replay_parity_calibration_v1.json}"
 sft_gate="${M6_SFT_GATE:-$study_root/mini/pilot_sft_gate.json}"
@@ -57,7 +62,8 @@ submit_timeout_successor() {
   trap - USR1
   if test -n "${SLURM_JOB_ID:-}" && test "${M6_DISABLE_SUCCESSOR:-0}" != "1"; then
     successor_job_id="$("$slurm_bin/sbatch" --parsable --dependency="afterany:${SLURM_JOB_ID}" \
-      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_METHOD=$M6_METHOD,M6_PILOT_AUTHORIZATION=$M6_PILOT_AUTHORIZATION,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock,M6_RL_OUTPUT=$rl_root,M6_SFT_ADAPTER=$sft_adapter,M6_CURRICULUM=$curriculum,M6_CURRICULUM_PRODUCER_GIT_SHA=$curriculum_producer_git_sha,M6_LEARNER_MICROBATCH_SIZE=$learner_microbatch_size,M6_REPLAY_PARITY_CALIBRATION=$replay_parity_calibration,M6_SFT_GATE=$sft_gate,M6_RAW_EVAL_REPORT=$raw_eval_report,M6_SFT_EVAL_REPORT=$sft_eval_report,M6_CORPUS_AUDIT=$corpus_audit" \
+      --cpus-per-task="${SLURM_CPUS_PER_TASK:-4}" --mem="${M6_JOB_MEMORY:-24G}" --gres=gpu:1 --time=24:00:00 \
+      --export="ALL,M6_EXPECTED_GIT_SHA=$M6_EXPECTED_GIT_SHA,M6_METHOD=$M6_METHOD,M6_PILOT_AUTHORIZATION=$M6_PILOT_AUTHORIZATION,M6_MEDIUM_AUTHORIZATION=$medium_authorization,M6_RUN_SEED=$run_seed,M6_MAXIMUM_ITERATIONS=$maximum_iterations,M6_TARGET_MIXED_ITERATIONS=$target_mixed_iterations,M6_TOTAL_ACTION_TOKEN_CAP=$total_action_token_cap,M6_SERVICE_BASE_URL=$base_url,M6_SPLIT_LOCK=$split_lock,M6_RL_OUTPUT=$rl_root,M6_SFT_ADAPTER=$sft_adapter,M6_CURRICULUM=$curriculum,M6_CURRICULUM_PRODUCER_GIT_SHA=$curriculum_producer_git_sha,M6_LEARNER_MICROBATCH_SIZE=$learner_microbatch_size,M6_REPLAY_PARITY_CALIBRATION=$replay_parity_calibration,M6_SFT_GATE=$sft_gate,M6_RAW_EVAL_REPORT=$raw_eval_report,M6_SFT_EVAL_REPORT=$sft_eval_report,M6_CORPUS_AUDIT=$corpus_audit" \
       scripts/run_m6_mini_rl_loop_job.sh)"
     printf '%s\n' "$successor_job_id" > "$rl_root/successor_job_id"
     echo "timeout_successor_job_id=$successor_job_id"
@@ -130,7 +136,62 @@ pilot = validate_pilot_authorization(json.loads(Path(sys.argv[2]).read_text(enco
 if curriculum.get("pilot_authorization_content_sha256") != pilot["content_sha256"]:
     raise ValueError("M6 RL curriculum pilot-authorization binding drift")
 PY
-maximum_iterations=12
+if test -n "$medium_authorization"; then
+  "$python_bin" - "$medium_authorization" "$run_seed" "$maximum_iterations" "$target_mixed_iterations" "$total_action_token_cap" "$curriculum" "$rl_root" "$M6_METHOD" <<'PY'
+import json
+import sys
+from pathlib import Path
+from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_file, sha256_json
+from miniwebwork.m6_pilot import load_medium_rl_authorization
+
+authorization = load_medium_rl_authorization(Path(sys.argv[1]))
+contract = authorization["payload"]
+seed = int(sys.argv[2])
+maximum_iterations = int(sys.argv[3])
+target_updates = int(sys.argv[4])
+token_cap = int(sys.argv[5])
+curriculum = json.loads(Path(sys.argv[6]).read_text(encoding="utf-8"))
+root = Path(sys.argv[7])
+method = sys.argv[8]
+controls = contract["shared_controls"]
+if method not in contract["approved_methods"] or seed not in contract["paired_seeds"]:
+    raise ValueError("M6 medium method/seed is not authorized")
+if maximum_iterations != controls["maximum_iterations"]:
+    raise ValueError("M6 medium maximum-iteration drift")
+if target_updates != controls["target_mixed_optimizer_updates"]:
+    raise ValueError("M6 medium mixed-update target drift")
+if token_cap != controls["generated_action_token_cap_per_run"]:
+    raise ValueError("M6 medium token-budget drift")
+if curriculum.get("task_count") != controls["curriculum_candidate_tasks"]:
+    raise ValueError("M6 medium curriculum size drift")
+if curriculum.get("medium_authorization_file_sha256") != authorization["sha256"]:
+    raise ValueError("M6 medium curriculum authorization binding drift")
+run = {
+    "schema_version": "m6_medium_rl_run_v1",
+    "development_only": True,
+    "formal_training": False,
+    "method": method,
+    "seed": seed,
+    "maximum_iterations": maximum_iterations,
+    "target_mixed_optimizer_updates": target_updates,
+    "generated_action_token_cap": token_cap,
+    "curriculum_content_sha256": curriculum["content_sha256"],
+    "medium_authorization_file_sha256": sha256_file(Path(sys.argv[1])),
+}
+run["content_sha256"] = sha256_json(run)
+destination = root / "medium_run_manifest.json"
+if destination.is_file():
+    if json.loads(destination.read_text(encoding="utf-8")) != run:
+        raise ValueError("M6 recovered medium run contract drift")
+else:
+    atomic_write_json(destination, run)
+PY
+else
+  test "$run_seed" = "20260812"
+  test "$maximum_iterations" = "12"
+  test "$target_mixed_iterations" = "5"
+  test "$total_action_token_cap" = "50000"
+fi
 test "$curriculum_tasks" -ge "$maximum_iterations" || maximum_iterations="$curriculum_tasks"
 
 iteration=0
@@ -152,8 +213,8 @@ while test -f "$rl_root/iteration_${iteration}/collection/collection_report.json
   fi
   iteration=$((iteration + 1))
 done
-while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -lt 5; do
-  remaining_tokens=$((50000 - total_tokens))
+while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -lt "$target_mixed_iterations"; do
+  remaining_tokens=$((total_action_token_cap - total_tokens))
   # A complete K8 attempt is 8 rollouts * 6 turns * 128 tokens = 6,144.
   # The 12,288 per-iteration ceiling leaves room for one infrastructure retry,
   # but the final global-budget slice may safely allow just one full attempt.
@@ -199,13 +260,13 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
       --task-offset "$iteration" --maximum-tasks 1 \
       --max-model-turns 6 --max-environment-steps 6 --maximum-action-tokens "$iteration_token_cap" \
       --concurrent-groups 1 --base-url "$base_url" \
-      --output-dir "$collection_root" --iteration-index "$iteration" --adapter "$input_adapter"
+      --output-dir "$collection_root" --iteration-index "$iteration" --seed "$run_seed" --adapter "$input_adapter"
     collection_mixed="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["mixed_strict_reward_group_count"])' "$collection_root/collection_report.json")"
   fi
 
   tokens="$($python_bin -c 'import json,sys; print(json.load(open(sys.argv[1]))["all_attempt_generated_action_tokens"])' "$collection_root/collection_report.json")"
   total_tokens=$((total_tokens + tokens))
-  if test "$total_tokens" -gt 50000; then
+  if test "$total_tokens" -gt "$total_action_token_cap"; then
     echo "M6 cumulative RL token cap exceeded" >&2
     exit 2
   fi
@@ -223,7 +284,7 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
       --input-adapter "$input_adapter" --input-adapter-semantic-sha256 "$input_semantic" \
       --reference-sft-adapter "$sft_adapter" --reference-sft-adapter-semantic-sha256 "$reference_sft_semantic" \
       --replay-parity-calibration "$replay_parity_calibration" --output-dir "$learner_root" \
-      --iteration-index "$mixed_iterations" --seed 20260812 --method "$M6_METHOD" \
+      --iteration-index "$mixed_iterations" --seed "$run_seed" --method "$M6_METHOD" \
       --pilot-authorization "$M6_PILOT_AUTHORIZATION" --microbatch-size "$learner_microbatch_size" \
       "${optimizer_args[@]}"
   fi
@@ -233,7 +294,7 @@ while test "$iteration" -lt "$maximum_iterations" && test "$mixed_iterations" -l
   latest_learner_report="$iteration_report"
   iteration=$((iteration + 1))
 done
-test "$mixed_iterations" -ge 5
+test "$mixed_iterations" -ge "$target_mixed_iterations"
 
 audit_args=()
 collection_args=()

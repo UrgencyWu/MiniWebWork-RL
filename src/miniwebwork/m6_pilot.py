@@ -20,9 +20,11 @@ WAIVER_PATH = PROJECT_ROOT / "data" / "m6_mini_pilot_waiver_v1.json"
 REPLAY_PARITY_CALIBRATION_PATH = (
     PROJECT_ROOT / "data" / "m6_mini_replay_parity_calibration_v1.json"
 )
+MEDIUM_AUTHORIZATION_PATH = PROJECT_ROOT / "data" / "m6_medium_rl_authorization_v1.json"
 WAIVER_SCHEMA = "m6_mini_pilot_waiver_v1"
 AUTHORIZATION_SCHEMA = "m6_mini_pilot_authorization_v1"
 REPLAY_PARITY_CALIBRATION_SCHEMA = "m6_mini_replay_parity_calibration_v1"
+MEDIUM_AUTHORIZATION_SCHEMA = "m6_medium_rl_authorization_v1"
 APPROVED_METHODS = ("multi_turn_grpo", "anchor_gigpo")
 SFT_AUDIT_INPUT_FILES = (
     "corpus.json",
@@ -37,6 +39,80 @@ SFT_AUDIT_INPUT_FILES = (
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def validate_medium_rl_authorization(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the user-approved development-only 2-method x 3-seed expansion."""
+
+    value = dict(payload)
+    _require(value.get("schema_version") == MEDIUM_AUTHORIZATION_SCHEMA, "M6 medium authorization schema drift")
+    _require(value.get("study_id") == "m6_monotonic_posttraining_v1", "M6 medium study drift")
+    _require(
+        value.get("scope") == "development_only_medium_rl_validation"
+        and value.get("decision") == "ALLOW_MEDIUM_RL_2_METHODS_X_3_SEEDS",
+        "M6 medium authorization decision drift",
+    )
+    _require(value.get("formal_training_allowed") is False, "M6 medium run cannot authorize formal training")
+    _require(value.get("source_mini_decision") == "STOP_AND_BURN_MINI_DEV", "M6 medium source decision drift")
+    _require(
+        value.get("reuse_burned_mini_dev_for_evaluation") is False
+        and value.get("fresh_evaluation_slice_required") is True,
+        "M6 medium evaluation isolation drift",
+    )
+    _require(tuple(value.get("approved_methods", ())) == APPROVED_METHODS, "M6 medium method roster drift")
+    _require(value.get("paired_seeds") == [20260812, 20260813, 20260814], "M6 medium seed roster drift")
+    _require(
+        value.get("shared_controls")
+        == {
+            "group_size": 8,
+            "curriculum_candidate_tasks": 32,
+            "maximum_iterations": 32,
+            "target_mixed_optimizer_updates": 20,
+            "generated_action_token_cap_per_run": 50000,
+            "learning_rate": 0.000001,
+            "policy_epochs": 1,
+            "same_sft_adapter": True,
+            "same_curriculum_within_seed_pair": True,
+            "same_action_token_budget": True,
+        },
+        "M6 medium shared controls drift",
+    )
+    _require(
+        value.get("slurm")
+        == {
+            "submit_matrix_tasks": 6,
+            "maximum_concurrent_gpu_tasks": 6,
+            "gpus_per_task": 1,
+            "cpus_per_task": 4,
+            "memory_gib_per_task": 24,
+            "wall_time_per_task": "24:00:00",
+            "timeout_recovery": "same_root_successor_only",
+        },
+        "M6 medium Slurm contract drift",
+    )
+    success = value.get("success_rule")
+    _require(
+        success
+        == {
+            "mean_rl_minus_sft_pp": 3.0,
+            "minimum_positive_seeds": 2,
+            "minimum_bootstrap_positive_fraction": 0.8,
+            "all_credit_update_and_cost_audits_must_pass": True,
+        },
+        "M6 medium success rule drift",
+    )
+    return value
+
+
+def load_medium_rl_authorization(path: Path = MEDIUM_AUTHORIZATION_PATH) -> dict[str, Any]:
+    resolved = Path(path).expanduser().resolve()
+    payload = json.loads(resolved.read_text(encoding="utf-8"))
+    _require(isinstance(payload, Mapping), "M6 medium authorization root must be an object")
+    return {
+        "path": str(resolved),
+        "sha256": sha256_file(resolved),
+        "payload": validate_medium_rl_authorization(payload),
+    }
 
 
 def canonical_sft_audit_input_key(filename: str) -> str:

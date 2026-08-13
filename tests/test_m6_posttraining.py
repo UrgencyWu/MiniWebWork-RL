@@ -24,11 +24,13 @@ from miniwebwork.m6_posttraining_protocol import (
 )
 from miniwebwork.m6_pilot import (
     canonical_sft_audit_input_key,
+    load_medium_rl_authorization,
     load_pilot_waiver,
     validate_artifact_git_compatibility,
     validate_pilot_authorization,
     validate_pilot_method,
     validate_pilot_replay_parity_calibration,
+    validate_medium_rl_authorization,
     validate_sft_corpus_git_compatibility,
 )
 from miniwebwork.m6_power import build_power_report
@@ -107,6 +109,19 @@ def test_m6_protocol_rejects_training_recipe_drift():
 
     with pytest.raises(ValueError, match="LoRA contract drift"):
         validate_protocol(changed)
+
+
+def test_m6_medium_authorization_freezes_paired_seed_budget_and_is_not_formal():
+    authorization = load_medium_rl_authorization()["payload"]
+    assert validate_medium_rl_authorization(authorization) == authorization
+    assert authorization["formal_training_allowed"] is False
+    assert authorization["paired_seeds"] == [20260812, 20260813, 20260814]
+    assert authorization["shared_controls"]["target_mixed_optimizer_updates"] == 20
+    assert authorization["slurm"]["maximum_concurrent_gpu_tasks"] == 6
+    changed = copy.deepcopy(authorization)
+    changed["shared_controls"]["generated_action_token_cap_per_run"] = 50001
+    with pytest.raises(ValueError, match="shared controls"):
+        validate_medium_rl_authorization(changed)
 
 
 def test_m6_cpu_artifact_tools_do_not_require_torch_at_import_time():

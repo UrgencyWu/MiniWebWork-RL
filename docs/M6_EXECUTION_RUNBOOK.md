@@ -9,6 +9,34 @@
 > [`TRAINING_FAILURE_LEDGER.md`](TRAINING_FAILURE_LEDGER.md)。当前 mini-dev 已 burn，本文保留为
 > 冻结执行记录，不得据此在原 slice 继续调参。
 
+## M6.2：中等规模、多 seed RL 验证
+
+M6.1 证明两个 learner 都能产生真实更新，但每方法只有 5 个 task/40 条轨迹/5 次
+optimizer update，无法区分算法效应与 seed 方差。用户批准的 M6.2 仍属于
+development-only 验证，不改变 `formal_submission_allowed=false`，也不得复用已经 burn 的
+M6.1 mini-dev 做效果选择。
+
+冻结矩阵：
+
+```text
+methods = {multi_turn_grpo, anchor_gigpo}
+paired seeds = {20260812, 20260813, 20260814}
+curriculum candidates per run = 32
+target mixed optimizer updates per run = 20
+K = 8
+generated action-token cap per run = 50,000
+Slurm = 6 array tasks, each 1 GPU / 4 CPU / 24 GiB / 24h
+```
+
+同一 seed 的两个方法共享 SFT adapter、curriculum、预算、学习率和 policy epoch。六个任务
+可同时进入调度；当前节点有 8 张空闲 GPU 时并发上限为 6，资源变少则由 Slurm 排队，不能
+通过提高 CPU 请求抢占资源。只有 `USR1` 超时允许相同输出根、相同 method/seed/budget 的
+successor；确定性失败停止并写入 `TRAINING_FAILURE_LEDGER.md`。
+
+训练完成后必须在新的 tuning-dev/promotion slice 上评测。M6.1 mini-dev 只保留历史结果，
+不得挑选 M6.2 checkpoint。晋级要求：平均 RL-SFT 至少 +3 pp、至少 2/3 seeds 为正、
+bootstrap 正方向比例至少 0.8，且信用、更新、成本和失败类型门禁全部通过。
+
 ## M6.1：批准继续的 156-task 开发验证
 
 原始 M6 门槛仍是 160 个 replay-verified task，不回写、不降低。两个冻结 Raw K8
