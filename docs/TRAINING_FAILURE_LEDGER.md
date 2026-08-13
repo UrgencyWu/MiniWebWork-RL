@@ -44,6 +44,7 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2236_5 | M6.2 Anchor-GiGPO seed 20260814 | FAILED 1:0；16/20 更新后停止 | 第 17 个 collection 的 HF replay P95 `0.08182 > 0.08`；其余检查通过 | 同上 | 已完成的 16 个更新保留；被拒组不产生梯度 |
 | 2242_[0,2,3,5] | M6.2 recovery submission | FAILED 1:0；均在 0–1 秒退出 | 重提时未显式传入版本化 `pilot_sft_gate_v3.json` 与 `pilot_sft_eval_v2/identity_report.json`，默认路径不存在；日志为空且 learner 未启动 | 保留原检查点；补齐两项环境绑定后重提同根恢复作业 | 基础设施失败；无新增采样、梯度或参数更新，不进入算法结果 |
 | 2246_[0,2,3,5] | M6.2 recovery submission r2 | FAILED 1:0；均在 1–2 秒退出 | 虽补齐文件路径，但 v3 gate 绑定的是 Job 2206 同协议重建报告，而重提错误引用了后来分别生成的 Raw/SFT identity；入口正确拒绝 `Raw evaluation binding drift` | 从不可变的原 Raw/SFT K4 collections 在同一当前代码上重建一对 identity/binding，生成版本化 v4 gate 后再同根续跑 | 门禁基础设施失败；无新增采样、梯度或参数更新，不进入算法结果 |
+| 2251_[0,2,3,5] | M6.2 recovery submission r3 | FAILED 1:0；均在约 30 秒退出 | 修复逻辑已将原 parity 失败组结构化记录为零更新 skip，随后采集下一 curriculum task 时，提交参数错误地把上游 Raw K8 group producer `acd23e5…` 作为 curriculum producer；curriculum 文件自身的 producer 是 `e0c7bc6…`，显式兼容门正确拒绝 | 保留新 parity rejection/skip 证据与原 learner checkpoints；以 curriculum `git_sha=e0c7bc6…` 作为 roster producer bridge 同根重提 | 恢复配置失败；拒绝组不产生梯度，新 collection 未开始，不进入算法结果 |
 
 ## 3. M6 成功替代链
 
