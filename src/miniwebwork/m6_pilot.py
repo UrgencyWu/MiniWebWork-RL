@@ -444,6 +444,7 @@ def validate_pilot_replay_parity_calibration(
             "alpha": 0.01,
             "maximum_token_count": 999,
             "p99_threshold_exceedance_null_rate": 0.01,
+            "p999_threshold_exceedance_null_rate": 0.001,
             "initial_ratio_clip_null_rate": 0.005,
         },
         "M6 replay calibration finite-sample rule drift",

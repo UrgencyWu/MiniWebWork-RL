@@ -843,6 +843,7 @@ def _replay_calibration_payload() -> dict:
             "alpha": 0.01,
             "maximum_token_count": 999,
             "p99_threshold_exceedance_null_rate": 0.01,
+            "p999_threshold_exceedance_null_rate": 0.001,
             "initial_ratio_clip_null_rate": 0.005,
         },
     }
@@ -934,10 +935,33 @@ def test_m6_small_group_tail_rule_uses_exact_counts_without_relaxing_magnitude_g
     assert enriched["p99_threshold_exceedance_binomial_p_value"] > 0.01
     assert enriched["initial_ratio_clip_binomial_p_value"] > 0.01
 
-    changed = dict(enriched)
-    changed["p999_absolute_logprob_difference"] = 0.51
+    assert enriched["p999_threshold_exceedance_count"] == 0
+
+    one_p999_outlier = dict(enriched)
+    one_p999_outlier.update(
+        {
+            "p999_absolute_logprob_difference": 0.61,
+            "p999_threshold_exceedance_count": 1,
+            "p999_threshold_exceedance_fraction": 1 / 475,
+            "p999_threshold_exceedance_binomial_p_value": 1 - 0.999**475,
+        }
+    )
     assert replay_parity_checks(
-        changed,
+        one_p999_outlier,
+        contract=effective,
+        finite_sample_tail_rule=rule,
+    )["p999_absolute_difference"] is True
+
+    too_many_p999_outliers = dict(one_p999_outlier)
+    too_many_p999_outliers.update(
+        {
+            "p999_threshold_exceedance_count": 4,
+            "p999_threshold_exceedance_fraction": 4 / 475,
+            "p999_threshold_exceedance_binomial_p_value": 0.001,
+        }
+    )
+    assert replay_parity_checks(
+        too_many_p999_outliers,
         contract=effective,
         finite_sample_tail_rule=rule,
     )["p999_absolute_difference"] is False

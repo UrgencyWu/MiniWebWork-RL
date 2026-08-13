@@ -72,7 +72,8 @@
     "alpha": 0.01,
     "maximum_token_count": 999,
     "p99_threshold_exceedance_null_rate": 0.01,
+    "p999_threshold_exceedance_null_rate": 0.001,
     "initial_ratio_clip_null_rate": 0.005
   },
-  "content_sha256": "6149eadd435b6061de4b4945116a1e685b36ec5a77f2e1017aa14955ca6add59"
+  "content_sha256": "2ff4efa3975cedeac75b8163530cef675334d6cb4f0f2f444fb474c37793cc10"
 }

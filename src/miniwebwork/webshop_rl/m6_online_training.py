@@ -482,6 +482,7 @@ def replay_parity_checks(
                 "alpha": 0.01,
                 "maximum_token_count": 999,
                 "p99_threshold_exceedance_null_rate": 0.01,
+                "p999_threshold_exceedance_null_rate": 0.001,
                 "initial_ratio_clip_null_rate": 0.005,
             },
             "M6 finite-sample replay rule drift",
@@ -499,20 +500,40 @@ def replay_parity_checks(
                 ),
                 "M6 finite-sample replay evidence drift",
             )
+            _require(
+                math.isclose(
+                    float(parity.get("p999_threshold_for_exceedance_count", math.nan)),
+                    float(contract["replay_p999_absolute_difference"]),
+                    abs_tol=1e-12,
+                ),
+                "M6 finite-sample P99.9 replay evidence drift",
+            )
             p99_passed = p99_passed or float(
                 parity["p99_threshold_exceedance_binomial_p_value"]
+            ) >= float(rule["alpha"])
+            p999_passed = float(
+                parity["p999_absolute_logprob_difference"]
+            ) <= float(contract["replay_p999_absolute_difference"]) or float(
+                parity["p999_threshold_exceedance_binomial_p_value"]
             ) >= float(rule["alpha"])
             clip_passed = clip_passed or float(
                 parity["initial_ratio_clip_binomial_p_value"]
             ) >= float(rule["alpha"])
+        else:
+            p999_passed = float(
+                parity["p999_absolute_logprob_difference"]
+            ) <= float(contract["replay_p999_absolute_difference"])
+    else:
+        p999_passed = float(parity["p999_absolute_logprob_difference"]) <= float(
+            contract["replay_p999_absolute_difference"]
+        )
     checks = {
         "mean_absolute_difference": float(parity["mean_absolute_logprob_difference"])
         <= float(contract["replay_mean_absolute_difference"]),
         "p95_absolute_difference": float(parity["p95_absolute_logprob_difference"])
         <= float(contract["replay_p95_absolute_difference"]),
         "p99_absolute_difference": p99_passed,
-        "p999_absolute_difference": float(parity["p999_absolute_logprob_difference"])
-        <= float(contract["replay_p999_absolute_difference"]),
+        "p999_absolute_difference": p999_passed,
         "initial_ratio_clip_fraction": clip_passed,
         "mean_importance_ratio": abs(float(parity["mean_importance_ratio"]) - 1.0)
         <= float(contract["mean_importance_ratio_absolute_deviation"]),
@@ -569,6 +590,11 @@ def add_finite_sample_replay_evidence(
         abs(float(left) - float(right)) > threshold
         for left, right in zip(behavior_logprobs, replay_logprobs)
     )
+    p999_threshold = float(contract["replay_p999_absolute_difference"])
+    p999_count = sum(
+        abs(float(left) - float(right)) > p999_threshold
+        for left, right in zip(behavior_logprobs, replay_logprobs)
+    )
     clip_count = int(value["initial_ratio_clip_count"])
     value.update(
         {
@@ -581,6 +607,14 @@ def add_finite_sample_replay_evidence(
                 p99_count,
                 token_count,
                 float(rule["p99_threshold_exceedance_null_rate"]),
+            ),
+            "p999_threshold_for_exceedance_count": p999_threshold,
+            "p999_threshold_exceedance_count": p999_count,
+            "p999_threshold_exceedance_fraction": p999_count / token_count,
+            "p999_threshold_exceedance_binomial_p_value": _one_sided_binomial_survival(
+                p999_count,
+                token_count,
+                float(rule["p999_threshold_exceedance_null_rate"]),
             ),
             "initial_ratio_clip_binomial_p_value": _one_sided_binomial_survival(
                 clip_count,
@@ -1022,6 +1056,7 @@ def validate_learner_report(
             "alpha": 0.01,
             "maximum_token_count": 999,
             "p99_threshold_exceedance_null_rate": 0.01,
+            "p999_threshold_exceedance_null_rate": 0.001,
             "initial_ratio_clip_null_rate": 0.005,
         },
         "M6 learner finite-sample replay rule drift",
