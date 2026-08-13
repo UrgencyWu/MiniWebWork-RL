@@ -43,6 +43,7 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2236_3 | M6.2 Anchor-GiGPO seed 20260813 | FAILED 1:0；15/20 更新后停止 | 第 17 个 collection 的 HF replay P95 `0.08356 > 0.08`；其余检查通过 | 同上 | 已完成的 15 个更新保留；被拒组不产生梯度 |
 | 2236_5 | M6.2 Anchor-GiGPO seed 20260814 | FAILED 1:0；16/20 更新后停止 | 第 17 个 collection 的 HF replay P95 `0.08182 > 0.08`；其余检查通过 | 同上 | 已完成的 16 个更新保留；被拒组不产生梯度 |
 | 2242_[0,2,3,5] | M6.2 recovery submission | FAILED 1:0；均在 0–1 秒退出 | 重提时未显式传入版本化 `pilot_sft_gate_v3.json` 与 `pilot_sft_eval_v2/identity_report.json`，默认路径不存在；日志为空且 learner 未启动 | 保留原检查点；补齐两项环境绑定后重提同根恢复作业 | 基础设施失败；无新增采样、梯度或参数更新，不进入算法结果 |
+| 2246_[0,2,3,5] | M6.2 recovery submission r2 | FAILED 1:0；均在 1–2 秒退出 | 虽补齐文件路径，但 v3 gate 绑定的是 Job 2206 同协议重建报告，而重提错误引用了后来分别生成的 Raw/SFT identity；入口正确拒绝 `Raw evaluation binding drift` | 从不可变的原 Raw/SFT K4 collections 在同一当前代码上重建一对 identity/binding，生成版本化 v4 gate 后再同根续跑 | 门禁基础设施失败；无新增采样、梯度或参数更新，不进入算法结果 |
 
 ## 3. M6 成功替代链
 
