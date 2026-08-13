@@ -1,9 +1,13 @@
 # M6 最小 Raw → SFT → RL 执行手册
 
-> 状态：Phase A/B 可执行；正式 Phase C–F 未授权
+> 状态：M6.1 Phase A/B 已执行并在 SFT→RL 晋级门停止；正式 Phase C–F 未授权
 >
 > 所有 GPU 作业为 24 小时 allocation；只有 Slurm `USR1` 超时边界可提交同根 successor。
 > 确定性失败不自动重试。正式作业提交后只确认一次 job ID，不自动轮询。
+>
+> 最终结果与失败记录：[`M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md`](M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md)、
+> [`TRAINING_FAILURE_LEDGER.md`](TRAINING_FAILURE_LEDGER.md)。当前 mini-dev 已 burn，本文保留为
+> 冻结执行记录，不得据此在原 slice 继续调参。
 
 ## M6.1：批准继续的 156-task 开发验证
 

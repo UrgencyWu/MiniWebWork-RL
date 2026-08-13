@@ -1,11 +1,12 @@
 # MiniWebWork-RL 当前实现状态
 
-> 权威状态页。最后更新：2026-08-12。
+> 权威状态页。最后更新：2026-08-13。
 
 ## 项目定位
 
-当前方向是公开 WebShop benchmark 上的文本 Agent 后训练研究。M6 已实现
-Raw → SFT → RL 的真实 strict-success 单调提升；原确定性采购
+当前方向是公开 WebShop benchmark 上的文本 Agent 后训练研究。M6 已实现并完成
+development-only Raw → SFT → RL 最小链；SFT 超过 Raw，但 RL 未继续超过 SFT。
+原确定性采购
 网站实现保留为基础设施与失败诊断，不再承担 M5 正式效果结论。
 
 ```text
@@ -15,7 +16,8 @@ Task → Browser Environment → Qwen Policy → Multi-turn Rollout
 
 ## M6 当前状态
 
-M6 状态为 `implementation_ready_for_phase_a_b_only`，尚未授权或提交正式训练。实现针对 M5 负迁移做三项核心修复：
+M6.1 development-only mini chain 已完成，最终状态为
+`STOP_AND_BURN_MINI_DEV`；没有授权全量正式训练。实现针对 M5 负迁移做三项核心修复：
 
 1. SFT 从 Raw policy 在公开 observation 下产生的 strict-success/recovery 轨迹蒸馏，禁止
    hidden-title 和 target-ASIN 标签；
@@ -23,20 +25,21 @@ M6 状态为 `implementation_ready_for_phase_a_b_only`，尚未授权或提交�
 3. RL 用 strict binary terminal reward 做 GRPO macro credit，并用 verifier progress 的
    telescoping TD 差分提供 turn credit，避免继续奖励 partial-match purchase。
 
-M6 在全量训练前新增一条 development-only 最小链：256-task mini-train、200-task 隔离
-mini-dev，顺序验证 `Raw < mini-SFT < mini-RL`。两个相邻增量均达到至少 3 pp 且行为、
-信用分配和真实更新门禁通过后，才允许从 Raw 重新开始全量正式训练；mini checkpoint 不得
-直接续训或包装为正式结果。
+M6 在全量训练前运行了一条 development-only 最小链：256-task mini-train、200-task
+隔离 mini-dev，顺序验证 `Raw < mini-SFT < mini-RL`。Raw、SFT、GRPO 和
+Anchor-GiGPO 在相同 200 tasks × K4 上的 strict success 分别为 35.750%、
+41.625%、41.375% 和 41.375%。SFT-Raw 为 +5.875 pp；两个 RL-SFT 都是
+-0.250 pp，task-cluster bootstrap 95% CI 均为 `[-1.25, +0.75] pp`，exact
+McNemar `p=0.8145`。所以结果是“没有检测到 RL 净提升”，而不是已经证明 RL 显著伤害
+SFT。
 
-M6 将从原 eligible train 区域冻结新的 dev 与 untouched holdout，不复用已经打开的 M5
-test 做调参。完整方案见
-[`M6_MONOTONIC_POSTTRAINING_PLAN.md`](M6_MONOTONIC_POSTTRAINING_PLAN.md)。
-
-Phase A/B 代码现已覆盖 exposure/power/split、Raw K8/K4 采样、独立 success replay、
-policy-visible corpus、Raw retention SFT、K8 strict-GRPO verifier-TD、相邻阶段闭环门禁和
-24h same-root recovery。当前下一步是先在集群运行 Phase A0 和 development-only mini chain；
-协议中的 `formal_submission_allowed=false` 保持不变。执行手册见
-[`M6_EXECUTION_RUNBOOK.md`](M6_EXECUTION_RUNBOOK.md)。
+两个 learner 都通过 finite loss/gradient、5 次有效更新、真实 adapter 参数变化和信用覆盖
+审计，但每个方法只在 5 个 task、40 条轨迹和约 2.3k action tokens 上训练，效应不足且
+不稳定。Corpus 的 493 条轨迹、31,362 label tokens 等检查通过，但唯一成功 task 为
+156，低于冻结门槛 160；development-only waiver 不改变正式失败状态。当前 mini-dev 已
+burn，禁止在其上继续调参。完整结果与原因见
+[`M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md`](M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md)，逐作业失败与
+修复见 [`TRAINING_FAILURE_LEDGER.md`](TRAINING_FAILURE_LEDGER.md)。
 
 ## M5 当前状态
 
@@ -65,8 +68,10 @@ M1–M4 状态均为历史证据。
 
 | 阶段 | 状态 |
 |---|---|
-| M6 Phase A/B implementation | READY / local focused tests passed / cluster smoke pending |
-| M6 mini Raw→SFT→RL gate | NOT RUN |
+| M6 Phase A/B implementation | COMPLETE / cluster chain exercised |
+| M6 mini Raw→SFT gate | PASS / +5.875 pp |
+| M6 mini SFT→RL gate | STOP / both methods -0.250 pp; not significant; promotion threshold missed |
+| M6 formal expansion | NOT AUTHORIZED / current mini-dev burned |
 | M5 verified SFT | COMPLETE / negative closed-loop transfer identified |
 | M5 online RL（2 methods × 3 seeds） | COMPLETE |
 | M5 frozen test（8 identities × 500 tasks × K4） | COMPLETE |
@@ -85,6 +90,14 @@ M1–M4 状态均为历史证据。
 | M3.0C frozen paired comparison | COMPLETE / no improvement supported |
 
 ```text
+M6_MINI_RAW_SUCCESS=286/800
+M6_MINI_SFT_SUCCESS=333/800
+M6_MINI_GRPO_SUCCESS=331/800
+M6_MINI_ANCHOR_GIGPO_SUCCESS=331/800
+M6_MINI_SFT_GATE=PASS
+M6_MINI_RL_GATE=STOP
+M6_MINI_DEV_BURNED=true
+M6_FORMAL_EXPANSION_ALLOWED=false
 M2_3_MINI_CANONICAL_PROBE_PASS=true
 SCHEMA_V3_3_ROLLOUT_IMPLEMENTED=true
 PAIRED_AB_ANALYSIS_IMPLEMENTED=true

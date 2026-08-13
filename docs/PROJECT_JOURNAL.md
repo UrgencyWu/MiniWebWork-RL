@@ -230,7 +230,25 @@ Next:
 4. verify token/logprob evidence completeness;
 5. only then start M3.0B single-batch GRPO smoke.
 
-## 12. Durable Lessons
+## 12. 2026-08-13 M6-mini Raw → SFT → RL Result
+
+M6.1 completed a development-only 200-task × K4 paired chain. Strict success was
+Raw 35.750%, SFT 41.625%, multi-turn GRPO 41.375%, and Anchor-GiGPO 41.375%.
+The new success-replay SFT therefore repaired M5's catastrophic SFT negative transfer,
+but neither RL method exceeded the shared SFT.
+
+Both RL learners passed finite loss/gradient, five effective optimizer updates, real
+adapter parameter change, mixed-reward and credit-coverage audits. Each method nevertheless
+trained on only five tasks and 40 trajectories. The paired RL-SFT point estimate was
+-0.250 pp with 95% CI [-1.25, +0.75] pp and exact McNemar p=0.8145. The result is
+insufficient evidence of improvement, not proof of systematic degradation.
+
+The chain stopped under the frozen rule `STOP_AND_BURN_MINI_DEV`. Formal expansion was
+not authorized. Detailed results are in `M6_MINI_RESULT_AND_FAILURE_ANALYSIS.md`; every
+failed, cancelled or rejected M6 job and its successor is recorded in
+`TRAINING_FAILURE_LEDGER.md`.
+
+## 13. Durable Lessons
 
 1. Prompt/observation contracts are part of the model, not peripheral formatting.
 2. Teacher-forced action accuracy and closed-loop task success measure different capabilities.
@@ -240,5 +258,9 @@ Next:
 6. Successful expert trajectories alone do not cover recovery states.
 7. Raw policy log-probabilities must be aligned to exact prompt/completion tokens.
 8. A small project benefits from one authoritative path more than many partially overlapping scripts.
+9. A successful SFT data contract can matter more than changing the online RL credit formula.
+10. Real gradients and parameter changes prove implementation, not policy improvement.
+11. Paired win/loss flips and uncertainty must accompany point success rates.
+12. A burned development slice cannot be reused to select the next checkpoint.
 
-*Last updated: 2026-07-31*
+*Last updated: 2026-08-13*
