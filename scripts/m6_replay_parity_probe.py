@@ -26,7 +26,7 @@ from miniwebwork.long_horizon_rl.learner import (  # noqa: E402
 )
 from miniwebwork.m6_posttraining_protocol import load_protocol  # noqa: E402
 from miniwebwork.webshop_rl.m6_online_training import (  # noqa: E402
-    prepare_group_training_examples,
+    M6TurnTrainingExample,
     replay_parity_checks,
     validate_committed_group,
 )
@@ -47,6 +47,8 @@ def main() -> None:
     parser.add_argument("--input-adapter-semantic-sha256", required=True)
     parser.add_argument("--base-model", type=Path, default=Path("/data/share/model/Qwen3.5-4B"))
     parser.add_argument("--method", choices=METHODS, required=True)
+    parser.add_argument("--expected-k", type=int, choices=(4, 8), default=8)
+    parser.add_argument("--maximum-groups", type=int)
     parser.add_argument("--microbatch-sizes", type=int, nargs="+", default=[1, 2, 4, 8])
     parser.add_argument("--logprob-precisions", choices=("float32", "model"), nargs="+", default=["float32"])
     parser.add_argument("--output", type=Path, required=True)
@@ -64,9 +66,13 @@ def main() -> None:
     _require(collection.get("git_sha") == args.collection_producer_git_sha, "M6 parity probe producer Git drift")
     _require(collection.get("complete") is True and collection.get("mode") == "rl_collection", "M6 parity probe collection drift")
 
+    group_paths = sorted(args.groups_dir.glob("g*.json"))
+    if args.maximum_groups is not None:
+        _require(args.maximum_groups > 0, "invalid parity-probe group limit")
+        group_paths = group_paths[: args.maximum_groups]
     groups = [
-        validate_committed_group(json.loads(path.read_text(encoding="utf-8")), require_k=8)
-        for path in sorted(args.groups_dir.glob("g*.json"))
+        validate_committed_group(json.loads(path.read_text(encoding="utf-8")), require_k=args.expected_k)
+        for path in group_paths
     ]
     _require(
         groups and collection.get("group_content_sha256") == [item["content_sha256"] for item in groups],
@@ -79,13 +85,39 @@ def main() -> None:
         "M6 parity probe adapter semantic drift",
     )
 
-    prepared = [prepare_group_training_examples(group, method=args.method) for group in groups]
-    examples = tuple(
-        sorted(
-            (example for item in prepared for example in item["examples"]),
-            key=lambda example: (example.forward_tokens, example.trajectory_index, example.turn_index),
+    examples_by_group = []
+    for group in groups:
+        group_examples = []
+        for trajectory_index, trajectory in enumerate(group["trajectories"]):
+            turns = trajectory["turns"]
+            for turn in turns:
+                group_examples.append(
+                    M6TurnTrainingExample(
+                        group_id=group["group_id"],
+                        trajectory_id=trajectory["trajectory_id"],
+                        trajectory_index=trajectory_index,
+                        turn_index=turn["turn_index"],
+                        turns_in_trajectory=len(turns),
+                        prompt_token_ids=tuple(turn["prompt_token_ids"]),
+                        generated_token_ids=tuple(turn["generated_token_ids"]),
+                        behavior_logprobs=tuple(turn["behavior_logprobs"]),
+                        sampling_logprobs=tuple(turn["sampling_logprobs"]),
+                        advantage=0.0,
+                    )
+                )
+        examples_by_group.append(
+            tuple(
+                sorted(
+                    group_examples,
+                    key=lambda example: (
+                        example.forward_tokens,
+                        example.trajectory_index,
+                        example.turn_index,
+                    ),
+                )
+            )
         )
-    )
+    examples = tuple(example for group_examples in examples_by_group for example in group_examples)
     behavior = [value for example in examples for value in example.behavior_logprobs]
     token_metadata = [
         {
@@ -106,14 +138,18 @@ def main() -> None:
     results = []
     for logprob_precision in args.logprob_precisions:
         for microbatch_size in args.microbatch_sizes:
-            replay = replay_examples(
-                model=model,
-                examples=examples,
-                pad_token_id=tokenizer.pad_token_id,
-                microbatch_size=microbatch_size,
-                device=torch.device("cuda:0"),
-                logprob_precision=logprob_precision,
-            )
+            replay = []
+            for group_examples in examples_by_group:
+                replay.extend(
+                    replay_examples(
+                        model=model,
+                        examples=group_examples,
+                        pad_token_id=tokenizer.pad_token_id,
+                        microbatch_size=microbatch_size,
+                        device=torch.device("cuda:0"),
+                        logprob_precision=logprob_precision,
+                    )
+                )
             parity = summarize_logprob_parity(behavior, replay)
             checks = replay_parity_checks(parity, contract=thresholds)
             ranked = sorted(
@@ -162,6 +198,8 @@ def main() -> None:
         "input_adapter_sha256": adapter_sha256,
         "input_adapter_semantic_sha256": args.input_adapter_semantic_sha256,
         "method": args.method,
+        "expected_K": args.expected_k,
+        "group_count": len(groups),
         "token_count": len(behavior),
         "thresholds": thresholds,
         "results": results,
