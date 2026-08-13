@@ -95,3 +95,13 @@ def test_gpu_probe_captures_policy_parameters_before_frozen_reference_load():
     capture = source.index("parameters = [parameter for parameter in model.parameters()")
     reference = source.index("model.load_adapter(str(adapter), adapter_name=REFERENCE_ADAPTER_NAME")
     assert capture < reference
+
+
+def test_gpu_probe_does_not_delete_returned_gradient_vector():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "m6_phase1_gpu_probe.py"
+    ).read_text(encoding="utf-8")
+    assert "del model, tokenizer, parameters, vector" not in source
+    assert "return vector, norm, loss_value" in source

@@ -114,7 +114,7 @@ def main() -> None:
             loss_value += float(result["loss"].detach().cpu())
         vector = _flatten_gradients(parameters, torch).cpu()
         norm = float(torch.linalg.vector_norm(vector))
-        del model, tokenizer, parameters, vector
+        del model, tokenizer, parameters
         torch.cuda.empty_cache()
         return vector, norm, loss_value
 
