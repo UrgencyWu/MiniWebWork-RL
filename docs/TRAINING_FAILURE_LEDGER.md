@@ -15,6 +15,10 @@ M5 的历史训练、恢复和最终失败分析已记录在
 [`M5_FINAL_TECHNICAL_REPORT.md`](M5_FINAL_TECHNICAL_REPORT.md)。本账本从 M6
 开始作为连续入口，后续训练必须追加而不是覆盖。
 
+跨 M5、M6.1、M6.2 与 Phase1 的训练—分析—优化技术演进统一记录在
+[`RAW_SFT_RL_ITERATIVE_TRAINING_TECHNICAL_REPORT.md`](RAW_SFT_RL_ITERATIVE_TRAINING_TECHNICAL_REPORT.md)；
+本账本继续只承担逐作业失败、修复和后继关系记录。
+
 ## 2. M6 失败与修复
 
 | Job | 阶段 | 状态/现象 | 根因或证据 | 修复与后继 | 研究处置 |

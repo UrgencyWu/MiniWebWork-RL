@@ -30,6 +30,11 @@ generated-action-token 预算下比较 multi-turn GRPO 与 public-anchor GiGPO-s
 credit（各 3 seeds）。所有策略冻结后一次性评测 raw base、SFT 和六个 online adapter，
 共 8 identities × 500 test tasks × K4 = 16,000 条轨迹。
 
+从 M5 数据失败、M6.1 数据修复、M6.2 多 seed 负结果到 Phase1 因果诊断的完整技术演进，
+见 [`docs/RAW_SFT_RL_ITERATIVE_TRAINING_TECHNICAL_REPORT.md`](docs/RAW_SFT_RL_ITERATIVE_TRAINING_TECHNICAL_REPORT.md)。
+下一阶段的数据、奖励、horizon、batch 结构和训练 parity 门控实验见
+[`docs/M6_PHASE2_CAUSAL_VALIDATION_PLAN.md`](docs/M6_PHASE2_CAUSAL_VALIDATION_PLAN.md)。
+
 最终严格成功率为 Raw 33.50%、SFT 0.65%、GRPO 9.42%、Anchor-GiGPO 9.27%。
 结论不是后训练超过基础模型：verified SFT 因 policy 不可见的 privileged search labels
 发生严重闭环负迁移；在线 RL 恢复了状态推进和购买行为，但只恢复约四分之一严格成功率
