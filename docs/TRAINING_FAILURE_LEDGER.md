@@ -32,6 +32,7 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2297 | M6 Phase2 P0b-r2 buy-readiness | `COMPLETED 0:0`；开发/外部复核AUC均过原门 | 固定item/options语义块50/50修复旧80/20低估错误option的问题；不使用隐藏答案 | 允许进入P2同batch梯度反事实；2289负结果继续保留 | 有效校准通过；无训练，不代表策略增益 |
 | 2298 | M6 Phase2 P2 reward counterfactual | `COMPLETED 0:0`；安全合同通过但研究门失败 | 两panel gradient cosine=0.999861/0.999903，secondary/primary norm=1.674%/1.407%；strict-dominant质量项经K4组内标准化后与binary实质冗余 | 不调epsilon/penalty刷门；停止P3，不提交四个在线A/B作业 | 有效算法负结果；optimizer steps=0，无模型参数更新 |
 | 2300 | M6 Phase3 strict-first residual credit probe | `COMPLETED 0:0`；残差幅度门通过但方向门失败 | 标准化后残差使secondary/primary norm达到11.99%/15.59%，但两panel gradient cosine仍为0.992890/0.990219，高于0.98冗余线 | 不调整冻结0.2 scale、不重排group；停止Phase3在线A/B并关闭定时推进 | 有效算法负结果；optimizer steps=0，无模型参数更新 |
+| 2313–2316 | M6 Phase4 full-horizon online RL + fresh tuning-dev2 | 训练工程门全部通过，但性能链路STOP：Raw 30.273%、SFT 35.742%、RL 34.961% | SFT→RL `-0.781 pp`，task-bootstrap 95% CI `[-2.734,+0.977] pp`，RL-only/SFT-only flips=8/12；RL相对SFT多4条horizon exhaustion，partial与schema未改善 | 不扩大seed或训练规模；下一步只补评已保存step-5 checkpoint，诊断10步更新是否过长 | Job 2313 adapter为有效训练产物；step-10不晋级，2314–2316为本轮权威开发负结果 |
 | 2190 | corpus gate | FAILED 1:0 | 唯一 strict-success task 156，低于冻结门槛 160；其余 corpus 检查通过 | 保留失败报告；以版本化 development-only waiver 运行 2192，正式门槛不下调 | 仅开发诊断，不算正式合格 corpus |
 | 2193 | mini SFT | FAILED 1:0 | stored/runtime SFT input-file drift | 修复输入合同绑定并重提 2200 | 失败 adapter 不使用 |
 | 2202 | SFT promotion gate | FAILED 1:0 | paired evaluation contract drift | 修复 Raw/SFT 配对评测身份与合同，2206 重跑 gate | 原 gate 不使用 |

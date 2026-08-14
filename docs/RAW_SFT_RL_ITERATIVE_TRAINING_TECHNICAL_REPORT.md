@@ -648,3 +648,35 @@ K4×4、6/6改为18/15、dropout 0.05改为0，以及将已证实欠更新的1e-
 相同评测配置外不新增制度。训练完成后只在全新100–200 task tuning-dev2上比较Raw、SFT与RL；
 若RL未超过SFT至少1 pp，或partial/schema明显恶化，则停止该配方并直接根据失败轨迹提出下一项
 单变量假设，不靠增加seed或算力掩盖负结果。
+
+## 17. M6 Phase4 在线训练与 fresh tuning-dev2 结果
+
+Phase4 在线训练 Job 2313 以 `COMPLETED 0:0` 结束，耗时22分41秒。它按冻结配置完成10次
+optimizer step，覆盖40个互异且与SFT语料任务身份不重叠的训练任务，其中26个current-policy
+K4组为mixed并产生有效binary strict梯度。10个learner report的loss、gradient和KL全部有限，
+每一步的adapter semantic hash均发生变化；最大SFT-reference KL为0.001069，低于0.01 hard
+stop，最大initial replay clip fraction为0.674%，低于10%门。因此本轮是**工程上有效的在线
+训练**，不能把后续性能负结果解释为“没有真正更新参数”。
+
+训练后在全新、互斥且未参与SFT/RL训练的128-task tuning-dev2上，以相同任务、seed、K4和18/15
+horizon完成Raw Job 2314、SFT Job 2315与RL Job 2316，共每个identity 512条严格配对轨迹。结果为：
+
+| identity | strict success | strict rate |
+|---|---:|---:|
+| Raw | 155/512 | 30.273% |
+| SFT | 183/512 | 35.742% |
+| RL step-10 | 179/512 | 34.961% |
+
+Raw→SFT保持明确正增益`+5.469 pp`，但SFT→RL为`-0.781 pp`；按task配对bootstrap的95% CI为
+`[-2.734,+0.977] pp`。逐轨迹翻转中RL-only为8、SFT-only为12，净值-4，也未满足正向链路门。
+partial purchase率两者完全相同（均58.008%），zero-match purchase也同为13条，schema/action
+failure均为0；差异主要表现为RL相对SFT少4条strict success、同时多4条horizon exhaustion
+（23对19）。因此当前证据不支持“在线RL改善末端购买判断”，反而提示10步更新可能把少量原有
+成功轨迹推向未完成终止。`Raw < SFT < RL`门明确失败，本配方不得通过增加seed或训练规模晋级。
+
+下一项只改变**训练长度/检查点**，不重新训练也不改变数据、奖励、学习率、horizon或评测配置：
+在同一tuning-dev2上补评已保存的step-5 adapter，并与现有SFT和step-10结果形成0/5/10学习曲线。
+该评测只用于诊断“10步过训练/更新抵消”假设，不把看过step-10结果后选择的checkpoint直接称为
+独立最终结论。若step-5仍不高于SFT至少1 pp且RL-only flips不为正，立即否定训练长度假设；若
+step-5通过，则冻结该checkpoint并只在另一份新鲜dev3上做一次确认，确认通过后才可声称发现
+Raw<SFT<RL链路。该方案只新增一个RL checkpoint评测identity，不增加训练作业、算法或seed。
