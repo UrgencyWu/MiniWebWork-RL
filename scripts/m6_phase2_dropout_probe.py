@@ -57,10 +57,28 @@ def _coefficient_of_variation(values: Sequence[float]) -> float:
     return statistics.pstdev(values) / mean if mean else 0.0
 
 
+def _gradient_cosine(left: Any, right: Any, torch: Any, *, chunk_size: int = 1_000_000) -> float:
+    """Accumulate a large-vector cosine in float64 and enforce its invariant."""
+
+    _require(left.shape == right.shape and left.ndim == 1, "M6 Phase2 gradient vector shape drift")
+    numerator = left_square = right_square = 0.0
+    for start in range(0, int(left.numel()), chunk_size):
+        left_chunk = left[start : start + chunk_size].double()
+        right_chunk = right[start : start + chunk_size].double()
+        numerator += float(torch.dot(left_chunk, right_chunk))
+        left_square += float(torch.dot(left_chunk, left_chunk))
+        right_square += float(torch.dot(right_chunk, right_chunk))
+    _require(left_square > 0.0 and right_square > 0.0, "M6 Phase2 zero gradient cannot define cosine")
+    value = numerator / math.sqrt(left_square * right_square)
+    _require(math.isfinite(value), "M6 Phase2 gradient cosine is non-finite")
+    _require(-1.0 - 1e-12 <= value <= 1.0 + 1e-12, "M6 Phase2 gradient cosine left [-1, 1]")
+    return min(1.0, max(-1.0, value))
+
+
 def _arm_summary(rows: Sequence[Mapping[str, Any]], vectors: Sequence[Any], torch: Any) -> dict[str, Any]:
     _require(len(rows) == len(vectors) >= 2, "M6 Phase2 dropout arm is incomplete")
     pairwise = [
-        float(torch.nn.functional.cosine_similarity(vectors[left], vectors[right], dim=0))
+        _gradient_cosine(vectors[left], vectors[right], torch)
         for left in range(len(vectors))
         for right in range(left + 1, len(vectors))
     ]
@@ -219,7 +237,7 @@ def main() -> None:
         )
     )
     report = {
-        "schema_version": "m6_phase2_dropout_probe_v1",
+        "schema_version": "m6_phase2_dropout_probe_v2",
         "development_only": True,
         "formal_checkpoint_reusable": False,
         "optimizer_steps": 0,

@@ -405,3 +405,26 @@ cost reward，只保留预算上限。
 后续每次完成一次具有新假设或新配方的训练阶段，应在本报告中追加一个叙事章节，说明研究问题、
 唯一变化、冻结配置、训练证据、闭环结果、失败分类、被排除解释和下一决策；逐 Job 的退出码、
 基础设施错误和恢复链仍只追加到失败账本。
+
+## 11. M6 Phase2 P0：训练 parity 通过初筛，过程奖励校准未过门
+
+Phase2 首批两个独立诊断于 2026-08-14 完成。P0a Job 2288 使用同一冻结 SFT adapter 和同一
+预采 K8 group，对 dropout=0.05 与 dropout=0 各进行了 8 个 RNG repeat；P0b Job 2289 仅分析
+冻结 SFT 的 2,000 条 formal-dev 轨迹，不执行训练。
+
+P0b 的 public item/option buy-readiness 得到：strict-vs-all-failure final AUC=0.7862、
+strict-vs-partial-purchase AUC=0.7746、高 readiness failure 比例=13.96%。后两项通过，但第一项
+低于预注册 0.80 门。因此整体 `process_reward_calibration_passed=false`。这不是基础设施失败，
+也不能通过把门槛降到 0.78 修正；当前 scorer 不得进入 process-reward 在线训练。它仍提供一个
+有价值的局部结论：item/option evidence 对最主要的 partial-purchase failure 有区分度，但对
+horizon、zero-match 和其他失败的统一排序还不够可靠。
+
+P0a 的原始结果显示，dropout=0.05 时跨 repeat 梯度 mean cosine 约0.781、norm CV约0.0617；
+dropout=0 时 training clip=0、reference KL=0、norm CV约0.0020，方向稳定性明显更高。然而 v1
+报告用 float32 对超长梯度向量直接计算 cosine，产生了 1.0056 的越界值。该数值违反 cosine
+范围，故 Job 2288 虽 exit 0，其 v1 报告只能作为失败尝试保留，不能成为最终证据。修复策略是
+分块 float64 累积并对 [-1,1] 建立硬不变量，只重跑 P0a，不重跑 P0b。
+
+当前研究决策为：停止基于现有 buy-readiness 的 P2 process-reward arm；继续完成与它独立的
+P0c batch-structure 和 P1 horizon 因果实验。只有后续重新设计的 verifier 在全新校准数据上
+通过原门槛，才可恢复 strict-dominant process reward 实验。

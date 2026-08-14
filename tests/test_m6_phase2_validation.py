@@ -30,6 +30,15 @@ def test_phase2_coefficient_of_variation():
     assert module._coefficient_of_variation([1.0, 3.0]) == pytest.approx(0.5)
 
 
+def test_phase2_gradient_cosine_is_bounded_and_precise():
+    torch = pytest.importorskip("torch")
+    module = _dropout_module()
+    left = torch.ones(2_000_003, dtype=torch.float32)
+    right = left.clone()
+    assert module._gradient_cosine(left, right, torch, chunk_size=100_000) == 1.0
+    assert module._gradient_cosine(left, -right, torch, chunk_size=100_000) == -1.0
+
+
 def test_phase2_dropout_probe_has_no_optimizer_step():
     source = (
         Path(__file__).resolve().parents[1] / "scripts" / "m6_phase2_dropout_probe.py"
