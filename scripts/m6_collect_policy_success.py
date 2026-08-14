@@ -216,6 +216,19 @@ def validate_diagnostic_evaluation_contract(args: argparse.Namespace) -> None:
     _require(args.maximum_action_tokens is None, "M6 diagnostic evaluation cannot claim a training token budget")
 
 
+def validate_phase2_horizon_contract(args: argparse.Namespace) -> None:
+    """Freeze a train-role, SFT-only, paired horizon diagnostic outside training."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase2 horizon roster drift")
+    _require(args.adapter is not None, "M6 Phase2 horizon diagnostic requires the SFT adapter")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) in {(6, 6), (18, 15)},
+        "M6 Phase2 horizon arm drift",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase2 horizon task slicing is forbidden")
+    _require(args.maximum_action_tokens is None, "M6 Phase2 horizon diagnostic cannot claim a training token budget")
+
+
 def _validate_group_run_contract(
     group: Mapping[str, Any],
     *,
@@ -436,7 +449,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         _require(args.maximum_tasks > 0, "M6 maximum tasks must be positive")
         task_ids = task_ids[: args.maximum_tasks]
     _require(task_ids, "M6 selected task roster is empty")
-    expected_k = int(protocol["mini"]["evaluation_K"] if args.mode == "evaluation" else protocol["rl"]["group_size"])
+    expected_k = int(
+        protocol["mini"]["evaluation_K"]
+        if args.mode in {"evaluation", "phase2_horizon_evaluation"}
+        else protocol["rl"]["group_size"]
+    )
     _require(args.k == expected_k, "M6 mode/K contract drift")
     training_updates_allowed = args.mode == "rl_collection"
     if args.mode == "raw_collection":
@@ -450,6 +467,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         _require(len(task_ids) == expected_tasks, "M6 evaluation task count drift")
     elif args.mode == "diagnostic_evaluation":
         validate_diagnostic_evaluation_contract(args)
+    elif args.mode == "phase2_horizon_evaluation":
+        validate_phase2_horizon_contract(args)
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -656,7 +675,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("raw_collection", "evaluation", "diagnostic_evaluation", "rl_collection"), required=True)
+    parser.add_argument(
+        "--mode",
+        choices=("raw_collection", "evaluation", "diagnostic_evaluation", "phase2_horizon_evaluation", "rl_collection"),
+        required=True,
+    )
     parser.add_argument("--role", choices=("mini_train", "mini_dev", "formal_dev", "train"), required=True)
     parser.add_argument("--split-lock", type=Path, required=True)
     parser.add_argument("--goals", type=Path, required=True)

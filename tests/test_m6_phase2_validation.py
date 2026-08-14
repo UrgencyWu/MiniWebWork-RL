@@ -135,3 +135,59 @@ def test_phase2_batch_job_is_bounded_and_single_gpu():
     assert "#SBATCH --cpus-per-task=4" in source
     assert "#SBATCH --mem=24G" in source
     assert "#SBATCH --gres=gpu:1" in source
+
+
+def test_phase2_horizon_contract_allows_only_two_frozen_arms():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "m6_collect_policy_success.py"
+    spec = importlib.util.spec_from_file_location("m6_phase2_collect", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    from argparse import Namespace
+
+    args = Namespace(
+        role="train",
+        task_roster=Path("roster.json"),
+        adapter=Path("adapter"),
+        max_model_turns=6,
+        max_environment_steps=6,
+        maximum_tasks=None,
+        task_offset=0,
+        maximum_action_tokens=None,
+    )
+    module.validate_phase2_horizon_contract(args)
+    args.max_model_turns = 12
+    with pytest.raises(ValueError, match="horizon arm drift"):
+        module.validate_phase2_horizon_contract(args)
+
+
+def test_phase2_horizon_jobs_are_bounded_and_paired():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "scripts" / "run_m6_phase2_horizon_job.sh").read_text(encoding="utf-8")
+    audit = (root / "scripts" / "run_m6_phase2_horizon_analysis_job.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --array=0-1%2" in source
+    assert "--seed 20260821" in source
+    assert "--mode phase2_horizon_evaluation" in source
+    assert "model_turns=6; environment_steps=6" in source
+    assert "model_turns=18; environment_steps=15" in source
+    assert "#SBATCH --gres=gpu" not in audit
+
+
+def test_phase2_horizon_roster_uses_only_train_role():
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts" / "m6_phase2_build_horizon_roster.py"
+    ).read_text(encoding="utf-8")
+    assert 'split["roles"]["train"]["task_ids"]' in source
+    assert 'if role != "train"' in source
+    assert '"task_count": len(selected)' in source
+
+
+def test_phase2_horizon_submit_builds_roster_before_jobs():
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts" / "submit_m6_phase2_horizon.sh"
+    ).read_text(encoding="utf-8")
+    build = source.index("m6_phase2_build_horizon_roster.py")
+    submit = source.index("horizon_job=")
+    assert build < submit
+    assert 'dependency="afterok:$horizon_job"' in source
+    assert "M6_SERVICE_BASE_URL" in source
