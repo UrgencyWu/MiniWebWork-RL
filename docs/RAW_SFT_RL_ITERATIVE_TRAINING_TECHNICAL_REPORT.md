@@ -525,3 +525,21 @@ clip fraction不超过10%、全部数值有限。cosine至少0.98仍判冗余；
 25%判过强。只有该零更新探针完整通过，才另行设计两个SFT-disjoint roster的小规模在线A/B；
 探针失败即把这一信用形式记为有效负结果并停止，不消耗在线训练预算。即使探针通过，也只证明
 梯度机制有区分度，不能表述为策略性能提升。
+
+Phase3 Job 2300 随后以 `COMPLETED 0:0` 结束，耗时5分45秒。报告自哈希
+`c31fef2d98c37f20b65ac3ede3230be5dbe87586e61d7afaac2d8fdcf4ca7182`闭合，并逐项绑定2298负报告、
+完全相同的8个full-horizon K4 group及同一SFT adapter；dropout=0、optimizer steps=0，未产生模型
+参数更新。strict advantage逐位完全不变，failure residual在每组零均值且最大绝对值不超过0.2，
+strict/failure符号和支配关系保持；全部loss/gradient有限，reference KL=0，最大clip fraction为
+0.328%。
+
+残差幅度门已通过：两个panel的secondary/primary gradient norm分别为11.99%和15.59%，说明将
+质量残差放在组内标准化之后确实避免了P2中仅1.4%–1.7%的幅度消失。然而方向门仍明确失败：
+binary-vs-candidate gradient cosine分别为0.992890和0.990219，均高于预注册0.98冗余线。这是比
+P2更有信息的负结果：失败质量排序能够形成可测的梯度分量，但在这批轨迹上该分量仍大体沿着
+binary strict梯度方向，尚不足以作为一个机制上独立的在线训练arm。
+
+依据冻结规则，不调整0.2 scale、不重排group，也不提交Phase3在线A/B。下一研究轮若继续，应把
+问题转向SFT-disjoint任务覆盖、失败状态对比或能改变动作级方向的监督信号，而不是继续放大同一
+failure-quality残差。Job 2300只支持“幅度修复有效、方向区分仍不足”的机制结论，不支持任何
+策略性能提升结论。
