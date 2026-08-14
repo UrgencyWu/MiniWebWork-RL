@@ -32,7 +32,7 @@ def main() -> None:
     parser.add_argument("--iteration-index", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--microbatch-size", type=int, default=4, choices=(1, 2, 4, 8))
-    parser.add_argument("--policy-credit-window", choices=("full", "tail2"), default="full")
+    parser.add_argument("--policy-credit-window", choices=("full", "tail2", "preterminal1"), default="full")
     args = parser.parse_args()
 
     root = args.collection_root.expanduser().resolve()

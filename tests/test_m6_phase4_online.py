@@ -33,6 +33,21 @@ def test_phase5_tail2_credit_only_keeps_last_two_turns_and_normalizes_mass():
     assert sum(weight * length for weight, length in zip(tail, [2, 4, 8])) == pytest.approx(1.0)
 
 
+def test_phase6_preterminal_credit_excludes_final_buy_now():
+    weights = trajectory_policy_turn_weights(
+        [2, 4, 8],
+        policy_credit_window="preterminal1",
+        actions=[{"command": "search[x]"}, {"command": "click[blue]"}, {"command": "click[Buy Now]"}],
+    )
+    assert weights == (0.0, 0.25, 0.0)
+    horizon = trajectory_policy_turn_weights(
+        [2, 4, 8],
+        policy_credit_window="preterminal1",
+        actions=[{"command": "search[x]"}, {"command": "click[next]"}, {"command": "click[item]"}],
+    )
+    assert horizon == (0.0, 0.0, 0.125)
+
+
 def test_phase5_policy_mask_changes_only_policy_objective_weights():
     torch = pytest.importorskip("torch")
     from miniwebwork.webshop_rl.m6_online_training import strict_grpo_kl_loss
@@ -55,6 +70,17 @@ def test_phase5_probe_is_zero_update_and_two_panel():
     probe = (ROOT / "src" / "miniwebwork" / "webshop_rl" / "phase5_tail_credit.py").read_text(encoding="utf-8")
     assert source.count("--panel-collection-root") == 2
     assert "step_00/collection" in source and "step_01/collection" in source
+    assert "optimizer.step(" not in probe
+    assert '"optimizer_steps": 0' in probe
+
+
+def test_phase6_preterminal_probe_is_zero_update_and_two_panel():
+    source = (SCRIPTS / "run_m6_phase6_preterminal_credit_probe_job.sh").read_text(encoding="utf-8")
+    probe = (SCRIPTS / "m6_phase6_preterminal_credit_probe.py").read_text(encoding="utf-8")
+    assert source.count("--panel-collection-root") == 2
+    assert "step_00/collection" in source and "step_01/collection" in source
+    assert 'baseline_window="tail2"' in probe
+    assert 'candidate_window="preterminal1"' in probe
     assert "optimizer.step(" not in probe
     assert '"optimizer_steps": 0' in probe
 

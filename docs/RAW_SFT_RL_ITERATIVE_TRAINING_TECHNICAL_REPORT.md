@@ -742,3 +742,31 @@ partial/schema不恶化，才冻结候选并另建全新dev3确认；否则停�
 `c0cfa32`生成，而consumer已更新为`f3db549`，作业没有显式传入已知producer SHA。该失败不含
 算法证据，也没有adapter；修复仅把同一roster producer身份显式传给collector，不改变任务、
 顺序、seed或训练参数，随后允许在同一输出根恢复。
+
+## 21. Phase5 tail-2 五步训练与配对评测结果
+
+同根恢复Job 2324以`COMPLETED 0:0`完成5次optimizer step，覆盖前20个冻结任务，其中16个
+current-policy K4组为mixed。每步policy window均为tail-2，所有loss/gradient有限且adapter语义
+哈希真实变化；最大SFT-reference KL为0.000398，最大initial replay clip为0.553%，均远低于硬门。
+因此这是一次有效训练，不存在“参数未更新”或“KL压住更新”的工程解释。
+
+评测Jobs 2325/2326在完全相同的128-task tuning-dev2、K4、18/15与seed上完成512条轨迹。
+自哈希配对统计为：
+
+| identity | strict success | strict rate | partial purchase |
+|---|---:|---:|---:|
+| Raw | 155/512 | 30.273% | 315/512 |
+| SFT | 183/512 | 35.742% | 297/512 |
+| full-credit step-5 | 178/512 | 34.766% | 304/512 |
+| tail-2 step-5 | 181/512 | 35.352% | 300/512 |
+
+tail-2相对full-credit step-5恢复3条strict success并减少4条partial purchase，说明末端信用聚焦有
+方向性收益；但相对SFT仍为`-0.391 pp`，task bootstrap 95% CI为
+`[-2.148,+1.367] pp`，RL-only/SFT-only flips为9/11，净值-2。partial purchase仍比SFT多3条，
+即`+0.586 pp`，也略过0.5 pp安全门。故`Raw<SFT<RL`仍失败，tail-2方向不得靠增加步数或seed晋级。
+
+失败形态进一步缩小了下一假设：tail-2同时把trajectory advantage分配给倒数第二步和最终
+`Buy Now`，后者可能继续强化“尽快购买”而不是商品/option选择。下一轮仍先零训练验证，只把
+policy credit从tail-2改为`preterminal-1`：若轨迹以public action `click[Buy Now]`结束，则只给
+购买前一动作；非购买轨迹给最后动作。reward、group advantage、KL、任务和模型均不变。只有它与
+tail-2在两个冻结panel上梯度有限非零且cosine明显低于0.98，才允许新的5-step训练。

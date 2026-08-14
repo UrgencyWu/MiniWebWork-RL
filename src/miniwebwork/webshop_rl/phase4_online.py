@@ -23,7 +23,7 @@ TASK_GROUPS_PER_UPDATE = 4
 REFERENCE_ADAPTER_NAME = "phase4_frozen_sft_reference"
 OPTIMIZER_SCHEMA = "m6_phase4_online_optimizer_v1"
 REPORT_SCHEMA = "m6_phase4_online_update_v1"
-POLICY_CREDIT_WINDOWS = {"full", "tail2"}
+POLICY_CREDIT_WINDOWS = {"full", "tail2", "preterminal1"}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -77,12 +77,21 @@ def trajectory_policy_turn_weights(
     completion_tokens: Sequence[int],
     *,
     policy_credit_window: str,
+    actions: Sequence[Any] | None = None,
 ) -> tuple[float, ...]:
     """Return per-token turn weights with unit mass inside one trajectory."""
 
     _require(policy_credit_window in POLICY_CREDIT_WINDOWS, "unsupported Phase4 policy credit window")
     lengths = tuple(int(value) for value in completion_tokens)
     _require(bool(lengths) and all(value > 0 for value in lengths), "Phase4 turn token count is invalid")
+    if policy_credit_window == "preterminal1":
+        _require(actions is not None and len(actions) == len(lengths), "preterminal credit requires aligned actions")
+        selected_index = len(lengths) - 1
+        final_action = actions[-1]
+        command = str(final_action.get("command", "")) if isinstance(final_action, Mapping) else ""
+        if command.strip().lower() == "click[buy now]" and len(lengths) > 1:
+            selected_index -= 1
+        return tuple(1.0 / length if index == selected_index else 0.0 for index, length in enumerate(lengths))
     selected = len(lengths) if policy_credit_window == "full" else min(2, len(lengths))
     first = len(lengths) - selected
     return tuple(0.0 if index < first else 1.0 / (selected * length) for index, length in enumerate(lengths))
@@ -124,6 +133,7 @@ def prepare_k4x4_examples(
             policy_turn_weights = trajectory_policy_turn_weights(
                 [len(turn["generated_token_ids"]) for turn in turns],
                 policy_credit_window=policy_credit_window,
+                actions=[turn.get("action") for turn in turns],
             )
             for turn, policy_turn_weight in zip(turns, policy_turn_weights):
                 generated = tuple(int(value) for value in turn["generated_token_ids"])

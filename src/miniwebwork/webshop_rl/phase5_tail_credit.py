@@ -34,6 +34,8 @@ def probe_tail2_panel(
     seed: int,
     microbatch_size: int = 4,
     kl_coefficient: float = 0.03,
+    baseline_window: str = "full",
+    candidate_window: str = "tail2",
 ) -> dict[str, Any]:
     """Compare two gradients on identical parameters and trajectories; never step."""
 
@@ -42,11 +44,12 @@ def probe_tail2_panel(
 
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "Phase5 probe requires one GPU")
     _require(microbatch_size in {1, 2, 4, 8}, "Phase5 microbatch size drift")
-    full = prepare_k4x4_examples(groups, policy_credit_window="full")
-    tail = prepare_k4x4_examples(groups, policy_credit_window="tail2")
+    _require(baseline_window != candidate_window, "Phase5 probe windows must differ")
+    baseline = prepare_k4x4_examples(groups, policy_credit_window=baseline_window)
+    candidate = prepare_k4x4_examples(groups, policy_credit_window=candidate_window)
     _require(
-        [(row.group_id, row.trajectory_id, row.turn_index) for row in full["examples"]]
-        == [(row.group_id, row.trajectory_id, row.turn_index) for row in tail["examples"]],
+        [(row.group_id, row.trajectory_id, row.turn_index) for row in baseline["examples"]]
+        == [(row.group_id, row.trajectory_id, row.turn_index) for row in candidate["examples"]],
         "Phase5 arm example identity drift",
     )
 
@@ -117,31 +120,32 @@ def probe_tail2_panel(
         }
         return metrics, gradients
 
-    full_metrics, full_gradients = calculate(full)
-    tail_metrics, tail_gradients = calculate(tail)
-    dot = full_sq = tail_sq = 0.0
-    for full_gradient, tail_gradient in zip(full_gradients, tail_gradients):
-        full64 = full_gradient.double()
-        tail64 = tail_gradient.double()
-        dot += float((full64 * tail64).sum())
-        full_sq += float((full64 * full64).sum())
-        tail_sq += float((tail64 * tail64).sum())
-    _require(full_sq > 0.0 and tail_sq > 0.0, "Phase5 probe produced a zero gradient")
-    cosine = dot / math.sqrt(full_sq * tail_sq)
+    baseline_metrics, baseline_gradients = calculate(baseline)
+    candidate_metrics, candidate_gradients = calculate(candidate)
+    dot = baseline_sq = candidate_sq = 0.0
+    for baseline_gradient, candidate_gradient in zip(baseline_gradients, candidate_gradients):
+        baseline64 = baseline_gradient.double()
+        candidate64 = candidate_gradient.double()
+        dot += float((baseline64 * candidate64).sum())
+        baseline_sq += float((baseline64 * baseline64).sum())
+        candidate_sq += float((candidate64 * candidate64).sum())
+    _require(baseline_sq > 0.0 and candidate_sq > 0.0, "Phase5 probe produced a zero gradient")
+    cosine = dot / math.sqrt(baseline_sq * candidate_sq)
     cosine = max(-1.0, min(1.0, cosine))
-    ratio = math.sqrt(tail_sq / full_sq)
+    ratio = math.sqrt(candidate_sq / baseline_sq)
     _require(math.isfinite(cosine) and math.isfinite(ratio), "Phase5 gradient comparison is non-finite")
+    comparison = f"{baseline_window}_vs_{candidate_window}"
     return {
-        "full": full_metrics,
-        "tail2": tail_metrics,
-        "full_vs_tail2_gradient_cosine": cosine,
-        "tail2_to_full_gradient_norm_ratio": ratio,
+        baseline_window: baseline_metrics,
+        candidate_window: candidate_metrics,
+        f"{comparison}_gradient_cosine": cosine,
+        f"{candidate_window}_to_{baseline_window}_gradient_norm_ratio": ratio,
         "directionally_distinct_below_0_98": cosine < 0.98,
         "input_adapter": str(input_adapter.expanduser().resolve()),
         "input_adapter_sha256": directory_sha256(input_adapter),
         "input_adapter_semantic_sha256": input_adapter_semantic_sha256,
         "reference_sft_adapter": str(reference_sft_adapter.expanduser().resolve()),
         "reference_sft_adapter_sha256": directory_sha256(reference_sft_adapter),
-        "source_group_content_sha256": [group["content_sha256"] for group in full["groups"]],
+        "source_group_content_sha256": [group["content_sha256"] for group in baseline["groups"]],
         "optimizer_steps": 0,
     }
