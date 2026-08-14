@@ -853,3 +853,18 @@ online中只有3/26（11.54%）mixed任务提供same-item strict-partial对比�
 可用same-item任务增至至少20、option任务增至至少12；达不到就停止该数据合成方式，而不是增加
 RL预算。即使达到门槛，后续RL仍须用当时current policy重新采样，prescan轨迹不能直接当作
 on-policy更新批次。
+
+## 26. Phase7 定向prescan设计冻结
+
+下一轮仍不是训练，只改变“用于发现强终局对比的任务选择”。候选严格来自v2报告绑定的三批
+prescan中72个strict+partial任务，并排除已经拥有same-item对比的11个任务。排序首先优先目标中
+存在明确option约束的任务，其次按既有K4中strict×partial配对数降序，最后用冻结seed
+`20260832`的哈希打破平局；取前32个。这样既不使用target ASIN/隐藏答案，也不通过已burn评测集
+挑任务。
+
+采样继续使用同一个冻结SFT adapter，K4、18/15、独立seed `20260832`，只运行一次GPU推理，
+`optimizer_steps=0`。输出必须绑定split、SFT-disjoint train role、v2诊断与三个collection report；
+promotion/holdout不得读取。完成后把新collection加入同一public-only诊断。只有合并后的
+same-item任务不少于20且option-contrast任务不少于12，才允许构建20-task在线RL roster；否则
+停止这种自采样数据路径。即便达到门槛，prescan轨迹也不能直接用于策略更新，正式RL必须以当时
+current policy重新采样。
