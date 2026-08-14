@@ -770,3 +770,15 @@ tail-2相对full-credit step-5恢复3条strict success并减少4条partial purch
 policy credit从tail-2改为`preterminal-1`：若轨迹以public action `click[Buy Now]`结束，则只给
 购买前一动作；非购买轨迹给最后动作。reward、group advantage、KL、任务和模型均不变。只有它与
 tail-2在两个冻结panel上梯度有限非零且cosine明显低于0.98，才允许新的5-step训练。
+
+## 22. Phase6 preterminal-1 零更新探针结果
+
+Job 2327以`COMPLETED 0:0`结束，报告自哈希闭合并明确`optimizer_steps=0`、
+`training_performed=false`。preterminal-1分别只覆盖153/890（17.19%）与173/1191（14.53%）
+动作token，两个panel梯度均有限非零。相对tail-2的参数梯度cosine为0.8883与0.5374，norm ratio
+为1.5908与0.9804；两者均低于0.98冗余门，说明排除最终`Buy Now`确实产生新的更新方向。
+
+该探针仍不是性能证据。下一步只允许一个5-step在线验证，完全复用Phase5的SFT起点、前20任务、
+seed、K4×4、18/15、dropout=0、LR=3e-6、strict binary reward和整轨迹SFT KL，唯一变量为
+`policy_credit_window=preterminal1`。评测仍先使用同一tuning-dev2作开发诊断；若未超过SFT至少
+1 pp或partial/schema恶化，就停止该信用方向，不增加训练步数或seed。

@@ -29,6 +29,11 @@ split_lock="${M6_SPLIT_LOCK:-$study_root/locks/m6_webshop_split_v1.json}"
 goals="${M6_GOALS:-outputs/m5_webshop_credit_assignment_v1/upstream/webshop_full/goals.json}"
 base_url="${M6_SERVICE_BASE_URL:-http://127.0.0.1:44151}"
 run_seed="${M6_RUN_SEED:-20260827}"
+policy_credit_window="${M6_POLICY_CREDIT_WINDOW:-tail2}"
+case "$policy_credit_window" in
+  tail2|preterminal1) ;;
+  *) echo "unsupported policy credit window: $policy_credit_window" >&2; exit 2 ;;
+esac
 steps=5
 test -d "$sft_adapter"
 test -f "$M6_PHASE5_ROSTER"
@@ -77,26 +82,27 @@ while test "$step" -lt "$steps"; do
       --collection-root "$collection_root" \
       --input-adapter "$current_adapter" --reference-sft-adapter "$sft_adapter" \
       --output-dir "$learner_root" --iteration-index "$step" --seed "$run_seed" \
-      --microbatch-size 4 --policy-credit-window tail2 "${optimizer_args[@]}"
+      --microbatch-size 4 --policy-credit-window "$policy_credit_window" "${optimizer_args[@]}"
   fi
   current_adapter="$("$python_bin" -c 'import json,sys;print(json.load(open(sys.argv[1]))["output_adapter"])' "$learner_root/learner_report.json")"
   current_optimizer="$("$python_bin" -c 'import json,sys;print(json.load(open(sys.argv[1]))["output_optimizer"])' "$learner_root/learner_report.json")"
   step=$((step + 1))
 done
 
-"$python_bin" - "$M6_PHASE5_OUTPUT" "$current_adapter" "$current_optimizer" "$run_seed" "$sft_adapter" <<'PY'
+"$python_bin" - "$M6_PHASE5_OUTPUT" "$current_adapter" "$current_optimizer" "$run_seed" "$sft_adapter" "$policy_credit_window" <<'PY'
 import json,sys
 from pathlib import Path
 root=Path(sys.argv[1])
+policy_credit_window=sys.argv[6]
 reports=[json.load(open(root/f"step_{i:02d}"/"learner"/"learner_report.json")) for i in range(5)]
-if any(row.get("policy_credit_window") != "tail2" for row in reports):
+if any(row.get("policy_credit_window") != policy_credit_window for row in reports):
     raise ValueError("Phase5 learner policy-credit drift")
 value={
-    "schema_version":"m6_phase5_tail2_online_run_v1",
+    "schema_version":"m6_policy_window_online_run_v1",
     "complete":True,
-    "method":"strict_binary_tail2_trajectory_group_normalized_policy_gradient_with_sft_kl",
+    "method":f"strict_binary_{policy_credit_window}_trajectory_group_normalized_policy_gradient_with_sft_kl",
     "reward":"strict_binary",
-    "policy_credit_window":"tail2",
+    "policy_credit_window":policy_credit_window,
     "seed":int(sys.argv[4]),
     "optimizer_steps":sum(row["optimizer_steps"] for row in reports),
     "attempted_unique_tasks":len({group["task_id"] for row in reports for group in row["group_rows"]}),

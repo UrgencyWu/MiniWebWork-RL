@@ -169,9 +169,20 @@ def test_phase5_tail2_online_job_changes_only_policy_credit_window():
     assert "--mode phase4_online_rl_collection --role train --k 4" in source
     assert "--task-roster-producer-git-sha" in source
     assert "--max-model-turns 18 --max-environment-steps 15" in source
-    assert "--microbatch-size 4 --policy-credit-window tail2" in source
+    assert 'policy_credit_window="${M6_POLICY_CREDIT_WINDOW:-tail2}"' in source
+    assert '--microbatch-size 4 --policy-credit-window "$policy_credit_window"' in source
     assert '"reward":"strict_binary"' in source
-    assert '"policy_credit_window":"tail2"' in source
+    assert '"policy_credit_window":policy_credit_window' in source
+    assert 'tail2|preterminal1' in source
+
+
+def test_phase6_preterminal_online_wrapper_changes_only_policy_window():
+    source = (SCRIPTS / "run_m6_phase6_preterminal_online_rl_job.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --gres=gpu:1" in source
+    assert "#SBATCH --cpus-per-task=4" in source
+    assert "#SBATCH --mem=24G" in source
+    assert "M6_POLICY_CREDIT_WINDOW=preterminal1" in source
+    assert "exec bash scripts/run_m6_phase5_tail2_online_rl_job.sh" in source
 
 
 def test_phase4_tuning_eval_is_paired_and_has_no_training():
