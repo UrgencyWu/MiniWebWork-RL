@@ -315,6 +315,25 @@ def validate_phase4_data_synthesis_contract(args: argparse.Namespace) -> None:
     _require(args.replay_prefix_root is None, "M6 Phase4 synthesis cannot reuse a diagnostic prefix")
 
 
+def validate_phase4_online_rl_contract(args: argparse.Namespace) -> None:
+    """Allow one small full-horizon on-policy K4x4 training batch."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase4 online roster drift")
+    _require(args.adapter is not None, "M6 Phase4 online collection requires the current adapter")
+    _require(args.k == 4, "M6 Phase4 online collection must use K4")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase4 online collection must use the full horizon",
+    )
+    _require(args.maximum_tasks == 4, "M6 Phase4 online collection must attempt four task groups")
+    _require(args.task_offset >= 0 and args.task_offset % 4 == 0, "M6 Phase4 online task offset drift")
+    _require(
+        args.maximum_action_tokens is not None and 0 < args.maximum_action_tokens <= 75000,
+        "M6 Phase4 online action-token cap drift",
+    )
+    _require(args.replay_prefix_root is None, "M6 Phase4 online collection cannot replay a diagnostic prefix")
+
+
 def validate_phase4_teacher_probe_contract(args: argparse.Namespace) -> None:
     """Freeze a larger, public-observation teacher probe outside every RL path."""
 
@@ -629,11 +648,12 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "phase2_horizon_evaluation",
             "phase4_data_synthesis",
             "phase4_teacher_probe",
+            "phase4_online_rl_collection",
         }
         else protocol["rl"]["group_size"]
     )
     _require(args.k == expected_k, "M6 mode/K contract drift")
-    training_updates_allowed = args.mode == "rl_collection"
+    training_updates_allowed = args.mode in {"rl_collection", "phase4_online_rl_collection"}
     _require(
         args.replay_prefix_root is None or args.mode == "phase2_horizon_evaluation",
         "M6 prefix replay is restricted to the Phase2 horizon diagnostic",
@@ -653,12 +673,14 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         validate_phase2_horizon_contract(args)
     elif args.mode == "phase4_data_synthesis":
         validate_phase4_data_synthesis_contract(args)
+    elif args.mode == "phase4_online_rl_collection":
+        validate_phase4_online_rl_contract(args)
     elif args.mode == "phase4_teacher_probe":
         validate_phase4_teacher_probe_contract(args)
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
-    if training_updates_allowed:
+    if args.mode == "rl_collection":
         _require(args.maximum_tasks == int(protocol["mini"]["rl_collection_groups_per_iteration"]), "M6 RL group budget drift")
         _require(args.max_model_turns == int(protocol["mini"]["rl_collection_max_model_turns"]), "M6 RL model-turn cap drift")
         _require(args.max_environment_steps == int(protocol["mini"]["rl_collection_max_environment_steps"]), "M6 RL environment-step cap drift")
@@ -667,7 +689,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             args.maximum_action_tokens <= int(protocol["mini"]["rl_collection_action_token_cap_per_iteration"]),
             "M6 RL iteration action-token cap drift",
         )
-    else:
+    elif not training_updates_allowed:
         _require(args.maximum_action_tokens is None, "M6 non-RL rollout cannot claim an RL token cap")
     output = args.output_dir.expanduser().resolve()
     groups_root, episodes_root, attempts_root = output / "groups", output / "episodes", output / "attempts"
@@ -921,6 +943,7 @@ def parse_args() -> argparse.Namespace:
             "phase2_horizon_evaluation",
             "phase4_data_synthesis",
             "phase4_teacher_probe",
+            "phase4_online_rl_collection",
             "rl_collection",
         ),
         required=True,

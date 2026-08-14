@@ -623,3 +623,28 @@ Qwen3.5-9B探针 Jobs 2305–2307 均以`COMPLETED 0:0`结束，64条轨迹仅�
 变大而降低。若该上界仍失败，就停止教师合成路线，转向学生mixed任务的更广覆盖和动作级对比；
 若通过，只用每任务最多2条verified轨迹做一次小规模恢复训练，随后必须由更新后的学生策略重新
 采集on-policy RL数据。该显式上界实验不覆盖9B负结果，也不构成按结果持续升级模型。
+
+## 16. M6 Phase4 学生扩展覆盖与最小在线训练决策
+
+35B-FP8上界链 Jobs 2308–2310 均完成，但同16个学生all-failure任务上只得到1个任务、2条
+replay-verified strict轨迹，比9B的2任务、3轨迹更差，也未达到4任务/8轨迹的固定门。两种更大
+模型均未证明能经济地扩张当前WebShop支持集，因此教师路线到此停止；不继续升级模型，也不把
+这些稀疏成功混入SFT或on-policy RL。
+
+学生侧改用相同总量级的小扩展：Job 2311_0在新增64个SFT-disjoint train任务上以冻结SFT、
+K4、18/15采样，`COMPLETED 0:0`，耗时6分49秒。它得到26个mixed任务、40个至少一次strict
+成功任务、110条strict轨迹。与原两个64-task分区的26和25个mixed合并后，共有77个互斥的
+SFT-disjoint mixed任务，超过64任务覆盖门。该结果只用于选择任务身份；预扫描轨迹不进入
+optimizer，更新后的策略必须重新采样。
+
+下一轮不再增加教师、奖励arm或数据审计。固定从77个mixed候选按category×constraint比例选择
+40个任务，运行唯一的binary strict trajectory-GRPO小实验：每任务K4、每次聚合4个任务组、
+共10次optimizer step、18/15 horizon、RL dropout=0、LR=3e-6、单epoch、SFT reference KL
+hard stop=0.01。相较旧链路，唯一成组修改是已经分别通过因果探针的训练配置修复：K8×1改为
+K4×4、6/6改为18/15、dropout 0.05改为0，以及将已证实欠更新的1e-6提高到安全探针范围内的
+3e-6；奖励仍保持strict binary，避免把前述冗余失败质量公式重新带回实验。
+
+这是一轮快速可证伪验证，不以审计工作量为目标。除任务不泄漏、当前adapter身份、strict结果和
+相同评测配置外不新增制度。训练完成后只在全新100–200 task tuning-dev2上比较Raw、SFT与RL；
+若RL未超过SFT至少1 pp，或partial/schema明显恶化，则停止该配方并直接根据失败轨迹提出下一项
+单变量假设，不靠增加seed或算力掩盖负结果。
