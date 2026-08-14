@@ -134,6 +134,19 @@ def test_phase4_online_job_freezes_verified_configuration():
     assert "kl_hard_stop: float = 0.01" in learner
 
 
+def test_phase5_tail2_online_job_changes_only_policy_credit_window():
+    source = (SCRIPTS / "run_m6_phase5_tail2_online_rl_job.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --gres=gpu:1" in source
+    assert "#SBATCH --cpus-per-task=4" in source
+    assert "#SBATCH --mem=24G" in source
+    assert "steps=5" in source
+    assert "--mode phase4_online_rl_collection --role train --k 4" in source
+    assert "--max-model-turns 18 --max-environment-steps 15" in source
+    assert "--microbatch-size 4 --policy-credit-window tail2" in source
+    assert '"reward":"strict_binary"' in source
+    assert '"policy_credit_window":"tail2"' in source
+
+
 def test_phase4_tuning_eval_is_paired_and_has_no_training():
     source = (SCRIPTS / "run_m6_phase4_tuning_eval_job.sh").read_text(encoding="utf-8")
     stats = (SCRIPTS / "m6_phase4_tuning_stats.py").read_text(encoding="utf-8")

@@ -718,3 +718,22 @@ panel在同一模型实例上先后计算`full`和`tail2`梯度，但optimizer s
 若两个panel的cosine都不低于0.98，判定该mask与整轨迹信用仍冗余，不消耗在线训练预算。只有
 两个panel均有限非零、且至少一个panel cosine低于0.98，才把它视为有方向区分度，并另行冻结
 一个5-step小训练；探针通过本身不能表述为性能提升。
+
+## 20. Phase5 tail-2 零更新探针结果与最小在线验证
+
+Job 2322 只计算梯度、没有建立optimizer或执行参数更新，最终报告明确记录
+`optimizer_steps=0`与`training_performed=false`。两个冻结panel的full与tail-2梯度均有限且非零；
+tail-2分别覆盖273/890（30.67%）和333/1191（27.96%）个动作token。参数梯度结果为：
+
+| panel | full norm | tail-2 norm | tail/full norm | cosine |
+|---:|---:|---:|---:|---:|
+| step-00 / SFT input | 0.7441 | 1.0263 | 1.3793 | 0.7099 |
+| step-01 / step-00 input | 0.6332 | 0.9955 | 1.5723 | 0.5862 |
+
+两个cosine都远低于0.98冗余门，说明末两次动作信用不是对整轨迹梯度的微小缩放，而是明显改变
+了参数更新方向。该结果只回答“是否值得训练”，不回答“性能是否提升”。因此下一步冻结为一个
+5-step在线验证：从同一SFT起点、相同40-task roster、seed、K4×4、18/15、dropout=0、
+LR=3e-6、strict binary reward与SFT-reference KL出发，唯一改变为policy loss只覆盖每条轨迹最后
+两个有效agent action turn；KL继续覆盖整条轨迹。训练完成后复用同一fresh tuning-dev2做开发
+诊断，并与SFT及历史full-credit step-5直接比较。只有tail-2超过SFT至少1 pp、RL-only flips净正、
+partial/schema不恶化，才冻结候选并另建全新dev3确认；否则停止该信用方向，不扩大seed或步数。

@@ -32,6 +32,7 @@ def main() -> None:
     parser.add_argument("--iteration-index", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--microbatch-size", type=int, default=4, choices=(1, 2, 4, 8))
+    parser.add_argument("--policy-credit-window", choices=("full", "tail2"), default="full")
     args = parser.parse_args()
 
     root = args.collection_root.expanduser().resolve()
@@ -68,6 +69,7 @@ def main() -> None:
         iteration_index=args.iteration_index,
         seed=args.seed,
         microbatch_size=args.microbatch_size,
+        policy_credit_window=args.policy_credit_window,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 

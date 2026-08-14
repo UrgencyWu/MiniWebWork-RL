@@ -81,6 +81,7 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2255_[0–3] | 四个中断分支最终恢复 | COMPLETED；六个 method×seed 分支均达到 20/20 更新，全部 RL audit PASS |
 | 2259 matrix（Jobs 2259, 2261–2267） | M6.2 formal-dev 冻结评测 | COMPLETED；8 identities × 500 tasks × K4，共 16,000 条轨迹 |
 | 2260 | M6.2 配对统计 | COMPLETED；报告 SHA `dd600451…eb1637`，决策 `STOP_MEDIUM_RL` |
+| 2322 | Phase5 tail-2 零更新梯度探针 | 通过方向区分门；两个panel cosine为0.7099/0.5862，optimizer steps=0，只允许进入5-step最小训练 |
 
 关键修复提交包括：`1543a20`（校准测试）、`d6b48f6`（冻结 K4 校准）、
 `2266743`（绑定冻结 prefix）、`7bc3c4f`（replay parity 校准）、`ed99ea3`

@@ -230,6 +230,7 @@ def train_phase4_iteration(
     kl_coefficient: float = 0.03,
     kl_hard_stop: float = 0.01,
     microbatch_size: int = 4,
+    policy_credit_window: str = "full",
     input_optimizer: Path | None = None,
 ) -> dict[str, Any]:
     """Apply exactly one optimizer step from four on-policy K4 task groups."""
@@ -242,12 +243,17 @@ def train_phase4_iteration(
     _require(learning_rate == 3e-6, "Phase4 learning rate must remain 3e-6")
     _require(kl_coefficient > 0 and kl_hard_stop == 0.01, "Phase4 KL configuration drift")
     _require(microbatch_size in {1, 2, 4, 8}, "Phase4 microbatch size drift")
-    prepared = prepare_k4x4_examples(groups)
+    _require(policy_credit_window in POLICY_CREDIT_WINDOWS, "unsupported Phase4 policy credit window")
+    prepared = prepare_k4x4_examples(groups, policy_credit_window=policy_credit_window)
     root = output_root.expanduser().resolve()
     report_path = root / "learner_report.json"
     if report_path.is_file():
         report = json.loads(report_path.read_text(encoding="utf-8"))
         _require(report.get("content_sha256") == _self_hash(report), "Phase4 recovered report hash drift")
+        _require(
+            report.get("policy_credit_window", "full") == policy_credit_window,
+            "Phase4 recovered report policy-credit drift",
+        )
         return report
     root.parent.mkdir(parents=True, exist_ok=True)
     if root.exists():
@@ -278,6 +284,10 @@ def train_phase4_iteration(
         _require(checkpoint.get("schema_version") == OPTIMIZER_SCHEMA, "Phase4 optimizer schema drift")
         _require(checkpoint.get("iteration_index") == iteration_index - 1, "Phase4 optimizer iteration drift")
         _require(checkpoint.get("learning_rate") == learning_rate, "Phase4 optimizer learning-rate drift")
+        _require(
+            checkpoint.get("policy_credit_window", "full") == policy_credit_window,
+            "Phase4 optimizer policy-credit drift",
+        )
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         cumulative_updates = int(checkpoint["cumulative_optimizer_updates"])
         input_optimizer_sha256 = sha256_file(input_optimizer)
@@ -345,6 +355,7 @@ def train_phase4_iteration(
             "schema_version": OPTIMIZER_SCHEMA,
             "iteration_index": iteration_index,
             "learning_rate": learning_rate,
+            "policy_credit_window": policy_credit_window,
             "cumulative_optimizer_updates": cumulative_updates + 1,
             "optimizer_state_dict": optimizer.state_dict(),
         },
@@ -366,6 +377,10 @@ def train_phase4_iteration(
         "optimizer_steps": 1,
         "cumulative_optimizer_updates": cumulative_updates + 1,
         "learning_rate": learning_rate,
+        "policy_credit_window": policy_credit_window,
+        "active_policy_action_tokens": sum(
+            example.completion_tokens for example in examples if example.policy_token_loss_weight > 0.0
+        ),
         "lora_dropout_during_rl": 0.0,
         "kl_coefficient": kl_coefficient,
         "reference_kl": mean_reference_kl,
