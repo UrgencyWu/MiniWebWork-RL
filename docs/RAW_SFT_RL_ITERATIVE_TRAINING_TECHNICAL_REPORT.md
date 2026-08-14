@@ -810,3 +810,18 @@ task bootstrap 95% CI为`[-1.562,+1.172] pp`，RL-only/SFT-only flips为6/7，�
 报告可配对终局对比的任务数、同商品不同option覆盖和每类失败占比。若高质量终局对比不足，就只
 重建一个20-task强对比roster；若覆盖已足，说明数据选择假设不成立，停止该方向。诊断前不提交
 新的训练，也不再使用已多次查看的tuning-dev2选择超参数。
+
+## 24. Phase7 强终局对比数据诊断预注册
+
+本阶段不训练，只检验Phase4在线数据是否真正提供了末端商品/option决策所需的组内反事实。输入
+限定为40个既有在线K4任务和三份SFT-disjoint prescan（共77个mixed K4任务）；不得读取
+promotion或holdout。诊断只从模型在`Buy Now`前看到的public observation读取current ASIN与
+selected options，不读取target ASIN、隐藏答案或terminal server内部信息。
+
+同一K4任务中，每条strict purchase与partial purchase构成候选对；current ASIN相同才算
+`same-item strict-partial`强对比，且selected-options规范化后不同才算`option contrast`。报告同时
+保留所有失败类型、类别/约束bucket、缺失public购买状态数与输入自哈希。门槛在运行前冻结：现有
+online数据只有在至少50%的mixed任务含same-item对比、且其中至少50%含option contrast时才算
+覆盖充足；否则确认数据质量缺口。只有prescan union至少有20个same-item任务且其中至少12个
+option-contrast任务时，才允许重建20-task强对比roster；不足时必须先做针对性prescan，不能凑数
+或直接训练。该诊断`optimizer_steps=0`，结果只决定数据路径，不构成性能证据。
