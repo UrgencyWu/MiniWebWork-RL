@@ -832,3 +832,24 @@ option-contrast任务时，才允许重建20-task强对比roster；不足时必�
 保留但不得解释为数据结论。v2只使用真正public的信息：从`Buy Now`前的策略动作历史取最后一个
 公开ASIN click，并从policy-visible text的`selected:`标记解析option。冻结门槛不变，修复后使用
 新输出根重跑；不得为适配结果调整阈值。
+
+## 25. Phase7 v2 强终局对比诊断结果
+
+修正版CPU诊断报告SHA为`26257d77...3cebf59`，13个输入绑定、自哈希和public-only合同均
+通过；`optimizer_steps=0`且缺失public购买状态数已降为0，证明v2解析有效。结果如下：
+
+| source | mixed tasks | strict-partial tasks / pairs | same-item tasks / pairs | option tasks / pairs |
+|---|---:|---:|---:|---:|
+| 40-task online | 26 | 25 / 79 | 3 / 9 | 2 / 6 |
+| 192-task prescan | 77 | 72 / 227 | 11 / 26 | 10 / 24 |
+
+online中只有3/26（11.54%）mixed任务提供same-item strict-partial对比，远低于预注册50%；这3个
+任务中2个含option contrast（66.67%），说明一旦命中同商品，对比通常有用，但覆盖严重不足。
+因此数据质量缺口成立。现有prescan union也只有11个same-item任务、10个option任务，未达到
+重建20-task roster所需的20/12门，不能从现有数据凑出下一训练集。
+
+下一步先做一轮针对性prescan，不训练：从72个已有strict+partial但多数商品不一致的任务中冻结
+32个候选，用同一SFT policy与独立seed再采一批K4，并与现有prescan按task合并诊断。目标是把
+可用same-item任务增至至少20、option任务增至至少12；达不到就停止该数据合成方式，而不是增加
+RL预算。即使达到门槛，后续RL仍须用当时current policy重新采样，prescan轨迹不能直接当作
+on-policy更新批次。
