@@ -481,3 +481,17 @@ public-only合同通过：64个SFT-disjoint P1任务、256条全长轨迹上的s
 0.8604/0.8540和10.75%。两侧均通过原0.80/0.70/30%门，故2297恢复P2资格，但不能把离线
 AUC表述为策略性能提升。P2只比较相同冻结K4轨迹上的binary与strict-dominant参数梯度，不执行
 optimizer step；若梯度差异过弱、过强或破坏strict支配，仍会停止在线A/B。
+
+P2 Job 2298 以 `COMPLETED 0:0` 结束，耗时5分46秒；报告绑定2297 readiness自哈希、8个
+full-horizon K4 group哈希和同一SFT adapter，dropout=0、optimizer steps=0。两个4-task panel
+的strict恒为1、failure均在[-0.1,0]，strict/failure advantage符号与排序未翻转；全部loss和
+gradient有限，reference KL=0，最大clip fraction=0.328%。安全合同通过，但方法差异门明确
+失败：两panel的binary-vs-quality参数梯度cosine分别为0.999861和0.999903，高于0.98冗余线；
+secondary/primary gradient norm仅1.674%和1.407%，远低于10%下界。
+
+该结果说明50/50 buy-readiness能够离线识别错误option，但当前`0.1*q`经过每个K4 group内的
+标准化后，failure间只有约-0.075至-0.1的小差异，相对strict=1几乎只是binary reward的仿射
+扰动，不能形成实质不同的参数更新方向。2298是有效算法负结果，不是基础设施失败；不得通过
+调大epsilon、penalty或挑选group把它刷过预注册门。依据冻结停止规则，P3四作业在线A/B不提交，
+本轮Phase2到此停止。后续若另立新研究轮，应优先检验不被组内标准化消去的失败排序目标或更有
+差异的task/failure构成，而不是在本轮继续放大同一scaler。
