@@ -289,6 +289,20 @@ def validate_phase2_horizon_contract(args: argparse.Namespace) -> None:
         )
 
 
+def validate_phase4_data_synthesis_contract(args: argparse.Namespace) -> None:
+    """Freeze full-horizon, SFT-disjoint rollout data without enabling updates."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase4 synthesis roster drift")
+    _require(args.adapter is not None, "M6 Phase4 synthesis requires the frozen SFT adapter")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase4 synthesis must match the full evaluation horizon",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase4 synthesis task slicing is forbidden")
+    _require(args.maximum_action_tokens is None, "M6 Phase4 synthesis cannot claim a training token budget")
+    _require(args.replay_prefix_root is None, "M6 Phase4 synthesis cannot reuse a diagnostic prefix")
+
+
 def _validate_group_run_contract(
     group: Mapping[str, Any],
     *,
@@ -580,7 +594,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _require(task_ids, "M6 selected task roster is empty")
     expected_k = int(
         protocol["mini"]["evaluation_K"]
-        if args.mode in {"evaluation", "phase2_horizon_evaluation"}
+        if args.mode in {"evaluation", "phase2_horizon_evaluation", "phase4_data_synthesis"}
         else protocol["rl"]["group_size"]
     )
     _require(args.k == expected_k, "M6 mode/K contract drift")
@@ -602,6 +616,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         validate_diagnostic_evaluation_contract(args)
     elif args.mode == "phase2_horizon_evaluation":
         validate_phase2_horizon_contract(args)
+    elif args.mode == "phase4_data_synthesis":
+        validate_phase4_data_synthesis_contract(args)
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -858,7 +874,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mode",
-        choices=("raw_collection", "evaluation", "diagnostic_evaluation", "phase2_horizon_evaluation", "rl_collection"),
+        choices=(
+            "raw_collection",
+            "evaluation",
+            "diagnostic_evaluation",
+            "phase2_horizon_evaluation",
+            "phase4_data_synthesis",
+            "rl_collection",
+        ),
         required=True,
     )
     parser.add_argument("--role", choices=("mini_train", "mini_dev", "formal_dev", "train"), required=True)

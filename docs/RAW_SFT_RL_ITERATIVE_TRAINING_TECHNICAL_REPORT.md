@@ -543,3 +543,40 @@ binary strict梯度方向，尚不足以作为一个机制上独立的在线训�
 问题转向SFT-disjoint任务覆盖、失败状态对比或能改变动作级方向的监督信号，而不是继续放大同一
 failure-quality残差。Job 2300只支持“幅度修复有效、方向区分仍不足”的机制结论，不支持任何
 策略性能提升结论。
+
+## 13. M6 Phase4 预注册：学生可探索性预扫描与条件教师补充
+
+前三阶段已经排除了“仅换信用公式即可获得提升”的简单解释。Phase4把研究对象从优化器转向
+数据支持：先确认冻结SFT策略在**未进入SFT语料、未进入P1诊断、未进入非训练角色**的新任务上，
+能否生成足够多的成功/失败强对比；只有学生完全无法成功的部分才考虑更强教师。该阶段是策略
+相关的数据诊断与合成，不执行optimizer step，也不能表述为RL训练。
+
+学生预扫描冻结为两个互斥分区，每区64个task，选择seed分别为20260824与20260825。任务来自
+split lock的`train`角色，按category×constraint-count比例分层，每个分区相对候选总体的最大
+bucket份额偏差不超过5个百分点；两个分区、SFT 156个task、P1 64-task roster及所有非训练角色
+之间的task identity交集必须为0。冻结SFT adapter在每个task上采样K=4，使用与后续评测一致的
+18 model turns/15 environment steps；总计128 task、512条轨迹。两分区均保留mixed、all-success
+和all-failure组，禁止使用mixed-only过滤制造虚假的高质量数据观感。
+
+预扫描后按任务组形成三路索引：
+
+1. `mixed`：只证明该任务对冻结SFT策略存在探索支持，作为未来在线训练的**任务roster候选**；
+   每次在线更新仍必须由当时的current policy重新采样，预扫描轨迹不能在策略更新后继续冒充
+   on-policy batch。
+2. `all-success`：进入能力保持与成功轨迹成本分析候选集，不承担strict二元奖励下的新能力学习。
+3. `all-failure`：进入条件教师补充候选集。教师轨迹必须strict success且通过环境replay验证，
+   只能用于恢复SFT、偏好学习或离线诊断；不得进入学生on-policy GRPO，也不得伪造为学生采样。
+
+每条学生轨迹同时记录strict outcome、失败类别、public-only buy-readiness序列与failure quality；
+禁止读取target ASIN或隐藏答案，也不把official dense task score直接当奖励。对mixed组生成
+strict-over-failure对比，对同组差异至少0.1的失败生成failure-quality对比。完整性门为128 task、
+512轨迹、全部哈希/adapter/split/seed闭合且零训练更新。未来在线roster的探索支持门为：总mixed
+至少64组、每分区至少24组、strict/failure对至少128、strict/partial至少64、failure-quality
+对至少32、至少32组存在可辨失败质量差，并有至少3类失败各不少于4例。门失败时不得直接扩大
+在线训练，必须先处理覆盖不足或标签不可辨识。
+
+教师补充不是默认步骤。只有all-failure task至少16个，或某个至少4-task的分层bucket中
+all-failure占比达到50%，才触发教师候选生成。即使触发，也先在固定小探针上证明教师相对学生
+具有更高strict pass率，再生成最小必要样本；无法证明更强时不调用教师。这样把“学生自己训练
+自己”的闭环拆成两类证据：学生rollout负责真实on-policy边界，外部教师只补学生探索不到的
+状态，并由环境verifier而非教师自评决定是否接受。
