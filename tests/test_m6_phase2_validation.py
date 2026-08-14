@@ -35,6 +35,16 @@ def _batch_module():
     return module
 
 
+def _reward_module():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "m6_phase2_reward_probe.py"
+    spec = importlib.util.spec_from_file_location("m6_phase2_reward_probe", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _collector_module():
     path = Path(__file__).resolve().parents[1] / "scripts" / "m6_collect_policy_success.py"
     spec = importlib.util.spec_from_file_location("m6_phase2_collect", path)
@@ -144,6 +154,42 @@ def test_phase2_readiness_v2_job_is_cpu_only_and_bound_to_full_horizon():
 def test_phase2_readiness_auc_handles_ties():
     module = _readiness_module()
     assert module._auc([0, 1], [0.5, 0.5]) == 0.5
+
+
+def test_phase2_reward_probe_is_strict_dominant():
+    module = _reward_module()
+    evidence = _evidence(page_type="item", item=0.8, option=0.0, option_count=1)
+    partial = {
+        "success": False,
+        "task_score": 0.5,
+        "termination_reason": "purchase",
+        "turns": [
+            {"verifier_progress_evidence": evidence},
+            {"verifier_progress_evidence": evidence},
+        ],
+    }
+    strict = dict(partial, success=True, task_score=1.0)
+    partial_reward = module.trajectory_rewards(partial)
+    strict_reward = module.trajectory_rewards(strict)
+    assert -0.1 <= partial_reward["strict_dominant_reward"] <= 0.0
+    assert strict_reward["strict_dominant_reward"] == 1.0
+    assert strict_reward["strict_dominant_reward"] > partial_reward["strict_dominant_reward"]
+
+
+def test_phase2_reward_probe_has_no_optimizer_step_and_is_bounded():
+    root = Path(__file__).resolve().parents[1]
+    probe = (root / "scripts" / "m6_phase2_reward_probe.py").read_text(encoding="utf-8")
+    job = (root / "scripts" / "run_m6_phase2_reward_probe_job.sh").read_text(encoding="utf-8")
+    submit = (root / "scripts" / "submit_m6_phase2_reward_probe.sh").read_text(encoding="utf-8")
+    assert "optimizer.step(" not in probe
+    assert '"optimizer_steps": 0' in probe
+    assert "official_dense_task_score_used_as_reward" in probe
+    assert "#SBATCH --gres=gpu:1" in job
+    assert "#SBATCH --cpus-per-task=4" in job
+    assert "#SBATCH --mem=24G" in job
+    assert "full_18_15_prefix_replay_r2/groups" in job
+    assert '"process_reward_calibration_passed":true' in job
+    assert "git status --porcelain --untracked-files=no" in submit
 
 
 def test_phase2_p0_submit_has_no_false_dependency():

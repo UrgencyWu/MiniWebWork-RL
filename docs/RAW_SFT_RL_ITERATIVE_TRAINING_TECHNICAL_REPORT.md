@@ -474,3 +474,10 @@ block，继续禁止search-result候选分、target ASIN和隐藏答案。该50/
 高readiness失败4.05%；公式冻结后，在旧500-task formal-dev轨迹上只作外部复核，得到
 0.8604/0.8540和10.75%。下一步以版本化CPU-only作业生成带自哈希的正式P0b-r2报告；只有
 校准集与历史外部复核都过原门，才恢复P2同batch奖励反事实。
+
+P0b-r2 Job 2297 以 `COMPLETED 0:0` 结束，耗时15秒且没有训练。正式报告自哈希、公式版本和
+public-only合同通过：64个SFT-disjoint P1任务、256条全长轨迹上的strict-vs-all/partial AUC
+为0.8563/0.8500，高readiness失败4.05%；历史冻结500-task、2,000轨迹外部复核为
+0.8604/0.8540和10.75%。两侧均通过原0.80/0.70/30%门，故2297恢复P2资格，但不能把离线
+AUC表述为策略性能提升。P2只比较相同冻结K4轨迹上的binary与strict-dominant参数梯度，不执行
+optimizer step；若梯度差异过弱、过强或破坏strict支配，仍会停止在线A/B。
