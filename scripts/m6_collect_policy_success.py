@@ -40,6 +40,7 @@ from miniwebwork.m6_posttraining_protocol import (  # noqa: E402
 )
 from miniwebwork.m6_pilot import validate_artifact_git_compatibility  # noqa: E402
 from miniwebwork.model_agent.agent_loop import run_model_episode  # noqa: E402
+from miniwebwork.model_agent.model_backend import GenerationResult  # noqa: E402
 from miniwebwork.webshop_rl.agent import QwenWebShopAgent  # noqa: E402
 from miniwebwork.webshop_rl.environment import WebShopHTTPEnvironment  # noqa: E402
 from miniwebwork.webshop_rl.m6_online_training import (  # noqa: E402
@@ -48,7 +49,10 @@ from miniwebwork.webshop_rl.m6_online_training import (  # noqa: E402
     validate_committed_group,
 )
 from miniwebwork.webshop_rl.online_training import MAX_NEW_TOKENS, M5VLLMBackendConfig  # noqa: E402
-from miniwebwork.webshop_rl.verifier_td import annotate_episode_with_verifier  # noqa: E402
+from miniwebwork.webshop_rl.verifier_td import (  # noqa: E402
+    annotate_episode_with_verifier,
+    public_state_anchor_signature,
+)
 
 ATTEMPT_SCHEMA = "m6_rollout_attempt_v1"
 ATTEMPT_START_SCHEMA = "m6_rollout_attempt_start_v1"
@@ -135,6 +139,56 @@ class DurableTokenLedger:
             "generated_action_tokens": sum(int(row["generated_action_tokens"]) for row in rows),
             "sha256": sha256_json(rows) if rows else hashlib.sha256(b"").hexdigest(),
         }
+
+
+class Phase2PrefixReplayBackend:
+    """Replay an audited short-horizon prefix before live continuation."""
+
+    def __init__(
+        self,
+        *,
+        live_backend: ThreadsafeVLLMBackend,
+        source_turns: list[Mapping[str, Any]],
+        lineage: Mapping[str, str],
+    ):
+        self._live_backend = live_backend
+        self._source_turns = [dict(turn) for turn in source_turns]
+        self._lineage = dict(lineage)
+        self._position = 0
+
+    @property
+    def consumed_prefix_turns(self) -> int:
+        return self._position
+
+    def generate(self, messages: list[dict[str, Any]]) -> GenerationResult:
+        if self._position >= len(self._source_turns):
+            return self._live_backend.generate(messages)
+        source = self._source_turns[self._position]
+        self._position += 1
+        prompt_ids = [int(value) for value in source["prompt_token_ids"]]
+        generated_ids = [int(value) for value in source["generated_token_ids"]]
+        behavior = [float(value) for value in source["behavior_logprobs"]]
+        sampling = [float(value) for value in source["sampling_logprobs"]]
+        _require(prompt_ids and generated_ids, "M6 Phase2 replay turn lacks token evidence")
+        _require(
+            len(generated_ids) == len(behavior) == len(sampling),
+            "M6 Phase2 replay turn logprob/token drift",
+        )
+        return GenerationResult(
+            raw_text=str(source["raw_output"]),
+            new_tokens=len(generated_ids),
+            input_tokens=len(prompt_ids),
+            prompt_token_ids=prompt_ids,
+            generated_token_ids=generated_ids,
+            logprobs=behavior,
+            sampling_logprobs=sampling,
+            request_id=str(source["request_id"]),
+            sampling_seed=int(source["sampling_seed"]),
+            generation_backend="phase2_prefix_replay_v1",
+            adapter_sha256=self._lineage["adapter_sha256"],
+            rollout_adapter_sha256=self._lineage["rollout_adapter_sha256"],
+            adapter_semantic_sha256=self._lineage["adapter_semantic_sha256"],
+        )
 
 
 async def _create_identity(
@@ -227,6 +281,12 @@ def validate_phase2_horizon_contract(args: argparse.Namespace) -> None:
     )
     _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase2 horizon task slicing is forbidden")
     _require(args.maximum_action_tokens is None, "M6 Phase2 horizon diagnostic cannot claim a training token budget")
+    replay_root = getattr(args, "replay_prefix_root", None)
+    if replay_root is not None:
+        _require(
+            (args.max_model_turns, args.max_environment_steps) == (18, 15),
+            "M6 Phase2 prefix replay is only valid for the full-horizon arm",
+        )
 
 
 def _validate_group_run_contract(
@@ -284,8 +344,18 @@ async def _one_group(
     training_updates_allowed: bool,
     max_model_turns: int,
     max_environment_steps: int,
+    replay_prefix_group: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     group_id = f"g{group_index:04d}"
+    if replay_prefix_group is not None:
+        replay_prefix_group = validate_committed_group(replay_prefix_group, require_k=k)
+        _require(replay_prefix_group["group_id"] == group_id, "M6 Phase2 replay group id drift")
+        _require(replay_prefix_group["task_id"] == task_id, "M6 Phase2 replay task drift")
+        for field in LINEAGE_FIELDS:
+            _require(
+                replay_prefix_group[field] == lineage[field],
+                f"M6 Phase2 replay policy lineage drift ({field})",
+            )
     destination = groups_root / f"{group_id}.json"
     if destination.is_file():
         return validate_committed_group(_load_json(destination), require_k=k)
@@ -302,11 +372,22 @@ async def _one_group(
         "protocol_sha256": protocol_sha256,
         "training_updates_allowed": training_updates_allowed,
         "policy_lineage": dict(lineage),
+        "replay_prefix_group_content_sha256": (
+            replay_prefix_group.get("content_sha256") if replay_prefix_group is not None else None
+        ),
     }
     attempt_start["content_sha256"] = _self_hash(attempt_start)
     atomic_write_json(attempts_root / f"{group_id}.a{attempt_index}.started.json", attempt_start)
 
     async def one(rollout_index: int) -> dict[str, Any]:
+        source_turns: list[Mapping[str, Any]] = []
+        if replay_prefix_group is not None:
+            source_trajectory = replay_prefix_group["trajectories"][rollout_index]
+            _require(
+                int(source_trajectory["rollout_index"]) == rollout_index,
+                "M6 Phase2 replay rollout index drift",
+            )
+            source_turns = list(source_trajectory["turns"])
         context = RolloutRequestContext(
             run_seed=seed,
             iteration_index=iteration_index,
@@ -323,9 +404,19 @@ async def _one_group(
             context=context,
             timeout_seconds=900,
             event_loop_thread_id=loop_thread_id,
+            initial_turn_index=len(source_turns),
+        )
+        replay_backend = (
+            Phase2PrefixReplayBackend(
+                live_backend=backend,
+                source_turns=source_turns,
+                lineage=lineage,
+            )
+            if source_turns
+            else None
         )
         environment = WebShopHTTPEnvironment(base_url=base_url, split="train", timeout_seconds=120)
-        agent = QwenWebShopAgent(backend)
+        agent = QwenWebShopAgent(replay_backend or backend)
         def charge(turn: Mapping[str, Any]) -> None:
             generated_ids = list(turn.get("generated_token_ids", []))
             ledger.append(
@@ -342,6 +433,39 @@ async def _one_group(
                     "adapter_sha256": lineage["adapter_sha256"],
                 }
             )
+
+        def verify_prefix(turn: Mapping[str, Any]) -> None:
+            position = int(turn.get("model_turn_index", 0)) - 1
+            if position < 0 or position >= len(source_turns):
+                return
+            source = source_turns[position]
+            _require(
+                turn.get("rendered_prompt_sha256") == source.get("rendered_prompt_sha256"),
+                "M6 Phase2 replay rendered prompt drift",
+            )
+            _require(
+                list(turn.get("prompt_token_ids", [])) == list(source.get("prompt_token_ids", [])),
+                "M6 Phase2 replay prompt token drift",
+            )
+            _require(
+                list(turn.get("generated_token_ids", [])) == list(source.get("generated_token_ids", [])),
+                "M6 Phase2 replay generated token drift",
+            )
+            _require(
+                int(turn.get("sampling_seed", -1)) == int(source.get("sampling_seed", -2)),
+                "M6 Phase2 replay sampling seed drift",
+            )
+            _require(turn.get("action") == source.get("action"), "M6 Phase2 replay action drift")
+            _require(
+                public_state_anchor_signature(turn["observation"])
+                == source.get("pre_action_public_state_sha256"),
+                "M6 Phase2 replay pre-action state drift",
+            )
+            _require(
+                public_state_anchor_signature(turn["post_action_observation"])
+                == source.get("post_action_public_state_sha256"),
+                "M6 Phase2 replay post-action state drift",
+            )
         try:
             episode = await asyncio.to_thread(
                 run_model_episode,
@@ -351,8 +475,13 @@ async def _one_group(
                 max_model_turns,
                 max_environment_steps,
                 charge,
-                None,
+                verify_prefix if source_turns else None,
             )
+            if replay_backend is not None:
+                _require(
+                    replay_backend.consumed_prefix_turns == len(source_turns),
+                    "M6 Phase2 replay terminated before consuming the audited prefix",
+                )
             if episode.get("rollout_valid") is True:
                 episode = annotate_episode_with_verifier(episode, goal=goal)
             return episode
@@ -456,6 +585,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     _require(args.k == expected_k, "M6 mode/K contract drift")
     training_updates_allowed = args.mode == "rl_collection"
+    _require(
+        args.replay_prefix_root is None or args.mode == "phase2_horizon_evaluation",
+        "M6 prefix replay is restricted to the Phase2 horizon diagnostic",
+    )
     if args.mode == "raw_collection":
         _require(args.role == "mini_train", "M6 Raw collection must use mini_train")
         _require(args.adapter is None and args.task_roster is None and args.task_offset == 0, "M6 Raw collection policy/roster drift")
@@ -492,6 +625,46 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _require(sha256_json(goals) == split_lock["goals_canonical_sha256"], "M6 rollout goals/split drift")
     goal_map = {f"webshop_goal_{int(item['goal_index']):05d}": item for item in goals}
     _require(all(task_id in goal_map for task_id in task_ids), "M6 rollout goal roster is incomplete")
+    replay_prefix_groups: dict[str, dict[str, Any]] = {}
+    replay_prefix_source: dict[str, Any] | None = None
+    if args.replay_prefix_root is not None:
+        replay_root = args.replay_prefix_root.expanduser().resolve()
+        replay_report = _load_json(replay_root / "collection_report.json")
+        _require(
+            replay_report.get("content_sha256") == _self_hash(replay_report),
+            "M6 Phase2 replay source report self-hash drift",
+        )
+        _require(
+            replay_report.get("mode") == "phase2_horizon_evaluation"
+            and replay_report.get("K") == args.k
+            and replay_report.get("task_count") == len(task_ids),
+            "M6 Phase2 replay source shape drift",
+        )
+        _require(
+            replay_report.get("task_order_sha256") == sha256_json(task_ids)
+            and replay_report.get("task_roster_content_sha256") == roster_sha256
+            and replay_report.get("split_lock_content_sha256") == split_lock["content_sha256"]
+            and replay_report.get("protocol_sha256") == protocol_bundle["sha256"],
+            "M6 Phase2 replay source contract drift",
+        )
+        for index, task_id in enumerate(task_ids):
+            value = validate_committed_group(
+                _load_json(replay_root / "groups" / f"g{index:04d}.json"),
+                require_k=args.k,
+            )
+            _require(value["task_id"] == task_id, "M6 Phase2 replay source task order drift")
+            replay_prefix_groups[value["group_id"]] = value
+        _require(
+            replay_report.get("group_content_sha256")
+            == [replay_prefix_groups[f"g{index:04d}"]["content_sha256"] for index in range(len(task_ids))],
+            "M6 Phase2 replay source group/report drift",
+        )
+        replay_prefix_source = {
+            "root": str(replay_root),
+            "collection_report_content_sha256": replay_report["content_sha256"],
+            "producer_git_sha": replay_report["git_sha"],
+            "group_content_sha256": list(replay_report["group_content_sha256"]),
+        }
     # Reconstruct already charged budget before allocating GPU memory.  A
     # timeout after generation but before group commit must not receive a new
     # budget simply because this process restarted.
@@ -506,6 +679,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         output=output,
         seed=args.seed,
     )
+    if replay_prefix_source is not None:
+        _require(
+            replay_report.get("policy_lineage") == dict(lineage),
+            "M6 Phase2 replay source SFT policy drift",
+        )
     loop = asyncio.get_running_loop()
     loop_thread_id = threading.get_ident()
     try:
@@ -534,6 +712,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "base_model": str(args.base_model.expanduser().resolve()),
             "adapter": str(args.adapter.expanduser().resolve()) if args.adapter else None,
             "policy_lineage": dict(lineage),
+            "replay_prefix_source": replay_prefix_source,
         }
         invocation["content_sha256"] = _self_hash(invocation)
         invocation_path = output / "invocation.json"
@@ -601,6 +780,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         training_updates_allowed=training_updates_allowed,
                         max_model_turns=args.max_model_turns,
                         max_environment_steps=args.max_environment_steps,
+                        replay_prefix_group=replay_prefix_groups.get(f"g{index:04d}"),
                     )
                     for index, task_id in wave
                 )
@@ -666,6 +846,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "invocation_content_sha256": invocation["content_sha256"],
         "policy_lineage": dict(lineage),
         "group_content_sha256": [group["content_sha256"] for group in groups],
+        "replay_prefix_source": replay_prefix_source,
         "elapsed_seconds": time.time() - args.started_at,
     }
     report["content_sha256"] = _self_hash(report)
@@ -692,6 +873,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--maximum-tasks", type=int)
     parser.add_argument("--task-roster", type=Path)
     parser.add_argument("--task-roster-producer-git-sha")
+    parser.add_argument("--replay-prefix-root", type=Path)
     parser.add_argument("--task-offset", type=int, default=0)
     parser.add_argument("--max-model-turns", type=int, default=18)
     parser.add_argument("--max-environment-steps", type=int, default=15)

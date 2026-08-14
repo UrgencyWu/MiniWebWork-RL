@@ -85,12 +85,26 @@ def main() -> None:
         "task_order_sha256",
         "task_roster_content_sha256",
         "task_roster_producer_git_sha",
-        "task_roster_consumer_git_sha",
         "split_lock_content_sha256",
         "protocol_sha256",
         "policy_lineage",
     ):
         _require(short_report[field] == full_report[field], f"M6 Phase2 horizon pairing drift: {field}")
+    replay_source = full_report.get("replay_prefix_source")
+    _require(isinstance(replay_source, Mapping), "M6 Phase2 horizon full arm lacks prefix replay binding")
+    _require(
+        replay_source.get("collection_report_content_sha256") == short_report["content_sha256"],
+        "M6 Phase2 horizon replay source report drift",
+    )
+    _require(
+        replay_source.get("producer_git_sha") == short_report["git_sha"]
+        and replay_source.get("group_content_sha256") == short_report["group_content_sha256"],
+        "M6 Phase2 horizon replay source lineage drift",
+    )
+    _require(
+        full_invocation.get("replay_prefix_source") == replay_source,
+        "M6 Phase2 horizon replay invocation/report drift",
+    )
     _require(short_invocation["seed"] == full_invocation["seed"] == 20260821, "M6 Phase2 horizon seed drift")
     rows = []
     shared_turn_seed_mismatches = 0
@@ -170,6 +184,9 @@ def main() -> None:
             "full_collection_report_content_sha256": full_report["content_sha256"],
             "task_roster_content_sha256": short_report["task_roster_content_sha256"],
             "policy_lineage": short_report["policy_lineage"],
+            "short_consumer_git_sha": short_report["git_sha"],
+            "full_replay_consumer_git_sha": full_report["git_sha"],
+            "prefix_replay_source": replay_source,
         },
     }
     report["content_sha256"] = _self_hash(report)

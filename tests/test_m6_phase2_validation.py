@@ -35,6 +35,15 @@ def _batch_module():
     return module
 
 
+def _collector_module():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "m6_collect_policy_success.py"
+    spec = importlib.util.spec_from_file_location("m6_phase2_collect", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_phase2_coefficient_of_variation():
     module = _dropout_module()
     assert module._coefficient_of_variation([2.0, 2.0, 2.0]) == 0.0
@@ -138,11 +147,7 @@ def test_phase2_batch_job_is_bounded_and_single_gpu():
 
 
 def test_phase2_horizon_contract_allows_only_two_frozen_arms():
-    path = Path(__file__).resolve().parents[1] / "scripts" / "m6_collect_policy_success.py"
-    spec = importlib.util.spec_from_file_location("m6_phase2_collect", path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
+    module = _collector_module()
     from argparse import Namespace
 
     args = Namespace(
@@ -154,11 +159,58 @@ def test_phase2_horizon_contract_allows_only_two_frozen_arms():
         maximum_tasks=None,
         task_offset=0,
         maximum_action_tokens=None,
+        replay_prefix_root=None,
     )
     module.validate_phase2_horizon_contract(args)
+    args.max_model_turns = 18
+    args.max_environment_steps = 15
+    args.replay_prefix_root = Path("short")
+    module.validate_phase2_horizon_contract(args)
+    args.max_model_turns = 6
+    args.max_environment_steps = 6
+    with pytest.raises(ValueError, match="only valid for the full-horizon arm"):
+        module.validate_phase2_horizon_contract(args)
+    args.replay_prefix_root = None
     args.max_model_turns = 12
     with pytest.raises(ValueError, match="horizon arm drift"):
         module.validate_phase2_horizon_contract(args)
+
+
+def test_phase2_prefix_replay_preserves_audited_generation_evidence():
+    module = _collector_module()
+
+    class LiveBackend:
+        def generate(self, messages):
+            return ("live", messages)
+
+    lineage = {
+        "adapter_sha256": "a" * 64,
+        "rollout_adapter_sha256": "b" * 64,
+        "adapter_semantic_sha256": "c" * 64,
+    }
+    source = {
+        "prompt_token_ids": [1, 2],
+        "generated_token_ids": [3, 4],
+        "behavior_logprobs": [-0.1, -0.2],
+        "sampling_logprobs": [-0.1, -0.2],
+        "raw_output": '{"command":"search[test]"}',
+        "request_id": "source.request",
+        "sampling_seed": 7,
+    }
+    backend = module.Phase2PrefixReplayBackend(
+        live_backend=LiveBackend(), source_turns=[source], lineage=lineage
+    )
+    replay = backend.generate([{"role": "user", "content": "prompt"}])
+    assert replay.prompt_token_ids == [1, 2]
+    assert replay.generated_token_ids == [3, 4]
+    assert replay.logprobs == [-0.1, -0.2]
+    assert replay.sampling_seed == 7
+    assert replay.generation_backend == "phase2_prefix_replay_v1"
+    assert backend.consumed_prefix_turns == 1
+    assert backend.generate([{"role": "user", "content": "next"}]) == (
+        "live",
+        [{"role": "user", "content": "next"}],
+    )
 
 
 def test_phase2_horizon_jobs_are_bounded_and_paired():
@@ -194,3 +246,28 @@ def test_phase2_horizon_submit_builds_roster_before_jobs():
     assert build < submit
     assert 'dependency="afterok:$horizon_job"' in source
     assert "M6_SERVICE_BASE_URL" in source
+
+
+def test_phase2_horizon_replay_is_single_gpu_and_audited_afterok():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "scripts" / "run_m6_phase2_horizon_replay_job.sh").read_text(encoding="utf-8")
+    audit = (root / "scripts" / "run_m6_phase2_horizon_replay_analysis_job.sh").read_text(encoding="utf-8")
+    submit = (root / "scripts" / "submit_m6_phase2_horizon_replay.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --gres=gpu:1" in source
+    assert "--replay-prefix-root" in source
+    assert "initial_turn_index=len(source_turns)" in (
+        root / "scripts" / "m6_collect_policy_success.py"
+    ).read_text(encoding="utf-8")
+    assert "--max-model-turns 18 --max-environment-steps 15" in source
+    assert "#SBATCH --gres=gpu" not in audit
+    assert 'dependency="afterok:$replay_job"' in submit
+    assert "full_18_15_prefix_replay_r2" in source
+
+
+def test_phase2_horizon_analysis_requires_replay_source_binding():
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts" / "m6_phase2_horizon_analysis.py"
+    ).read_text(encoding="utf-8")
+    assert 'full_report.get("replay_prefix_source")' in source
+    assert 'replay_source.get("collection_report_content_sha256")' in source
+    assert 'full_invocation.get("replay_prefix_source") == replay_source' in source

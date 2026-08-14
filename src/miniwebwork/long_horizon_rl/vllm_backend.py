@@ -655,15 +655,22 @@ class ThreadsafeVLLMBackend:
         context: RolloutRequestContext,
         timeout_seconds: float = 900.0,
         event_loop_thread_id: int | None = None,
+        initial_turn_index: int = 0,
     ):
         context.validate()
         _require(timeout_seconds > 0, "vLLM bridge timeout must be positive")
+        _require(
+            isinstance(initial_turn_index, int)
+            and not isinstance(initial_turn_index, bool)
+            and initial_turn_index >= 0,
+            "invalid initial vLLM turn index",
+        )
         self._engine = engine
         self._loop = event_loop
         self._context = context
         self._timeout_seconds = float(timeout_seconds)
         self._loop_thread_id = event_loop_thread_id
-        self._turn_index = 0
+        self._turn_index = initial_turn_index
         self._lock = threading.Lock()
 
     def generate(self, messages: list[dict]) -> GenerationResult:

@@ -448,3 +448,11 @@ P0c Job 2291 随后以 `COMPLETED 0:0` 结束，报告自哈希、冻结 SFT ada
 仍为 mixed。两种结构的全部 loss/gradient 有限，reference KL均为0；K4最大 clip fraction为
 0.00310。该结果通过冻结工程门，后续小规模 RL 固定为 K4/task、每次跨4个task group聚合梯度。
 它只证明同一批数据上的方差和覆盖改善，不单独证明 unseen 泛化提升。
+
+P1 Jobs 2292_0/1 分别完成6/6与18/15 horizon 的64 task×K4采样，但依赖审计 Job 2293
+正确拒绝了结果。1,134个可比较共享turn的 sampling seed 全部一致，然而独立并发vLLM运行仍有
+100个生成token hash不一致；其中42个发生在prompt与seed都完全相同的turn，随后累积为89个
+prompt分叉。因此两臂不再只相差horizon，不能据其成功率差异做因果判断。修复不重跑短程臂，
+也不放宽配对门：将2292_0的真实短程action/token/state序列作为不可变前缀，在新18/15环境中
+逐步重放并硬校验prompt、token、action及前后public-state哈希；只有消费完该前缀后才调用SFT
+继续生成。这样新增的唯一模型变量是第7步之后是否允许继续，失败产物和原审计均保留。
