@@ -179,6 +179,9 @@ def test_phase2_horizon_roster_uses_only_train_role():
     ).read_text(encoding="utf-8")
     assert 'split["roles"]["train"]["task_ids"]' in source
     assert 'if role != "train"' in source
+    assert "eligible_ids = [task_id for task_id in train_ids if task_id not in exposed_ids]" in source
+    assert 'not (set(selected) & exposed_ids)' in source
+    assert '"excluded_overlap_task_count": len(excluded_overlap_ids)' in source
     assert '"task_count": len(selected)' in source
 
 

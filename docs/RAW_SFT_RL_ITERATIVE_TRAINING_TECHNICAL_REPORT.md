@@ -435,3 +435,9 @@ dropout 是显著的额外梯度噪声来源，后续 RL 必须固定 dropout=0�
 当前研究决策为：停止基于现有 buy-readiness 的 P2 process-reward arm；继续完成与它独立的
 P0c batch-structure 和 P1 horizon 因果实验。只有后续重新设计的 verifier 在全新校准数据上
 通过原门槛，才可恢复 strict-dominant process reward 实验。
+
+P1 首次提交在创建 Slurm Job 前被数据隔离门拒绝。审计确认冻结 split 的 `train` 角色本身包含
+256个 `mini_train` 任务，但与 formal-dev、promotion、holdout 和 mini-dev 的交集均为0。这里不能
+把角色名等同于天然隔离，也不能删除门禁。修复后的 roster 构造显式计算
+`train - union(non-train roles)`，从6929个合格任务中按类别与约束数量分层、确定性选择64个，
+并再次硬检验最终选择与全部已暴露角色零重叠。首次预检没有提交作业、没有产生采样或训练结果。

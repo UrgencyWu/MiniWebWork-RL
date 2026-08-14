@@ -67,18 +67,30 @@ def main() -> None:
     split = validate_split_lock(json.loads(args.split_lock.read_text(encoding="utf-8")))
     _require(split["protocol_sha256"] == protocol["sha256"], "M6 Phase2 horizon split/protocol drift")
     train_ids = list(split["roles"]["train"]["task_ids"])
-    other_roles = set().union(*(
-        set(value["task_ids"])
+    exposed_role_ids = {
+        role: set(value["task_ids"])
         for role, value in split["roles"].items()
         if role != "train"
-    ))
-    _require(not (set(train_ids) & other_roles), "M6 Phase2 train role overlaps exposed roles")
+    }
+    exposed_ids = set().union(*exposed_role_ids.values())
+    train_set = set(train_ids)
+    overlap_counts = {
+        role: len(train_set & task_ids)
+        for role, task_ids in exposed_role_ids.items()
+    }
+    excluded_overlap_ids = train_set & exposed_ids
+    eligible_ids = [task_id for task_id in train_ids if task_id not in exposed_ids]
+    _require(
+        len(eligible_ids) == len(train_ids) - len(excluded_overlap_ids),
+        "M6 Phase2 horizon eligible-task set difference drift",
+    )
+    _require(len(eligible_ids) >= args.task_count, "M6 Phase2 horizon eligible population too small")
     goals = json.loads(args.goals.read_text(encoding="utf-8"))
     _require(sha256_json(goals) == split["goals_canonical_sha256"], "M6 Phase2 horizon goals/split drift")
     goal_map = {f"webshop_goal_{int(goal['goal_index']):05d}": goal for goal in goals}
-    _require(all(task_id in goal_map for task_id in train_ids), "M6 Phase2 horizon goal map incomplete")
+    _require(all(task_id in goal_map for task_id in eligible_ids), "M6 Phase2 horizon goal map incomplete")
     bucket_rows: dict[str, list[str]] = {}
-    for task_id in train_ids:
+    for task_id in eligible_ids:
         bucket_rows.setdefault(_bucket(goal_map[task_id]), []).append(task_id)
     counts = {key: len(value) for key, value in bucket_rows.items()}
     quotas = _proportional_quotas(counts, args.task_count)
@@ -88,6 +100,7 @@ def main() -> None:
         selected.extend(ranked[: quotas[key]])
     selected.sort(key=lambda task_id: (_rank(args.seed + 1, task_id), task_id))
     _require(len(selected) == args.task_count and len(set(selected)) == args.task_count, "M6 Phase2 horizon selection drift")
+    _require(not (set(selected) & exposed_ids), "M6 Phase2 horizon selected task overlaps exposed roles")
     selected_buckets = Counter(_bucket(goal_map[task_id]) for task_id in selected)
     report = {
         "schema_version": "m6_rl_curriculum_v1",
@@ -95,13 +108,17 @@ def main() -> None:
         "development_only": True,
         "formal_training": False,
         "purpose": "phase2_paired_horizon_diagnostic_only",
-        "selection": "train_role_category_constraint_proportional_hash_v1",
+        "selection": "train_role_minus_exposed_category_constraint_proportional_hash_v1",
         "selection_seed": args.seed,
         "source_split_lock_content_sha256": split["content_sha256"],
         "protocol_sha256": protocol["sha256"],
         "git_sha": protocol["git_sha"],
         "source_role": "train",
-        "excluded_roles": sorted(role for role in split["roles"] if role != "train"),
+        "source_role_task_count": len(train_ids),
+        "excluded_roles": sorted(exposed_role_ids),
+        "source_role_overlap_counts": dict(sorted(overlap_counts.items())),
+        "excluded_overlap_task_count": len(excluded_overlap_ids),
+        "eligible_task_count": len(eligible_ids),
         "task_count": len(selected),
         "task_ids": selected,
         "population_bucket_counts": dict(sorted(counts.items())),

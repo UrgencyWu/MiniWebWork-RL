@@ -26,6 +26,7 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2288 | M6 Phase2 P0a dropout parity | Slurm `COMPLETED 0:0`，但报告给出 dropout-off mean cosine=1.0056 | float32 直接归约超长梯度向量，数值越过 cosine 的数学范围；属于报告实现缺陷，不是训练失败 | 保留 v1 产物；改为分块 float64 累积并建立 `[-1,1]` 硬门，只重跑 P0a | v1 不纳入技术结论 |
 | 2289 | M6 Phase2 P0b buy-readiness | Slurm `COMPLETED 0:0`；strict-vs-all AUC=0.7862，未过0.80 | scorer 对 partial purchase 有信息，但不能可靠统一排序全部 failure | 不降门槛、不重跑同配方；停止现有 process-reward arm | 有效负结果，纳入研究结论 |
 | 2290 | M6 Phase2 P0a dropout parity v2 | `COMPLETED 0:0`；dropout-on/off mean gradient cosine=0.7765/0.99993，off clip=0、KL=0 | 分块 float64 cosine 与 `[-1,1]` 硬门通过，自哈希和 adapter 血缘完整 | 后续 RL 固定 dropout=0；不再重跑该探针 | P0a 有效通过结果 |
+| P1 horizon roster preflight r1 | M6 Phase2 P1 horizon | 提交前退出，未创建 Slurm Job | 冻结 split 的 `train` 角色包含256个 `mini_train` 任务；隔离门正确拒绝。`train` 与 formal-dev、promotion、holdout、mini-dev 均无重叠 | 保留硬隔离门；显式用 `train - union(non-train roles)` 得到6929个候选，再分层选择64个任务并审计零重叠 | 预提交数据合同失败；无采样、训练或研究结果 |
 | 2190 | corpus gate | FAILED 1:0 | 唯一 strict-success task 156，低于冻结门槛 160；其余 corpus 检查通过 | 保留失败报告；以版本化 development-only waiver 运行 2192，正式门槛不下调 | 仅开发诊断，不算正式合格 corpus |
 | 2193 | mini SFT | FAILED 1:0 | stored/runtime SFT input-file drift | 修复输入合同绑定并重提 2200 | 失败 adapter 不使用 |
 | 2202 | SFT promotion gate | FAILED 1:0 | paired evaluation contract drift | 修复 Raw/SFT 配对评测身份与合同，2206 重跑 gate | 原 gate 不使用 |
