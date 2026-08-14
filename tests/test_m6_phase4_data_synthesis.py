@@ -139,6 +139,76 @@ def test_phase4_collector_contract_is_full_horizon_sft_student_and_zero_update()
         module.validate_phase4_data_synthesis_contract(args)
 
 
+def test_phase4_teacher_collector_contract_is_raw_qwen9b_and_zero_update():
+    pytest.importorskip("playwright")
+    module = _module("m6_collect_policy_success")
+    args = Namespace(
+        role="train",
+        task_roster=Path("teacher_roster.json"),
+        adapter=None,
+        base_model=Path("/data/share/model/Qwen3.5-9B"),
+        max_model_turns=18,
+        max_environment_steps=15,
+        maximum_tasks=None,
+        task_offset=0,
+        maximum_action_tokens=None,
+        replay_prefix_root=None,
+    )
+    module.validate_phase4_teacher_probe_contract(args)
+    args.adapter = Path("student_adapter")
+    with pytest.raises(ValueError, match="must not reuse the student adapter"):
+        module.validate_phase4_teacher_probe_contract(args)
+    args.adapter = None
+    args.base_model = Path("/data/share/model/Qwen3.5-4B")
+    with pytest.raises(ValueError, match="teacher model drift"):
+        module.validate_phase4_teacher_probe_contract(args)
+
+
+def test_phase4_teacher_selection_is_deterministic_and_failure_stratified():
+    module = _module("m6_phase4_build_teacher_roster")
+    rows = []
+    for bucket_index in range(8):
+        failure_class = ("partial_purchase", "zero_match_purchase", "horizon_exhaustion")[
+            bucket_index % 3
+        ]
+        for row_index in range(6):
+            row = {
+                "task_id": _task_id(4000 + 10 * bucket_index + row_index),
+                "bucket": f"category_{bucket_index % 4}|constraints_{2 + bucket_index // 4}",
+                "failure_classes": {failure_class: 4},
+            }
+            rows.append(row)
+    first, population, selected_counts, maximum_gap = module._select(rows)
+    repeated, _, _, _ = module._select(rows)
+    assert [row["task_id"] for row in first] == [row["task_id"] for row in repeated]
+    assert len(first) == len({row["task_id"] for row in first}) == 16
+    assert len(population) == len(selected_counts) == 8
+    assert set(selected_counts.values()) == {2}
+    assert maximum_gap == 0.0
+
+
+def test_phase4_teacher_supplement_is_distinct_and_capped_per_task():
+    module = _module("m6_phase4_audit_teacher_probe")
+    rows = []
+    for task_index in range(2):
+        task_id = _task_id(5000 + task_index)
+        for trajectory_index, sequence_sha in enumerate(("a" * 64, "a" * 64, "b" * 64, "c" * 64)):
+            rows.append({
+                "task_id": task_id,
+                "trajectory_id": f"{task_id}-{trajectory_index}",
+                "environment_steps": trajectory_index + 1,
+                "generated_action_tokens": 10 + trajectory_index,
+                "normalized_command_sequence_sha256": sequence_sha,
+            })
+    selected = module._select_distinct(rows)
+    assert len(selected) == 4
+    for task_index in range(2):
+        task_id = _task_id(5000 + task_index)
+        task_rows = [row for row in selected if row["task_id"] == task_id]
+        assert len(task_rows) == 2
+        assert len({row["normalized_command_sequence_sha256"] for row in task_rows}) == 2
+
+
 @pytest.mark.parametrize(
     ("rewards", "expected_type", "expected_flag"),
     [
@@ -181,3 +251,25 @@ def test_phase4_jobs_and_audit_freeze_resources_dependency_and_teacher_separatio
     assert '"teacher_trajectories_allowed_for_on_policy_grpo": False' in audit
     assert '"future_online_updates_require_current_policy_recollection": True' in audit
     assert 'output_dir / "subset_index.json"' in audit
+
+
+def test_phase4_teacher_jobs_are_bounded_dependent_and_never_on_policy():
+    prep_job = (SCRIPTS / "run_m6_phase4_teacher_prep_job.sh").read_text(encoding="utf-8")
+    probe_job = (SCRIPTS / "run_m6_phase4_teacher_probe_job.sh").read_text(encoding="utf-8")
+    audit_job = (SCRIPTS / "run_m6_phase4_teacher_probe_audit_job.sh").read_text(encoding="utf-8")
+    submit = (SCRIPTS / "submit_m6_phase4_teacher_probe.sh").read_text(encoding="utf-8")
+    audit = (SCRIPTS / "m6_phase4_audit_teacher_probe.py").read_text(encoding="utf-8")
+    assert "#SBATCH --gres=gpu" not in prep_job
+    assert "#SBATCH --gres=gpu:1" in probe_job
+    assert "#SBATCH --cpus-per-task=4" in probe_job
+    assert "#SBATCH --mem=32G" in probe_job
+    assert "--mode phase4_teacher_probe --role train --k 4" in probe_job
+    assert "--base-model /data/share/model/Qwen3.5-9B" in probe_job
+    assert "--max-model-turns 18 --max-environment-steps 15" in probe_job
+    assert "#SBATCH --gres=gpu" not in audit_job
+    assert 'dependency="afterok:$prep_job"' in submit
+    assert 'dependency="afterok:$probe_job"' in submit
+    assert "optimizer.step(" not in audit
+    assert '"optimizer_steps": 0' in audit
+    assert '"teacher_data_allowed_for_on_policy_grpo": False' in audit
+    assert '"maximum_trajectories_per_task": MAXIMUM_SUPPLEMENT_PER_TASK' in audit

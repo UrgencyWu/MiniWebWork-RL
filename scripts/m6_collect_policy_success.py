@@ -26,7 +26,10 @@ from miniwebwork.long_horizon_rl.contracts import (  # noqa: E402
     directory_sha256,
     sha256_json,
 )
-from miniwebwork.long_horizon_rl.model_manifest import validate_base_model_manifest  # noqa: E402
+from miniwebwork.long_horizon_rl.model_manifest import (  # noqa: E402
+    BASE_MODEL_MANIFEST_PATH,
+    validate_base_model_manifest,
+)
 from miniwebwork.long_horizon_rl.vllm_backend import (  # noqa: E402
     AsyncVLLMGenerationEngine,
     RawAsyncVLLMGenerationEngine,
@@ -194,11 +197,16 @@ class Phase2PrefixReplayBackend:
 async def _create_identity(
     *,
     base_model: Path,
+    base_model_manifest: Path,
     adapter: Path | None,
     output: Path,
     seed: int,
 ) -> tuple[RawAsyncVLLMGenerationEngine | AsyncVLLMGenerationEngine, dict[str, str]]:
-    manifest = validate_base_model_manifest(expected_base_model=base_model, verify_files=True)
+    manifest = validate_base_model_manifest(
+        path=base_model_manifest,
+        expected_base_model=base_model,
+        verify_files=True,
+    )
     if adapter is None:
         engine = await RawAsyncVLLMGenerationEngine.create(
             RawVLLMBackendConfig(
@@ -301,6 +309,24 @@ def validate_phase4_data_synthesis_contract(args: argparse.Namespace) -> None:
     _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase4 synthesis task slicing is forbidden")
     _require(args.maximum_action_tokens is None, "M6 Phase4 synthesis cannot claim a training token budget")
     _require(args.replay_prefix_root is None, "M6 Phase4 synthesis cannot reuse a diagnostic prefix")
+
+
+def validate_phase4_teacher_probe_contract(args: argparse.Namespace) -> None:
+    """Freeze a larger, public-observation teacher probe outside every RL path."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase4 teacher roster drift")
+    _require(args.adapter is None, "M6 Phase4 teacher probe must not reuse the student adapter")
+    _require(
+        args.base_model.expanduser().resolve() == Path("/data/share/model/Qwen3.5-9B"),
+        "M6 Phase4 teacher model drift",
+    )
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase4 teacher probe must match the full evaluation horizon",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase4 teacher task slicing is forbidden")
+    _require(args.maximum_action_tokens is None, "M6 Phase4 teacher probe cannot claim a training token budget")
+    _require(args.replay_prefix_root is None, "M6 Phase4 teacher probe cannot reuse a diagnostic prefix")
 
 
 def _validate_group_run_contract(
@@ -594,7 +620,12 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _require(task_ids, "M6 selected task roster is empty")
     expected_k = int(
         protocol["mini"]["evaluation_K"]
-        if args.mode in {"evaluation", "phase2_horizon_evaluation", "phase4_data_synthesis"}
+        if args.mode in {
+            "evaluation",
+            "phase2_horizon_evaluation",
+            "phase4_data_synthesis",
+            "phase4_teacher_probe",
+        }
         else protocol["rl"]["group_size"]
     )
     _require(args.k == expected_k, "M6 mode/K contract drift")
@@ -618,6 +649,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         validate_phase2_horizon_contract(args)
     elif args.mode == "phase4_data_synthesis":
         validate_phase4_data_synthesis_contract(args)
+    elif args.mode == "phase4_teacher_probe":
+        validate_phase4_teacher_probe_contract(args)
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -691,6 +724,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         )
     engine, lineage = await _create_identity(
         base_model=args.base_model.expanduser().resolve(),
+        base_model_manifest=args.base_model_manifest.expanduser().resolve(),
         adapter=args.adapter,
         output=output,
         seed=args.seed,
@@ -726,6 +760,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "git_sha": git_sha,
             "split_lock_content_sha256": split_lock["content_sha256"],
             "base_model": str(args.base_model.expanduser().resolve()),
+            "base_model_manifest": str(args.base_model_manifest.expanduser().resolve()),
+            "base_model_manifest_sha256": lineage["adapter_sha256"],
             "adapter": str(args.adapter.expanduser().resolve()) if args.adapter else None,
             "policy_lineage": dict(lineage),
             "replay_prefix_source": replay_prefix_source,
@@ -880,6 +916,7 @@ def parse_args() -> argparse.Namespace:
             "diagnostic_evaluation",
             "phase2_horizon_evaluation",
             "phase4_data_synthesis",
+            "phase4_teacher_probe",
             "rl_collection",
         ),
         required=True,
@@ -889,6 +926,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--goals", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--base-model", type=Path, default=Path("/data/share/model/Qwen3.5-4B"))
+    parser.add_argument("--base-model-manifest", type=Path, default=BASE_MODEL_MANIFEST_PATH)
     parser.add_argument("--adapter", type=Path)
     parser.add_argument("--k", type=int, choices=(4, 8), required=True)
     parser.add_argument("--seed", type=int, default=20260812)

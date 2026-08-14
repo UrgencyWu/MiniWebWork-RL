@@ -580,3 +580,33 @@ all-failure占比达到50%，才触发教师候选生成。即使触发，也先
 具有更高strict pass率，再生成最小必要样本；无法证明更强时不调用教师。这样把“学生自己训练
 自己”的闭环拆成两类证据：学生rollout负责真实on-policy边界，外部教师只补学生探索不到的
 状态，并由环境verifier而非教师自评决定是否接受。
+
+## 14. M6 Phase4 学生预扫描结果与条件教师探针
+
+学生预扫描 Jobs 2302_0、2302_1 及依赖审计 Job 2303 均以 `COMPLETED 0:0` 结束。两分区严格
+使用冻结SFT adapter、互斥且SFT-disjoint的train任务、K4和18/15 horizon，不执行optimizer
+step。最终审计覆盖128个任务、512条轨迹，全部task/trajectory/group/ledger/invocation哈希、
+分区seed、adapter和split血缘闭合。学生产生220条strict-success轨迹；任务组分布为51 mixed、
+29 all-success、48 all-failure，其中A/B分区mixed分别为26/25。失败轨迹以partial purchase为主：
+249条partial purchase、29条zero-match purchase、14条horizon exhaustion。
+
+该数据同时形成166个strict-over-failure pair、146个strict-over-partial pair、86个可辨
+failure-quality pair，34个组存在至少0.1的failure-quality spread。除探索覆盖外的完整性和对比
+检查均通过；但预注册的在线roster门要求至少64个mixed task，实际只有51个。因此
+`future_online_mixed_task_roster_ready=false`。这不是作业失败，也不是通过降低门槛可以修复的
+统计瑕疵，而是直接证据：冻结SFT在这批新任务上确有强对比，但当前128-task预算尚不足以冻结
+计划中的64-task在线roster。预扫描轨迹继续只能作为诊断索引；任意未来策略更新仍需current
+policy重新采样，不能复用这些轨迹冒充on-policy batch。
+
+48个all-failure任务触发了预注册的条件教师分支。为避免用大模型无界地制造数据，先冻结一个
+16-task小探针：从student all-failure候选中按category、constraint count和dominant failure
+class比例分层，使用独立seed `20260826`；教师固定为无adapter的
+`/data/share/model/Qwen3.5-9B`，每任务K4、18/15 horizon，共64条轨迹，不执行任何训练。选择9B
+而非直接使用35B，是为了先以单GPU、有限成本检验“外部策略能否扩张学生支持集”这一假设。
+
+教师输出只有同时满足以下条件才允许形成补充语料：全部strict轨迹环境重放成功；至少4个任务
+出现replay-verified strict success；至少8条语义不同的verified strict轨迹；每任务最多保留2条。
+录取样本仅允许用于recovery SFT、preference learning或offline diagnostic，明确禁止进入
+on-policy GRPO。若9B未过门，本轮停止并报告“未证明教师更强”，不会把失败教师数据带入RL，
+也不会自动升级到35B刷结果。教师探针通过仍只证明数据支持扩张，不等于Raw/SFT/RL性能已经
+提升；后续是否训练必须另行构建互补语料、验证数据质量并重新冻结小规模门控实验。
