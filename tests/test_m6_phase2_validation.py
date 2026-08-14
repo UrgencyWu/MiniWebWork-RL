@@ -115,6 +115,32 @@ def test_phase2_readiness_reserves_option_weight_only_when_required():
     ) == pytest.approx(0.7)
 
 
+def test_phase2_readiness_v2_uses_equal_semantic_blocks():
+    module = _readiness_module()
+    evidence = _evidence(page_type="item", item=0.75, option=0.5, option_count=2)
+    assert module._readiness_from_evidence(
+        evidence,
+        formula_version=module.EQUAL_BLOCK_FORMULA,
+    ) == pytest.approx(0.625)
+    assert module._readiness_from_evidence(
+        _evidence(page_type="item", item=0.75),
+        formula_version=module.EQUAL_BLOCK_FORMULA,
+    ) == pytest.approx(0.75)
+
+
+def test_phase2_readiness_v2_job_is_cpu_only_and_bound_to_full_horizon():
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "scripts" / "run_m6_phase2_buy_readiness_v2_job.sh").read_text(encoding="utf-8")
+    submit = (root / "scripts" / "submit_m6_phase2_buy_readiness_v2.sh").read_text(encoding="utf-8")
+    assert "#SBATCH --gres=gpu" not in source
+    assert "#SBATCH --cpus-per-task=4" in source
+    assert "#SBATCH --mem=8G" in source
+    assert "--identity full_18_15_prefix_replay_r2" in source
+    assert "--formula-version equal_item_option_blocks_v2" in source
+    assert '"decision":"USE_FULL_HORIZON"' in source
+    assert "git status --porcelain --untracked-files=no" in submit
+
+
 def test_phase2_readiness_auc_handles_ties():
     module = _readiness_module()
     assert module._auc([0, 1], [0.5, 0.5]) == 0.5

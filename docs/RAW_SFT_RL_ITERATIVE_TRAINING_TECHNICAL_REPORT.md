@@ -456,3 +456,21 @@ prompt分叉。因此两臂不再只相差horizon，不能据其成功率差异�
 也不放宽配对门：将2292_0的真实短程action/token/state序列作为不可变前缀，在新18/15环境中
 逐步重放并硬校验prompt、token、action及前后public-state哈希；只有消费完该前缀后才调用SFT
 继续生成。这样新增的唯一模型变量是第7步之后是否允许继续，失败产物和原审计均保留。
+
+精确前缀回放 Job 2295 与依赖审计 Job 2296 随后均以 `COMPLETED 0:0` 结束。64个任务、
+256条配对轨迹的共享前缀 sampling seed 与 generated-token mismatch 均为0，报告及来源
+collection/group/task-roster 哈希闭合，因此该结果可以作 horizon 单变量结论。6/6 strict
+success 为95/256（37.11%），18/15为108/256（42.19%），绝对提升5.08 pp；51条短程
+horizon failure 中13条在全长环境转为strict success，转化率25.49%。两项均超过预注册
+`+1 pp / 20%` 门，后续RL必须采用18/15。代价是平均环境步数4.43升至5.29，生成action
+tokens 63.63升至75.43；partial purchase也由108增至136，说明全长预算解决了“来不及完成”，
+但没有自动解决末端商品/规格判断。P1不含训练，不能把这5.08 pp表述为RL增益。
+
+P0b-r2 不降低2289的0.80门槛，也不覆盖其负结果。修复仅针对有明确语义证据的权重错误：旧
+公式在存在option约束时给予item block 80%、selected-option block 20%，与“商品正确但规格错误
+仍为失败”的任务合同不一致。v2固定两个必要语义块各50%；无option约束时仍只使用item/price
+block，继续禁止search-result候选分、target ASIN和隐藏答案。该50/50不是从任务结果拟合的连续
+超参数。冻结P1精确回放轨迹的只读开发诊断为strict-vs-all/partial AUC 0.8563/0.8500，
+高readiness失败4.05%；公式冻结后，在旧500-task formal-dev轨迹上只作外部复核，得到
+0.8604/0.8540和10.75%。下一步以版本化CPU-only作业生成带自哈希的正式P0b-r2报告；只有
+校准集与历史外部复核都过原门，才恢复P2同batch奖励反事实。

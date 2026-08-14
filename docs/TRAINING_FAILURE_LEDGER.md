@@ -28,6 +28,7 @@ M5 的历史训练、恢复和最终失败分析已记录在
 | 2290 | M6 Phase2 P0a dropout parity v2 | `COMPLETED 0:0`；dropout-on/off mean gradient cosine=0.7765/0.99993，off clip=0、KL=0 | 分块 float64 cosine 与 `[-1,1]` 硬门通过，自哈希和 adapter 血缘完整 | 后续 RL 固定 dropout=0；不再重跑该探针 | P0a 有效通过结果 |
 | P1 horizon roster preflight r1 | M6 Phase2 P1 horizon | 提交前退出，未创建 Slurm Job | 冻结 split 的 `train` 角色包含256个 `mini_train` 任务；隔离门正确拒绝。`train` 与 formal-dev、promotion、holdout、mini-dev 均无重叠 | 保留硬隔离门；显式用 `train - union(non-train roles)` 得到6929个候选，再分层选择64个任务并审计零重叠 | 预提交数据合同失败；无采样、训练或研究结果 |
 | 2293 | M6 Phase2 P1 horizon paired audit | `FAILED 1:0`；两个采样 arm 2292_0/1 均 `COMPLETED 0:0` | 两个独立 vLLM 并发运行即使 sampling seed 全部相同，仍在42个同prompt同seed turn上生成不同token，继而造成89个prompt分叉；不能把差异归因于horizon | 保留两份完整采样；以2292_0短程轨迹为不可变动作前缀，只重跑18/15续写并重新配对审计 | 2292独立-arm结果不进入horizon因果结论；2293为有效门禁拒绝 |
+| 2295/2296 | M6 Phase2 P1 exact-prefix successor | 两项均 `COMPLETED 0:0`；共享前缀 seed/token mismatch=0 | 18/15 相对6/6 strict `+5.078 pp`，51条短程horizon failure中13条转strict（25.49%） | 后续训练冻结18/15；继续单独修末端partial purchase奖励 | 2295/2296为2293的有效成功替代链；不含训练 |
 | 2190 | corpus gate | FAILED 1:0 | 唯一 strict-success task 156，低于冻结门槛 160；其余 corpus 检查通过 | 保留失败报告；以版本化 development-only waiver 运行 2192，正式门槛不下调 | 仅开发诊断，不算正式合格 corpus |
 | 2193 | mini SFT | FAILED 1:0 | stored/runtime SFT input-file drift | 修复输入合同绑定并重提 2200 | 失败 adapter 不使用 |
 | 2202 | SFT promotion gate | FAILED 1:0 | paired evaluation contract drift | 修复 Raw/SFT 配对评测身份与合同，2206 重跑 gate | 原 gate 不使用 |
