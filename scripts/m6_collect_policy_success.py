@@ -334,6 +334,20 @@ def validate_phase4_online_rl_contract(args: argparse.Namespace) -> None:
     _require(args.replay_prefix_root is None, "M6 Phase4 online collection cannot replay a diagnostic prefix")
 
 
+def validate_phase4_tuning_evaluation_contract(args: argparse.Namespace) -> None:
+    """Freeze a fresh train-role hold-aside for comparable Raw/SFT/RL evaluation."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase4 tuning roster drift")
+    _require(args.k == 4, "M6 Phase4 tuning evaluation must use K4")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase4 tuning evaluation must use the full horizon",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase4 tuning task slicing is forbidden")
+    _require(args.maximum_action_tokens is None, "M6 Phase4 tuning evaluation cannot claim a training token budget")
+    _require(args.replay_prefix_root is None, "M6 Phase4 tuning evaluation cannot replay a diagnostic prefix")
+
+
 def validate_phase4_teacher_probe_contract(args: argparse.Namespace) -> None:
     """Freeze a larger, public-observation teacher probe outside every RL path."""
 
@@ -649,6 +663,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "phase4_data_synthesis",
             "phase4_teacher_probe",
             "phase4_online_rl_collection",
+            "phase4_tuning_evaluation",
         }
         else protocol["rl"]["group_size"]
     )
@@ -675,6 +690,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         validate_phase4_data_synthesis_contract(args)
     elif args.mode == "phase4_online_rl_collection":
         validate_phase4_online_rl_contract(args)
+    elif args.mode == "phase4_tuning_evaluation":
+        validate_phase4_tuning_evaluation_contract(args)
     elif args.mode == "phase4_teacher_probe":
         validate_phase4_teacher_probe_contract(args)
     else:
@@ -944,6 +961,7 @@ def parse_args() -> argparse.Namespace:
             "phase4_data_synthesis",
             "phase4_teacher_probe",
             "phase4_online_rl_collection",
+            "phase4_tuning_evaluation",
             "rl_collection",
         ),
         required=True,

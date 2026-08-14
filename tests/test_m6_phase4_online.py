@@ -64,6 +64,27 @@ def test_phase4_online_collector_contract_is_k4x4_full_horizon():
         module.validate_phase4_online_rl_contract(args)
 
 
+def test_phase4_tuning_collector_contract_is_fresh_k4_full_horizon():
+    pytest.importorskip("playwright")
+    module = importlib.import_module("m6_collect_policy_success")
+    args = Namespace(
+        role="train",
+        task_roster=Path("tuning.json"),
+        adapter=None,
+        k=4,
+        max_model_turns=18,
+        max_environment_steps=15,
+        maximum_tasks=None,
+        task_offset=0,
+        maximum_action_tokens=None,
+        replay_prefix_root=None,
+    )
+    module.validate_phase4_tuning_evaluation_contract(args)
+    args.max_environment_steps = 6
+    with pytest.raises(ValueError, match="full horizon"):
+        module.validate_phase4_tuning_evaluation_contract(args)
+
+
 def test_phase4_online_job_freezes_verified_configuration():
     source = (SCRIPTS / "run_m6_phase4_online_rl_job.sh").read_text(encoding="utf-8")
     learner = (ROOT / "src" / "miniwebwork" / "webshop_rl" / "phase4_online.py").read_text(encoding="utf-8")
@@ -77,3 +98,15 @@ def test_phase4_online_job_freezes_verified_configuration():
     assert "module.eval()" in learner
     assert "optimizer.step()" in learner
     assert "kl_hard_stop: float = 0.01" in learner
+
+
+def test_phase4_tuning_eval_is_paired_and_has_no_training():
+    source = (SCRIPTS / "run_m6_phase4_tuning_eval_job.sh").read_text(encoding="utf-8")
+    stats = (SCRIPTS / "m6_phase4_tuning_stats.py").read_text(encoding="utf-8")
+    assert "#SBATCH --array=0-1%1" in source
+    assert "--mode phase4_tuning_evaluation --role train --k 4" in source
+    assert "--max-model-turns 18 --max-environment-steps 15" in source
+    assert "20260829" in source and "20260830" in source
+    assert "optimizer.step(" not in stats
+    assert '"raw_sft_rl_chain_passed"' in stats
+    assert '"rl_minus_sft_at_least_1pp"' in stats
