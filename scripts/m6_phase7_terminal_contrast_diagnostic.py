@@ -25,6 +25,11 @@ ONLINE_OPTION_STRONG_SHARE = 0.50
 MINIMUM_REBUILD_SAME_ITEM_TASKS = 20
 MINIMUM_REBUILD_OPTION_TASKS = 12
 FORBIDDEN_PATH_PARTS = {"promotion", "holdout"}
+PUBLIC_ASIN_ACTION_RE = re.compile(r"^click\[(B[0-9A-Z]{9})\]$", re.IGNORECASE)
+SELECTED_OPTION_RE = re.compile(
+    r"^\s*-\s*([^\n:]+?)\s*\(selected:\s*([^\)]+)\)\s*:",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -48,14 +53,14 @@ def _normalized_text(value: Any) -> str:
     return " ".join(str(value or "").strip().casefold().split())
 
 
-def _normalized_options(value: Any) -> tuple[tuple[str, str], ...]:
-    if not isinstance(value, Mapping):
-        return ()
-    return tuple(sorted(
-        (_normalized_text(key), _normalized_text(selected))
-        for key, selected in value.items()
-        if _normalized_text(key) and _normalized_text(selected)
-    ))
+def _selected_options_from_visible_text(value: Any) -> tuple[tuple[str, str], ...]:
+    output = []
+    for match in SELECTED_OPTION_RE.finditer(str(value or "")):
+        name = _normalized_text(match.group(1))
+        selected = _normalized_text(match.group(2))
+        if name and selected and selected != "not selected":
+            output.append((name, selected))
+    return tuple(sorted(set(output)))
 
 
 def _prebuy_public_choice(trajectory: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -64,25 +69,33 @@ def _prebuy_public_choice(trajectory: Mapping[str, Any]) -> dict[str, Any] | Non
     turns = trajectory.get("turns")
     if not isinstance(turns, list):
         return None
-    for turn in reversed(turns):
+    buy_index = None
+    for index in range(len(turns) - 1, -1, -1):
+        turn = turns[index]
         action = turn.get("action")
         command = _normalized_text(action.get("command")) if isinstance(action, Mapping) else ""
-        if command != "click[buy now]":
-            continue
-        observation = turn.get("observation")
-        if not isinstance(observation, Mapping):
-            return None
-        state = observation.get("env_state")
-        if not isinstance(state, Mapping):
-            return None
-        asin = str(state.get("asin") or "").strip().upper()
-        if not asin:
-            return None
-        return {
-            "asin": asin,
-            "selected_options": _normalized_options(state.get("selected_options")),
-        }
-    return None
+        if command == "click[buy now]":
+            buy_index = index
+            break
+    if buy_index is None:
+        return None
+    observation = turns[buy_index].get("observation")
+    if not isinstance(observation, Mapping):
+        return None
+    asin = ""
+    for turn in reversed(turns[:buy_index]):
+        action = turn.get("action")
+        command = str(action.get("command", "")).strip() if isinstance(action, Mapping) else ""
+        match = PUBLIC_ASIN_ACTION_RE.fullmatch(command)
+        if match is not None:
+            asin = match.group(1).upper()
+            break
+    if not asin:
+        return None
+    return {
+        "asin": asin,
+        "selected_options": _selected_options_from_visible_text(observation.get("visible_text")),
+    }
 
 
 def _failure_class(trajectory: Mapping[str, Any]) -> str:
@@ -245,13 +258,15 @@ def main() -> None:
     else:
         next_action = "collect_targeted_prescan_before_training"
     report = {
-        "schema_version": "m6_phase7_terminal_contrast_diagnostic_v1",
+        "schema_version": "m6_phase7_terminal_contrast_diagnostic_v2",
         "complete": True,
         "development_only": True,
         "training_performed": False,
         "optimizer_steps": 0,
         "public_prebuy_state_only": True,
         "target_asin_or_hidden_answer_used": False,
+        "public_item_identity_source": "last_prebuy_policy_action_matching_public_asin",
+        "public_option_identity_source": "selected_markers_in_policy_visible_text",
         "online_bindings": online_bindings,
         "prescan_bindings": prescan_bindings,
         "online": online,

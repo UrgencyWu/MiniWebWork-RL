@@ -17,18 +17,25 @@ def _module():
 
 
 def _trajectory(*, success: bool, score: float, asin: str, options: dict[str, str]):
+    option_text = "\n".join(f"- {name} (selected: {value}):" for name, value in options.items())
     return {
         "success": success,
         "task_score": score,
         "termination_reason": "purchase",
-        "turns": [{
-            "action": {"command": "click[Buy Now]"},
-            "observation": {
-                "env_state": {"page_type": "item", "asin": asin, "selected_options": options},
-                "info": {"target_asin": "MUST-NOT-BE-USED"},
+        "turns": [
+            {
+                "action": {"command": f"click[{asin}]"},
+                "observation": {"visible_text": "public search result"},
             },
-            "post_action_observation": {"env_state": {"page_type": "done", "target_asin": "HIDDEN"}},
-        }],
+            {
+                "action": {"command": "click[Buy Now]"},
+                "observation": {
+                    "visible_text": f"Product page\n{option_text}",
+                    "info": {"target_asin": "MUST-NOT-BE-USED"},
+                },
+                "post_action_observation": {"env_state": {"page_type": "done", "target_asin": "HIDDEN"}},
+            },
+        ],
     }
 
 
@@ -44,9 +51,9 @@ def test_phase7_detects_same_item_option_contrast_without_hidden_answer():
     module = _module()
     task = "webshop_goal_01000"
     group = _group(task, [
-        _trajectory(success=True, score=1.0, asin="B000A", options={"color": "Navy Blue"}),
-        _trajectory(success=False, score=0.5, asin="B000A", options={"color": "Red"}),
-        _trajectory(success=False, score=0.3, asin="B000B", options={"color": "Navy Blue"}),
+        _trajectory(success=True, score=1.0, asin="B00000000A", options={"color": "Navy Blue"}),
+        _trajectory(success=False, score=0.5, asin="B00000000A", options={"color": "Red"}),
+        _trajectory(success=False, score=0.3, asin="B00000000B", options={"color": "Navy Blue"}),
         {"success": False, "task_score": 0.0, "termination_reason": "max_model_turns", "turns": []},
     ])
     result = module._analyze_groups([group], goal_map={task: _goal(1000)})
@@ -64,11 +71,11 @@ def test_phase7_detects_same_item_option_contrast_without_hidden_answer():
 
 def test_phase7_requires_public_nonempty_item_and_normalizes_options():
     module = _module()
-    visible = _trajectory(success=True, score=1.0, asin=" b000a ", options={" Color ": " Navy   Blue "})
+    visible = _trajectory(success=True, score=1.0, asin="B00000000A", options={" Color ": " Navy   Blue "})
     choice = module._prebuy_public_choice(visible)
-    assert choice == {"asin": "B000A", "selected_options": (("color", "navy blue"),)}
-    visible["turns"][0]["observation"]["env_state"].pop("asin")
-    visible["turns"][0]["observation"]["info"]["target_asin"] = "B000HIDDEN"
+    assert choice == {"asin": "B00000000A", "selected_options": (("color", "navy blue"),)}
+    visible["turns"][0]["action"] = {"command": "click[Description]"}
+    visible["turns"][1]["observation"]["info"]["target_asin"] = "B000HIDDEN"
     assert module._prebuy_public_choice(visible) is None
 
 

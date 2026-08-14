@@ -825,3 +825,10 @@ online数据只有在至少50%的mixed任务含same-item对比、且其中至少
 覆盖充足；否则确认数据质量缺口。只有prescan union至少有20个same-item任务且其中至少12个
 option-contrast任务时，才允许重建20-task强对比roster；不足时必须先做针对性prescan，不能凑数
 或直接训练。该诊断`optimizer_steps=0`，结果只决定数据路径，不构成性能证据。
+
+首个CPU运行产生了实现无效报告：158/160个online购买轨迹、743/768个prescan轨迹被记为缺失
+购买状态，所有对比均为0。原因不是数据缺少对比，而是诊断错误假设policy observation保留
+`env_state.asin/selected_options`；实际漏泄防护会在写入轨迹前删除这些内部字段。该v1报告永久
+保留但不得解释为数据结论。v2只使用真正public的信息：从`Buy Now`前的策略动作历史取最后一个
+公开ASIN click，并从policy-visible text的`selected:`标记解析option。冻结门槛不变，修复后使用
+新输出根重跑；不得为适配结果调整阈值。
