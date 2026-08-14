@@ -680,3 +680,25 @@ failure均为0；差异主要表现为RL相对SFT少4条strict success、同时�
 独立最终结论。若step-5仍不高于SFT至少1 pp且RL-only flips不为正，立即否定训练长度假设；若
 step-5通过，则冻结该checkpoint并只在另一份新鲜dev3上做一次确认，确认通过后才可声称发现
 Raw<SFT<RL链路。该方案只新增一个RL checkpoint评测identity，不增加训练作业、算法或seed。
+
+## 18. Phase4 step-5 检查点反事实：排除训练长度解释
+
+Job 2320 只评测已保存的step-5 adapter，没有执行训练；两个64-task分区均`COMPLETED 0:0`，
+并复用2314/2315完全相同的Raw/SFT任务、seed、K4与18/15配置。step-5得到178/512 strict
+success（34.766%），相对SFT 183/512（35.742%）为`-0.977 pp`，task配对bootstrap 95% CI
+为`[-2.734,+0.781] pp`；RL-only/SFT-only flips为6/11，净值-5。它不仅没有超过SFT，还把
+partial purchase从SFT的297条增加到304条（58.008%→59.375%，`+1.367 pp`），超过0.5 pp
+安全门；schema/action failure仍为0。
+
+因此“10步训练过长，较早检查点可能形成正链路”的单变量假设被否定。step-5比step-10略差
+（-0.977 pp对-0.781 pp），二者都落后SFT，不能通过早停选择解决。失败形态提供了更具体的下一
+方向：step-5减少4条horizon exhaustion，却增加7条partial purchase和2条zero-match purchase，
+说明binary strict的整轨迹梯度倾向于更快结束任务，但没有提高最终商品/option grounding；继续
+改变步数或扩大相同数据只会重排失败类别。
+
+本训练长度方向到此停止。若继续下一轮，只检验一个新的信用假设：保持同一strict binary奖励、
+任务、K4×4、18/15、dropout、LR和训练步数不变，把policy-gradient loss从“整条轨迹所有动作
+token”改为“商品页后的末端决策动作token”（option选择与Buy Now）掩码。先在冻结同batch上做
+零更新gradient-direction探针；若与全轨迹梯度仍近似同向则零训练成本停止，只有方向明显不同才
+允许5-step小训练。该变化直接针对已观察到的partial-purchase迁移，不重新引入已证实冗余的
+failure-quality reward，也不靠更多seed或算力继续同一配方。
