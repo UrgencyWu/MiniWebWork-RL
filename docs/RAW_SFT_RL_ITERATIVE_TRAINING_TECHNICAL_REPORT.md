@@ -782,3 +782,31 @@ Job 2327以`COMPLETED 0:0`结束，报告自哈希闭合并明确`optimizer_step
 seed、K4×4、18/15、dropout=0、LR=3e-6、strict binary reward和整轨迹SFT KL，唯一变量为
 `policy_credit_window=preterminal1`。评测仍先使用同一tuning-dev2作开发诊断；若未超过SFT至少
 1 pp或partial/schema恶化，就停止该信用方向，不增加训练步数或seed。
+
+## 23. Phase6 preterminal-1 五步训练与配对评测结果
+
+Job 2328以`COMPLETED 0:0`完成5次optimizer step，覆盖20个冻结任务，其中15个K4组为mixed。
+每一步都使用`preterminal1`，所有loss/gradient有限且adapter语义哈希变化；最大SFT-reference KL为
+0.000540，最大initial replay clip为0.439%，因此训练工程链有效。配对评测的两个64-task分区均
+完整，统计报告SHA为`4e83188d...75a63d`：
+
+| identity | strict success | strict rate | partial purchase |
+|---|---:|---:|---:|
+| Raw | 155/512 | 30.273% | 315/512 |
+| SFT | 183/512 | 35.742% | 297/512 |
+| full-credit step-5 | 178/512 | 34.766% | 304/512 |
+| tail-2 step-5 | 181/512 | 35.352% | 300/512 |
+| preterminal-1 step-5 | 182/512 | 35.547% | 299/512 |
+
+preterminal-1相对full-credit恢复4条strict success，相对tail-2再恢复1条；partial purchase也分别
+减少5条与1条，说明信用逐步聚焦到购买前决策具有一致方向性。但它相对SFT仍为`-0.195 pp`，
+task bootstrap 95% CI为`[-1.562,+1.172] pp`，RL-only/SFT-only flips为6/7，仍未达到
+`RL-SFT>=+1 pp`或flips净正门。partial purchase比SFT多2条（`+0.391 pp`），未越过0.5 pp
+安全门；schema/action均为0。故该结果不能宣称RL提升，也不允许继续搜索动作窗口或增加步数。
+
+三种动作信用从178→181→182呈小幅单调恢复，却始终未超过SFT，下一项可证伪假设转向数据而非
+继续微调mask：当前mixed K4组是否真正包含“同任务、相同候选商品、只在option/购买时机上形成
+成功—partial失败”的强对比。先对现有40-task训练collection及77-task prescan做零GPU离线诊断，
+报告可配对终局对比的任务数、同商品不同option覆盖和每类失败占比。若高质量终局对比不足，就只
+重建一个20-task强对比roster；若覆盖已足，说明数据选择假设不成立，停止该方向。诊断前不提交
+新的训练，也不再使用已多次查看的tuning-dev2选择超参数。
