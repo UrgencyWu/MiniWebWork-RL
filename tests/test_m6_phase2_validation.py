@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,16 @@ def _readiness_module():
     spec = importlib.util.spec_from_file_location("m6_phase2_buy_readiness", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def _batch_module():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "m6_phase2_batch_probe.py"
+    spec = importlib.util.spec_from_file_location("m6_phase2_batch_probe", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -107,3 +118,20 @@ def test_phase2_p0_submit_has_no_false_dependency():
     assert source.count("sbatch --parsable") == 2
     assert "--dependency" not in source
     assert "git status --porcelain --untracked-files=no" in source
+
+
+def test_phase2_batch_gradient_cosine_is_bounded():
+    torch = pytest.importorskip("torch")
+    module = _batch_module()
+    left = torch.ones(1_000_003, dtype=torch.float32)
+    assert module._gradient_cosine(left, left.clone(), torch, chunk_size=100_000) == 1.0
+
+
+def test_phase2_batch_job_is_bounded_and_single_gpu():
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts" / "run_m6_phase2_batch_probe_job.sh"
+    ).read_text(encoding="utf-8")
+    assert "#SBATCH --time=02:00:00" in source
+    assert "#SBATCH --cpus-per-task=4" in source
+    assert "#SBATCH --mem=24G" in source
+    assert "#SBATCH --gres=gpu:1" in source
