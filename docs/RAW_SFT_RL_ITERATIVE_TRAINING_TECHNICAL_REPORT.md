@@ -425,6 +425,13 @@ dropout=0 时 training clip=0、reference KL=0、norm CV约0.0020，方向稳定
 范围，故 Job 2288 虽 exit 0，其 v1 报告只能作为失败尝试保留，不能成为最终证据。修复策略是
 分块 float64 累积并对 [-1,1] 建立硬不变量，只重跑 P0a，不重跑 P0b。
 
+修正版 Job 2290 以 `COMPLETED 0:0` 结束，v2 报告自哈希和 SFT adapter 哈希均通过。dropout=0.05
+的 mean/minimum gradient cosine 为0.7765/0.6710，angular dispersion为0.2235，norm CV为
+0.0619；dropout=0 的对应值为0.99993/0.99990、0.000074和0.00342。dropout=0 同时保持
+training clip=0、reference KL=0、全部 loss/gradient finite，正式通过 P0a 门禁。这证明训练时
+dropout 是显著的额外梯度噪声来源，后续 RL 必须固定 dropout=0；但该同批探针仍不能单独证明
+历史 formal-dev 负结果全部由 dropout 导致。
+
 当前研究决策为：停止基于现有 buy-readiness 的 P2 process-reward arm；继续完成与它独立的
 P0c batch-structure 和 P1 horizon 因果实验。只有后续重新设计的 verifier 在全新校准数据上
 通过原门槛，才可恢复 strict-dominant process reward 实验。
