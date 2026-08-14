@@ -45,6 +45,16 @@ def _reward_module():
     return module
 
 
+def _phase3_residual_module():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "m6_phase3_residual_credit_probe.py"
+    spec = importlib.util.spec_from_file_location("m6_phase3_residual_credit_probe", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _collector_module():
     path = Path(__file__).resolve().parents[1] / "scripts" / "m6_collect_policy_success.py"
     spec = importlib.util.spec_from_file_location("m6_phase2_collect", path)
@@ -190,6 +200,50 @@ def test_phase2_reward_probe_has_no_optimizer_step_and_is_bounded():
     assert "full_18_15_prefix_replay_r2/groups" in job
     assert '"process_reward_calibration_passed":true' in job
     assert "git status --porcelain --untracked-files=no" in submit
+
+
+def test_phase3_residual_credit_is_strict_first_zero_mean_and_bounded():
+    module = _phase3_residual_module()
+    result = module.strict_first_residual_advantages(
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, -1.0, -0.5, -0.25],
+    )
+    assert result["candidate"][0] == result["binary"][0]
+    assert result["residual"][0] == 0.0
+    assert sum(result["residual"]) == pytest.approx(0.0, abs=1e-12)
+    assert max(abs(value) for value in result["residual"]) <= 0.2
+    assert result["residual"][3] > result["residual"][2] > result["residual"][1]
+    assert min(result["candidate"][:1]) > max(result["candidate"][1:])
+    assert all(value < 0.0 for value in result["candidate"][1:])
+
+
+def test_phase3_residual_credit_constant_failure_quality_is_noop():
+    module = _phase3_residual_module()
+    result = module.strict_first_residual_advantages(
+        [1.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, -0.5, -0.5],
+    )
+    assert result["candidate"] == result["binary"]
+    assert result["residual"] == (0.0, 0.0, 0.0, 0.0)
+
+
+def test_phase3_residual_probe_has_no_optimizer_step_and_is_bounded():
+    root = Path(__file__).resolve().parents[1]
+    probe = (root / "scripts" / "m6_phase3_residual_credit_probe.py").read_text(encoding="utf-8")
+    job = (root / "scripts" / "run_m6_phase3_residual_credit_probe_job.sh").read_text(encoding="utf-8")
+    submit = (root / "scripts" / "submit_m6_phase3_residual_credit_probe.sh").read_text(encoding="utf-8")
+    assert "optimizer.step(" not in probe
+    assert '"optimizer_steps": 0' in probe
+    assert '"failure_residual_max_abs": RESIDUAL_ADVANTAGE_SCALE' in probe
+    assert '"official_dense_task_score_used_as_reward": False' in probe
+    assert "full_18_15_prefix_replay_r2/groups" in job
+    assert "p2_reward_counterfactual/report.json" in job
+    assert "#SBATCH --time=02:00:00" in job
+    assert "#SBATCH --gres=gpu:1" in job
+    assert "#SBATCH --cpus-per-task=4" in job
+    assert "#SBATCH --mem=24G" in job
+    assert "git status --porcelain --untracked-files=no" in submit
+    assert '"p2_same_batch_reward_probe_passed":false' in submit
 
 
 def test_phase2_p0_submit_has_no_false_dependency():

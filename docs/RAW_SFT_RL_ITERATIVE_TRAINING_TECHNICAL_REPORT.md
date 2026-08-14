@@ -495,3 +495,33 @@ secondary/primary gradient norm仅1.674%和1.407%，远低于10%下界。
 调大epsilon、penalty或挑选group把它刷过预注册门。依据冻结停止规则，P3四作业在线A/B不提交，
 本轮Phase2到此停止。后续若另立新研究轮，应优先检验不被组内标准化消去的失败排序目标或更有
 差异的task/failure构成，而不是在本轮继续放大同一scaler。
+
+## 12. M6 Phase3 预注册：标准化后的 strict-first 失败质量残差
+
+Phase3不是对2298的epsilon调参，也不重启被停止的四作业在线A/B。它检验一个新的、可证伪的
+机制假设：P2失败的原因可能是failure quality在进入K4组标准化之前被近似仿射消去，而不是
+public buy-readiness本身完全无信息。唯一变化是把质量信用的插入点移到binary strict reward的
+组内标准化之后；任务、轨迹、SFT adapter、dropout、K4和每次4个task group均保持不变。
+
+对每个冻结mixed K4 group先计算：
+
+```text
+A_macro = standardize([strict_1, ..., strict_4])
+q_i in [-1, 0]                  # 仅来自已冻结public buy-readiness
+r_i = 0                         # strict success
+r_i = 0.2 * (q_i - mean(q_failure)) / max_abs_centered_q   # failure
+A_candidate = A_macro + r_i
+```
+
+若failure quality相同，则全部`r_i=0`。所有strict轨迹的`A_macro`必须逐位完全不变；failure残差
+严格零均值、最大绝对值不超过0.2，且更好的failure只能获得更大的残差。mixed K4合同还要求
+所有strict advantage继续为正、所有failure advantage继续为负、任意strict仍高于任意failure。
+不使用official dense task score，不加入成本项，不执行optimizer step。
+
+先在2298完全相同的8个full-horizon K4 group上做两个独立4-task panel梯度反事实。`0.2`在看到
+结果前冻结，失败后不得调整scale刷门。两个panel都必须满足binary-vs-candidate参数梯度cosine
+位于`[0.90,0.98)`，secondary/primary gradient norm位于`[10%,25%]`，reference KL不超过0.01、
+clip fraction不超过10%、全部数值有限。cosine至少0.98仍判冗余；低于0.80或secondary norm超过
+25%判过强。只有该零更新探针完整通过，才另行设计两个SFT-disjoint roster的小规模在线A/B；
+探针失败即把这一信用形式记为有效负结果并停止，不消耗在线训练预算。即使探针通过，也只证明
+梯度机制有区分度，不能表述为策略性能提升。
