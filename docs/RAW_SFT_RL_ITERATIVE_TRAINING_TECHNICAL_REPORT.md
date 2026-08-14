@@ -702,3 +702,19 @@ token”改为“商品页后的末端决策动作token”（option选择与Buy 
 零更新gradient-direction探针；若与全轨迹梯度仍近似同向则零训练成本停止，只有方向明显不同才
 允许5-step小训练。该变化直接针对已观察到的partial-purchase迁移，不重新引入已证实冗余的
 failure-quality reward，也不靠更多seed或算力继续同一配方。
+
+## 19. Phase5 预注册：tail-2 动作信用掩码零更新探针
+
+Phase5不增加算法，而是在同一个single-epoch strict-binary trajectory group-normalized policy
+gradient中只改变policy-loss的token支持集。`full` arm保持现有整轨迹动作token权重；`tail2` arm
+对每条轨迹只保留最后两个有效agent action turn，并在这两个turn内重新归一化policy权重。二者
+共享完全相同的trajectory-level advantage、reference-SFT KL、模型参数、轨迹和dropout=0；KL仍
+覆盖完整轨迹，因此唯一因果变量是strict policy gradient落到哪些动作token上。该mask不读取隐藏
+答案，不更改trajectory reward，也不把失败质量公式重新带入训练。
+
+探针使用已冻结的step-00与step-01两批K4×4 collection，各自绑定采样时的input adapter；每个
+panel在同一模型实例上先后计算`full`和`tail2`梯度，但optimizer steps恒为0。记录两梯度的参数
+空间cosine、norm ratio、有限性以及tail active-token覆盖。任一tail梯度为零或非有限立即停止；
+若两个panel的cosine都不低于0.98，判定该mask与整轨迹信用仍冗余，不消耗在线训练预算。只有
+两个panel均有限非零、且至少一个panel cosine低于0.98，才把它视为有方向区分度，并另行冻结
+一个5-step小训练；探针通过本身不能表述为性能提升。

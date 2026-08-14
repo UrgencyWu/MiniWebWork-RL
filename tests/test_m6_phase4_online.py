@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from miniwebwork.webshop_rl.phase4_online import standardized_binary_advantages
+from miniwebwork.webshop_rl.phase4_online import standardized_binary_advantages, trajectory_policy_turn_weights
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +23,40 @@ def test_phase4_binary_advantages_are_standardized_and_homogeneous_safe():
     assert sum(values) == pytest.approx(0.0)
     assert sum(value * value for value in values) / 4 == pytest.approx(1.0)
     assert values[0] > 0 and all(value < 0 for value in values[1:])
+
+
+def test_phase5_tail2_credit_only_keeps_last_two_turns_and_normalizes_mass():
+    full = trajectory_policy_turn_weights([2, 4, 8], policy_credit_window="full")
+    tail = trajectory_policy_turn_weights([2, 4, 8], policy_credit_window="tail2")
+    assert [weight * length for weight, length in zip(full, [2, 4, 8])] == pytest.approx([1 / 3] * 3)
+    assert [weight * length for weight, length in zip(tail, [2, 4, 8])] == pytest.approx([0, 1 / 2, 1 / 2])
+    assert sum(weight * length for weight, length in zip(tail, [2, 4, 8])) == pytest.approx(1.0)
+
+
+def test_phase5_policy_mask_changes_only_policy_objective_weights():
+    torch = pytest.importorskip("torch")
+    from miniwebwork.webshop_rl.m6_online_training import strict_grpo_kl_loss
+
+    replay = torch.zeros((1, 2), requires_grad=True)
+    batch = {
+        "behavior_logprobs": torch.zeros((1, 2)),
+        "completion_mask": torch.ones((1, 2), dtype=torch.bool),
+        "advantages": torch.ones(1),
+        "token_loss_weights": torch.full((1,), 0.5),
+        "policy_token_loss_weights": torch.ones(1),
+    }
+    result = strict_grpo_kl_loss(replay, torch.zeros((1, 2)), batch, clip_epsilon=0.2, kl_coefficient=0.03)
+    assert float(result["policy_loss"].detach()) == pytest.approx(-2.0)
+    assert float(result["reference_kl"].detach()) == pytest.approx(0.0)
+
+
+def test_phase5_probe_is_zero_update_and_two_panel():
+    source = (SCRIPTS / "run_m6_phase5_tail_credit_probe_job.sh").read_text(encoding="utf-8")
+    probe = (ROOT / "src" / "miniwebwork" / "webshop_rl" / "phase5_tail_credit.py").read_text(encoding="utf-8")
+    assert source.count("--panel-collection-root") == 2
+    assert "step_00/collection" in source and "step_01/collection" in source
+    assert "optimizer.step(" not in probe
+    assert '"optimizer_steps": 0' in probe
 
 
 def test_phase4_online_roster_selection_is_deterministic_and_stratified():

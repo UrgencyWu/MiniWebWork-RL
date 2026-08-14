@@ -23,6 +23,7 @@ TASK_GROUPS_PER_UPDATE = 4
 REFERENCE_ADAPTER_NAME = "phase4_frozen_sft_reference"
 OPTIMIZER_SCHEMA = "m6_phase4_online_optimizer_v1"
 REPORT_SCHEMA = "m6_phase4_online_update_v1"
+POLICY_CREDIT_WINDOWS = {"full", "tail2"}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -61,6 +62,7 @@ class Phase4TurnExample:
     sampling_logprobs: tuple[float, ...]
     advantage: float
     token_loss_weight: float
+    policy_token_loss_weight: float
 
     @property
     def completion_tokens(self) -> int:
@@ -71,7 +73,26 @@ class Phase4TurnExample:
         return len(self.prompt_token_ids) + self.completion_tokens
 
 
-def prepare_k4x4_examples(groups: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def trajectory_policy_turn_weights(
+    completion_tokens: Sequence[int],
+    *,
+    policy_credit_window: str,
+) -> tuple[float, ...]:
+    """Return per-token turn weights with unit mass inside one trajectory."""
+
+    _require(policy_credit_window in POLICY_CREDIT_WINDOWS, "unsupported Phase4 policy credit window")
+    lengths = tuple(int(value) for value in completion_tokens)
+    _require(bool(lengths) and all(value > 0 for value in lengths), "Phase4 turn token count is invalid")
+    selected = len(lengths) if policy_credit_window == "full" else min(2, len(lengths))
+    first = len(lengths) - selected
+    return tuple(0.0 if index < first else 1.0 / (selected * length) for index, length in enumerate(lengths))
+
+
+def prepare_k4x4_examples(
+    groups: Sequence[Mapping[str, Any]],
+    *,
+    policy_credit_window: str = "full",
+) -> dict[str, Any]:
     """Build one equal-task-weight update; homogeneous attempted tasks get zero gradient."""
 
     _require(len(groups) == TASK_GROUPS_PER_UPDATE, "Phase4 update requires four task groups")
@@ -100,7 +121,11 @@ def prepare_k4x4_examples(groups: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         for trajectory_index, (trajectory, advantage) in enumerate(zip(group["trajectories"], advantages)):
             turns = trajectory["turns"]
             _require(turns, "Phase4 trajectory has no generated turn")
-            for turn in turns:
+            policy_turn_weights = trajectory_policy_turn_weights(
+                [len(turn["generated_token_ids"]) for turn in turns],
+                policy_credit_window=policy_credit_window,
+            )
+            for turn, policy_turn_weight in zip(turns, policy_turn_weights):
                 generated = tuple(int(value) for value in turn["generated_token_ids"])
                 examples.append(
                     Phase4TurnExample(
@@ -115,10 +140,13 @@ def prepare_k4x4_examples(groups: Sequence[Mapping[str, Any]]) -> dict[str, Any]
                         sampling_logprobs=tuple(float(value) for value in turn["sampling_logprobs"]),
                         advantage=float(advantage),
                         token_loss_weight=active_group_weight / (GROUP_SIZE * len(turns) * len(generated)),
+                        policy_token_loss_weight=active_group_weight * policy_turn_weight / GROUP_SIZE,
                     )
                 )
     total_weight = sum(example.token_loss_weight * example.completion_tokens for example in examples)
+    policy_total_weight = sum(example.policy_token_loss_weight * example.completion_tokens for example in examples)
     _require(math.isclose(total_weight, 1.0, abs_tol=1e-10), "Phase4 K4x4 hierarchy does not sum to one")
+    _require(math.isclose(policy_total_weight, 1.0, abs_tol=1e-10), "Phase4 policy credit hierarchy does not sum to one")
     return {
         "groups": validated,
         "examples": tuple(sorted(examples, key=lambda item: (item.forward_tokens, item.group_id, item.trajectory_index, item.turn_index))),
@@ -126,6 +154,8 @@ def prepare_k4x4_examples(groups: Sequence[Mapping[str, Any]]) -> dict[str, Any]
         "attempted_group_count": len(validated),
         "active_mixed_group_count": len(active),
         "hierarchical_weight_sum": total_weight,
+        "policy_hierarchical_weight_sum": policy_total_weight,
+        "policy_credit_window": policy_credit_window,
     }
 
 
@@ -142,7 +172,22 @@ def _move_batch(batch: Mapping[str, Any], device: Any) -> dict[str, Any]:
         "completion_lengths",
     ):
         moved[field] = batch[field].to(device, non_blocking=True)
+    if "policy_token_loss_weights" in batch:
+        moved["policy_token_loss_weights"] = batch["policy_token_loss_weights"].to(device, non_blocking=True)
     return moved
+
+
+def collate_phase4_examples(examples: Sequence[Phase4TurnExample], *, pad_token_id: int) -> dict[str, Any]:
+    """Use the shared replay collator while keeping policy and KL weights separate."""
+
+    import torch
+    from ..long_horizon_rl.learner import collate_turn_training_examples
+
+    batch = collate_turn_training_examples(examples, pad_token_id=pad_token_id)
+    batch["policy_token_loss_weights"] = torch.tensor(
+        [example.policy_token_loss_weight for example in examples], dtype=torch.float32
+    )
+    return batch
 
 
 def _forward_logprobs(model: Any, batch: Mapping[str, Any]) -> Any:
@@ -190,7 +235,7 @@ def train_phase4_iteration(
     """Apply exactly one optimizer step from four on-policy K4 task groups."""
 
     import torch
-    from ..long_horizon_rl.learner import collate_turn_training_examples, load_trainable_policy_model
+    from ..long_horizon_rl.learner import load_trainable_policy_model
 
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "Phase4 learner requires one GPU")
     _require(iteration_index >= 0 and seed >= 0, "Phase4 iteration identity drift")
@@ -244,7 +289,7 @@ def train_phase4_iteration(
     model.eval()
     with torch.inference_mode():
         for chunk in _chunks(examples, microbatch_size):
-            batch = _move_batch(collate_turn_training_examples(chunk, pad_token_id=tokenizer.pad_token_id), device)
+            batch = _move_batch(collate_phase4_examples(chunk, pad_token_id=tokenizer.pad_token_id), device)
             replay = _forward_logprobs(model, batch)
             for row, example in enumerate(chunk):
                 behavior.extend(example.behavior_logprobs)
@@ -257,7 +302,7 @@ def train_phase4_iteration(
     metric_tokens = 0
     policy_loss = reference_kl = total_loss = 0.0
     for chunk in _chunks(examples, microbatch_size):
-        batch = _move_batch(collate_turn_training_examples(chunk, pad_token_id=tokenizer.pad_token_id), device)
+        batch = _move_batch(collate_phase4_examples(chunk, pad_token_id=tokenizer.pad_token_id), device)
         model.set_adapter(REFERENCE_ADAPTER_NAME)
         model.eval()
         with torch.inference_mode():

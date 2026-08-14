@@ -364,12 +364,14 @@ def strict_grpo_kl_loss(
     mask = batch["completion_mask"].to(replay_logprobs.device)
     advantages = batch["advantages"].to(replay_logprobs.device).unsqueeze(1)
     weights = batch["token_loss_weights"].to(replay_logprobs.device).unsqueeze(1)
+    policy_weights = batch.get("policy_token_loss_weights", batch["token_loss_weights"])
+    policy_weights = policy_weights.to(replay_logprobs.device).unsqueeze(1)
     _require(replay_logprobs.shape == reference_logprobs.shape == old.shape == mask.shape, "M6 learner tensor shape drift")
     log_ratio = replay_logprobs - old
     ratio = torch.exp(log_ratio)
     clipped = ratio.clamp(1.0 - clip_epsilon, 1.0 + clip_epsilon)
     policy_objective = torch.minimum(ratio * advantages, clipped * advantages)
-    policy_loss = -(policy_objective * weights * mask).sum()
+    policy_loss = -(policy_objective * policy_weights * mask).sum()
     reference_log_ratio = reference_logprobs - replay_logprobs
     k3 = torch.exp(reference_log_ratio) - reference_log_ratio - 1.0
     reference_kl = (k3 * weights * mask).sum()
