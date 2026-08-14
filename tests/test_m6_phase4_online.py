@@ -141,6 +141,7 @@ def test_phase5_tail2_online_job_changes_only_policy_credit_window():
     assert "#SBATCH --mem=24G" in source
     assert "steps=5" in source
     assert "--mode phase4_online_rl_collection --role train --k 4" in source
+    assert "--task-roster-producer-git-sha" in source
     assert "--max-model-turns 18 --max-environment-steps 15" in source
     assert "--microbatch-size 4 --policy-credit-window tail2" in source
     assert '"reward":"strict_binary"' in source

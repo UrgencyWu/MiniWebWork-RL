@@ -737,3 +737,8 @@ LR=3e-6、strict binary reward与SFT-reference KL出发，唯一改变为policy 
 两个有效agent action turn；KL继续覆盖整条轨迹。训练完成后复用同一fresh tuning-dev2做开发
 诊断，并与SFT及历史full-credit step-5直接比较。只有tail-2超过SFT至少1 pp、RL-only flips净正、
 partial/schema不恶化，才冻结候选并另建全新dev3确认；否则停止该信用方向，不扩大seed或步数。
+
+首个在线提交Job 2323在任何采样或optimizer step前由既有兼容门拒绝：40-task roster由
+`c0cfa32`生成，而consumer已更新为`f3db549`，作业没有显式传入已知producer SHA。该失败不含
+算法证据，也没有adapter；修复仅把同一roster producer身份显式传给collector，不改变任务、
+顺序、seed或训练参数，随后允许在同一输出根恢复。

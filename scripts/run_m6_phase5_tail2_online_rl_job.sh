@@ -16,6 +16,7 @@ cd "$repo_root"
 mkdir -p logs
 : "${M6_EXPECTED_GIT_SHA:?set M6_EXPECTED_GIT_SHA}"
 : "${M6_PHASE5_ROSTER:?set M6_PHASE5_ROSTER}"
+: "${M6_PHASE5_ROSTER_PRODUCER_GIT_SHA:?set M6_PHASE5_ROSTER_PRODUCER_GIT_SHA}"
 : "${M6_PHASE5_OUTPUT:?set M6_PHASE5_OUTPUT}"
 test "$(git rev-parse HEAD)" = "$M6_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
@@ -61,7 +62,9 @@ while test "$step" -lt "$steps"; do
     "$slurm_bin/srun" --ntasks=1 "$python_bin" scripts/m6_collect_policy_success.py \
       --mode phase4_online_rl_collection --role train --k 4 \
       --split-lock "$split_lock" --goals "$goals" \
-      --task-roster "$M6_PHASE5_ROSTER" --task-offset "$((step * 4))" --maximum-tasks 4 \
+      --task-roster "$M6_PHASE5_ROSTER" \
+      --task-roster-producer-git-sha "$M6_PHASE5_ROSTER_PRODUCER_GIT_SHA" \
+      --task-offset "$((step * 4))" --maximum-tasks 4 \
       --max-model-turns 18 --max-environment-steps 15 --maximum-action-tokens 75000 \
       --concurrent-groups 4 --base-url "$base_url" \
       --output-dir "$collection_root" --iteration-index "$step" --seed "$run_seed" \
