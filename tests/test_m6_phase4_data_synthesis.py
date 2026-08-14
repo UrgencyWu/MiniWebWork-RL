@@ -155,6 +155,8 @@ def test_phase4_teacher_collector_contract_is_raw_qwen9b_and_zero_update():
         replay_prefix_root=None,
     )
     module.validate_phase4_teacher_probe_contract(args)
+    args.base_model = Path("/data/share/model/Qwen3.6-35B-A3B-FP8")
+    module.validate_phase4_teacher_probe_contract(args)
     args.adapter = Path("student_adapter")
     with pytest.raises(ValueError, match="must not reuse the student adapter"):
         module.validate_phase4_teacher_probe_contract(args)
@@ -264,11 +266,13 @@ def test_phase4_teacher_jobs_are_bounded_dependent_and_never_on_policy():
     assert "#SBATCH --cpus-per-task=4" in probe_job
     assert "#SBATCH --mem=32G" in probe_job
     assert "--mode phase4_teacher_probe --role train --k 4" in probe_job
-    assert "--base-model /data/share/model/Qwen3.5-9B" in probe_job
+    assert 'teacher_model="${M6_TEACHER_MODEL:-/data/share/model/Qwen3.5-9B}"' in probe_job
+    assert '--base-model "$teacher_model"' in probe_job
     assert "--max-model-turns 18 --max-environment-steps 15" in probe_job
     assert "#SBATCH --gres=gpu" not in audit_job
     assert 'dependency="afterok:$prep_job"' in submit
     assert 'dependency="afterok:$probe_job"' in submit
+    assert "M6_TEACHER_MODEL=$teacher_model" in submit
     assert "optimizer.step(" not in audit
     assert '"optimizer_steps": 0' in audit
     assert '"teacher_data_allowed_for_on_policy_grpo": False' in audit

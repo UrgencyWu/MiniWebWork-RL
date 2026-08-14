@@ -15,7 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 import m6_phase2_reward_probe as phase2  # noqa: E402
-from m6_phase4_build_teacher_roster import TEACHER_MODEL  # noqa: E402
+from m6_phase4_build_teacher_roster import ALLOWED_TEACHER_MODELS  # noqa: E402
 from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_json  # noqa: E402
 from miniwebwork.webshop_rl.actions import WebShopCommand, normalize_command  # noqa: E402
 from miniwebwork.webshop_rl.environment import WebShopHTTPEnvironment  # noqa: E402
@@ -72,14 +72,19 @@ def _replay_success(episode: Mapping[str, Any], *, base_url: str) -> bool:
         environment.close()
 
 
-def _verified_row(episode: Mapping[str, Any], *, source_sha256: str) -> dict[str, Any]:
+def _verified_row(
+    episode: Mapping[str, Any],
+    *,
+    source_sha256: str,
+    teacher_model: Path,
+) -> dict[str, Any]:
     commands = _command_sequence(episode)
     row = dict(episode)
     row.pop("content_sha256", None)
     row.update({
         "schema_version": "m6_phase4_verified_teacher_trajectory_v1",
         "source_episode_content_sha256": source_sha256,
-        "teacher_model": str(TEACHER_MODEL),
+        "teacher_model": str(teacher_model),
         "strict_success": True,
         "replay_success": True,
         "normalized_command_sequence": commands,
@@ -129,6 +134,8 @@ def main() -> None:
     args = parser.parse_args()
 
     roster = _load_hashed(args.teacher_roster, schema="m6_rl_curriculum_v1")
+    teacher_model = Path(str(roster["teacher_model"])).expanduser().resolve()
+    _require(teacher_model in ALLOWED_TEACHER_MODELS, "M6 Phase4 teacher model is not a frozen candidate")
     student_audit = _load_hashed(args.student_audit, schema="m6_phase4_student_prescan_audit_v1")
     candidates = _load_hashed(args.teacher_candidates, schema="m6_phase4_teacher_candidates_v1")
     _require(roster["source_student_audit_content_sha256"] == student_audit["content_sha256"], "M6 Phase4 teacher roster/student audit drift")
@@ -173,7 +180,10 @@ def main() -> None:
         == roster["source_split_lock_content_sha256"],
         "M6 Phase4 teacher split lineage drift",
     )
-    _require(invocation["adapter"] is None and invocation["base_model"] == str(TEACHER_MODEL), "M6 Phase4 teacher policy identity drift")
+    _require(
+        invocation["adapter"] is None and invocation["base_model"] == str(teacher_model),
+        "M6 Phase4 teacher policy identity drift",
+    )
     _require(invocation["seed"] == 20260826, "M6 Phase4 teacher sampling seed drift")
     _require(invocation["max_model_turns"] == 18 and invocation["max_environment_steps"] == 15, "M6 Phase4 teacher horizon drift")
     _require(invocation["base_model_manifest_sha256"] == roster["teacher_base_model_manifest_sha256"], "M6 Phase4 teacher manifest drift")
@@ -231,7 +241,13 @@ def main() -> None:
         if not replay_success:
             replay_failure_count += 1
             continue
-        verified_rows.append(_verified_row(episode, source_sha256=episode["content_sha256"]))
+        verified_rows.append(
+            _verified_row(
+                episode,
+                source_sha256=episode["content_sha256"],
+                teacher_model=teacher_model,
+            )
+        )
     _require(seen_episode_ids == trajectory_ids, "M6 Phase4 teacher episode roster incomplete")
     _require(
         int(report["strict_success_trajectory_count"]) == strict_episode_count
@@ -251,7 +267,7 @@ def main() -> None:
     admitted_rows = selected_rows if strength_gate else []
     verified_payload = {
         "schema_version": "m6_phase4_verified_teacher_probe_successes_v1",
-        "teacher_model": str(TEACHER_MODEL),
+        "teacher_model": str(teacher_model),
         "allowed_for_on_policy_grpo": False,
         "rows": verified_rows,
     }
@@ -259,7 +275,7 @@ def main() -> None:
     supplement_payload = {
         "schema_version": "m6_phase4_verified_teacher_supplement_v1",
         "admitted": strength_gate,
-        "teacher_model": str(TEACHER_MODEL),
+        "teacher_model": str(teacher_model),
         "allowed_for_on_policy_grpo": False,
         "maximum_trajectories_per_task": MAXIMUM_SUPPLEMENT_PER_TASK,
         "rows": admitted_rows,
@@ -274,7 +290,7 @@ def main() -> None:
         "teacher_roster_content_sha256": roster["content_sha256"],
         "collection_report_content_sha256": report["content_sha256"],
         "invocation_content_sha256": invocation["content_sha256"],
-        "teacher_model": str(TEACHER_MODEL),
+        "teacher_model": str(teacher_model),
         "teacher_base_model_manifest_sha256": roster["teacher_base_model_manifest_sha256"],
         "task_count": TASK_COUNT,
         "trajectory_count": TASK_COUNT * K,

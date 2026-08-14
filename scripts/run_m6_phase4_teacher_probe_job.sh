@@ -19,7 +19,8 @@ test "$(git rev-parse HEAD)" = "$M6_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
 python_bin=/home/wushaohua/miniconda3/envs/miniwebwork/bin/python
 study_root="$repo_root/outputs/m6_monotonic_posttraining_v1"
-teacher_root="$study_root/phase4_rl_data_v1/teacher_probe_qwen35_9b_v1"
+teacher_root="${M6_TEACHER_ROOT:-$study_root/phase4_rl_data_v1/teacher_probe_qwen35_9b_v1}"
+teacher_model="${M6_TEACHER_MODEL:-/data/share/model/Qwen3.5-9B}"
 output="$teacher_root/collection"
 test -f "$teacher_root/prep/teacher_roster.json"
 test -f "$teacher_root/prep/teacher_base_model_manifest.json"
@@ -34,7 +35,7 @@ export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
   --base-url "$M6_SERVICE_BASE_URL" \
   --task-roster "$teacher_root/prep/teacher_roster.json" \
   --task-roster-producer-git-sha "$M6_EXPECTED_GIT_SHA" \
-  --base-model /data/share/model/Qwen3.5-9B \
+  --base-model "$teacher_model" \
   --base-model-manifest "$teacher_root/prep/teacher_base_model_manifest.json" \
   --max-model-turns 18 --max-environment-steps 15 \
   --concurrent-groups 4 --output-dir "$output"

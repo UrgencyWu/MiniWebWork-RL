@@ -23,7 +23,11 @@ from miniwebwork.long_horizon_rl.model_manifest import (  # noqa: E402
 )
 from miniwebwork.m6_posttraining_protocol import load_protocol, validate_split_lock  # noqa: E402
 
-TEACHER_MODEL = Path("/data/share/model/Qwen3.5-9B")
+ALLOWED_TEACHER_MODELS = {
+    Path("/data/share/model/Qwen3.5-9B").resolve(),
+    Path("/data/share/model/Qwen3.6-35B-A3B-FP8").resolve(),
+}
+DEFAULT_TEACHER_MODEL = Path("/data/share/model/Qwen3.5-9B")
 PROBE_TASK_COUNT = 16
 PROBE_SEED = 20260826
 MAXIMUM_BUCKET_SHARE_GAP = 0.08
@@ -95,7 +99,11 @@ def main() -> None:
     parser.add_argument("--teacher-candidates", type=Path, required=True)
     parser.add_argument("--split-lock", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--teacher-model", type=Path, default=DEFAULT_TEACHER_MODEL)
     args = parser.parse_args()
+
+    teacher_model = args.teacher_model.expanduser().resolve()
+    _require(teacher_model in ALLOWED_TEACHER_MODELS, "M6 Phase4 teacher model is not a frozen candidate")
 
     protocol = load_protocol()
     split = validate_split_lock(json.loads(args.split_lock.read_text(encoding="utf-8")))
@@ -118,17 +126,17 @@ def main() -> None:
     if manifest_path.is_file():
         model_manifest = validate_base_model_manifest(
             path=manifest_path,
-            expected_base_model=TEACHER_MODEL,
+            expected_base_model=teacher_model,
             verify_files=True,
         )
     else:
         model_manifest = build_base_model_manifest(
-            base_model=TEACHER_MODEL,
+            base_model=teacher_model,
             destination=manifest_path,
         )
         model_manifest = validate_base_model_manifest(
             path=manifest_path,
-            expected_base_model=TEACHER_MODEL,
+            expected_base_model=teacher_model,
             verify_files=True,
         )
 
@@ -149,7 +157,7 @@ def main() -> None:
         "source_role": "train",
         "source_student_audit_content_sha256": student_audit["content_sha256"],
         "source_teacher_candidates_content_sha256": candidates["content_sha256"],
-        "teacher_model": str(TEACHER_MODEL),
+        "teacher_model": str(teacher_model),
         "teacher_base_model_manifest_path": str(manifest_path),
         "teacher_base_model_manifest_sha256": model_manifest["sha256"],
         "teacher_base_model_functional_sha256": model_manifest["payload"]["functional_file_set_sha256"],

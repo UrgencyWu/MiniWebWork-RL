@@ -18,11 +18,13 @@ test -z "$(git status --porcelain --untracked-files=no)"
 python_bin=/home/wushaohua/miniconda3/envs/miniwebwork/bin/python
 phase4_root="$repo_root/outputs/m6_monotonic_posttraining_v1/phase4_rl_data_v1"
 student_root="$phase4_root/student_prescan/audit"
-teacher_root="$phase4_root/teacher_probe_qwen35_9b_v1"
+teacher_root="${M6_TEACHER_ROOT:-$phase4_root/teacher_probe_qwen35_9b_v1}"
+teacher_model="${M6_TEACHER_MODEL:-/data/share/model/Qwen3.5-9B}"
 mkdir -p "$teacher_root/prep"
 export PYTHONPATH="$repo_root/src:$repo_root/scripts${PYTHONPATH:+:$PYTHONPATH}"
 "$python_bin" scripts/m6_phase4_build_teacher_roster.py \
   --student-audit "$student_root/dataset_audit.json" \
   --teacher-candidates "$student_root/teacher_candidates.json" \
   --split-lock "$repo_root/outputs/m6_monotonic_posttraining_v1/locks/m6_webshop_split_v1.json" \
+  --teacher-model "$teacher_model" \
   --output-dir "$teacher_root/prep"

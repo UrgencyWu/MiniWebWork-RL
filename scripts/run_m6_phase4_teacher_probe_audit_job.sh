@@ -19,7 +19,7 @@ test -z "$(git status --porcelain --untracked-files=no)"
 python_bin=/home/wushaohua/miniconda3/envs/miniwebwork/bin/python
 phase4_root="$repo_root/outputs/m6_monotonic_posttraining_v1/phase4_rl_data_v1"
 student_root="$phase4_root/student_prescan/audit"
-teacher_root="$phase4_root/teacher_probe_qwen35_9b_v1"
+teacher_root="${M6_TEACHER_ROOT:-$phase4_root/teacher_probe_qwen35_9b_v1}"
 output="$teacher_root/audit"
 test ! -e "$output/teacher_probe_audit.json"
 mkdir -p "$output"

@@ -66,6 +66,10 @@ LINEAGE_FIELDS = (
     "rollout_adapter_sha256",
     "adapter_semantic_sha256",
 )
+PHASE4_TEACHER_MODELS = {
+    Path("/data/share/model/Qwen3.5-9B").resolve(),
+    Path("/data/share/model/Qwen3.6-35B-A3B-FP8").resolve(),
+}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -317,7 +321,7 @@ def validate_phase4_teacher_probe_contract(args: argparse.Namespace) -> None:
     _require(args.role == "train" and args.task_roster is not None, "M6 Phase4 teacher roster drift")
     _require(args.adapter is None, "M6 Phase4 teacher probe must not reuse the student adapter")
     _require(
-        args.base_model.expanduser().resolve() == Path("/data/share/model/Qwen3.5-9B"),
+        args.base_model.expanduser().resolve() in PHASE4_TEACHER_MODELS,
         "M6 Phase4 teacher model drift",
     )
     _require(
