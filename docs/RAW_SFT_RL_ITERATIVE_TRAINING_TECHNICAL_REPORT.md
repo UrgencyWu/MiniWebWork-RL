@@ -1127,3 +1127,15 @@ matched single-update、40-task OPD pilot、monitor、OPD后Student-only GRPO和
 不通过增加K/seed、放宽`+5 pp`、改资格任务或在同一批上选择prompt来刷门。本轮结论是：token级OPD
 工程路径可实现，但当前三份现成大模型没有在冻结专项分布上证明相对SFT 4B的可靠教师优势，所以
 正式OPD训练不具备方法学可行性，而非算力或tokenizer阻塞。
+
+## 39. Phase10-C方向冻结：Qwen3.5专项SFT教师指导SFT Student
+
+下一轮不再使用Qwen3.6。Student保持`Qwen3.5-4B + 当前M6 SFT adapter`；教师候选改为
+`Qwen3.5-9B + nav专项LoRA`以及`Qwen3.5-35B-A3B + match/finish两个独立专项LoRA`。35B的两个角色
+共享foundation但不共享adapter或专项语料，不宣称为两个独立foundation model。
+
+主OPD behavior policy明确冻结为SFT后的`pi_0`，不是Raw 4B。Raw仅作为最终性能链的基线。教师只能在
+`pi_0`实际访问的exact token prefix上提供distribution target，环境动作仍由`pi_0`生成。这样测得的是
+`OPD增量 = pi_opd - pi_0`，避免Raw→OPD把基础动作模仿与专项蒸馏混在一起。教师SFT语料必须包含现有
+学生SFT corpus之外的严格重放专项纠错信息；新教师仍须使用全新qualification片重新证明相对`pi_0`
+的优势，至少2/3通过后才允许重新启动零更新OPD smoke。

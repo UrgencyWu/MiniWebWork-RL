@@ -1156,3 +1156,61 @@ purchase。聚合报告SHA为`835da0da...c0f2e6`，decision=`stop_opd`。
 monitor、OPD后GRPO及正式OPD训练全部不执行。该结果确认的是“当前三份现成Specialist不具备训练前
 资格”，不是OPD算法在合格Specialist下必然无效。若未来更换或专项训练Specialist，必须新建fresh
 qualification片并重新从Gate1/Gate2开始，不能复用本轮已查看的72个资格task。
+
+## 19. Phase10-C：同系列Qwen3.5专项SFT教师再准入
+
+### 19.1 冻结模型边界
+
+Phase10-B证明未经WebShop专项适配的更大基座不自动构成有效Specialist。下一轮不再使用
+Qwen3.6-35B-A3B-FP8；Phase10-B中的Qwen3.6记录只作为历史结果保留，不进入Phase10-C模型池。
+
+统一Student与三个候选教师冻结为：
+
+| identity | 基座 | 初始化/计划adapter | 角色 |
+|---|---|---|---|
+| `pi_0` | Qwen3.5-4B | 现有M6 SFT adapter：`outputs/m6_monotonic_posttraining_v1/mini/pilot_sft/final_adapter` | 唯一behavior Student与OPD起点 |
+| `S_nav_sft` | Qwen3.5-9B | `$PHASE10C_ROOT/teacher_sft/S_nav/final_adapter` | 搜索、结果页选择与导航 |
+| `S_match_sft` | Qwen3.5-35B-A3B | `$PHASE10C_ROOT/teacher_sft/S_match/final_adapter` | 属性、价格、商品与option匹配 |
+| `S_finish_sft` | Qwen3.5-35B-A3B | `$PHASE10C_ROOT/teacher_sft/S_finish/final_adapter` | 恢复、预算与购买边界 |
+
+`S_match_sft`与`S_finish_sft`共享同一个Qwen3.5-35B-A3B foundation checkpoint，但使用互不混合的
+专项数据、独立LoRA adapter和独立资格片；它们是两个专项策略，不宣称为两个独立foundation model。
+最终部署仍只有Qwen3.5-4B Student。
+
+### 19.2 教师指导SFT Student，而不是Raw Student
+
+Phase10-C主链冻结为：
+
+```text
+Qwen3.5-4B Raw -> 当前SFT -> pi_0 Student
+
+Qwen3.5-9B/35B-A3B -> 专项高质量SFT -> S_*_sft
+
+pi_0自己生成on-policy trajectory/action token
+  -> frozen public router选择一个已合格SFT Specialist
+  -> Specialist在exact pi_0 token prefix上返回distribution target
+  -> assistant-action-only OPD更新pi_0
+  -> pi_opd
+  -> 可选Student-only on-policy GRPO
+```
+
+Raw 4B只保留为`Raw < SFT < OPD`链路的基线评测身份，不作为主OPD behavior policy，也不接收
+Specialist target。原因是Raw→OPD的大部分增益会与动作格式、页面交互和基础模仿能力混杂，无法回答
+“OPD能否在SFT之后继续提升”；同时Raw访问状态质量更低，会把昂贵Specialist查询浪费在SFT已经解决的
+基础错误上。若未来资源允许，Raw→OPD只能作为独立诊断control，不能替代`pi_0 -> pi_opd`主臂。
+
+### 19.3 教师SFT数据要求
+
+教师SFT数据必须给教师带来学生SFT语料中没有的专项信息，不能简单复制现有156-task学生SFT corpus：
+
+- 训练状态优先来自Student公开失败/不确定边界，但teacher prompt不得读取target ASIN、隐藏答案或
+  promotion/holdout；
+- label必须由更强推理、公开约束规则或人工/程序化纠错产生，并经WebShop fresh-session重放验证；
+- `S_nav_sft`监督搜索/导航action，`S_match_sft`监督商品与option决策，`S_finish_sft`监督恢复和购买边界；
+- 教师SFT train、教师qualification、OPD train、monitor A/B和final dev必须task、goal-index与normalized
+  instruction互斥；Phase10-B已查看的72个qualification task全部进入exposure union；
+- 教师训练结束后必须先在全新专项片与同条件`pi_0`配对资格；至少2/3教师满足相对`pi_0 >= +5 pp`、
+  task-level net flips为正和专项安全门，才重新启用零更新OPD smoke。
+
+在教师资格通过前，不实现或提交正式OPD Student更新。教师SFT成功只表示产生候选教师；是否能指导
+Student仍由新资格片、零更新target smoke和matched single-update共同决定。
