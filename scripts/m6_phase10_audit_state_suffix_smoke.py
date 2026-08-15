@@ -132,7 +132,13 @@ def fresh_replay(
             commands.append(command)
             result = environment.step(WebShopCommand(command))
             action_result = result.info.get("action_result", {})
-            _require(action_result.get("success") is True, "Phase10 fresh replay action failed")
+            recorded_action_result = turn.get("action_result")
+            _require(
+                isinstance(recorded_action_result, Mapping)
+                and bool(action_result.get("success", False))
+                is bool(recorded_action_result.get("success", False)),
+                "Phase10 fresh replay action-result class drift",
+            )
             observation = result.observation
             _require(
                 public_state_anchor_signature(observation.to_dict())
