@@ -1247,3 +1247,15 @@ token组成；离线target/option metadata只允许在当前页面的`available_
 prompt或生成页面上未出现的动作。完整轨迹fresh-session strict成功后才录取，再按职责保留nav的
 search/navigation/candidate、match的candidate/option、finish的option/buy completion-only行。单个
 Specialist不足12/16个verified task时直接判当前数据生成方式不可用，不启动LoRA训练。
+
+### 19.5 Phase10-C快速验证结果
+
+冻结数据门已经完成且未被放宽。规则v3在`S_match_sft`和`S_finish_sft`分别得到9/16与10/16 verified；
+`S_nav_sft`规则v3为8/16。额外的同系列`Qwen3.5-35B-A3B`公开查询生成smoke只把public instruction
+提供给模型，每任务K2、拒绝未公开ASIN，结果为6/16，仍未过12/16。三路主要失败均是目标商品未进入
+公开search top-50，而不是action schema、训练数值或GPU故障。
+
+因此本轮执行在数据可行性层停止：不训练三个Specialist LoRA，不生成OPD target，不更新SFT Student。
+该结论只否定当前公开query程序化语料构造，不能外推为“同系列SFT Specialist→OPD无效”。若后续恢复，
+必须更换信息来源（例如独立、无泄漏的环境交互专家轨迹或已有高质量专项示范），而不是继续在这16任务
+上调query、seed或门槛。

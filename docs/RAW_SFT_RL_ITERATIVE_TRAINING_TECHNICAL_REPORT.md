@@ -1178,3 +1178,19 @@ v3最终为8/16 verified、29个nav action rows，未过门，因此规则式que
 `Qwen3.5-35B-A3B`对相同16条public instruction各生成2个query候选；模型不看target/option/score，
 候选不得含未在instruction出现的ASIN。环境仍从fresh reset验证目标是否进入公开top-50并完成严格轨迹。
 该Job只生成query与数据，2 GPU、0 optimizer step；达到12/16才允许教师单更新probe。
+
+Qwen3.5-35B public-query首提交Job 2353因复用backend的token cap合同不一致，在模型加载前退出；删除
+非必要的64-token覆盖后，同根successor Job 2354完成32次query生成。16个任务均得到至少一个有效query，
+合计28个unique query，但只有6/16能把离线目标召回到公开top-50并完成fresh strict轨迹，生成19个nav
+action rows，低于12/16。query报告SHA为
+`0d2c6a2995cc1543a4e2f6a745d6a903e5319c4bf84685aaea2b712e50b8ca43`，corpus manifest SHA为
+`4093c7b36a95e44edd518bd0cb7a4a6bf82048df7965ea9e2e7f8b9011258cb6`；两者自哈希闭合，
+`training_performed=false`、`optimizer_steps=0`。因此35B query没有修复nav数据可用性，且6/16低于规则v3的8/16。
+
+为判断至少2/3 Specialist是否仍可能通过，在不改公式、不用GPU的条件下对冻结match/finish各16任务运行
+同一规则v3。`S_match_sft`为9/16、19 rows（manifest
+`36715af94d0e71963354b70126574a494463563ab36ad2fcf848ab60ea51e42a`）；`S_finish_sft`为10/16、
+24 rows（manifest `f255815f526c854ff9076242ecbfb310b06e5b2ff12415aa6f80489f21250b7d`）。三路均未达到
+12/16，失败主体都是目标不在公开top-50。按快速验证合同，本轮Phase10-C停止在数据可行性层：没有启动
+Specialist LoRA、没有产生教师adapter、没有执行OPD或Student更新。该结果否定的是当前“公开query +
+离线public-action选择”专项语料生成法，不等同于否定同系列SFT Specialist→OPD方法本身。
