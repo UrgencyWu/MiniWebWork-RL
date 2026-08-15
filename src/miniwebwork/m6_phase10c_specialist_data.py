@@ -15,7 +15,11 @@ from .webshop_rl.actions import MAX_SEARCH_QUERY_CHARACTERS, WebShopCommand, par
 
 
 CORPUS_SCHEMA = "m6_phase10c_specialist_smoke_corpus_v1"
-PUBLIC_QUERY_FORMULA = "strip_request_price_first_sentence_v2"
+PUBLIC_QUERY_FORMULA = "public_instruction_candidate_search_v3"
+QUERY_STOPWORDS = frozenset({
+    "a", "an", "the", "for", "of", "with", "that", "are", "is", "some", "and", "my", "to", "in", "on",
+    "high", "quality", "performance", "power", "definition", "looking", "find", "want", "would", "like",
+})
 ASIN_RE = re.compile(r"^B[0-9A-Z]{9}$", re.IGNORECASE)
 WORD_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 SPECIALIST_FAMILIES = {
@@ -73,6 +77,25 @@ def public_instruction_query(instruction: str) -> str:
         "Phase10-C query introduced a non-instruction token",
     )
     return query
+
+
+def public_instruction_query_candidates(instruction: str) -> tuple[str, ...]:
+    """Return at most three fixed candidates, all derived from public tokens."""
+
+    base = public_instruction_query(instruction)
+    tokens = WORD_RE.findall(base)
+    compact_tokens = [token for token in tokens if token.casefold() not in QUERY_STOPWORDS]
+    compact = " ".join(compact_tokens[:12]).strip()
+    core = " ".join(compact_tokens[:6]).strip()
+    candidates = tuple(dict.fromkeys(value for value in (base, compact, core) if value))
+    _require(candidates, "Phase10-C public query candidate set is empty")
+    source_tokens = {token.casefold() for token in WORD_RE.findall(str(instruction or ""))}
+    for candidate in candidates:
+        _require(
+            {token.casefold() for token in WORD_RE.findall(candidate)} <= source_tokens,
+            "Phase10-C query candidate introduced a non-instruction token",
+        )
+    return candidates
 
 
 def action_family(command: str) -> str:
@@ -149,11 +172,40 @@ def build_verified_public_query_trajectory(environment: Any, goal: Mapping[str, 
             observation = result.observation
         return result
 
-    query = public_instruction_query(str(goal.get("instruction") or ""))
-    execute(f"search[{query}]")
     target_asin = str(goal.get("asin") or "").strip()
     if not target_asin:
         raise SpecialistDataFailure("missing_offline_verifier_target")
+
+    def target_is_public_for_query(query: str) -> bool:
+        probe_observation = environment.reset(task_id)
+        probe_result = environment.step(WebShopCommand(f"search[{query}]"))
+        if not probe_result.info.get("action_result", {}).get("success", False):
+            return False
+        if probe_result.observation is not None:
+            probe_observation = probe_result.observation
+        for page_index in range(5):
+            if any(
+                _normalize(_click_argument(str(action))) == _normalize(target_asin)
+                for action in probe_observation.available_actions
+            ):
+                return True
+            if page_index >= 4 or "click[Next >]" not in probe_observation.available_actions:
+                break
+            probe_result = environment.step(WebShopCommand("click[Next >]"))
+            if not probe_result.info.get("action_result", {}).get("success", False):
+                break
+            if probe_result.observation is not None:
+                probe_observation = probe_result.observation
+        return False
+
+    query_candidates = public_instruction_query_candidates(str(goal.get("instruction") or ""))
+    query = next((candidate for candidate in query_candidates if target_is_public_for_query(candidate)), "")
+    if not query:
+        raise SpecialistDataFailure("target_not_in_public_top50_for_instruction_query_candidates")
+    observation = environment.reset(task_id)
+    history.clear()
+    turns.clear()
+    execute(f"search[{query}]")
     target_action = ""
     for page_index in range(5):
         candidates = [
@@ -202,6 +254,8 @@ def build_verified_public_query_trajectory(environment: Any, goal: Mapping[str, 
         "task_score": score,
         "query_tokens_from_public_instruction_only": True,
         "public_query_formula": PUBLIC_QUERY_FORMULA,
+        "public_query_candidate_count": len(query_candidates),
+        "selected_public_query_rank": query_candidates.index(query) + 1,
         "offline_verifier_metadata_used_only_for_public_action_selection": True,
         "policy_input_contains_hidden_metadata": False,
         "turns": turns,
@@ -282,6 +336,7 @@ def build_specialist_smoke_corpus(
         "source_trajectory_content_sha256": dict(sorted(full_trajectory_hashes.items())),
         "query_tokens_from_public_instruction_only": True,
         "public_query_formula": PUBLIC_QUERY_FORMULA,
+        "maximum_public_query_candidates": 3,
         "offline_verifier_metadata_used_only_for_public_action_selection": True,
         "policy_input_contains_hidden_metadata": False,
         "fresh_session_strict_replay_required": True,

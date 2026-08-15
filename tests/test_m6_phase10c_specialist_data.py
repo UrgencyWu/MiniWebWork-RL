@@ -9,6 +9,7 @@ from miniwebwork.m6_phase10c_specialist_data import (
     action_family,
     build_specialist_smoke_corpus,
     public_instruction_query,
+    public_instruction_query_candidates,
 )
 
 
@@ -32,6 +33,16 @@ def test_public_query_preserves_decimal_product_attributes():
         "looking for a honiway decorative wall mirror 12.3 inch rustic wood frame for living room. keep in touch"
     )
     assert query == "a honiway decorative wall mirror 12 3 inch rustic wood frame for living room"
+
+
+def test_public_query_candidates_are_fixed_public_compressions():
+    candidates = public_instruction_query_candidates(
+        "i am looking for a high quality butterfly hair clip for women, and price lower than 40 dollars"
+    )
+    assert candidates == (
+        "a high quality butterfly hair clip for women",
+        "butterfly hair clip women",
+    )
 
 
 @pytest.mark.parametrize(

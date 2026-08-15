@@ -1168,3 +1168,8 @@ search/navigation/candidate、match的candidate/option、finish的option/buy act
 这否定了“把完整instruction直接作为query”的公式，但尚未否定公开输入专家数据。下一次只修改query
 公式：删除请求套话与价格尾句、保留第一句产品描述，所有query token仍必须来自原instruction；使用
 同16任务、同oracle、同12/16门和新输出根，避免覆盖v1负结果。
+
+query v2把nav verified由4/16提高到7/16，但仍未过门，9个失败仍为公开top-50无目标。最后一个规则式
+CPU实验v3只增加“每条公开instruction预生成最多3个固定压缩query并选择可重放者”；候选token仍全是
+instruction子集，最终label从fresh reset重放。若v3仍低于12/16，不再继续调query规则，转为独立评估
+35B public-query generator或停止规则式专家数据方向。
