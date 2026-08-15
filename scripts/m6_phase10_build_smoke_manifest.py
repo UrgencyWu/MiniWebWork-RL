@@ -171,7 +171,8 @@ def _best_candidates(groups: Sequence[Mapping[str, Any]]) -> dict[str, dict[str,
             prefix = public_purchase_correction_prefix(trajectory)
             if failure_class is None or prefix is None:
                 continue
-            _require(prefix["remaining_model_turns"] > 0 and prefix["remaining_environment_steps"] > 0, "Phase10 smoke has no suffix budget")
+            if prefix["remaining_model_turns"] <= 0 or prefix["remaining_environment_steps"] <= 0:
+                continue
             candidate = {
                 "task_id": task_id,
                 "source_group_id": group["group_id"],

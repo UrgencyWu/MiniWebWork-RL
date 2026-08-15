@@ -74,6 +74,29 @@ def test_candidate_choice_does_not_prefer_partial_over_zero_score():
     assert selected["source_failure_class"] == "zero_score_purchase"
 
 
+def test_exhausted_failure_state_is_skipped_without_aborting_other_candidates():
+    module = _module("m6_phase10_builder_budget", "scripts/m6_phase10_build_smoke_manifest.py")
+    exhausted = _purchase_failure(score=0.5, trajectory_id="exhausted")
+    filler = [_turn(f"click[value-{index}]", 10 + index) for index in range(12)]
+    exhausted["turns"] = filler + exhausted["turns"]
+    valid = _purchase_failure(score=0.5, trajectory_id="valid")
+    groups = [
+        {
+            "task_id": "webshop_goal_00001",
+            "group_id": "g0",
+            "content_sha256": "a" * 64,
+            "trajectories": [exhausted],
+        },
+        {
+            "task_id": "webshop_goal_00002",
+            "group_id": "g1",
+            "content_sha256": "b" * 64,
+            "trajectories": [valid],
+        },
+    ]
+    assert set(module._best_candidates(groups)) == {"webshop_goal_00002"}
+
+
 def test_phase10_collection_contract_freezes_k2_and_identity():
     pytest.importorskip("playwright")
     module = _module("m6_collect_phase10", "scripts/m6_collect_policy_success.py")
