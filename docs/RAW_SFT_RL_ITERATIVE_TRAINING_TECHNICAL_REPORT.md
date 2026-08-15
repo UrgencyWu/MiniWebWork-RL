@@ -938,3 +938,22 @@ collector复用既有prefix replay backend。每个task的四条K4 rollout严格
 继续门保持Phase8结果前已冻结的三项：至少6/8任务精确重放；至少4个任务同时形成strict mixed和
 same-item strict-partial；至少3个任务形成option contrast。未通过即停止，不扩到20任务、不训练；
 通过后也只允许设计一个5-step、仅优化suffix token的trajectory-GRPO小试。
+
+## 31. Phase9 共享前缀suffix smoke结果与停止决策
+
+推理Job 2333以`COMPLETED 0:0`结束，用时1分41秒。8个任务、32条K4轨迹全部通过共享前缀
+逐turn精确重放；collection、manifest、roster和8个group自哈希闭合，SFT lineage一致，
+`training_updates_allowed=false`。每条轨迹都记录了非零`shared_prefix_turns`、
+`prefix_policy_loss_eligible=false`和一致的prefix/suffix token边界。工程门完整通过，且没有
+optimizer step或adapter更新。冻结门报告SHA为`f6cd579f...e588959`。
+
+数据结果没有通过继续门。32条suffix中有29条strict success、2条partial purchase和1条horizon
+failure；8个任务只有3个mixed。虽然exact replay为8/8，高于`>=6`门，但只有1个任务形成
+same-item strict-partial（要求`>=4`），也只有1个任务形成option contrast（要求`>=3`）。换言之，
+共享到同一商品页解决了“分叉到不同商品”的问题，却把suffix难度降得过低：冻结SFT在7/8任务上
+几乎总能成功，K4缺少成功—失败方差，无法提供group-normalized policy gradient所需的对比信号。
+
+因此按预注册停止shared-prefix方向：不扩20任务、不增加K/seed、不执行suffix-only RL训练。该负结果
+把瓶颈进一步定位为“需要同商品页且处于真实决策边界的前缀”，而非任意strict成功前缀。若继续快速
+探索，下一项单变量应先做零GPU前缀难度排序：利用既有prescan中同task的strict/partial行为，筛选
+更早或更不确定的公开商品页状态；只有能预期产生足够mixed的8-task smoke才值得再次采样。
