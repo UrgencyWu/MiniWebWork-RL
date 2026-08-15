@@ -1223,3 +1223,17 @@ strict覆盖21/32任务，10个group为mixed。分专项为nav 9/11任务、31�
 18/15、2-GPU TP、0 optimizer step。新roster排除query smoke的每角色前16项及首次32任务，并用
 冻结seed的task hash选择。扩展结果与首次collection合并后再做strict fresh replay和task-balanced
 completion-only LoRA语料；不得把同任务K8重复成功当作8倍任务权重。
+
+扩展Job 2359已`COMPLETED 0:0`：128任务×K8=1024轨迹，333条strict、72个strict任务、56个mixed
+任务；报告SHA为`ea4df460b366246c51d1053891d918b3845fbee39f9b56ad888c02042a08197c`，报告及
+128个group自哈希闭合。分专项为nav 28/32任务、155条strict；match 14/32、44条strict；finish
+30/64、134条strict。与首次批次合并后共有160个互斥任务、1152轨迹、399条strict和93个strict任务，
+数据量已足以进入重放及35B LoRA语料构建。
+
+重放合同冻结为：对399条首次strict路径逐条创建fresh session，从任务起点执行完整公开command序列，
+同时要求每个pre/post public-state anchor与action-result success类别完全一致，最终task score仍为strict；
+不满足者保留在replay report但不得进入SFT。通过路径先按task去重，每task最多4条不同command sequence。
+能力权重固定为nav/match/finish=`0.20/0.40/0.40`：该比例由合并后的task成功覆盖难度取倒数后取整，
+避免nav的大量成功样本淹没match/finish。损失层级为capability→task→path→action-row→row内label-token均值，
+每个能力先分固定总质量、能力内task等权、task内path等权、path内action row等权；train/dev按能力分层、
+task级90/10拆分。该权重只作用于35B completion-only LoRA，不改变环境奖励或后续Student OPD权重。
