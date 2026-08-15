@@ -942,6 +942,15 @@ Qwen3.6-35B-A3B-FP8 的 `tokenizer_config.json` SHA256 不同：
 6. 任一模型需要自己的 chat template 重编码时，不允许进入 token-level OPD，只能降级为 sequence
    teacher，并从 OPD 主实验剔除。
 
+`S_finish` 的 Hugging Face FP8 forward 还依赖首次从
+`kernels-community/finegrained-fp8@version=4` 下载 Triton kernel，而当前登录/计算节点均无外网。
+这属于运行后端限制，不作为 token 不兼容结论。其对齐门改用 vLLM 原生 FP8 loader：仍输入完全相同的
+Student token IDs，运行时 config vocab 必须为 `248320`，返回 top-64 raw log-prob 必须全有限，并显式
+记录 `top64_probability_mass + rest_mass = 1`。该 fallback 不允许给其他模型放宽 tokenizer/action/prefix
+逐位一致门；若 vLLM 也不能接受 Student token prefix，则剔除 `S_finish`。正式 OPD 若采用压缩 target，
+三个 Specialist 必须统一使用同一 top-k+rest 表示，且在 single-update 前用可 full-vocab 前向的模型
+冻结最小 `k` 和近似误差门，不能让不同 Specialist 使用不同损失。
+
 ### 18.5 Specialist 资格与冻结路由
 
 三个候选必须在任务采样和训练前冻结互斥的专项资格片。每个资格片只判断对应能力，不在同一批任务
