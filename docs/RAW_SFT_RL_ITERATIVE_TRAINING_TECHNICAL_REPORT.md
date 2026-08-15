@@ -1194,3 +1194,14 @@ action rows，低于12/16。query报告SHA为
 12/16，失败主体都是目标不在公开top-50。按快速验证合同，本轮Phase10-C停止在数据可行性层：没有启动
 Specialist LoRA、没有产生教师adapter、没有执行OPD或Student更新。该结果否定的是当前“公开query +
 离线public-action选择”专项语料生成法，不等同于否定同系列SFT Specialist→OPD方法本身。
+
+## 41. Phase10-C方法修订：取消Raw35B对SFT4B准入比较
+
+用户指出，直接用Raw 35B是否超过SFT 4B判定教师可行性会把参数规模差异与SFT状态混在一起。该意见
+成立，后续准入比较改为同训练阶段的`SFT35B vs SFT4B`。Raw Qwen3.5-35B-A3B先在fresh任务上以
+完整public-only环境交互自行探索，严格成功并fresh replay的轨迹用于训练自身completion-only LoRA；
+只有得到`pi_35_sft`后，才在同任务、K、seed、horizon和预算下与当前`pi_0`配对资格。
+
+因此Raw35B只保留为35B内部自SFT增益的基线，不再充当OPD教师准入对照。新的因果问题依次是：
+35B自探索能否产生足量高质量轨迹；这些轨迹能否使35B LoRA优于自身Raw起点；训练后的35B能否在全新
+配对任务上稳定超过SFT4B。三项依次成立后，才进入专项LoRA派生与multi-Specialist OPD。

@@ -1259,3 +1259,30 @@ Specialist不足12/16个verified task时直接判当前数据生成方式不可�
 该结论只否定当前公开query程序化语料构造，不能外推为“同系列SFT Specialist→OPD无效”。若后续恢复，
 必须更换信息来源（例如独立、无泄漏的环境交互专家轨迹或已有高质量专项示范），而不是继续在这16任务
 上调query、seed或门槛。
+
+### 19.6 修订：35B先自探索、自SFT，再与SFT 4B比较
+
+`Raw Qwen3.5-35B-A3B`不能直接与`SFT Qwen3.5-4B`比较后决定教师资格，因为该差异同时混合模型规模
+与SFT状态。此前任何`Raw 35B - SFT 4B`数值以后只作为诊断，不再是准入门。新的最小路径为：
+
+```text
+Raw Qwen3.5-35B-A3B
+  -> 在fresh teacher-train任务上完整多轮环境探索
+  -> 仅保留public-input、strict-success、fresh-replay-success轨迹
+  -> completion-only LoRA SFT
+  -> pi_35_sft
+
+pi_35_sft 与 pi_0(Qwen3.5-4B SFT)
+  -> 在同一fresh qualification任务、同K/seed/18-15预算下配对比较
+  -> pi_35_sft明确优于pi_0后，才允许成为OPD教师起点
+```
+
+第一阶段不使用Student失败作为35B训练label，也不让hidden target、goal option或task score进入35B输入；
+35B只能根据公开instruction、observation、available actions和自身历史进行搜索、翻页、回退、换query、
+商品比较、option选择和购买。WebShop只负责最终strict判定与fresh-session重放筛选。数据不足时停止的是
+35B自探索数据路线，不允许用Raw 35B相对4B的规模优势绕过自SFT。
+
+35B LoRA训练完成后先在独立teacher-dev上报告`pi_35_sft - Raw35B`，确认自SFT没有退化；该差值只验证
+35B训练是否有效。正式教师资格只看`pi_35_sft - pi_0`：完全配对条件下至少`+5 pp`、task-level net
+flips为正且schema/action/purchase安全门不恶化。通过后，`pi_35_sft`才可作为共同初始化，进一步派生
+nav/match/finish专项LoRA并进入multi-Specialist OPD；未通过则不提交OPD Student更新。
