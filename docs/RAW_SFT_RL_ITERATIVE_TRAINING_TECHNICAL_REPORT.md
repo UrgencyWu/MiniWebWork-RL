@@ -901,3 +901,19 @@ Back to Search、Buy Now、分页导航和ASIN后，至少剩两个不同值才�
 去重并保留最短可重放前缀，只记录action sequence与option集合的hash。门槛在结果前冻结：至少20个
 replayable任务且其中至少12个branchable，才允许设计共享前缀K4 suffix rollout；否则停止
 prefix-reset方向。该诊断全程CPU，`optimizer_steps=0`，不会产生adapter或策略更新。
+
+## 29. Phase8 共享公开前缀可行性结果
+
+CPU报告SHA为`b5e07962...bd2ef34`，四份prescan输入、自哈希和public-only合同均通过。共有120个
+unique strict-success task；其中85个存在“从起点到最后一次公开ASIN click的动作全部成功”的
+可重放前缀，且这85个任务的下一policy-visible商品页都至少提供两个去除导航项后的公开option
+actions。结果同时超过预注册的replayable `>=20`与branchable `>=12`门，decision为
+`design_shared_prefix_k4_suffix_rollout`。诊断没有读取post-action内部state或隐藏答案，也没有采样、
+optimizer step或adapter更新。
+
+这说明Phase7失败不是环境缺少可控商品页状态，而是每条完整轨迹从任务起点独立搜索，导致K4主要
+在不同商品上分叉。下一轮只允许一个8-task共享前缀suffix推理smoke：每个任务从同一条公开strict
+前缀重放到同一商品页，再由冻结SFT独立采样K4 suffix；前缀token不参与任何未来policy loss。
+在看到结果前冻结继续门：至少6/8任务精确重放前缀，至少4个任务形成strict mixed且same-item
+strict-partial对比，至少3个任务形成option contrast。smoke仍不训练；未通过就停止，不能直接扩大到
+20任务或RL更新。通过后才设计“共享前缀、只优化suffix token”的最小5-step trajectory-GRPO。
