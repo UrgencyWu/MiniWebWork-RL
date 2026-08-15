@@ -84,7 +84,10 @@ PHASE10B_QUALIFICATION_MODELS = {
 PHASE10B_QUALIFICATION_TASK_COUNTS = {"student": 24, "S_nav": 24, "S_match": 24, "S_finish": 24}
 PHASE10B_OPD_SMOKE_TASK_COUNT = 8
 PHASE10C_TEACHER_MODEL = Path("/data/share/model/Qwen3.5-35B-A3B").resolve()
-PHASE10C_TEACHER_EXPLORATION_TASK_COUNT = 32
+PHASE10C_TEACHER_EXPLORATION_TASK_COUNTS = {
+    "phase10c_teacher_exploration": 32,
+    "phase10c_teacher_exploration_scale": 128,
+}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -488,7 +491,8 @@ def validate_phase10c_teacher_exploration_contract(args: argparse.Namespace) -> 
 
     _require(args.role == "train" and args.task_roster is not None,
              "M6 Phase10-C teacher exploration roster drift")
-    _require(args.k == 4, "M6 Phase10-C teacher exploration must use K4")
+    expected_k = 8 if args.mode == "phase10c_teacher_exploration_scale" else 4
+    _require(args.k == expected_k, f"M6 Phase10-C teacher exploration must use K{expected_k}")
     _require(
         (args.max_model_turns, args.max_environment_steps) == (18, 15),
         "M6 Phase10-C teacher exploration must use the full horizon",
@@ -841,7 +845,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         task_ids = task_ids[: args.maximum_tasks]
     _require(task_ids, "M6 selected task roster is empty")
     expected_k = int(
-        2
+        8
+        if args.mode == "phase10c_teacher_exploration_scale"
+        else 2
         if args.mode == "phase10_state_suffix_smoke"
         else protocol["mini"]["evaluation_K"]
         if args.mode in {
@@ -885,7 +891,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     _require(
         args.tensor_parallel_size == 1
-        or args.mode in {"phase10b_specialist_qualification", "phase10c_teacher_exploration"},
+        or args.mode in {
+            "phase10b_specialist_qualification",
+            "phase10c_teacher_exploration",
+            "phase10c_teacher_exploration_scale",
+        },
         "M6 tensor parallelism is restricted to approved Phase10 teacher modes",
     )
     _require(
@@ -949,17 +959,22 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         )
         _require(len(task_ids) == PHASE10B_OPD_SMOKE_TASK_COUNT,
                  "M6 Phase10-B OPD smoke roster task count drift")
-    elif args.mode == "phase10c_teacher_exploration":
+    elif args.mode in PHASE10C_TEACHER_EXPLORATION_TASK_COUNTS:
         validate_phase10c_teacher_exploration_contract(args)
         exploration_roster = _load_json(args.task_roster)
+        expected_role = (
+            "teacher_self_exploration_scale"
+            if args.mode == "phase10c_teacher_exploration_scale"
+            else "teacher_self_exploration"
+        )
         _require(
-            exploration_roster.get("phase10c_role") == "teacher_self_exploration"
+            exploration_roster.get("phase10c_role") == expected_role
             and exploration_roster.get("identity") == "raw_qwen3.5_35b_a3b"
             and exploration_roster.get("training_performed") is False
             and exploration_roster.get("optimizer_steps") == 0,
             "M6 Phase10-C teacher exploration roster identity drift",
         )
-        _require(len(task_ids) == PHASE10C_TEACHER_EXPLORATION_TASK_COUNT,
+        _require(len(task_ids) == PHASE10C_TEACHER_EXPLORATION_TASK_COUNTS[args.mode],
                  "M6 Phase10-C teacher exploration roster task count drift")
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
@@ -1410,6 +1425,7 @@ def parse_args() -> argparse.Namespace:
             "phase10b_specialist_qualification",
             "phase10b_opd_smoke_behavior",
             "phase10c_teacher_exploration",
+            "phase10c_teacher_exploration_scale",
             "rl_collection",
         ),
         required=True,

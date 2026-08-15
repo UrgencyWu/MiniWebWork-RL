@@ -1210,3 +1210,16 @@ Specialist LoRA、没有产生教师adapter、没有执行OPD或Student更新。
 nav/match/finish=`11/11/10`交错组成32个fresh任务；Raw Qwen3.5-35B-A3B使用K4、18/15完整环境预算、
 2-GPU tensor parallelism自行交互。该collection的唯一用途是构建35B自SFT语料并统计strict-success
 覆盖；本阶段不得拿Raw35B与SFT4B作教师资格结论。
+
+首次探索Job 2358已`COMPLETED 0:0`：32任务×K4=128轨迹，66条strict、40条partial、22条zero，
+strict覆盖21/32任务，10个group为mixed。分专项为nav 9/11任务、31条strict；match 8/11任务、
+22条strict；finish 4/10任务、13条strict。报告SHA为
+`3257db46d2e840fee3940518fde1abc0f448adb66ae2d714ee59a38c96be6d14`，总报告及32个group自哈希
+闭合，且`training_updates_allowed=false`。该结果说明35B能产生自训练数据，但32任务对专项覆盖和
+低概率成功仍偏小，尤其finish明显较弱。
+
+因此下一步只扩大同一Raw35B自主探索变量，不提前训练：新增128个未使用任务，nav/match/finish=
+`32/32/64`，对finish加倍覆盖；每任务由K4提升为K8，共1024条新轨迹，seed冻结为20260863，仍为
+18/15、2-GPU TP、0 optimizer step。新roster排除query smoke的每角色前16项及首次32任务，并用
+冻结seed的task hash选择。扩展结果与首次collection合并后再做strict fresh replay和task-balanced
+completion-only LoRA语料；不得把同任务K8重复成功当作8倍任务权重。
