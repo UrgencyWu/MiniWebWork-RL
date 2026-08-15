@@ -1,6 +1,6 @@
 # M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
 
-> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；经用户批准将不可行的逐token精确对照改为等source-loss-mass continued-SFT对照，single-update readiness进行中
+> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；等source-loss-mass single-update中rehearsal fixed-state KL=0.03016>0.01，readiness失败，qualification与正式训练停止
 >
 > 日期：2026-08-15
 >

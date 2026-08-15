@@ -1048,3 +1048,23 @@ replay-success original-SFT path中，以seed `20260842`的path hash确定性选
 新对照的归因边界冻结为“teacher corrective package vs equal-loss-mass continued-SFT”，不得解释为
 纯teacher action因果效应。single-update仍必须通过new-source NLL下降、retention NLL、fixed-state KL、
 参数位移、prefix mask与recovery门；通过前仍禁止32-task qualification和正式训练。
+
+## 36. Phase10 等loss-mass single-update结果与停止决策
+
+Job 2338以`COMPLETED 0:0`结束，用时2分01秒；teacher与rehearsal均从相同`pi_0`初始化，各执行
+1次真实LoRA optimizer update。输入SHA为`f06b61bb...6ff0c`；跨臂初始参数、60% new-source
+loss mass、task mass及25%/15% retention输入全部一致。两臂prefix labels均全mask、action labels非空，
+gradient有限非零、参数真实变化、new-source NLL下降，optimizer/adapter/RNG recovery均通过。
+
+teacher arm全部安全门通过：new-source NLL从`0.11863`降至`0.00410`，old-SFT/current-student
+fixed-state sampled k3 KL分别为`0.00446/0.00032`，LoRA相对L2位移`0.003514`。rehearsal arm的
+new-source NLL也从`0.01152`降至`0.00796`，old-SFT和current-student平均NLL均下降，参数位移
+`0.003519`；但old-SFT fixed-state k3 KL为`0.03016`，超过结果前冻结的`0.01`硬门，故该arm
+`passed=false`。平均NLL改善与KL失败不矛盾：前者只看目标action平均对数概率，后者对每个固定action
+token的概率比位移敏感，说明continued-SFT更新方向仍显著改变了旧行为分布。
+
+合并报告SHA为`3ec7972e1df4c3a3411999b5d7c2b11acafa113001b0cd3d139cf9b436ac8681`，
+总decision为readiness失败。按预注册不放宽KL、不降低LR、不更换rehearsal path、不重复seed；Job产物
+`formal_checkpoint_reusable=false`，不进入模型候选。32-task teacher qualification、corrective SFT和
+后续RL均不提交。本结果只否定当前等loss-mass rehearsal安全合同，不能解释为教师纠错本身无效；
+但在没有可接受对照前，不能继续声称可识别的teacher package增益。
