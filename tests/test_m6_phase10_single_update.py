@@ -57,6 +57,27 @@ def test_exact_rehearsal_selector_never_uses_near_match():
         module._select_exact_old_path(paths, target_rows=1, target_tokens=25, tokenizer=Tokenizer(), config=object(), excluded_tasks=set())
 
 
+def test_control_feasibility_reports_exact_absence_without_fallback():
+    pytest.importorskip("playwright")
+    module = _module("m6_phase10_probe_feasibility", "scripts/m6_phase10_build_single_update_probe.py")
+    paths = {
+        "p1": [{"task_id": "t1"}],
+        "p2": [{"task_id": "t2"}, {"task_id": "t2"}],
+    }
+    module._path_tokens = lambda rows, tokenizer, config: 24 if len(rows) == 1 else 26
+    result = module.control_feasibility(
+        paths,
+        target_rows=2,
+        target_tokens=25,
+        tokenizer=object(),
+        config=object(),
+        excluded_tasks=set(),
+    )
+    assert result["control_feasible"] is False
+    assert result["exact_matching_old_sft_path_count"] == 0
+    assert result["approximate_fallback_allowed"] is False
+
+
 def test_probe_contract_forbids_raw_reference_and_freezes_one_update():
     module = (ROOT / "src" / "miniwebwork" / "webshop_rl" / "phase10_corrective.py").read_text(encoding="utf-8")
     runner = (ROOT / "scripts" / "m6_phase10_run_single_update_probe.py").read_text(encoding="utf-8")

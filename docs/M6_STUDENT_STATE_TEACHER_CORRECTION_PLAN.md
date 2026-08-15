@@ -1,6 +1,6 @@
 # M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
 
-> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；single-update readiness 未完成前禁止提交正式训练
+> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；精确 matched rehearsal control 不可构造，已按门停止 single-update/qualification/正式训练
 >
 > 日期：2026-08-15
 >

@@ -1013,3 +1013,21 @@ token。8-task roster 与 state manifest 分别为 `eb3d7f20...` 与 `1e5ef228..
 学生；教师能力仍必须由独立 32-task qualification 的 20/32 task 门判定。在 single-update probe
 证明 source-weighted task/state/path loss、prefix gradient=0、action gradient>0、冻结 `pi_0`
 reference/retention 与恢复合同前，不提交 qualification 或 corrective SFT。
+
+## 34. Phase10 matched single-update 对照可行性门失败（2026-08-15）
+
+工程 smoke 通过后，实现了独立的 Phase10 source-balanced trainer：loss 按
+`source -> task -> state -> path -> action token`分层平均，new/old-SFT/current-student mass 冻结为
+60%/25%/15%，从相同 `pi_0` 起点各做一次 teacher/rehearsal 更新；训练代码不调用
+`disable_adapter`，也不加入 Raw-reference KL。GPU 运行前先执行冻结的 control-feasibility CPU 门。
+
+教师 smoke 中确定性选中的 replay-strict suffix 为2个assistant action row、在学生tokenizer下共25个
+label token。学生同状态strict路径为4或6个action row、43或56个label token；历史 original-SFT
+replay-success corpus 中没有一条完整路径同时满足“2 action row + 25 label token”。因此无法在不截断、
+拼接或伪造路径语义的前提下构造与teacher new-source完全同预算的rehearsal path。
+
+该结果触发预注册的fail-closed门：不允许用近似token数、跨路径拼接、改变loss权重或更换teacher suffix
+来刷过对照；没有提交GPU single-update job、没有optimizer step，也没有打开32-task qualification。
+当前结论不是“教师方法无效”，而是**现有历史self-success数据无法构造本计划要求的精确等预算因果
+对照**。若后续继续，需要先经用户批准修改对照设计（例如预先定义compute-matched no-op/weighted
+continued-SFT control及相应归因降级），不能在本轮已查看可行性结果后直接放宽匹配门。

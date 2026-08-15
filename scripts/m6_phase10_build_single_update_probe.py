@@ -153,6 +153,38 @@ def _select_exact_old_path(
     return path_id, rows
 
 
+def control_feasibility(
+    paths: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    target_rows: int,
+    target_tokens: int,
+    tokenizer: Any,
+    config: M6SFTConfig,
+    excluded_tasks: set[str],
+) -> dict[str, Any]:
+    signatures: dict[tuple[int, int], int] = defaultdict(int)
+    matching_path_ids = []
+    for path_id, rows in paths.items():
+        if str(rows[0]["task_id"]) in excluded_tasks:
+            continue
+        signature = (len(rows), _path_tokens(rows, tokenizer, config))
+        signatures[signature] += 1
+        if signature == (target_rows, target_tokens):
+            matching_path_ids.append(path_id)
+    return {
+        "target": {"action_row_count": target_rows, "labeled_token_count": target_tokens},
+        "eligible_old_sft_path_count": sum(signatures.values()),
+        "exact_matching_old_sft_path_count": len(matching_path_ids),
+        "exact_matching_path_id_hashes": sorted(sha256_json({"path_id": path_id}) for path_id in matching_path_ids),
+        "observed_signature_counts": [
+            {"action_row_count": rows, "labeled_token_count": tokens, "path_count": count}
+            for (rows, tokens), count in sorted(signatures.items())
+        ],
+        "control_feasible": bool(matching_path_ids),
+        "approximate_fallback_allowed": False,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--audit-report", type=Path, required=True)
@@ -161,6 +193,7 @@ def main() -> None:
     parser.add_argument("--teacher-root", type=Path, required=True)
     parser.add_argument("--old-sft-jsonl", type=Path, required=True)
     parser.add_argument("--student-tokenizer", type=Path, required=True)
+    parser.add_argument("--feasibility-output", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -210,6 +243,39 @@ def main() -> None:
     current_tokens = _path_tokens(current_student, tokenizer, config)
     old_paths = _old_paths(args.old_sft_jsonl.expanduser().resolve())
     excluded = {str(teacher_new[0]["task_id"]), str(current_student[0]["task_id"])}
+    feasibility = control_feasibility(
+        old_paths,
+        target_rows=len(teacher_new),
+        target_tokens=teacher_new_tokens,
+        tokenizer=tokenizer,
+        config=config,
+        excluded_tasks=excluded,
+    )
+    feasibility_payload = {
+        "schema_version": "m6_phase10_control_feasibility_report_v1",
+        "complete": True,
+        "development_only": True,
+        "training_performed": False,
+        "optimizer_steps": 0,
+        "smoke_audit_content_sha256": audit["content_sha256"],
+        "state_manifest_content_sha256": manifest["content_sha256"],
+        "old_sft_jsonl_sha256": sha256_file(args.old_sft_jsonl.expanduser().resolve()),
+        "teacher_new_path_signature": {
+            "action_row_count": len(teacher_new),
+            "labeled_token_count": teacher_new_tokens,
+        },
+        "current_student_strict_path_signature": {
+            "action_row_count": len(current_student),
+            "labeled_token_count": current_tokens,
+        },
+        "rehearsal_control": feasibility,
+        "decision": "build_matched_single_update_inputs" if feasibility["control_feasible"] else "stop_before_single_update",
+    }
+    feasibility_payload["content_sha256"] = _self_hash(feasibility_payload)
+    feasibility_output = args.feasibility_output.expanduser().resolve()
+    _require(not feasibility_output.exists(), "Phase10 control feasibility report exists")
+    atomic_write_json(feasibility_output, feasibility_payload)
+    _require(feasibility["control_feasible"], "Phase10 probe has no exact action-row/token-matched rehearsal path")
     rehearsal_path_id, rehearsal_source = _select_exact_old_path(
         old_paths,
         target_rows=len(teacher_new),
