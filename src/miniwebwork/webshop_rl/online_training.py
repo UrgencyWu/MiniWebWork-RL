@@ -98,6 +98,8 @@ class M5VLLMBackendConfig(VLLMBackendConfig):
         _require(self.max_num_seqs == 32, "M5 vLLM concurrency drift")
         _require(self.enforce_eager is True, "M5 vLLM eager-mode gate disabled")
         _require(self.adapter_id == 1 and self.stream_interval == 8, "M5 vLLM adapter/stream contract drift")
+        _require(self.tensor_parallel_size in {1, 2}, "M5 vLLM tensor-parallel size drift")
+        _require(self.max_lora_rank in {8, 16}, "M5 vLLM maximum LoRA rank drift")
         if check_adapter_files:
             from ..long_horizon_rl.adapter_view import validate_vllm_adapter_view
 

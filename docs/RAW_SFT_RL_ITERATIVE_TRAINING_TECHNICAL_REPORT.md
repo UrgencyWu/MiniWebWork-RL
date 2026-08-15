@@ -1261,3 +1261,16 @@ relative displacement为`0.004629`。两张RTX PRO 6000 Blackwell各自peak rese
 `9b9ade93cd9d4fff61735758b64164ef2df49bbe9a533082d039350c24fdfd82`，报告与adapter哈希闭合，全部门通过。
 正式两更新训练保留每次完整975-row加权backward和每轮109-row独立dev，但取消重复的975-row全train
 前向评测；训练forward本身已完整覆盖所有row，该修改只减少计算，不改变梯度、权重或checkpoint选择。
+
+正式训练Job 2365已`COMPLETED 0:0`，用时2:02:48。两个full-corpus update均覆盖85个train task、
+975个action row和14093个实际completion label token；weighted train NLL为`0.080735 -> 0.077318`，
+gradient norm为`0.594984 -> 0.416939`。独立8-task/109-row dev weighted NLL为
+`0.068149 -> 0.063102`，nav/match/finish三项NLL在第二轮均继续下降。最终adapter、自哈希、190个
+目标module参数位移、两卡显存余量和全部训练门均通过，正式checkpoint可进入闭环环境评测。
+
+闭环评测严格分两步。第一步在三个互斥`teacher_{nav,match,finish}_dev`角色合并的96个fresh task上，
+以同一task order、K4、seed `20260864`和18/15 horizon配对比较Raw35与SFT35，只回答35B自SFT是否
+产生闭环增益。第二步仅在第一步净正后，使用三个独立qualification角色合并的另96个fresh task，
+以K4、seed `20260865`和同一horizon配对比较SFT35与现有SFT4B Student；正式教师资格仍要求SFT35
+至少`+5 pp`、task-level net flips为正，且schema/action与非strict purchase不恶化。两步均为推理，
+不产生optimizer update；Raw35不得直接越过第一步充当SFT4B教师对照。

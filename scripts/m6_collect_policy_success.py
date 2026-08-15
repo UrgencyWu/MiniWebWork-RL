@@ -84,6 +84,16 @@ PHASE10B_QUALIFICATION_MODELS = {
 PHASE10B_QUALIFICATION_TASK_COUNTS = {"student": 24, "S_nav": 24, "S_match": 24, "S_finish": 24}
 PHASE10B_OPD_SMOKE_TASK_COUNT = 8
 PHASE10C_TEACHER_MODEL = Path("/data/share/model/Qwen3.5-35B-A3B").resolve()
+PHASE10C_SFT35_ADAPTER = Path(
+    "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/"
+    "phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v1/weighted_lora_v1/final_adapter"
+).resolve()
+PHASE10C_EVALUATION_MODELS = {
+    "raw35": PHASE10C_TEACHER_MODEL,
+    "sft35": PHASE10C_TEACHER_MODEL,
+    "sft4": PHASE10_STUDENT_MODEL,
+}
+PHASE10C_EVALUATION_TASK_COUNT = 96
 PHASE10C_TEACHER_EXPLORATION_TASK_COUNTS = {
     "phase10c_teacher_exploration": 32,
     "phase10c_teacher_exploration_scale": 128,
@@ -250,8 +260,10 @@ async def _create_identity(
             "adapter_semantic_sha256": manifest["payload"]["functional_file_set_sha256"],
         }
     else:
-        _require(tensor_parallel_size == 1, "M6 LoRA identity does not support tensor parallelism")
         canonical = adapter.expanduser().resolve()
+        adapter_config = _load_json(canonical / "adapter_config.json")
+        lora_rank = int(adapter_config.get("r", 0))
+        _require(lora_rank in {8, 16}, "M6 LoRA rank is unsupported")
         view_audit = build_vllm_adapter_view(
             source_adapter=canonical,
             destination=output / "rollout_adapter",
@@ -268,6 +280,8 @@ async def _create_identity(
                 adapter_path=str(canonical),
                 rollout_adapter_path=str(output / "rollout_adapter"),
                 seed=seed,
+                tensor_parallel_size=tensor_parallel_size,
+                max_lora_rank=lora_rank,
                 **lineage,
             )
         )
@@ -510,6 +524,47 @@ def validate_phase10c_teacher_exploration_contract(args: argparse.Namespace) -> 
     _require(args.adapter is None, "M6 Phase10-C teacher exploration must start from Raw 35B")
     _require(args.tensor_parallel_size == 2,
              "M6 Phase10-C teacher exploration tensor parallelism drift")
+
+
+def validate_phase10c_teacher_stage_evaluation_contract(args: argparse.Namespace) -> None:
+    """Freeze paired Raw35/SFT35/SFT4 full-environment evaluation."""
+
+    _require(args.role == "train" and args.task_roster is not None,
+             "M6 Phase10-C evaluation roster drift")
+    _require(args.k == 4, "M6 Phase10-C evaluation must use K4")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase10-C evaluation must use the full horizon",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0,
+             "M6 Phase10-C evaluation task slicing is forbidden")
+    _require(args.maximum_action_tokens is None,
+             "M6 Phase10-C evaluation cannot claim a training token budget")
+    _require(args.replay_prefix_root is None,
+             "M6 Phase10-C evaluation cannot replay a diagnostic prefix")
+    _require(args.shared_prefix_manifest is None and args.state_correction_manifest is None,
+             "M6 Phase10-C evaluation cannot use historical state manifests")
+    identity = args.phase10c_evaluation_identity
+    _require(identity in PHASE10C_EVALUATION_MODELS, "M6 Phase10-C evaluation identity drift")
+    _require(args.base_model.expanduser().resolve() == PHASE10C_EVALUATION_MODELS[identity],
+             "M6 Phase10-C evaluation model drift")
+    if identity == "raw35":
+        _require(args.adapter is None and args.tensor_parallel_size == 2,
+                 "M6 Phase10-C Raw35 identity drift")
+    elif identity == "sft35":
+        _require(
+            args.adapter is not None
+            and args.adapter.expanduser().resolve() == PHASE10C_SFT35_ADAPTER
+            and args.tensor_parallel_size == 2,
+            "M6 Phase10-C SFT35 identity drift",
+        )
+    else:
+        _require(
+            args.adapter is not None
+            and args.adapter.expanduser().resolve() == PHASE10B_STUDENT_ADAPTER
+            and args.tensor_parallel_size == 1,
+            "M6 Phase10-C SFT4 identity drift",
+        )
 
 
 def _validate_group_run_contract(
@@ -861,6 +916,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "phase10b_specialist_qualification",
             "phase10b_opd_smoke_behavior",
             "phase10c_teacher_exploration",
+            "phase10c_teacher_stage_evaluation",
         }
         else protocol["rl"]["group_size"]
     )
@@ -890,11 +946,17 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "M6 Phase10-B identity is restricted to Specialist qualification",
     )
     _require(
+        getattr(args, "phase10c_evaluation_identity", None) is None
+        or args.mode == "phase10c_teacher_stage_evaluation",
+        "M6 Phase10-C evaluation identity is restricted to paired evaluation",
+    )
+    _require(
         args.tensor_parallel_size == 1
         or args.mode in {
             "phase10b_specialist_qualification",
             "phase10c_teacher_exploration",
             "phase10c_teacher_exploration_scale",
+            "phase10c_teacher_stage_evaluation",
         },
         "M6 tensor parallelism is restricted to approved Phase10 teacher modes",
     )
@@ -976,6 +1038,20 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         )
         _require(len(task_ids) == PHASE10C_TEACHER_EXPLORATION_TASK_COUNTS[args.mode],
                  "M6 Phase10-C teacher exploration roster task count drift")
+    elif args.mode == "phase10c_teacher_stage_evaluation":
+        validate_phase10c_teacher_stage_evaluation_contract(args)
+        evaluation_roster = _load_json(args.task_roster)
+        _require(
+            evaluation_roster.get("purpose") == "phase10c_teacher_stage_paired_evaluation"
+            and evaluation_roster.get("phase10c_evaluation_stage") in {"dev", "qualification"}
+            and evaluation_roster.get("task_count") == PHASE10C_EVALUATION_TASK_COUNT
+            and evaluation_roster.get("K") == 4
+            and evaluation_roster.get("training_performed") is False
+            and evaluation_roster.get("optimizer_steps") == 0,
+            "M6 Phase10-C evaluation roster identity drift",
+        )
+        _require(len(task_ids) == PHASE10C_EVALUATION_TASK_COUNT,
+                 "M6 Phase10-C evaluation roster task count drift")
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -1246,6 +1322,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "shared_prefix_source": shared_prefix_source,
             "phase10_smoke_identity": getattr(args, "phase10_smoke_identity", None),
             "phase10b_qualification_identity": getattr(args, "phase10b_qualification_identity", None),
+            "phase10c_evaluation_identity": getattr(args, "phase10c_evaluation_identity", None),
             "tensor_parallel_size": args.tensor_parallel_size,
         }
         invocation["content_sha256"] = _self_hash(invocation)
@@ -1385,6 +1462,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "shared_prefix_source": shared_prefix_source,
         "phase10_smoke_identity": getattr(args, "phase10_smoke_identity", None),
         "phase10b_qualification_identity": getattr(args, "phase10b_qualification_identity", None),
+        "phase10c_evaluation_identity": getattr(args, "phase10c_evaluation_identity", None),
         "tensor_parallel_size": args.tensor_parallel_size,
         "exact_shared_prefix_replay_task_count": (
             sum(
@@ -1426,6 +1504,7 @@ def parse_args() -> argparse.Namespace:
             "phase10b_opd_smoke_behavior",
             "phase10c_teacher_exploration",
             "phase10c_teacher_exploration_scale",
+            "phase10c_teacher_stage_evaluation",
             "rl_collection",
         ),
         required=True,
@@ -1449,6 +1528,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-correction-manifest", type=Path)
     parser.add_argument("--phase10-smoke-identity", choices=("student", "teacher"))
     parser.add_argument("--phase10b-qualification-identity", choices=tuple(PHASE10B_QUALIFICATION_MODELS))
+    parser.add_argument("--phase10c-evaluation-identity", choices=tuple(PHASE10C_EVALUATION_MODELS))
     parser.add_argument("--task-offset", type=int, default=0)
     parser.add_argument("--max-model-turns", type=int, default=18)
     parser.add_argument("--max-environment-steps", type=int, default=15)

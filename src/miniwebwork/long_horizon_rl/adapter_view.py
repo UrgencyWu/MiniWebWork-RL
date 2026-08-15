@@ -44,18 +44,23 @@ ADAPTER_TENSORS_NAME = "adapter_model.safetensors"
 
 _LORA_KEY = re.compile(
     r"^base_model\.model\.model\.layers\.(?P<layer>[0-9]+)\."
-    r"(?P<family>mlp|self_attn)\.(?P<target>[A-Za-z0-9_]+)\."
+    r"(?P<family>mlp|self_attn|linear_attn)\.(?P<target>[A-Za-z0-9_]+)\."
     r"lora_(?P<side>A|B)\.weight$"
 )
 _VLLM_LORA_KEY = re.compile(
     r"^base_model\.model\.model\.language_model\.layers\."
-    r"(?P<layer>[0-9]+)\.(?P<family>mlp|self_attn)\."
+    r"(?P<layer>[0-9]+)\.(?P<family>mlp|self_attn|linear_attn)\."
     r"(?P<target>[A-Za-z0-9_]+)\.lora_(?P<side>A|B)\.weight$"
 )
 _MLP_TARGETS = frozenset({"down_proj", "gate_proj", "up_proj"})
 _ATTENTION_TARGETS = frozenset({"q_proj", "k_proj", "v_proj", "o_proj"})
 _EXPECTED_TARGETS = _MLP_TARGETS | _ATTENTION_TARGETS
 SUPPORTED_LORA_RANK = 16
+_PHASE10C_LINEAR_TARGETS = frozenset(
+    {"in_proj_qkv", "in_proj_z", "in_proj_b", "in_proj_a", "out_proj"}
+)
+_PHASE10C_TARGETS = _ATTENTION_TARGETS | _PHASE10C_LINEAR_TARGETS
+PHASE10C_LORA_RANK = 8
 
 
 def _require(condition: bool, message: str) -> None:
@@ -106,17 +111,47 @@ def _model_layout(base_model: Path) -> dict[str, Any]:
     }
 
 
-def _expected_modules(layout: Mapping[str, Any]) -> set[str]:
+def _adapter_profile(config: Mapping[str, Any]) -> dict[str, Any]:
+    targets = config.get("target_modules")
+    _require(isinstance(targets, list), "adapter target_modules contract drift")
+    target_set = frozenset(str(value) for value in targets)
+    rank = config.get("r")
+    if rank == SUPPORTED_LORA_RANK and target_set == _EXPECTED_TARGETS:
+        return {
+            "name": "dense_mlp_full_attention_v1",
+            "rank": SUPPORTED_LORA_RANK,
+            "targets": _EXPECTED_TARGETS,
+        }
+    if rank == PHASE10C_LORA_RANK and target_set == _PHASE10C_TARGETS:
+        return {
+            "name": "phase10c_text_token_mixers_v1",
+            "rank": PHASE10C_LORA_RANK,
+            "targets": _PHASE10C_TARGETS,
+        }
+    raise ValueError(
+        f"unsupported adapter profile: rank={rank} targets={sorted(target_set)}"
+    )
+
+
+def _expected_modules(layout: Mapping[str, Any], *, profile: Mapping[str, Any]) -> set[str]:
     modules: set[str] = set()
-    for layer in range(int(layout["number_of_layers"])):
-        modules.update(
-            f"layers.{layer}.mlp.{target}" for target in sorted(_MLP_TARGETS)
-        )
-    for layer in layout["full_attention_layer_indices"]:
-        modules.update(
-            f"layers.{layer}.self_attn.{target}"
-            for target in sorted(_ATTENTION_TARGETS)
-        )
+    if profile["name"] == "dense_mlp_full_attention_v1":
+        for layer in range(int(layout["number_of_layers"])):
+            modules.update(
+                f"layers.{layer}.mlp.{target}" for target in sorted(_MLP_TARGETS)
+            )
+        for layer in layout["full_attention_layer_indices"]:
+            modules.update(
+                f"layers.{layer}.self_attn.{target}"
+                for target in sorted(_ATTENTION_TARGETS)
+            )
+    else:
+        for layer, layer_type in enumerate(layout["layer_types"]):
+            family = "self_attn" if layer_type == "full_attention" else "linear_attn"
+            targets = _ATTENTION_TARGETS if family == "self_attn" else _PHASE10C_LINEAR_TARGETS
+            modules.update(
+                f"layers.{layer}.{family}.{target}" for target in sorted(targets)
+            )
     return modules
 
 
@@ -167,12 +202,13 @@ def _audit_tensor_structure(
     tensors: Mapping[str, Any],
     *,
     layout: Mapping[str, Any],
+    profile: Mapping[str, Any],
     view: bool,
 ) -> dict[str, Any]:
     pattern = _VLLM_LORA_KEY if view else _LORA_KEY
     prefix = VLLM_KEY_PREFIX if view else SOURCE_KEY_PREFIX
     modules: dict[str, dict[str, Any]] = {}
-    rank = SUPPORTED_LORA_RANK
+    rank = int(profile["rank"])
     for name, tensor in tensors.items():
         match = pattern.fullmatch(name)
         _require(match is not None, f"unsupported adapter tensor key: {name}")
@@ -181,7 +217,11 @@ def _audit_tensor_structure(
         target = match.group("target")
         side = match.group("side")
         _require(0 <= layer < layout["number_of_layers"], f"adapter layer out of range: {name}")
-        allowed = _MLP_TARGETS if family == "mlp" else _ATTENTION_TARGETS
+        allowed = {
+            "mlp": _MLP_TARGETS,
+            "self_attn": _ATTENTION_TARGETS,
+            "linear_attn": _PHASE10C_LINEAR_TARGETS,
+        }[family]
         _require(target in allowed, f"adapter target/family mismatch: {name}")
         _require(getattr(tensor, "ndim", None) == 2, f"LoRA tensor is not rank two: {name}")
         if side == "A":
@@ -193,7 +233,7 @@ def _audit_tensor_structure(
         _require(side not in sides, f"duplicate LoRA side: {name}")
         sides[side] = tensor
 
-    expected = _expected_modules(layout)
+    expected = _expected_modules(layout, profile=profile)
     actual = set(modules)
     _require(
         actual == expected,
@@ -216,12 +256,7 @@ def _audit_tensor_structure(
 
 def _validate_adapter_config(path: Path) -> dict[str, Any]:
     payload = _load_json(path)
-    targets = payload.get("target_modules")
-    _require(
-        isinstance(targets, list) and set(targets) == _EXPECTED_TARGETS,
-        "adapter target_modules contract drift",
-    )
-    _require(payload.get("r") == SUPPORTED_LORA_RANK, "adapter LoRA rank drift")
+    _adapter_profile(payload)
     _require(payload.get("peft_type") == "LORA", "adapter PEFT type drift")
     return payload
 
@@ -273,8 +308,10 @@ def validate_vllm_adapter_view(
         == sha256_file(source / ADAPTER_TENSORS_NAME),
         "vLLM adapter-view source_adapter_tensor_file_sha256 drift",
     )
-    _validate_adapter_config(source / ADAPTER_CONFIG_NAME)
-    _validate_adapter_config(view / ADAPTER_CONFIG_NAME)
+    source_config = _validate_adapter_config(source / ADAPTER_CONFIG_NAME)
+    view_config = _validate_adapter_config(view / ADAPTER_CONFIG_NAME)
+    profile = _adapter_profile(source_config)
+    _require(_adapter_profile(view_config) == profile, "vLLM adapter profile drift")
     _require(
         (source / ADAPTER_CONFIG_NAME).read_bytes()
         == (view / ADAPTER_CONFIG_NAME).read_bytes(),
@@ -283,8 +320,12 @@ def validate_vllm_adapter_view(
     layout = _model_layout(base)
     source_tensors = _load_tensors(source / ADAPTER_TENSORS_NAME)
     view_tensors = _load_tensors(view / ADAPTER_TENSORS_NAME)
-    source_audit = _audit_tensor_structure(source_tensors, layout=layout, view=False)
-    view_audit = _audit_tensor_structure(view_tensors, layout=layout, view=True)
+    source_audit = _audit_tensor_structure(
+        source_tensors, layout=layout, profile=profile, view=False
+    )
+    view_audit = _audit_tensor_structure(
+        view_tensors, layout=layout, profile=profile, view=True
+    )
     expected_mapping = {
         SOURCE_KEY_PREFIX + _logical_key(name, view=False):
         VLLM_KEY_PREFIX + _logical_key(name, view=False)
@@ -306,13 +347,18 @@ def validate_vllm_adapter_view(
         "vllm_key_prefix": VLLM_KEY_PREFIX,
         "number_of_layers": layout["number_of_layers"],
         "full_attention_layer_indices": layout["full_attention_layer_indices"],
-        "target_modules": sorted(_EXPECTED_TARGETS),
+        "target_modules": sorted(profile["targets"]),
         "tensor_count": source_audit["tensor_count"],
         "module_count": source_audit["module_count"],
         "semantic_tensor_sha256": source_audit["semantic_tensor_sha256"],
         "vllm_adapter_tensor_file_sha256": sha256_file(view / ADAPTER_TENSORS_NAME),
         "complete": True,
     }
+    if profile["name"] == "phase10c_text_token_mixers_v1":
+        expected_manifest.update({
+            "adapter_profile": profile["name"],
+            "lora_rank": profile["rank"],
+        })
     for field, expected in expected_manifest.items():
         _require(manifest.get(field) == expected, f"vLLM adapter-view {field} drift")
     return {
@@ -355,19 +401,21 @@ def build_vllm_adapter_view(
     try:
         source_config = source / ADAPTER_CONFIG_NAME
         source_tensor_path = source / ADAPTER_TENSORS_NAME
-        _validate_adapter_config(source_config)
+        source_config_payload = _validate_adapter_config(source_config)
+        profile = _adapter_profile(source_config_payload)
         layout = _model_layout(base)
         source_tensors = _load_tensors(source_tensor_path)
         source_audit = _audit_tensor_structure(
             source_tensors,
             layout=layout,
+            profile=profile,
             view=False,
         )
         mapped = {
             VLLM_KEY_PREFIX + _logical_key(name, view=False): tensor
             for name, tensor in sorted(source_tensors.items())
         }
-        _audit_tensor_structure(mapped, layout=layout, view=True)
+        _audit_tensor_structure(mapped, layout=layout, profile=profile, view=True)
 
         shutil.copy2(source_config, staging / ADAPTER_CONFIG_NAME)
         try:
@@ -395,7 +443,7 @@ def build_vllm_adapter_view(
             "full_attention_layer_indices": layout[
                 "full_attention_layer_indices"
             ],
-            "target_modules": sorted(_EXPECTED_TARGETS),
+            "target_modules": sorted(profile["targets"]),
             "tensor_count": source_audit["tensor_count"],
             "module_count": source_audit["module_count"],
             "semantic_tensor_sha256": source_audit["semantic_tensor_sha256"],
@@ -404,6 +452,11 @@ def build_vllm_adapter_view(
             ),
             "complete": True,
         }
+        if profile["name"] == "phase10c_text_token_mixers_v1":
+            manifest.update({
+                "adapter_profile": profile["name"],
+                "lora_rank": profile["rank"],
+            })
         manifest["manifest_sha256"] = _view_manifest_content_sha256(manifest)
         atomic_write_json(staging / VIEW_MANIFEST_NAME, manifest)
         for file_path in staging.iterdir():

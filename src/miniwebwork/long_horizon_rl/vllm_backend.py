@@ -63,6 +63,8 @@ class VLLMBackendConfig:
     enforce_eager: bool = True
     adapter_id: int = 1
     stream_interval: int = 8
+    tensor_parallel_size: int = 1
+    max_lora_rank: int = SFT_LORA_CONFIG["r"]
 
     def validate(self, *, check_adapter_files: bool = True) -> None:
         _require(Path(self.base_model).is_absolute(), "vLLM base model path must be absolute")
@@ -90,6 +92,8 @@ class VLLMBackendConfig:
         _require(self.enforce_eager is True, "vLLM Qwen3.5 LoRA eager gate disabled")
         _require(self.adapter_id == 1, "vLLM adapter id drift")
         _require(self.stream_interval == 8, "vLLM stream interval drift")
+        _require(self.tensor_parallel_size in {1, 2}, "vLLM tensor-parallel size drift")
+        _require(self.max_lora_rank in {8, 16}, "vLLM maximum LoRA rank drift")
         if check_adapter_files:
             path = Path(self.adapter_path).expanduser().resolve()
             _require(path.is_dir(), "vLLM adapter directory is missing")
@@ -129,7 +133,7 @@ class VLLMBackendConfig:
             "language_model_only": True,
             "enable_lora": True,
             "max_loras": 1,
-            "max_lora_rank": SFT_LORA_CONFIG["r"],
+            "max_lora_rank": self.max_lora_rank,
             # vLLM 0.17 labels Qwen3.5 Mamba align-mode prefix caching as
             # experimental. Keep it off while preserving chunked prefill so
             # replay-tail correctness is tested without cross-request state
@@ -141,6 +145,7 @@ class VLLMBackendConfig:
             "stream_interval": self.stream_interval,
             "trust_remote_code": True,
             "disable_log_stats": False,
+            "tensor_parallel_size": self.tensor_parallel_size,
         }
 
 
