@@ -23,6 +23,7 @@ test -f "$M6_PHASE10B_MODEL_MANIFEST"
 
 student_model=/data/share/model/Qwen3.5-4B
 student_adapter="$repo_root/outputs/m6_monotonic_posttraining_v1/mini/pilot_sft/final_adapter"
+extra_pythonpath=""
 case "${SLURM_ARRAY_TASK_ID:?missing SLURM_ARRAY_TASK_ID}" in
   0)
     identity=student
@@ -42,6 +43,7 @@ case "${SLURM_ARRAY_TASK_ID:?missing SLURM_ARRAY_TASK_ID}" in
   3)
     identity=S_finish
     model_path=/data/share/model/Qwen3.6-35B-A3B-FP8
+    extra_pythonpath="$repo_root/outputs/m6_monotonic_posttraining_v1/phase10b_multi_specialist_opd_v1/runtime_deps/kernels_0_15_2"
     adapter_args=()
     ;;
   *)
@@ -54,7 +56,12 @@ output="$M6_PHASE10B_LOGIT_ROOT/models/$identity.json"
 test -d "$model_path"
 test ! -e "$output"
 python_bin=/home/wushaohua/miniconda3/envs/miniwebwork/bin/python
-export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
+if [[ -n "$extra_pythonpath" ]]; then
+  test -d "$extra_pythonpath/kernels"
+  export PYTHONPATH="$extra_pythonpath:$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
+else
+  export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
+fi
 "$python_bin" scripts/m6_phase10b_logit_alignment_probe.py model \
   --identity "$identity" \
   --model-path "$model_path" \

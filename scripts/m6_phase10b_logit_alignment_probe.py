@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import importlib.metadata
 import json
 import math
 import re
@@ -182,6 +183,9 @@ def _run_model(args: argparse.Namespace) -> None:
         "model_path": str(model_path),
         "input_adapter": str(adapter) if adapter else None,
         "input_adapter_sha256": directory_sha256(adapter) if adapter else None,
+        "runtime_dependencies": {
+            "kernels": importlib.metadata.version("kernels") if identity == "S_finish" else None,
+        },
         "model_manifest_content_sha256": manifest["content_sha256"],
         "student_tokenizer_path": str(student_tokenizer_path),
         "student_tokenizer_used": True,
