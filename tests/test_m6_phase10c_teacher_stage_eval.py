@@ -103,3 +103,14 @@ def test_eval_wrapper_freezes_budget_and_model_paths():
     assert "--max-model-turns 18 --max-environment-steps 15" in source
     assert "raw35)" in source and "sft35)" in source and "sft4)" in source
     assert "teacher_self_sft_v1/weighted_lora_v1/final_adapter" in source
+
+
+def test_task_bootstrap_is_paired_and_deterministic():
+    stats = _module(
+        "m6_phase10c_teacher_stage_stats",
+        "scripts/m6_phase10c_teacher_stage_eval_stats.py",
+    )
+    first = stats._bootstrap_ci([0.25, 0.0, -0.25, 0.5], seed=7, draws=1000)
+    second = stats._bootstrap_ci([0.25, 0.0, -0.25, 0.5], seed=7, draws=1000)
+    assert first == second
+    assert first[0] <= 12.5 <= first[1]
