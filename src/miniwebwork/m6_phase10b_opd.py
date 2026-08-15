@@ -21,6 +21,7 @@ EXPOSURE_SCHEMA = "m6_phase10b_exposure_union_v1"
 SPLIT_SCHEMA = "m6_phase10b_split_lock_v1"
 MODEL_MANIFEST_SCHEMA = "m6_phase10b_model_tokenizer_manifest_v1"
 LOGIT_PROBE_SCHEMA = "m6_phase10b_logit_alignment_probe_v1"
+LOGIT_MODEL_SCHEMA = "m6_phase10b_logit_alignment_model_v1"
 SELECTION_SEED = 20260850
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -46,6 +47,10 @@ MODEL_SPECS = {
         "role": "recovery_budget_purchase",
     },
 }
+
+PI0_ADAPTER_PATH = (
+    "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/mini/pilot_sft/final_adapter"
+)
 
 ROLE_COUNTS = {
     "specialist_nav_qualification": 24,
@@ -406,3 +411,54 @@ def validate_logit_probe(payload: Mapping[str, Any]) -> dict[str, Any]:
     _require(value.get("all_models_pass") is True, "Phase10-B logit alignment failed")
     _require(value.get("content_sha256") == _self_hash(value), "Phase10-B logit probe self-hash drift")
     return value
+
+
+def validate_logit_model_report(payload: Mapping[str, Any]) -> dict[str, Any]:
+    value = dict(payload)
+    _require(value.get("schema_version") == LOGIT_MODEL_SCHEMA, "Phase10-B model probe schema drift")
+    _require(value.get("training_performed") is False and value.get("optimizer_steps") == 0,
+             "Phase10-B model probe trained")
+    identity = value.get("identity")
+    _require(identity in MODEL_SPECS, "Phase10-B model probe identity drift")
+    _require(value.get("model_path") == MODEL_SPECS[str(identity)]["path"], "Phase10-B model probe path drift")
+    expected_adapter = PI0_ADAPTER_PATH if identity == "student" else None
+    _require(value.get("input_adapter") == expected_adapter, "Phase10-B model probe adapter drift")
+    _require(value.get("student_tokenizer_used") is True, "Phase10-B model probe tokenizer drift")
+    _require(value.get("vocab_size") == 248320, "Phase10-B model probe vocab drift")
+    _require(value.get("finite_logits") is True, "Phase10-B model probe non-finite logits")
+    _require(value.get("canonical_action_token_ids_match") is True, "Phase10-B model probe action token drift")
+    _require(value.get("prefix_token_ids_match") is True, "Phase10-B model probe prefix token drift")
+    _require(value.get("probability_sum_abs_error", 1.0) <= 1e-5, "Phase10-B model probe probability drift")
+    _require(value.get("content_sha256") == _self_hash(value), "Phase10-B model probe self-hash drift")
+    return value
+
+
+def build_logit_probe_report(
+    *,
+    model_reports: Sequence[Mapping[str, Any]],
+    model_manifest: Mapping[str, Any],
+    producer_git_sha: str,
+) -> dict[str, Any]:
+    manifest = validate_model_tokenizer_manifest(model_manifest)
+    rows = [validate_logit_model_report(report) for report in model_reports]
+    _require({row["identity"] for row in rows} == set(MODEL_SPECS), "Phase10-B model probe inventory drift")
+    rows.sort(key=lambda row: list(MODEL_SPECS).index(str(row["identity"])))
+    result = {
+        "schema_version": LOGIT_PROBE_SCHEMA,
+        "development_only": True,
+        "training_performed": False,
+        "optimizer_steps": 0,
+        "producer_git_sha": producer_git_sha,
+        "model_manifest_content_sha256": manifest["content_sha256"],
+        "student_tokenizer_used_for_all_models": True,
+        "models": rows,
+        "all_models_pass": all(
+            row["finite_logits"]
+            and row["canonical_action_token_ids_match"]
+            and row["prefix_token_ids_match"]
+            and row["probability_sum_abs_error"] <= 1e-5
+            for row in rows
+        ),
+    }
+    result["content_sha256"] = sha256_json(result)
+    return validate_logit_probe(result)

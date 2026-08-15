@@ -157,3 +157,26 @@ def test_logit_probe_validator_fails_closed_on_one_model():
     report["content_sha256"] = sha256_json(report)
     with pytest.raises(ValueError, match="non-finite"):
         opd.validate_logit_probe(report)
+
+
+def test_logit_model_report_binds_student_adapter_and_self_hash():
+    report = {
+        "schema_version": opd.LOGIT_MODEL_SCHEMA,
+        "training_performed": False,
+        "optimizer_steps": 0,
+        "identity": "student",
+        "model_path": opd.MODEL_SPECS["student"]["path"],
+        "input_adapter": opd.PI0_ADAPTER_PATH,
+        "student_tokenizer_used": True,
+        "vocab_size": 248320,
+        "finite_logits": True,
+        "canonical_action_token_ids_match": True,
+        "prefix_token_ids_match": True,
+        "probability_sum_abs_error": 1e-7,
+    }
+    report["content_sha256"] = sha256_json(report)
+    assert opd.validate_logit_model_report(report)["identity"] == "student"
+    changed = dict(report, input_adapter=None)
+    changed["content_sha256"] = sha256_json({key: value for key, value in changed.items() if key != "content_sha256"})
+    with pytest.raises(ValueError, match="adapter drift"):
+        opd.validate_logit_model_report(changed)
