@@ -1021,9 +1021,10 @@ reference/retention 与恢复合同前，不提交 qualification 或 corrective 
 60%/25%/15%，从相同 `pi_0` 起点各做一次 teacher/rehearsal 更新；训练代码不调用
 `disable_adapter`，也不加入 Raw-reference KL。GPU 运行前先执行冻结的 control-feasibility CPU 门。
 
-教师 smoke 中确定性选中的 replay-strict suffix 为2个assistant action row、在学生tokenizer下共25个
-label token。学生同状态strict路径为4或6个action row、43或56个label token；历史 original-SFT
-replay-success corpus 中没有一条完整路径同时满足“2 action row + 25 label token”。因此无法在不截断、
+教师 smoke 中确定性选中的 replay-strict suffix 为2个assistant action row、按正式SFT chat-template
+tokenization共29个label token；确定性选中的学生同状态strict路径为6个action row、68个label token。
+历史 original-SFT replay-success corpus 的441条合格完整路径最短也有3个action row，没有一条同时
+满足“2 action row + 29 label token”。因此无法在不截断、
 拼接或伪造路径语义的前提下构造与teacher new-source完全同预算的rehearsal path。
 
 该结果触发预注册的fail-closed门：不允许用近似token数、跨路径拼接、改变loss权重或更换teacher suffix
@@ -1031,3 +1032,7 @@ replay-success corpus 中没有一条完整路径同时满足“2 action row + 2
 当前结论不是“教师方法无效”，而是**现有历史self-success数据无法构造本计划要求的精确等预算因果
 对照**。若后续继续，需要先经用户批准修改对照设计（例如预先定义compute-matched no-op/weighted
 continued-SFT control及相应归因降级），不能在本轮已查看可行性结果后直接放宽匹配门。
+自哈希报告位于
+`outputs/m6_monotonic_posttraining_v1/phase10_student_state_teacher_correction_v1/readiness/control_feasibility_report.json`，
+content SHA为`fa213f1b066733a30a6c5a9c4086c44b4c2f980ed21b74af31d2651cf31430c4`，
+`optimizer_steps=0`、decision=`stop_before_single_update`。
