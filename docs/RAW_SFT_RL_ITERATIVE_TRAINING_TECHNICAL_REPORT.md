@@ -1205,3 +1205,8 @@ Specialist LoRA、没有产生教师adapter、没有执行OPD或Student更新。
 因此Raw35B只保留为35B内部自SFT增益的基线，不再充当OPD教师准入对照。新的因果问题依次是：
 35B自探索能否产生足量高质量轨迹；这些轨迹能否使35B LoRA优于自身Raw起点；训练后的35B能否在全新
 配对任务上稳定超过SFT4B。三项依次成立后，才进入专项LoRA派生与multi-Specialist OPD。
+
+首次执行只采样不训练：从三个冻结teacher-train角色中跳过已用于query smoke的前16项，按
+nav/match/finish=`11/11/10`交错组成32个fresh任务；Raw Qwen3.5-35B-A3B使用K4、18/15完整环境预算、
+2-GPU tensor parallelism自行交互。该collection的唯一用途是构建35B自SFT语料并统计strict-success
+覆盖；本阶段不得拿Raw35B与SFT4B作教师资格结论。
