@@ -78,9 +78,9 @@ def test_phase10c_eval_contract_freezes_three_model_identities():
     sft35 = argparse.Namespace(
         **common,
         phase10c_evaluation_identity="sft35",
-        base_model=Path("/data/share/model/Qwen3.5-35B-A3B"),
-        adapter=collector.PHASE10C_SFT35_ADAPTER,
-        tensor_parallel_size=1,
+        base_model=collector.PHASE10C_SFT35_MERGED_MODEL,
+        adapter=None,
+        tensor_parallel_size=2,
     )
     collector.validate_phase10c_teacher_stage_evaluation_contract(sft35)
     sft4 = argparse.Namespace(
@@ -91,7 +91,7 @@ def test_phase10c_eval_contract_freezes_three_model_identities():
         tensor_parallel_size=1,
     )
     collector.validate_phase10c_teacher_stage_evaluation_contract(sft4)
-    sft35.tensor_parallel_size = 2
+    sft35.tensor_parallel_size = 1
     with pytest.raises(ValueError, match="SFT35 identity"):
         collector.validate_phase10c_teacher_stage_evaluation_contract(sft35)
 
@@ -102,7 +102,19 @@ def test_eval_wrapper_freezes_budget_and_model_paths():
     assert "--mode phase10c_teacher_stage_evaluation --role train --k 4" in source
     assert "--max-model-turns 18 --max-environment-steps 15" in source
     assert "raw35)" in source and "sft35)" in source and "sft4)" in source
-    assert "teacher_self_sft_v1/weighted_lora_v1/final_adapter" in source
+    assert "M6_PHASE10C_SFT35_MERGED_MODEL" in source
+    assert "M6_PHASE10C_SFT35_MERGED_MANIFEST" in source
+
+
+def test_merge_wrapper_is_inference_only_and_atomic():
+    wrapper = (ROOT / "scripts/run_m6_phase10c_merge_teacher_lora_job.sh").read_text()
+    runtime = (ROOT / "scripts/m6_phase10c_merge_teacher_lora.py").read_text()
+    assert "#SBATCH --gres=gpu:2" in wrapper
+    assert "merge_and_unload(safe_merge=True" in runtime
+    assert '"training_performed": False' in runtime
+    assert '"optimizer_steps": 0' in runtime
+    assert "temporary.replace(output)" in runtime
+    assert "build_base_model_manifest" in runtime
 
 
 def test_task_bootstrap_is_paired_and_deterministic():

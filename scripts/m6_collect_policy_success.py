@@ -88,9 +88,13 @@ PHASE10C_SFT35_ADAPTER = Path(
     "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/"
     "phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v1/weighted_lora_v1/final_adapter"
 ).resolve()
+PHASE10C_SFT35_MERGED_MODEL = Path(
+    "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/"
+    "phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v1/merged_model_v1/model"
+).resolve()
 PHASE10C_EVALUATION_MODELS = {
     "raw35": PHASE10C_TEACHER_MODEL,
-    "sft35": PHASE10C_TEACHER_MODEL,
+    "sft35": PHASE10C_SFT35_MERGED_MODEL,
     "sft4": PHASE10_STUDENT_MODEL,
 }
 PHASE10C_EVALUATION_TASK_COUNT = 96
@@ -282,12 +286,6 @@ async def _create_identity(
                 seed=seed,
                 tensor_parallel_size=tensor_parallel_size,
                 max_lora_rank=lora_rank,
-                gpu_memory_utilization=(
-                    0.8
-                    if base_model.expanduser().resolve() == PHASE10C_TEACHER_MODEL
-                    and tensor_parallel_size == 1
-                    else 0.5
-                ),
                 **lineage,
             )
         )
@@ -559,9 +557,7 @@ def validate_phase10c_teacher_stage_evaluation_contract(args: argparse.Namespace
                  "M6 Phase10-C Raw35 identity drift")
     elif identity == "sft35":
         _require(
-            args.adapter is not None
-            and args.adapter.expanduser().resolve() == PHASE10C_SFT35_ADAPTER
-            and args.tensor_parallel_size == 1,
+            args.adapter is None and args.tensor_parallel_size == 2,
             "M6 Phase10-C SFT35 identity drift",
         )
     else:
