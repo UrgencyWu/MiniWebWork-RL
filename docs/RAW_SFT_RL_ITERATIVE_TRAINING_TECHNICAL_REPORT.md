@@ -868,3 +868,22 @@ promotion/holdout不得读取。完成后把新collection加入同一public-only
 same-item任务不少于20且option-contrast任务不少于12，才允许构建20-task在线RL roster；否则
 停止这种自采样数据路径。即便达到门槛，prescan轨迹也不能直接用于策略更新，正式RL必须以当时
 current policy重新采样。
+
+## 27. Phase7 定向prescan结果与停止决策
+
+定向推理Job 2331以`COMPLETED 0:0`结束，32个任务、128条K4轨迹全部完整，25个group保持
+mixed。collection与32个group自哈希、roster绑定、SFT adapter身份、seed `20260832`、18/15和
+`training_updates_allowed=false`均通过；报告SHA为
+`ff0401e5...dd409574`。这是一轮冻结SFT推理采样，没有optimizer step。
+
+把新collection作为第四个prescan输入后，public-only诊断报告SHA为
+`93438096...c4cc295b`。旧三批加新批共224个K4 group；由于定向任务来自旧任务集合，unique mixed
+task仍为77。same-item强对比任务从11增加到15，option-contrast任务从10增加到13。option门
+`>=12`已通过，但same-item仍低于预注册`>=20`，因此20-task强对比roster不可构建，不能为凑数
+继续增加seed、K或GPU。
+
+这项负结果说明“优先有option约束、既有strict×partial对多的任务再独立采样”提高了强对比命中率，
+但同一个完整SFT策略从任务起点重新采样，仍主要在不同商品之间分叉，无法稳定生成同商品终局反事实。
+该自采样数据方向停止。下一项若继续验证数据质量，只允许先做零GPU的共享公开前缀可行性诊断：检查
+既有轨迹能否在同一公开商品页前缀上重放并分支option/购买决策。只有覆盖足够时才考虑prefix-reset
+suffix rollouts；否则不实现新collector，也不提交训练。
