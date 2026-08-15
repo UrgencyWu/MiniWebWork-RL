@@ -1,11 +1,16 @@
 # M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
 
-> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；等source-loss-mass single-update中rehearsal fixed-state KL=0.03016>0.01，readiness失败，qualification与正式训练停止
+> 状态：原“单教师纠错 SFT -> 学生 GRPO”路径在 equal-source-loss-mass single-update readiness 中因
+> rehearsal fixed-state KL=`0.03016 > 0.01` 停止，未进入 qualification 或正式训练；本文件新增
+> Phase10-B 多 Specialist On-policy Distillation（OPD）后续计划，目前只完成模型可用性/tokenizer
+> 兼容性盘点，尚未提交 OPD 采样或训练作业
 >
 > 日期：2026-08-15
 >
-> 目标：验证“教师在学生真实失败状态上提供可重放的短纠错 suffix，先扩张学生行为支持集；
-> 再由更新后的学生自行采样并执行 on-policy GRPO”能否建立稳定的 Raw < SFT < RL 正向链路。
+> 目标：保留并解释单教师纠错路径的 readiness 负结果；下一轮验证“学生保持 behavior policy、多个
+> 强模型 Specialist 只在学生实际访问的 token prefix 上提供分布监督，通过 OPD 汇总回统一 4B
+> Student，随后再由统一 Student 执行可选 on-policy GRPO”能否建立稳定的 Raw < SFT < OPD < RL
+> 正向链路。
 
 ## 1. 执行结论
 
@@ -841,3 +846,272 @@ reward/credit 为 `PASS`。这里的 conditional 表示可以进入实现与 rea
 
 经修订，三个 reviewer 的阻断意见均已转化为显式 readiness gate。实现阶段若无法满足其中任一项，
 必须停止或降级结论，不得静默放宽。
+
+## 18. Phase10-B：多 Specialist On-policy Distillation 后续计划
+
+### 18.1 与 Phase10-A 教师纠错的边界
+
+本节是原计划 readiness 失败后的后续方法修订，不把既有 corrective SFT 更名为 OPD。
+
+两者的数据和优化边界不同：
+
+```text
+Phase10-A corrective SFT（已在 readiness 停止）
+  teacher 自己生成 suffix action
+  -> 录取 suffix 成为离线 CE label
+  -> student 对 teacher sequence 做 suffix-only SFT
+
+Phase10-B multi-Specialist OPD（本节计划）
+  unified Student 自己采样 action/token，保持 behavior on-policy
+  -> 在 Student 实际访问的完全相同 prefix 上查询一个冻结 Specialist
+  -> Specialist 只返回该 Student token space 上的 logits/probability target
+  -> Student 在自己的 on-policy token 上最小化 distillation loss
+  -> 所有 Specialist 能力重新汇总到单一 Student
+```
+
+Phase10-A 已采样的 teacher suffix 可以作为未来 Specialist 构建或离线诊断的候选输入，但不得直接
+计入 Phase10-B 的 on-policy distillation batch。Phase10-B 的 behavior token 必须由当前统一 Student
+生成；若 Specialist token 被直接作为环境动作执行，该 batch 必须标记为 teacher-forced/off-policy，
+不得进入 OPD 主臂。
+
+### 18.2 冻结统一 Student
+
+最终部署始终只有一个 Student：
+
+| identity | 模型 | 权威远端路径 | 用途 |
+|---|---|---|---|
+| `pi_raw` | Qwen3.5-4B，无 adapter | `/data/share/model/Qwen3.5-4B` | Raw 基线 |
+| `pi_0` | Qwen3.5-4B + M6 SFT LoRA | `/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/mini/pilot_sft/final_adapter` | OPD Student 起点与 behavior policy |
+| `pi_opd` | Qwen3.5-4B + OPD adapter | 由 `$PHASE10B_ROOT/opd_student/run_report.json::final_adapter` 解析 | 汇总多个 Specialist 后的统一 Student |
+| `pi_opd_rl` | `pi_opd` + 可选 Student-only GRPO adapter | 由 `$PHASE10B_ROOT/opd_rl/run_report.json::final_adapter` 解析 | 最终候选 |
+
+OPD 不把多个 Specialist adapter 合并到部署模型，也不在推理阶段调用路由器或 Specialist。所有外部
+能力必须在训练期蒸馏回 Qwen3.5-4B。
+
+### 18.3 首轮多 Specialist 的具体模型与职责
+
+远端 2026-08-15 只读盘点确认以下模型存在。首轮冻结为三个候选 Specialist：
+
+| identity | 专项职责 | 模型 | 权威远端路径 | 首轮状态 |
+|---|---|---|---|---|
+| `S_nav` | 搜索词、结果页选择、翻页/返回与页面导航 | Qwen3.5-9B | `/data/share/model/Qwen3.5-9B` | 候选；须通过导航片资格门 |
+| `S_match` | 商品约束理解、属性核对、同商品 option 选择 | Qwen3.5-35B-A3B | `/data/share/model/Qwen3.5-35B-A3B` | 候选；须通过匹配片资格门 |
+| `S_finish` | 动作失败恢复、预算控制、购买时机与终止判断 | Qwen3.6-35B-A3B-FP8 | `/data/share/model/Qwen3.6-35B-A3B-FP8` | 候选；须通过收尾片资格门 |
+
+`S_finish` 可以在路由层分为 `recovery` 与 `purchase` 两个逻辑角色，但首轮共享同一冻结模型权重，
+不能把两个 prompt 角色计成两个独立 foundation model。首轮不同时增加新的 Specialist LoRA；先验证
+现有强模型在预注册任务片上是否已经形成相对 `pi_0` 的专项优势。只有资格通过后，文档才称其为
+有效 Specialist；参数更大本身不是资格证据。
+
+选择理由：
+
+- `S_nav` 使用 9B 控制高频搜索/导航状态的推理成本；
+- `S_match` 使用同系列 35B-A3B 处理最依赖语义和多约束组合的 item/option 判断；
+- `S_finish` 使用当前已部署的 Qwen3.6-35B 候选处理低频但高价值的恢复、预算与购买决策；
+- 最终 Student 仍为 4B，避免多模型在线部署。
+
+### 18.4 tokenizer、词表和 chat-template 兼容门
+
+四个模型的 `tokenizer.json` 在远端实测 SHA256 均为：
+
+```text
+5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42
+```
+
+四者 `vocab_size=248320`，满足 token-level OPD 的首要词表条件。Qwen3.5-4B、Qwen3.5-9B、
+Qwen3.5-35B-A3B 的 `tokenizer_config.json` SHA256 为：
+
+```text
+316230d6a809701f4db5ea8f8fc862bc3a6f3229c937c174e674ff3ca0a64ac8
+```
+
+Qwen3.6-35B-A3B-FP8 的 `tokenizer_config.json` SHA256 不同：
+
+```text
+5186f0defcd7f232382c7f0aebcd2252d073bb921ab240e407b7ae8745d2b29b
+```
+
+因此正式实现必须统一使用 Student 的 tokenizer、special-token ID 与 chat template 生成 token IDs，
+再把完全相同的 token prefix 输入 Specialist。资格采样前必须通过以下 fail-closed 探针：
+
+1. 四个模型对 Student chat template 生成的 BOS/EOS/system/user/assistant token ID 解释一致；
+2. canonical WebShop action 在四模型上的 token ID 序列逐位一致；
+3. 同一 Student prefix 的 attention mask、position 与 assistant action 边界一致；
+4. Specialist 返回 logits 的最后一维严格为 `248320`，token index 与 Student 一一对应；
+5. 在固定 prefix 上，full-vocab 或 top-k+rest-mass 重建后的概率有限且总和为 1；
+6. 任一模型需要自己的 chat template 重编码时，不允许进入 token-level OPD，只能降级为 sequence
+   teacher，并从 OPD 主实验剔除。
+
+### 18.5 Specialist 资格与冻结路由
+
+三个候选必须在任务采样和训练前冻结互斥的专项资格片。每个资格片只判断对应能力，不在同一批任务
+上选择模型或调 prompt。建议每片至少 24 个 fresh development-only task、K4、18/15，与 `pi_0`
+使用完全相同 task/seed/budget：
+
+| Specialist | 资格片 | 最小通过门 |
+|---|---|---|
+| `S_nav` | 需要搜索、翻页或多页面导航的任务 | strict point gain 相对 `pi_0 >= +5 pp`，paired net flips > 0，schema/action 不恶化 |
+| `S_match` | 多属性、价格及 option 约束任务 | strict point gain `>= +5 pp`，same-item/option 正向 flips > 0，zero-score purchase 不增加 |
+| `S_finish` | partial、horizon、动作失败恢复及 Buy Now 边界任务 | strict point gain `>= +5 pp`，recovery/purchase 正向 flips > 0，premature-buy 不增加 |
+
+资格结果必须同时报告 pass@1/K、任务级 paired flips、失败转移和 token/step 成本。未通过的候选不会被
+其他模型自动替换；若只通过一个 Specialist，本轮降级为 single-specialist OPD feasibility，不宣称
+multi-Specialist consolidation。至少两个候选通过才允许进入多 Specialist OPD 主臂。
+
+路由器首轮不训练，只依据 action turn 开始前的公开状态确定一个 Specialist：
+
+```text
+search/results/list page                          -> S_nav
+item page，仍需核对商品属性或选择 option          -> S_match
+action failure / repeated state / budget warning -> S_finish(recovery)
+item 已选择 option，下一关键动作接近 Buy Now      -> S_finish(purchase)
+其他状态                                          -> no-specialist，使用 pi_0 retention/self target
+```
+
+路由输入只允许 page type、公开 available actions、公开 selected marker、已执行动作是否 success、
+剩余 model/env budget 和公开状态 hash。禁止使用 terminal score、target ASIN、隐藏 goal fields、未来
+结果或“哪个 Specialist 最后答对了”的事后选择。每个 action turn 只查询一个 Specialist；不能查询
+全部模型后按输出置信度择优，否则会引入额外模型选择变量和三倍推理成本。
+
+### 18.6 正式 OPD 数据流与损失
+
+Student 是唯一 behavior policy：
+
+```text
+s_t, a_<t ~ pi_student
+j_t = frozen_public_router(s_t)
+a_t ~ pi_student(. | s_t, a_<t)
+q_t = pi_specialist_j(. | exact_student_prefix)
+```
+
+Specialist 只对 Student 已访问的 exact prefix 返回 logits，不替换 Student 已采样 token。只在 assistant
+canonical action token 上计算蒸馏；system、instruction、环境 observation、历史 Student action 与
+padding 全部 mask。主损失冻结为 teacher-to-student token KL/交叉熵：
+
+```text
+L_opd = mean_task mean_turn mean_action_token
+        KL(stopgrad(q_specialist^T(. | x_student)) || pi_student(. | x_student))
+```
+
+其中温度 `T`、full-vocab 或 top-k 近似、top-k 大小、rest-mass 重建、retention 权重和 optimizer
+updates 必须在 single-update probe 前冻结，不能在 monitor 后修改。首轮建议先采用 full-vocab online
+logits；若显存/带宽不允许，才使用经过概率质量误差探针的 top-k+rest-mass 表示。
+
+为防遗忘，未路由状态和固定 old-SFT 状态只允许使用同一冻结 `pi_0` retention target。不得把
+Specialist 离线 suffix、official dense reward 或未来结果作为辅助梯度混入 OPD 主臂。每个 batch 报告
+Student behavior tokens、各 Specialist routed turns/tokens、KL、entropy、top-k retained mass、参数变化和
+old-SFT fixed-state drift。
+
+### 18.7 最小可证伪执行路径
+
+```text
+Gate 0  phase10b exposure union 与 fresh split
+Gate 1  四模型 tokenizer/logit alignment CPU/GPU probe
+Gate 2  三个候选 Specialist 独立资格测试
+Gate 3  8-task x K4 端到端 OPD smoke，optimizer_steps=0
+Gate 4  相同 on-policy batch 的 single-update OPD vs no-op/continued-SFT control
+Gate 5  40-task、10个冻结 K4x4 batch 的最小 OPD pilot
+Gate 6  独立 monitor A/B paired 评测
+Gate 7  仅 OPD 确认提升后，运行 Student-only GRPO
+Gate 8  一次性 fresh dev paired 最终评测
+```
+
+8-task smoke 必须证明：Student 自己产生全部 behavior token；路由只读公开状态；每个 action turn 只命中
+零或一个 Specialist；四模型 exact token prefix hash 一致；Specialist logits 有限；蒸馏 mask 只覆盖
+Student assistant action token；`optimizer_steps=0`。
+
+single-update probe 使用同一冻结 Student on-policy batch 比较：
+
+- OPD arm：接受路由 Specialist 的 token distribution；
+- no-op/control arm：相同更新/采样/任务/token 预算，只使用冻结 `pi_0` self/retention target。
+
+必须观察到 OPD routed-token NLL/KL 下降、prefix/observation 梯度为 0、参数真实变化、old-SFT
+fixed-state KL 不超过 `0.01`，且 control 与 OPD 的实际 labeled token/update 预算匹配。任一失败不进入
+40-task pilot。
+
+最小 pilot 沿用低成本结构：40 个 fresh OPD train tasks，K4/task，4 task groups/batch，10 个冻结
+batches，18/15，dropout=0；具体 LR 在 single-update 前冻结。全 batch 无 Specialist 路由 token 时执行
+零更新且不替换任务。不得为了追到 10 个有效 update 动态补采。
+
+### 18.8 OPD 后的 Student-only GRPO
+
+只有 `pi_opd` 在两个独立 monitor 上均优于 `pi_0`，并通过 retention/failure 门，才允许继续 RL：
+
+```text
+pi_opd
+  -> pi_opd 自己生成 K4 x 4-task on-policy trajectories
+  -> strict-binary single-epoch trajectory group-normalized policy gradient
+  -> reference = frozen pi_opd
+  -> pi_opd_rl
+```
+
+RL 阶段不查询任何 Specialist，Specialist logits/corpus 不产生辅助梯度。这样分别测量：
+
+```text
+OPD gain = pi_opd - pi_0
+RL-after-OPD gain = pi_opd_rl - pi_opd
+```
+
+若要声称“OPD 使 RL 更有效”，仍须保留与 `pi_0 -> pi_0_rl_control` 的同配置 2x2 对照；否则只能
+声称“OPD 后的 RL 是否有额外增量”。
+
+### 18.9 冻结性能门与停止条件
+
+首轮至少满足：
+
+- multi-Specialist 资格：至少 2/3 候选各自在预注册专项片通过；
+- OPD monitor A、B 上 `pi_opd - pi_0` 均为正；合并 point gain `>= +1 pp`、paired net flips > 0、
+  bootstrap `P(delta>0) >= 0.8`；
+- partial、zero-score purchase、horizon、premature-buy 各自 point delta `<= +0.5 pp`，schema/action
+  不增加；
+- old-SFT retention point delta `> -0.5 pp`，fixed-state KL `<0.01`；
+- 路由覆盖至少两个 Specialist，任一 Specialist 不得贡献超过 routed action tokens 的 70%；
+- tokenizer/logit alignment rejection=0，非有限 logit/loss/gradient=0；
+- 最终 fresh paired dev 上要求 OPD point gain `>= +1 pp` 且 95% CI 下界 `>0`；样本不足时结论为
+  inconclusive，不扩写为成功链路。
+
+任一以下条件成立即停止：只有一个或零个 Specialist 资格通过；Qwen3.6 无法使用 Student token IDs
+对齐 logits；router 需要终局/隐藏信息；Student behavior 被 Specialist token 替换；OPD 只降低训练
+KL但 monitor strict 不增；收益完全来自单一 Specialist 或单一 task bucket；retention/failure 安全门
+失败。失败后不得通过增加 Specialist 数量、查询全部模型择优、增加 K/seed/步数或打开 holdout 刷门。
+
+### 18.10 输出根与实现里程碑
+
+新增输出根与旧 corrective-SFT 根分离：
+
+```text
+PHASE10B_ROOT = /home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/phase10b_multi_specialist_opd_v1
+
+$PHASE10B_ROOT/
+  exposure_union.json
+  split_lock.json
+  model_tokenizer_manifest.json
+  specialist_qualification/{nav,match,finish}/
+  router_manifest.json
+  smoke_8task/
+  single_update_probe/
+  opd_train_roster.json
+  opd_student/
+  monitor_a/
+  monitor_b/
+  opd_rl/
+  final_dev/
+  final_stats.json
+```
+
+实现顺序冻结为：
+
+1. 生成包含 Phase10-A readiness 任务的新 exposure union 与互斥角色；
+2. 实现 Student-token-prefix 多模型 logits alignment probe；
+3. 实现三个候选 Specialist 的独立资格采样和 paired evaluator；
+4. 实现只读公开状态的 turn-level frozen router；
+5. 实现 Student behavior rollout、Specialist logits 查询、assistant-action-only OPD mask；
+6. 完成 8-task zero-update smoke 与 matched single-update probe；
+7. 仅在全部前门通过后提交 40-task 最小 OPD pilot；
+8. monitor A/B 确认后才执行可选 Student-only GRPO；
+9. fresh paired dev 一次性评测 `Raw / pi_0 / pi_opd / pi_opd_rl`；
+10. 把每轮假设、唯一变化、结果和停止决策写入技术报告，逐 Job 工程错误写入失败账本。
+
+本节只批准进入实现、资格和 readiness，不授权绕过门禁直接提交正式 OPD 或 RL。它的核心目标是
+验证多个更强模型能否在 Student 自己访问的前缀上提供互补 token distribution，并把这些能力压回
+单一 Qwen3.5-4B，而不是把教师 sequence 冒充成 on-policy 数据。
