@@ -78,6 +78,26 @@ def test_control_feasibility_reports_exact_absence_without_fallback():
     assert result["approximate_fallback_allowed"] is False
 
 
+def test_loss_mass_control_uses_same_bucket_and_seeded_complete_path():
+    pytest.importorskip("playwright")
+    module = _module("m6_phase10_probe_mass_control", "scripts/m6_phase10_build_single_update_probe.py")
+    paths = {
+        "p1": [{"task_id": "t1", "trajectory_id": "p1"}],
+        "p2": [{"task_id": "t2", "trajectory_id": "p2"}],
+    }
+    goals = {
+        "teacher": {"category": "A", "instruction": "short", "goal_options": ["x"]},
+        "t1": {"category": "A", "instruction": "short", "goal_options": ["x"]},
+        "t2": {"category": "B", "instruction": "short", "goal_options": ["x"]},
+    }
+    path_id, rows, audit = module.select_loss_mass_control(
+        paths, teacher_task_id="teacher", goal_map=goals, excluded_tasks=set()
+    )
+    assert path_id == "p1" and rows[0]["task_id"] == "t1"
+    assert audit["candidate_path_count"] == 1
+    assert audit["selection_rule"] == "same_phase10_bucket_then_seeded_path_hash_v1"
+
+
 def test_probe_contract_forbids_raw_reference_and_freezes_one_update():
     module = (ROOT / "src" / "miniwebwork" / "webshop_rl" / "phase10_corrective.py").read_text(encoding="utf-8")
     runner = (ROOT / "scripts" / "m6_phase10_run_single_update_probe.py").read_text(encoding="utf-8")
@@ -87,4 +107,5 @@ def test_probe_contract_forbids_raw_reference_and_freezes_one_update():
     assert "completed_updates=1" in runner
     assert "old_sft" in runner and "current_student" in runner
     assert "all_prefix_labels_masked" in runner
+    assert "new_source_loss_mass_matched" in runner
     assert "#SBATCH --gres=gpu:1" in job and "#SBATCH --time=02:00:00" in job

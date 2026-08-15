@@ -246,7 +246,10 @@ def main() -> None:
     args = parser.parse_args()
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 1, "Phase10 single-update probe requires exactly one GPU")
     inputs = _load_hashed(args.inputs.expanduser().resolve())
-    _require(inputs.get("schema_version") == "m6_phase10_single_update_probe_inputs_v1", "Phase10 probe input schema drift")
+    _require(inputs.get("schema_version") in {
+        "m6_phase10_single_update_probe_inputs_v1", "m6_phase10_single_update_probe_inputs_v2"
+    }, "Phase10 probe input schema drift")
+    revised_control = inputs.get("control_mode") == "loss_mass_matched_continued_sft"
     source_weights = validate_source_weights(inputs["source_weights"])
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(str(args.student_tokenizer.expanduser().resolve()), trust_remote_code=True, local_files_only=True)
@@ -271,17 +274,26 @@ def main() -> None:
         )
     cross_arm = {
         "identical_initial_parameters": reports["teacher"]["initial_parameter_sha256"] == reports["rehearsal"]["initial_parameter_sha256"],
-        "new_source_action_rows_matched": reports["teacher"]["source_action_rows"]["new"] == reports["rehearsal"]["source_action_rows"]["new"],
-        "new_source_labeled_tokens_matched": reports["teacher"]["source_labeled_tokens"]["new"] == reports["rehearsal"]["source_labeled_tokens"]["new"],
+        "new_source_task_mass_matched": inputs["source_audit"]["teacher"]["new"]["task_count"]
+                                        == inputs["source_audit"]["rehearsal"]["new"]["task_count"],
+        "new_source_loss_mass_matched": math.isclose(source_weights["new"], 0.60, abs_tol=1e-12),
         "identical_retention_inputs": inputs["arms"]["teacher"]["old_sft"] == inputs["arms"]["rehearsal"]["old_sft"]
                                       and inputs["arms"]["teacher"]["current_student"] == inputs["arms"]["rehearsal"]["current_student"],
     }
+    if not revised_control:
+        cross_arm.update({
+            "new_source_action_rows_matched": reports["teacher"]["source_action_rows"]["new"] == reports["rehearsal"]["source_action_rows"]["new"],
+            "new_source_labeled_tokens_matched": reports["teacher"]["source_labeled_tokens"]["new"] == reports["rehearsal"]["source_labeled_tokens"]["new"],
+        })
     combined = {
         "schema_version": "m6_phase10_single_update_probe_report_v1",
         "complete": True,
         "development_only": True,
         "formal_checkpoint_reusable": False,
         "inputs_content_sha256": inputs["content_sha256"],
+        "control_mode": inputs.get("control_mode", "exact_complete_path"),
+        "attribution_boundary": inputs.get("attribution_boundary", "exact_compute_matched_control"),
+        "pure_teacher_action_effect_claim_allowed": inputs.get("pure_teacher_action_effect_claim_allowed", True),
         "thresholds": {
             "fixed_state_k3_kl_max": FIXED_KL_LIMIT,
             "retention_nll_increase_max": RETENTION_NLL_INCREASE_LIMIT,

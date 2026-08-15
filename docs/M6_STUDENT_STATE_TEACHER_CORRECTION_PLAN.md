@@ -1,6 +1,6 @@
 # M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
 
-> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；精确 matched rehearsal control 不可构造，已按门停止 single-update/qualification/正式训练
+> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；经用户批准将不可行的逐token精确对照改为等source-loss-mass continued-SFT对照，single-update readiness进行中
 >
 > 日期：2026-08-15
 >
@@ -535,6 +535,19 @@ state 子集上进行主因果分析；若不足，必须显式报告 control in
 | `pi_1` | 教师纠错 suffix 数据 |
 
 主报告必须区分 `pi_1 - pi_rehearsal` 的 package effect 与可选 exact-state subset effect。
+
+#### 8.3.1 精确路径匹配不可行后的批准修订
+
+CPU feasibility 已证明现有441条original-SFT完整成功路径中没有路径能与选定teacher suffix同时匹配
+2个action row和29个student-token label。经用户批准，single-update及后续rehearsal主对照改为
+**等optimizer/update与等source loss mass的continued-SFT control**：两臂仍从同一`pi_0`起步，
+`new/old-SFT/current-student` loss mass精确为60%/25%/15%，同一optimizer、学习率、seed与retention
+输入；rehearsal new-source从与teacher task相同Phase10 category/constraint/length bucket的完整
+replay-success self path中按冻结seed hash选择。原始action row、label token和prompt长度只报告、不再作为
+相等门，因为分层mean-token loss已将每个source的总梯度权重固定。
+
+该修订只允许估计“teacher corrective package相对等loss-mass continued-SFT”的净效应；
+`pure_teacher_action_effect_claim_allowed=false`。旧的精确匹配负报告永久保留，不能回写为通过。
 
 ### 8.4 可选偏好阶段
 

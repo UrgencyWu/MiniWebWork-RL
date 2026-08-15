@@ -17,6 +17,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from miniwebwork.long_horizon_rl.contracts import atomic_write_json, sha256_file, sha256_json  # noqa: E402
 from miniwebwork.m6_posttraining_protocol import load_protocol  # noqa: E402
+from miniwebwork.m6_phase10_readiness import _bucket  # noqa: E402
+from miniwebwork.m5_webshop_protocol import task_id_for_goal_index  # noqa: E402
 from miniwebwork.webshop_rl import prompt  # noqa: E402
 from miniwebwork.webshop_rl.m6_online_training import validate_committed_group  # noqa: E402
 from miniwebwork.webshop_rl.m6_sft_training import M6SFTConfig, tokenize_sft_row  # noqa: E402
@@ -185,6 +187,33 @@ def control_feasibility(
     }
 
 
+def select_loss_mass_control(
+    paths: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    teacher_task_id: str,
+    goal_map: Mapping[str, Mapping[str, Any]],
+    excluded_tasks: set[str],
+) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
+    """Select one complete self-success path by a result-independent bucket/hash rule."""
+
+    teacher_bucket = _bucket(goal_map[teacher_task_id])
+    candidates = []
+    for path_id, rows in paths.items():
+        task_id = str(rows[0]["task_id"])
+        if task_id in excluded_tasks or task_id not in goal_map or _bucket(goal_map[task_id]) != teacher_bucket:
+            continue
+        candidates.append((sha256_json({"seed": SEED, "path_id": path_id}), path_id, [dict(row) for row in rows]))
+    _require(candidates, "Phase10 probe has no same-bucket continued-SFT control path")
+    _, path_id, rows = min(candidates)
+    return path_id, rows, {
+        "selection_rule": "same_phase10_bucket_then_seeded_path_hash_v1",
+        "teacher_bucket": teacher_bucket,
+        "candidate_path_count": len(candidates),
+        "selected_task_id": str(rows[0]["task_id"]),
+        "selected_path_id_sha256": sha256_json({"path_id": path_id}),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--audit-report", type=Path, required=True)
@@ -192,7 +221,13 @@ def main() -> None:
     parser.add_argument("--student-root", type=Path, required=True)
     parser.add_argument("--teacher-root", type=Path, required=True)
     parser.add_argument("--old-sft-jsonl", type=Path, required=True)
+    parser.add_argument("--goals", type=Path, required=True)
     parser.add_argument("--student-tokenizer", type=Path, required=True)
+    parser.add_argument(
+        "--control-mode",
+        choices=("exact_complete_path", "loss_mass_matched_continued_sft"),
+        default="exact_complete_path",
+    )
     parser.add_argument("--feasibility-output", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -211,6 +246,9 @@ def main() -> None:
         str(args.student_tokenizer.expanduser().resolve()), trust_remote_code=True
     )
     config = M6SFTConfig.from_protocol(load_protocol()["payload"], seed=SEED)
+    goals = json.loads(args.goals.expanduser().resolve().read_text(encoding="utf-8"))
+    _require(isinstance(goals, list) and goals, "Phase10 probe goals are invalid")
+    goal_map = {task_id_for_goal_index(index): goal for index, goal in enumerate(goals)}
     audit_rows = {
         (row["identity"], row["task_id"], int(row["rollout_index"])): row
         for row in audit["trajectories"]
@@ -251,8 +289,9 @@ def main() -> None:
         config=config,
         excluded_tasks=excluded,
     )
+    revised_mode = args.control_mode == "loss_mass_matched_continued_sft"
     feasibility_payload = {
-        "schema_version": "m6_phase10_control_feasibility_report_v1",
+        "schema_version": "m6_phase10_control_feasibility_report_v2" if revised_mode else "m6_phase10_control_feasibility_report_v1",
         "complete": True,
         "development_only": True,
         "training_performed": False,
@@ -268,22 +307,39 @@ def main() -> None:
             "action_row_count": len(current_student),
             "labeled_token_count": current_tokens,
         },
+        "control_mode": args.control_mode,
         "rehearsal_control": feasibility,
-        "decision": "build_matched_single_update_inputs" if feasibility["control_feasible"] else "stop_before_single_update",
     }
+    if revised_mode:
+        rehearsal_path_id, rehearsal_source, control_selection = select_loss_mass_control(
+            old_paths,
+            teacher_task_id=str(teacher_new[0]["task_id"]),
+            goal_map=goal_map,
+            excluded_tasks=excluded,
+        )
+        feasibility_payload.update({
+            "loss_mass_control": control_selection,
+            "raw_action_row_and_token_match_required": False,
+            "source_loss_mass_match_required": True,
+            "attribution_boundary": "teacher_corrective_package_vs_equal_loss_mass_continued_sft",
+            "pure_teacher_action_effect_claim_allowed": False,
+            "decision": "build_loss_mass_matched_single_update_inputs",
+        })
+    else:
+        feasibility_payload["decision"] = "build_matched_single_update_inputs" if feasibility["control_feasible"] else "stop_before_single_update"
+        _require(feasibility["control_feasible"], "Phase10 probe has no exact action-row/token-matched rehearsal path")
+        rehearsal_path_id, rehearsal_source = _select_exact_old_path(
+            old_paths,
+            target_rows=len(teacher_new),
+            target_tokens=teacher_new_tokens,
+            tokenizer=tokenizer,
+            config=config,
+            excluded_tasks=excluded,
+        )
     feasibility_payload["content_sha256"] = _self_hash(feasibility_payload)
     feasibility_output = args.feasibility_output.expanduser().resolve()
     _require(not feasibility_output.exists(), "Phase10 control feasibility report exists")
     atomic_write_json(feasibility_output, feasibility_payload)
-    _require(feasibility["control_feasible"], "Phase10 probe has no exact action-row/token-matched rehearsal path")
-    rehearsal_path_id, rehearsal_source = _select_exact_old_path(
-        old_paths,
-        target_rows=len(teacher_new),
-        target_tokens=teacher_new_tokens,
-        tokenizer=tokenizer,
-        config=config,
-        excluded_tasks=excluded,
-    )
     rehearsal_new = _decorate_old(rehearsal_source, source="new")
     excluded.add(str(rehearsal_new[0]["task_id"]))
     retention_candidates = [
@@ -312,16 +368,15 @@ def main() -> None:
                 "labeled_token_count": sum(example.completion_label_tokens for example in tokenized),
                 "maximum_forward_tokens": max(example.forward_tokens for example in tokenized),
             }
-    _require(
-        all(
-            source_audit["teacher"]["new"][field]
-            == source_audit["rehearsal"]["new"][field]
-            for field in ("task_count", "state_count", "path_count", "action_row_count", "labeled_token_count")
-        ),
-        "Phase10 probe new-source compute match drift",
+    required_match_fields = ("task_count", "state_count", "path_count") if revised_mode else (
+        "task_count", "state_count", "path_count", "action_row_count", "labeled_token_count"
     )
+    _require(all(
+        source_audit["teacher"]["new"][field] == source_audit["rehearsal"]["new"][field]
+        for field in required_match_fields
+    ), "Phase10 probe new-source control match drift")
     payload = {
-        "schema_version": "m6_phase10_single_update_probe_inputs_v1",
+        "schema_version": "m6_phase10_single_update_probe_inputs_v2" if revised_mode else "m6_phase10_single_update_probe_inputs_v1",
         "complete": True,
         "development_only": True,
         "formal_checkpoint_reusable": False,
@@ -329,6 +384,9 @@ def main() -> None:
         "optimizer_steps": 0,
         "seed": SEED,
         "source_weights": SOURCE_WEIGHTS,
+        "control_mode": args.control_mode,
+        "attribution_boundary": feasibility_payload.get("attribution_boundary", "exact_compute_matched_control"),
+        "pure_teacher_action_effect_claim_allowed": not revised_mode,
         "loss_hierarchy": "mean_source_weighted_task_state_path_action_token_v1",
         "learning_rate": config.learning_rate,
         "smoke_audit_content_sha256": audit["content_sha256"],
@@ -344,10 +402,12 @@ def main() -> None:
         "current_student_labeled_tokens": current_tokens,
         "compute_match_tolerance": {
             "new_source_task_count_delta": 0,
-            "new_source_action_row_count_delta": 0,
-            "new_source_labeled_token_delta": 0,
+            "new_source_loss_mass_delta": 0.0,
+            "new_source_action_row_count_delta": None if revised_mode else 0,
+            "new_source_labeled_token_delta": None if revised_mode else 0,
             "prompt_token_delta_is_diagnostic_only": True,
         },
+        "control_feasibility_content_sha256": feasibility_payload["content_sha256"],
         "source_audit": source_audit,
         "arms": arms,
     }

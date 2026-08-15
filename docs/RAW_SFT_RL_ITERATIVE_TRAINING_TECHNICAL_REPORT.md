@@ -1036,3 +1036,15 @@ continued-SFT control及相应归因降级），不能在本轮已查看可行�
 `outputs/m6_monotonic_posttraining_v1/phase10_student_state_teacher_correction_v1/readiness/control_feasibility_report.json`，
 content SHA为`fa213f1b066733a30a6c5a9c4086c44b4c2f980ed21b74af31d2651cf31430c4`，
 `optimizer_steps=0`、decision=`stop_before_single_update`。
+
+## 35. Phase10 等loss-mass continued-SFT对照修订（预注册）
+
+用户批准在保留上述精确匹配负报告的前提下修改对照，而不是伪造完整路径。修订后的rehearsal
+new-source从与teacher task相同Phase10 category/constraint/instruction-length bucket的完整
+replay-success original-SFT path中，以seed `20260842`的path hash确定性选择。两臂仍各做一次更新、
+同`pi_0`起点、同optimizer/LR/RNG和同25%/15% retention输入；分层loss使new-source总mass在两臂
+都精确为60%，因此动作行/token数差异不改变source总权重，只作为数据形状诊断报告。
+
+新对照的归因边界冻结为“teacher corrective package vs equal-loss-mass continued-SFT”，不得解释为
+纯teacher action因果效应。single-update仍必须通过new-source NLL下降、retention NLL、fixed-state KL、
+参数位移、prefix mask与recovery门；通过前仍禁止32-task qualification和正式训练。
