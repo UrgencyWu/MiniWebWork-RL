@@ -1,0 +1,815 @@
+# M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
+
+> 状态：多智能体审查后修订计划，development-only；完成 readiness 前禁止提交训练
+>
+> 日期：2026-08-15
+>
+> 目标：验证“教师在学生真实失败状态上提供可重放的短纠错 suffix，先扩张学生行为支持集；
+> 再由更新后的学生自行采样并执行 on-policy GRPO”能否建立稳定的 Raw < SFT < RL 正向链路。
+
+## 1. 执行结论
+
+下一轮不再继续搜索 credit window、增加 K、追加相同起点 seed 或放大既有 binary-GRPO 训练。
+唯一新增变量是**学生状态上的教师纠错数据**。训练链冻结为：
+
+```text
+现有 Self-SFT 学生 pi_0
+  -> 学生在全新 train 任务上采样
+  -> 从 partial / wrong-option / horizon 轨迹提取公开失败状态
+  -> 教师从完全相同的学生状态生成短纠错 suffix
+  -> WebShop 严格执行与重放验证
+  -> prefix masked、suffix-only 纠错蒸馏，得到 pi_1
+  -> pi_1 在独立 RL 任务上自行 on-policy K4 采样
+  -> strict-binary trajectory-GRPO，得到 pi_2
+  -> 全新 dev3 同条件评测 Raw / SFT / pi_1 / pi_2
+```
+
+教师只参与纠错数据生成。教师轨迹不得进入学生 GRPO policy-gradient batch，不得伪造为学生
+behavior policy。最终推理只运行学生模型。
+
+## 2. 背景与新假设
+
+### 2.1 已排除的解释
+
+既有 M6 实验已经表明：
+
+- Raw -> SFT 在 fresh tuning-dev2 上为 `+5.469 pp`，说明严格成功、环境重放验证的监督数据有效；
+- Phase4 full-credit GRPO 相对 SFT 为 `-0.781 pp`，step-5 为 `-0.977 pp`；
+- tail-2 与 preterminal-1 分别恢复到 `-0.391 pp` 和 `-0.195 pp`，但仍未超过 SFT；
+- Phase7 中，40-task online 数据的 26 个 mixed task 只有 3 个 same-item strict-partial task、
+  2 个 option-contrast task；
+- Phase9 虽然实现 8/8 shared-prefix exact replay，但 32 条 suffix 有 29 条 strict，只有 1 个
+  same-item strict-partial task，说明 strict source prefix 位于过于容易的一侧。
+
+因此，当前瓶颈不是“optimizer 没有真实更新”，也不是“继续压缩 policy loss 到更少动作”即可解决，
+而是当前学生自采样数据没有稳定命中同商品、option/购买决策仍不确定的边界状态。
+
+### 2.2 与旧教师路线的区别
+
+Phase4 曾让 Qwen3.5-9B 和 Qwen3.6-35B-A3B-FP8 从任务起点独立解决 16 个学生 all-failure
+任务；两者分别只在 2/16 和 1/16 个任务上产生 replay-verified strict success，未通过资格门。
+该负结果永久保留，但它检验的是：
+
+```text
+teacher 从任务起点独立搜索并完成整个任务
+```
+
+本计划检验的是不同假设：
+
+```text
+state 由学生真实策略访问
+teacher 只从学生失败前的公开状态提供纠正 suffix
+```
+
+该方法减少教师的搜索负担，使监督集中在学生已经证明存在错误的状态，并降低完整教师轨迹与
+学生部署分布之间的偏移。旧教师负结果不构成本计划自动通过的证据，也不能用来免除新的教师资格门。
+
+### 2.3 形式化目标
+
+学生访问状态：
+
+```text
+s ~ d_student
+```
+
+教师只在该状态上给出纠正行为：
+
+```text
+y_teacher ~ pi_teacher(. | s)
+```
+
+教师数据用于 suffix-only 监督目标，而不是直接用于 policy gradient：
+
+```text
+L_corr = - mean_task mean_{t in teacher_suffix} log pi_student(a_t | student_prefix, a_<t)
+```
+
+纠错后学生 `pi_1` 再自行产生 RL 轨迹：
+
+```text
+tau ~ pi_1
+R(tau) = 1[official task_score >= 0.999]
+```
+
+这样把“外部能力注入”和“学生 on-policy 稳定化”分成两个可独立归因的阶段。
+
+## 3. 模型角色与禁止混用
+
+| 符号 | 角色 | 数据来源 | 允许的训练用途 |
+|---|---|---|---|
+| `pi_raw` | 冻结 Raw 基线 | 历史冻结 checkpoint | 只评测，不重训 |
+| `pi_0` | 当前 Self-SFT 学生 | 历史 replay-verified strict 语料 | 本计划起点、student rollout policy |
+| `pi_T` | 候选教师 | 待资格测试的外部策略 | 只生成学生状态纠错 suffix |
+| `pi_1` | 教师纠错后的学生 | `pi_0` + corrective distillation | 新 reference、RL behavior 起点 |
+| `pi_2` | 最终 RL 学生 | `pi_1` 自己的 on-policy 轨迹 | 最终候选 |
+
+禁止事项：
+
+- 不把 `pi_T` 轨迹当作 `pi_1` 的 on-policy GRPO 轨迹；
+- 不用教师自评分替代 WebShop strict reward；
+- 不用旧 SFT checkpoint 作为 `pi_2` 的 KL reference，reference 必须是 `pi_1`；
+- 不在同一首轮同时改变 reward、credit window、K、horizon、LoRA rank 或 policy epochs；
+- 不在最终推理阶段调用教师。
+
+### 3.1 执行根与运行时路径
+
+本计划的权威执行环境在远端；本地工作树只用于代码和文档修改：
+
+```text
+REMOTE_REPO_ROOT = /home/wushaohua/data/MiniWebWork-RL
+LOCAL_WORKTREE    = /Users/wsh/Documents/MiniWebWork-RL/m5_worktree
+PYTHON            = /home/wushaohua/miniconda3/envs/miniwebwork/bin/python
+SLURM_BIN         = /opt/slurm/slurm.25.05/bin
+```
+
+任何 Slurm wrapper 默认 `M6_REPO_ROOT=$REMOTE_REPO_ROOT`，并在执行前绑定 expected Git SHA。
+
+### 3.2 冻结学生模型
+
+| identity | 模型/adapter | 权威远端路径 | 说明 |
+|---|---|---|---|
+| `pi_raw` | Qwen3.5-4B，无 adapter | `/data/share/model/Qwen3.5-4B` | Raw 评测基线，不训练 |
+| `pi_0` | Qwen3.5-4B + M6 SFT LoRA | `/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/mini/pilot_sft/final_adapter` | 本计划学生起点 |
+
+学生 base model 与 tokenizer 均冻结为：
+
+```text
+/data/share/model/Qwen3.5-4B
+```
+
+base model manifest 冻结为：
+
+```text
+/home/wushaohua/data/MiniWebWork-RL/data/m4_long_horizon_base_model_manifest_v1.json
+```
+
+`pi_0` adapter 必须与既有 M6 SFT identity/semantic hash 完全一致；不得使用任何 Phase4–6 RL
+adapter、step-5/step-10 checkpoint 或旧 M5 adapter 作为本计划起点。纠错 SFT 与 rehearsal 均从
+相同 `pi_0` 权重复制；LoRA 继续采用既有 `r=16, alpha=32` target-module 合同，除本计划明确新增的
+multi-source/task-normalized loss 外不改模型容量。
+
+### 3.3 冻结教师模型
+
+本次只预注册一个 teacher：
+
+| identity | 模型 | 权威远端路径 | adapter |
+|---|---|---|---|
+| `pi_T` | Qwen3.6-35B-A3B-FP8 | `/data/share/model/Qwen3.6-35B-A3B-FP8` | 无 adapter |
+
+教师 tokenizer 从同一路径加载。教师使用与学生相同的 WebShop compact prompt 内容和 canonical action
+schema，但由教师自己的 tokenizer 推理；录取后的 canonical action label 必须重新用学生
+`/data/share/model/Qwen3.5-4B` tokenizer 编码后进入 corrective SFT。
+
+teacher qualification 前必须生成并验证：
+
+```text
+/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/phase10_student_state_teacher_correction_v1/readiness/teacher_base_model_manifest.json
+```
+
+选择该 35B 模型只表示把它作为单一 state-local correction 候选，不表示它已证明更强。它此前从
+任务起点独立解题的上界探针只在 1/16 个学生 all-failure task 上成功；本计划的新假设是它在学生
+已到达的失败边界状态上可能更有效。因此 32-task teacher qualification 仍是硬门。资格失败时：
+
+- 不自动回退到 `/data/share/model/Qwen3.5-9B`；
+- 不继续寻找更大模型；
+- 不更换 teacher prompt/temperature 后复用同一 qualification roster；
+- 只记录 state-local teacher 假设未过门并停止。
+
+`/data/share/model/Qwen3.5-9B` 只作为历史 Phase4 负对照身份保留，不参与 Phase10 训练或数据生成。
+
+### 3.4 Prompt、环境与已有数据路径
+
+```text
+PROMPT_CONTRACT = webshop_agent_v1_compact
+PROMPT_PATH     = /home/wushaohua/data/MiniWebWork-RL/prompts/webshop_agent_v1_compact.txt
+SPLIT_LOCK      = /home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/locks/m6_webshop_split_v1.json
+GOALS           = /home/wushaohua/data/MiniWebWork-RL/outputs/m5_webshop_credit_assignment_v1/upstream/webshop_full/goals.json
+SFT_TRAIN       = /home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/mini/corpus_v2/train.jsonl
+SFT_DEV         = /home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/mini/corpus_v2/dev.jsonl
+```
+
+WebShop 服务地址不复用历史主机名，运行时由 `M6_SERVICE_BASE_URL` 显式传入并写入 invocation；
+服务必须由当前仓库版本启动并通过 `/health`。不同阶段允许重启服务，但 student、teacher、fresh
+replay 和 evaluation 必须绑定相同的环境/catalog identity 与版本 hash；同一候选的首次执行和
+fresh replay 不得混用不同 catalog identity。
+
+### 3.5 Phase10 输出与派生模型路径
+
+权威输出根冻结为：
+
+```text
+PHASE10_ROOT = /home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/phase10_student_state_teacher_correction_v1
+```
+
+派生模型不通过手写 checkpoint 路径推断，而由对应 `run_report.json::final_adapter` 唯一解析：
+
+| identity | report 路径 | 解析字段 |
+|---|---|---|
+| `pi_rehearsal` | `$PHASE10_ROOT/rehearsal_sft/run_report.json` | `final_adapter` |
+| `pi_state_self`（可选） | `$PHASE10_ROOT/state_self_sft/run_report.json` | `final_adapter` |
+| `pi_1` | `$PHASE10_ROOT/corrective_sft/run_report.json` | `final_adapter` |
+| `pi_rehearsal_RL` | `$PHASE10_ROOT/rehearsal_rl/run_report.json` | `final_adapter` |
+| `pi_2` | `$PHASE10_ROOT/corrective_rl/run_report.json` | `final_adapter` |
+
+每个 report 必须同时记录 base model、input adapter、output adapter、tokenizer、prompt、teacher（若适用）、
+Git、数据 manifest 和 semantic hash。禁止把路径存在本身当作模型身份；字段和 hash 不闭合时 fail closed。
+
+## 4. 数据切分
+
+实现前必须先生成版本化 `phase10_exposure_union.json`，逐来源记录 `task_id`、`goal_index`、
+normalized instruction hash、暴露原因和来源产物 hash。该并集至少包含：
+
+- Raw 两 seed 覆盖的完整 mini_train 256，而不只是进入 SFT 的 156 task；
+- SFT corpus train/dev 与历史 mini-dev、formal-dev、tuning-dev2；
+- M6 Phase1–Phase3 的所有 probe/diagnostic roster；
+- Phase4 三批 student prescan、16-task 9B/35B teacher probe、40-task online roster；
+- Phase7 targeted prescan、Phase8 branchable source 和 Phase9 8-task smoke；
+- 所有虽未进入 optimizer、但已用于假设选择或数据筛选的任务。
+
+暴露并集必须 fail-closed：来源缺失、hash 漂移或角色未知时不得构建新 split。随后从仍未暴露的
+WebShop `train` role 中创建以下互斥集合：
+
+| split | 建议规模 | 用途 | 是否训练 |
+|---|---:|---|---|
+| `teacher_qualification` | 32 tasks | 证明教师能从学生失败状态恢复 | 否 |
+| `correction_train` | 64 tasks | 构造教师纠错蒸馏语料 | 是，仅纠错蒸馏 |
+| `correction_monitor_a` | 64 tasks | 低成本方向 screening | 否 |
+| `correction_monitor_b` | 64 tasks | 独立 confirmation；仅 A 过门后启用 | 否 |
+| `rl_train` | 40 tasks | `pi_1` 学生 on-policy GRPO | 是，仅 RL |
+| `dev3` | 500 tasks x K4 | 一次性 paired 最终开发评测 | 否 |
+
+所有集合必须满足：
+
+- normalized instruction / task identity 彼此互斥；
+- 相对 `phase10_exposure_union` 的 task、goal-index、normalized-instruction 交集全部为 0；
+- promotion/holdout 不读取；
+- 按 category x constraint-count x 预估长度分层；
+- 六个新角色之间 task、goal-index、normalized-instruction 两两零交集；
+- 同一任务只承担一个角色；
+- 任务顺序、split producer、selection seed 和自哈希在采样前冻结。
+
+formal-dev 与 tuning-dev2 已 burn，不承担本计划的选择或晋级判断。`dev3` 只在所有前置门通过后
+运行一次；结果一旦查看即 burn。
+
+## 5. 学生失败状态生成
+
+### 5.1 冻结采样配置
+
+`pi_0` 在 `teacher_qualification` 和 `correction_train` 上使用：
+
+```text
+K                               4 / task
+model / environment horizon     18 / 15
+policy                          frozen pi_0
+sampling seed                   split-specific, frozen
+optimizer steps                 0
+public observations only        true
+```
+
+必须保留 all-success、mixed 和 all-failure，不使用“采到 mixed 为止”的动态过滤。
+
+### 5.2 失败分类与纠错位置必须分离
+
+终局 scalar `task_score` 可以由离线 verifier 用于把轨迹分类为 strict、partial 或 zero-score，
+但它不是 policy-visible 字段，不能参与纠错位置索引，也不能进入 teacher prompt。纠错点必须只由
+学生公开动作、policy-visible observation、available actions、终止标志和已消耗预算决定。
+
+增加 fail-closed 泄漏测试：删除 goal dict 中的 target ASIN、structured goal options、内部商品名、
+score component 和 post-action internal state 后，correction-point index 必须逐样本完全不变。教师
+collector 的输入类型只接受 safe public instruction text、safe observation/history 和 remaining budget。
+
+### 5.3 失败类型优先级
+
+按下列优先级选择纠错候选：
+
+1. `purchase_failure`：所有 non-strict purchase 使用同一 public selector；`task_score` 只在 selector
+   完成后用于离线分层为 partial/zero-score；
+2. `public_option_conflict / premature_buy`：仅当 instruction 明示约束且当前公开 selected option
+   与之冲突时成立；否则统一使用 pre-Buy 状态，不用 oracle 判断“错误 option”；
+3. `horizon`：在非终局、仍有合法公开动作的商品页或搜索结果页耗尽预算；
+4. `schema/action`：仅用于教师动作格式诊断，不作为首轮主要能力数据。
+
+当前历史失败以 partial purchase 为主，因此首轮至少一半录取纠错任务必须来自 partial 路径。
+
+### 5.4 纠错点选择
+
+纠错点由 public-only 规则产生，不依赖隐藏答案：
+
+- 所有 non-strict purchase：统一取最终 `Buy Now` 前的公开状态；只有 public instruction text 明示
+  目标 option 且公开页面显示 selected option 冲突时，才允许前移到该 option click 前状态；
+- horizon：取最后一个非终局、仍有合法公开动作且可精确重放的商品页/搜索结果状态，不使用
+  “隐藏 oracle 判断可恢复性”；
+- 每个候选都必须从任务起点精确重放学生 prefix，并匹配 public-state hash；
+- terminal `Buy Now` 之后不能纠错。
+
+传给教师的上下文只包括：任务指令、学生公开动作历史、当前 policy-visible observation、
+available actions 和剩余预算。
+
+剩余预算按学生 prefix 的真实消耗扣除：
+
+```text
+suffix_model_cap = 18 - prefix_model_turns
+suffix_env_cap   = 15 - prefix_env_steps
+```
+
+教师不得从纠错状态重新获得完整 18/15 预算。
+
+## 6. 教师资格与纠错生成
+
+### 6.1 教师资格探针
+
+首轮只预注册一个教师模型、版本、prompt 和 sampling 配置。在 `teacher_qualification` 的 32 个
+任务上运行，不训练学生。每个 task 最多按公开失败优先级选择一个纠错状态；出现并列时用冻结 hash
+确定性打破。没有 eligible failure state 的 task 计作 qualification fail/infeasible，不调用教师，
+也不从分母删除。每个有状态的 task 总计允许 `pi_0` 自恢复最多 2 次、教师恢复最多 2 次，双方使用
+完全相同的 prefix、remaining budget 和 rollout seed schedule。分别报告 student/teacher pass@1 与
+pass@2，不能把 any-of-many 表述为单次成功率。
+
+教师候选只有全部满足以下门槛才可进入正式纠错语料构建：
+
+- 至少 20/32 个任务在最多 2 次尝试内获得 replay-verified strict correction；
+- 所有正式录取 suffix 均满足首次执行 strict 且 fresh-session full replay strict；
+- replay stability >= 95%，分母定义为“首次执行 strict 的全部 teacher suffix 候选”，不是录取集；
+- 至少 12 个任务形成 same-state、same-item 的 option/购买纠错；
+- 所有动作均来自当时公开 available actions；
+- target ASIN、隐藏答案、post-action 内部 state 使用数为 0；
+- 教师严格成功必须发生在从 prefix 消耗后扣除的剩余预算内；
+- 每个任务最多录取 2 条语义不同的 strict suffix。
+
+同时报告 teacher 相对 state-matched student 的新增可恢复任务数。若 student 同状态自恢复已经与教师
+相当，则教师没有证明额外支持扩张，不进入正式 corpus。
+
+若教师未过门，本轮停止，不通过继续扩大教师模型、K、seed 或任务数刷结果。更换教师属于新的
+显式假设，必须使用新的 qualification roster；原 32 task 一旦查看结果即 burn。
+
+### 6.2 教师纠错执行
+
+教师必须真实地与 WebShop 交互，不能离线编写一串未执行命令：
+
+1. 精确重放学生 prefix 到候选状态；
+2. 将同一公开状态提供给教师；
+3. 教师从公开 available actions 中选择动作；
+4. 环境执行动作并返回下一公开状态；
+5. 教师继续生成，直到 strict success、失败或预算耗尽；
+6. 在独立新 session 中从任务起点重新重放“学生 prefix + 教师 suffix”，逐 turn 核对 prefix
+   public-state hash；
+7. 只有两次执行均 `task_score >= 0.999` 的 suffix 才能录取。
+
+教师 query/action provenance 必须额外满足：
+
+- search query token 只能来自 public instruction text、当前/历史 public text；
+- 任何 ASIN-like token 只有先在公开页面出现后才允许进入 search query/action；
+- target ASIN、隐藏精确标题和内部 goal 字段访问计数为 0；
+- query 长度不超过冻结上限；
+- 每一步 teacher action 都属于当时公开 available actions。
+
+### 6.3 纠错样本结构
+
+学生失败 suffix `y_minus` 也必须从同一 prefix 在独立 session 重放，并确认仍为 non-strict；若失败
+类别不稳定，记录转移而不把它当稳定的强负例。
+
+每条样本同时保留：
+
+```text
+x       = task + student public prefix + correction-state observation
+y_minus = original student failure suffix
+y_plus  = replay-verified teacher strict-success suffix
+```
+
+`y_plus` 与 `y_minus` 只有在首个动作分歧处是真正 same-state。builder 必须寻找双方最长共同公开
+action-state prefix，把训练状态移动到首次分歧点，并要求正负首动作不同。后续 observation 已分叉，
+不能把整个多步交互误写成普通同-prompt DPO pair。
+
+并记录：
+
+- task/split/student/teacher/environment/prompt/tokenizer identity；
+- source trajectory、prefix turn、prefix action/token/public-state hash；
+- student suffix outcome 与 failure class；
+- teacher suffix actions、strict reward、replay result、token/step cost；
+- correction type：public-option-conflict、premature-buy、zero-score-purchase、horizon-recovery；
+- leakage flags；
+- student/teacher attempted states、pass@1、pass@2、first-strict 与 replay-strict 分母；
+- content hash 与 producer Git。
+
+## 7. 纠错语料录取与配额
+
+录取要求：
+
+- strict success 与 replay strict success；
+- student prefix exact replay；
+- teacher suffix 全部 schema-valid、public-action-valid；
+- `correction_train` 每任务最多 1 个冻结 state、每 state 最多 2 条纠错 suffix；
+- 对 action sequence 与语义等价 suffix 去重；
+- 任务级采样，不能让长 suffix 通过更多 action rows 获得更大总权重；
+- 同一学生失败状态的多个教师成功只保留最短严格成功和至多一个语义不同恢复路径。
+
+same-item option/购买纠错要求 teacher strict suffix 从公开 ASIN 状态开始后不切换到另一 ASIN；
+否则只能标记为“same-start-state recovery”，不能计入 same-item 门。选择最短 strict suffix 是冻结的
+selection rule，必须同时报告全部 strict 候选及未录取原因。
+
+首轮 `correction_train` 语料门：
+
+- 至少 40 个 unique task 有 strict correction；
+- 至少 24 个为 same-state、same-item option/购买纠错；
+- partial 路径任务占比 >= 50%；
+- replay pass >= 95%；
+- category/constraint bucket 相对 `correction_train` 任务池偏差不超过 10 pp；
+- 无 task/split/leakage 冲突。
+
+训练前必须生成 `control_feasibility_report.json`：对每个冻结 correction state，统计 state-matched
+student 两次 suffix 是否能 strict、teacher 是否能 strict，并报告 task/category/constraint/failure
+type、prefix/horizon、suffix action rows 和 labeled token。另报告 attempted -> first-strict ->
+replay-strict 的 bucket 转化率，不能只报告被录取后的高质量子集。
+
+未过门不提交纠错训练。
+
+## 8. 纠错蒸馏训练
+
+### 8.0 训练前工程阻断门
+
+在读取正式 qualification 结果或提交纠错训练前，先使用已暴露、不会进入任何性能统计的 8 个
+historical train task 完成端到端 smoke：exact student prefix replay、state-matched student suffix、
+teacher live suffix、first strict、fresh-session full replay strict、query provenance 和 tokenizer mask。
+该 smoke 只证明工程链可运行，不产生教师能力结论。
+
+随后用已暴露样本完成 teacher/rehearsal matched single-update probe，验证 source weighting、prefix
+gradient=0、action gradient>0、`pi_0` reference/retention、sampler recovery 和参数更新。两项任一失败，
+不得启动 32-task teacher qualification 或正式训练。
+
+### 8.1 首轮只做 suffix-only SFT
+
+首轮不同时增加 DPO、offline RL 或新的 process reward。学生 prefix 只作为条件上下文，所有 prefix
+token 的 label mask 为 0；只有教师 suffix token 进入交叉熵：
+
+```text
+system / public instruction / student prefix       labels = -100
+environment observations after every teacher turn labels = -100
+teacher canonical action tokens                    labels = token ids
+```
+
+多步 suffix 不能被拼成没有环境 observation 的动作串。推荐每个 teacher turn 构造一条 completion row：
+prompt 包含 exact student prefix、此前 teacher action 和逐步环境返回，只监督当前 canonical action；
+或者在完整 multi-turn chat 中只 label correction boundary 之后的 assistant action。mask 边界必须在
+学生 tokenizer/chat template 应用后计算，BOS/system/user/observation 全部 mask。
+
+损失按 source、task、state、path 和 action token 分层等权：
+
+```text
+L_source = mean_task mean_state mean_path mean_suffix_action_token CE
+L_total  = 0.60 L_teacher + 0.25 L_old_SFT + 0.15 L_student
+```
+
+同 task 两条 teacher path 必须先在 task 内平均，不能获得双倍任务权重。每个 source 报告 task draw、
+state/path、action row、labeled token 与实际 loss contribution。
+
+### 8.2 数据混合
+
+首轮冻结数据采样比例：
+
+| 数据 | 比例 | 作用 |
+|---|---:|---|
+| teacher correction suffix | 60% | 注入学生原本无法稳定产生的纠正行为 |
+| original SFT replay-success retention | 25% | 保持 Raw -> SFT 已获得能力 |
+| current student replay-success trajectories | 15% | 保持当前策略状态分布 |
+
+现有 M6 SFT trainer 不能直接复用：它按 completion token 总量归一、使用固定 imitation/retention
+schedule，且 disable-adapter reference 指向 Raw。Phase10 必须先实现可恢复的 multi-source task sampler
+和上述显式 source-weighted loss。纠错训练从 `pi_0` 起步；首轮唯一冻结 retention 机制是表中 25%/15%
+的 replay-success CE，不加入 reference KL，避免把 Raw 或另一 reference 选择引入为额外算法变量。
+冻结 `pi_0` 只用于 fixed-state KL/NLL 无梯度诊断。teacher/rehearsal 两 arm 的 retention 机制完全相同。
+
+“1 epoch”改为 readiness report 中预先冻结的 optimizer updates、各 source task draws、effective labeled
+tokens 与每 task 最大重复数；该预算只能由录取 corpus 规模决定，不能依据 monitor/dev3 结果调整。
+teacher/rehearsal 两 arm 使用完全相同的 update、RNG、sampler schedule 和起点。
+
+正式训练前先做一个 matched single-update probe，必须证明：
+
+- prefix/system/observation token 的梯度严格为 0；
+- teacher canonical action label 数 > 0、梯度有限非零；
+- teacher suffix NLL 按预期下降；
+- `pi_0` fixed-state KL、retention 和参数位移在安全范围；
+- sampler/recovery 保存并恢复 source cursor、task/state/path order、optimizer、adapter 和全部 RNG。
+
+### 8.3 同状态自恢复探针与训练对照
+
+每个 correction state 都先运行 state-matched `pi_0` 自恢复 probe：与教师使用相同 prefix、remaining
+budget、最多 2 次尝试和 seed schedule。这直接测量 teacher 相对 student 的恢复增量，但不自动产生
+足量训练对照。
+
+训练时至少保留一个 compute-matched rehearsal control，用于回答“教师纠错包是否优于多做一次
+SFT”：
+
+- 60% 新数据槽由 `pi_0` replay-verified strict/self-success 或冻结 `pi_0` retention 填充；
+- optimizer updates、source task mass、category/constraint bucket、labeled action token、suffix length
+  和 seed 与教师 arm 硬匹配，容差在 readiness report 中冻结，不能只写“尽量匹配”；
+- retention 比例、LoRA 起点、optimizer 和 seed 与教师 arm 相同；
+- 不使用教师 suffix。
+
+若 state-matched student strict suffix 足够覆盖冻结门，则额外构建 `pi_state_self`，在 exact matched
+state 子集上进行主因果分析；若不足，必须显式报告 control infeasible。此时 rehearsal control 只能
+控制“额外训练预算/额外 self-success 数据”，`pi_1 - control` 只能称为**teacher corrective package
+净效应**，不能声称纯 teacher action 效应。
+
+模型身份冻结为：
+
+| identity | 含义 |
+|---|---|
+| `pi_0` | 当前 SFT 基线 |
+| `pi_rehearsal` | 等预算继续 SFT / self-success 控制 |
+| `pi_state_self` | 可选：exact state-matched student-success 控制 |
+| `pi_1` | 教师纠错 suffix 数据 |
+
+主报告必须区分 `pi_1 - pi_rehearsal` 的 package effect 与可选 exact-state subset effect。
+
+### 8.4 可选偏好阶段
+
+只有 suffix-only corrective SFT 在未见 monitor 上通过门禁后，才允许另立 DPO 实验。若以后使用
+DPO，只能在最长共同公开前缀后的首次分歧状态比较单步 action，不能把带有不同后续 environment
+observation 的完整 suffix 当普通 DPO pair。DPO 不属于首轮计划。
+
+## 9. 纠错蒸馏监控门
+
+显式评测三个面板：
+
+1. `correction_train`：测量状态/任务拟合；
+2. `correction_monitor_a/b`：按 category、constraint、failure difficulty 匹配的未见迁移；
+3. `dev3`：只在所有前置门通过后测总体未见迁移。
+
+先在 `correction_monitor_a` 上从任务起点运行 `pi_0`、`pi_rehearsal` 和 `pi_1`，相同 task、K4、
+18/15、seed，教师不参与推理。A 只作低成本 screening：
+
+- `pi_1 - pi_rehearsal` point strict >= +1 pp；
+- `pi_1 - pi_0` point strict > 0、paired net flips > 0；
+- paired task bootstrap `P(delta > 0) >= 0.8`；
+- paired net flips > 0；
+- 正向 task 至少覆盖 2 个 category x constraint bucket；
+- partial、zero-score purchase、horizon、premature-buy、schema/action 均报告 paired transition table；
+- key failure class（partial、zero-score purchase、horizon、premature-buy）各自 point rate 不增加
+  超过 1 pp，四类合计 point rate 不增加超过 0.5 pp；schema/action 不增加超过 0.5 pp。
+
+A 过门后才打开冻结的 `correction_monitor_b`，要求同方向 point delta 与净 flips；A/B 合并后报告
+paired task bootstrap/permutation 或 exact discordant test。64-task A 或 B 单独不能证明 +1 pp，
+只能作为 screening/confirmation。
+
+`pi_1` 进入 RL 的最低门：
+
+- A 与 B 的 `pi_1 - pi_rehearsal` 均为正；
+- A 与 B 的 `pi_1 - pi_0` 均为正且 paired net flips 均为正；
+- A/B 合并 point strict >= +1 pp、paired net flips > 0、`P(delta > 0) >= 0.8`；
+- correction_train gain 与合并 monitor gain 的差距 <= 2 pp；
+- 正向迁移覆盖至少 2 个 category、2 个 constraint bucket；
+- 合并 monitor 的 key failure class 各自 point delta <= +1 pp、四类合计 <= +0.5 pp、
+  schema/action <= +0.5 pp，并报告 paired 90% bootstrap upper bound；
+- 原 SFT retention task strict 下降不超过 0.5 pp；
+- inference tokens/steps 不超过 `pi_0` 的 1.10 倍。
+
+若只在纠错训练任务上提升而 monitor 不提升，判定为状态/任务记忆，不进入 RL。若
+`pi_1 <= pi_rehearsal`，判定教师纠错包未提供超过等预算 continued-SFT 的信息增益。
+
+## 10. 学生 on-policy GRPO
+
+只有 `pi_1` 通过 monitor 门才执行。RL 使用与纠错数据完全独立的 `rl_train` 40-task roster。为检验
+“teacher correction 是否使 RL 更有效”，必须同时从 `pi_rehearsal` 和 `pi_1` 启动同配置 RL，
+各自以自己的起点作为 frozen reference：
+
+```text
+pi_rehearsal -> pi_rehearsal_RL
+pi_1         -> pi_2
+```
+
+```text
+behavior/reference checkpoint     each arm's own frozen start
+rollout policy                     current student only
+reward                             strict binary
+K                                  4 / task
+task groups / optimizer step       4
+curriculum batches                 10 frozen batches
+optimizer updates                  at most 10
+target unique tasks                40
+model / environment horizon        18 / 15
+RL dropout                         0
+learning rate                      3e-6
+policy epochs                      1
+policy credit window               full
+KL hard stop                       0.01
+post-update KL warning             0.005
+pre-update replay clip stop        0.01
+```
+
+选择 `full` credit window 是为了保持首轮唯一变量为教师纠错数据。tail-2 与 preterminal-1 已产生
+有效负结果，不在本轮重新引入。homogeneous group 计入 attempted-task 和 token 预算。若某个冻结
+4-task batch 全 homogeneous，则记录成本并执行零更新，继续下一个固定 batch；不得替换任务或追到
+10个有效 update。每个 batch 的 policy loss 始终除以 4 个 attempted task-group；homogeneous group
+贡献精确 0，不能改为只除 mixed group 数，否则有效学习率会随 mixed 数变化。报告 attempted/mixed/
+effective groups、effective policy tokens、nonzero update 数。
+
+K4x4 的 parity rejection 语义必须在实现前冻结：任一 group parity fail 时，首轮采用整 snapshot
+batch 零更新并停止定位，不能仅跳过该 group 改变任务权重。single-epoch 下 initial clip 主要是
+behavior/HF replay parity，而不是 PPO trust region，因此方法名记录为
+`single-epoch trajectory group-normalized policy gradient + reference KL`。
+
+GRPO policy loss 只使用学生当前策略产生的轨迹。教师纠错 corpus 在首轮 RL 中不得产生任何
+auxiliary gradient；只能做无梯度 NLL/retention 诊断。两个 RL arm 使用相同 task order、rollout
+seed、attempted budget 和配置，但每个 arm 的轨迹都由自己的 current policy 在线产生。
+
+RL 恢复必须以原子 optimizer-step 为边界保存 batch index、40-task roster/order、rollout seeds/RNG、
+policy/reference/optimizer SHA、attempted/mixed/effective group/token ledger。中断的部分 snapshot batch
+必须隔离，并从最后已提交 policy 对同一 batch 整批重采/重放；不得续接半批或把前后 policy 轨迹
+混为一个 on-policy batch。
+
+## 11. 最终对照矩阵与归因
+
+在全新 500-task `dev3` 上以相同 task、K4、18/15、prompt、tokenizer、环境和 rollout seed 评测：
+
+| identity | 目的 |
+|---|---|
+| Raw | 原始基线 |
+| `pi_0` | 当前 Self-SFT 基线 |
+| `pi_rehearsal` | 控制“额外 SFT 预算/额外 self-success 数据” |
+| `pi_rehearsal_RL` | 测量无教师纠错时相同 GRPO 的增量 |
+| `pi_1` | 测量教师纠错蒸馏增益 |
+| `pi_2` | 测量学生 on-policy GRPO 的额外增益 |
+
+必须分别报告：
+
+```text
+Self-SFT gain             = pi_0 - Raw
+extra rehearsal gain      = pi_rehearsal - pi_0
+teacher package gain      = pi_1 - pi_rehearsal
+self-start RL gain        = pi_rehearsal_RL - pi_rehearsal
+post-correction RL gain   = pi_2 - pi_1
+teacher x RL interaction  = (pi_2 - pi_1) - (pi_rehearsal_RL - pi_rehearsal)
+end-to-end gain           = pi_2 - pi_0
+```
+
+不能只比较 Raw 与 `pi_2`，否则无法判断收益来自教师蒸馏还是 RL。若 exact state-matched
+`pi_state_self` 可行，作为补充因果面板报告，不替代上述完整矩阵。
+
+## 12. 性能晋级门
+
+### 12.1 教师纠错成立
+
+在 fresh `dev3` 上：
+
+- `pi_1 - pi_rehearsal >= +1 pp`；
+- paired teacher-only flips > rehearsal-only flips；
+- 500-task paired bootstrap/permutation 的 95% CI 下界 > 0；
+- partial、zero-score purchase、horizon、premature-buy 各自 point delta <= +0.5 pp、四类合计
+  point delta <= 0；schema/action 各 <= +0.5 pp；所有指标报告 paired 95% upper bound，upper bound
+  > +1 pp 时按安全性 inconclusive/失败处理；
+- retention strict 的 paired 95% CI 下界 > -0.5 pp；
+- 收益不局限于 `correction_train` 的 task/category bucket。
+
+通过只证明教师纠错蒸馏有效，不证明 RL 有效。
+
+### 12.2 RL 额外成立
+
+- `pi_2 - pi_1 >= +1 pp`；
+- RL-only flips > `pi_1`-only flips；
+- 500-task paired 95% CI 下界 > 0；
+- `pi_2 - pi_1` 高于或至少不弱于 `pi_rehearsal_RL - pi_rehearsal`，并报告 interaction；
+- partial、zero-score purchase、horizon、premature-buy 各自 point delta <= +0.5 pp、四类合计
+  point delta <= 0；schema/action 各 <= +0.5 pp；
+- 对预注册安全指标报告 paired 95% non-inferiority CI；upper bound > +1 pp 或 CI 太宽时结论为
+  inconclusive，不按通过处理；
+- reference KL < 0.01；
+- seen-unseen gap <= 1 pp；
+- steps/tokens <= `pi_1` x 1.10。
+
+只有同时满足：
+
+```text
+Raw < pi_0 < pi_1 < pi_2
+```
+
+且两个增量均满足各自门禁，才能宣称建立了“教师扩张支持集 + 学生 RL 继续提升”的链路。
+
+若 `pi_1 > pi_0` 但 `pi_2 <= pi_1`，结论应为“教师纠错蒸馏有效，当前 GRPO 无额外价值”；不能把
+教师收益归入 RL。若 `pi_1 <= pi_rehearsal`，停止教师方向。若两条 RL 分支均同幅提升，则只能
+说明冻结 GRPO 配置本身有效，不能声称教师使 RL 成为可能。
+
+## 13. 最小资源路径
+
+计划本身不授权立即提交作业。实现完成并通过聚焦测试后，按门顺序执行：
+
+| 阶段 | 主要作业 | 预计资源 |
+|---|---|---|
+| exposure union + split + match feasibility | CPU | 10–20 min |
+| 8-task prefix/teacher/replay/mask smoke | 1 GPU | 10–30 min |
+| matched single-update probe | 1 GPU | 20–40 min |
+| student qualification rollouts | 1 GPU | 10–20 min |
+| teacher correction qualification | 1 GPU，单一预注册 teacher | 20–60 min |
+| correction_train student rollouts | 1 GPU | 15–30 min |
+| teacher correction generation | 最多 2 GPU 并行 | 30–120 min |
+| rehearsal / corrective SFT | 2 x 1 GPU | 各 1–4 h |
+| monitor A/B | 每片最多 3 GPU | 每片 15–30 min |
+| 两条 on-policy GRPO | 2 x 1 GPU | 各 20–60 min |
+| dev3 六个核心 identities | 最多 4 GPU 并行 | 1–3 h |
+
+单作业默认 1 GPU、4 CPU、24 GiB、24 h 上限；同时最多 4 GPU。正常长作业按预计完成时间检查，
+不持续轮询。确定性实现失败只修直接根因；算法/数据门失败不得通过增加 successor 刷结果。
+
+## 14. 停止条件
+
+任一条件成立即停止对应方向：
+
+- 教师资格未过门；
+- 教师 correction replay pass < 95%；
+- same-state/same-item纠错不足；
+- 发现 target/hidden/internal-state 泄漏；
+- `pi_1` 只在 correction_train 提升、monitor 不提升；
+- `pi_1 <= pi_rehearsal`；
+- corrective SFT 引起 retention 下降 > 0.5 pp；
+- `pi_2 <= pi_1` 或 RL-only flips 不净正；
+- post-update KL > 0.01、pre-update replay clip > 0.01 或出现非有限 loss/gradient；
+- dev3 被用于调参后，不得继续作为未见晋级集。
+
+本计划不允许在失败后自动增加教师规模、任务数、K、seed、epoch 或训练步数。新的变量必须形成新的
+明确假设和独立计划。
+
+## 15. 产物与实现里程碑
+
+建议输出根：
+
+```text
+outputs/m6_monotonic_posttraining_v1/phase10_student_state_teacher_correction_v1/
+  phase10_exposure_union.json
+  split_lock.json
+  readiness/
+  smoke_8task/
+  single_update_probe/
+  teacher_qualification/
+  correction_train_student_rollouts/
+  correction_manifest.json
+  correction_corpus/
+  rehearsal_sft/
+  state_self_sft/              # optional, only if exact-state control feasible
+  corrective_sft/
+  correction_train_eval/
+  correction_monitor_a/
+  correction_monitor_b/
+  rehearsal_rl/
+  corrective_rl/
+  dev3_eval/
+  final_stats.json
+```
+
+实现顺序：
+
+1. 完整 exposure-union registry、split/roster builder 与 overlap tests；
+2. student failure-state extractor、state-matched self probe 与 exact prefix replay tests；
+3. teacher suffix collector、query provenance、public-only/leakage tests；
+4. 8-task端到端 smoke：prefix replay -> teacher interaction -> fresh strict replay -> token mask；
+5. correction corpus builder、multi-source task sampler、task-balanced suffix mask 与恢复测试；
+6. matched single-update teacher/rehearsal probe；
+7. rehearsal/corrective SFT wrappers 与 train/monitor paired stats；
+8. 复用现有 Phase4 online GRPO，分别从 `pi_rehearsal`/`pi_1` 启动并各自使用同起点 reference；
+9. 500-task dev3 paired evaluator、failure transition 与 interaction 归因统计；
+10. 结果追加到迭代技术报告，逐 Job 工程失败追加到失败账本。
+
+每个产物必须绑定 producer Git、输入自哈希、model/adapter/prompt/tokenizer/environment identity、
+task order、seed 和角色。必要身份检查保留，但不扩张为新的通用审计系统。
+
+## 16. 预期可证伪结论
+
+本计划至少可以区分四种结果：
+
+1. **教师无法纠正学生状态**：外部教师在当前环境/动作合同下不够强；停止。
+2. **教师纠正能训练，但不迁移**：数据只记忆局部状态；停止或重做任务覆盖，不进入 RL。
+3. **教师纠错蒸馏提升、GRPO无增量**：保留 `pi_1`，明确否定当前 RL 额外价值。
+4. **教师纠错蒸馏与学生GRPO均提升**：首次建立可归因的 Raw < SFT < teacher-corrected SFT < RL
+   链路，再请求批准进入更大规模和未打开切分。
+
+该设计的关键不是让教师代替学生完成任务，而是让教师只在学生真实访问、真实失败的状态上提供
+严格可验证的纠正信息；随后所有策略梯度仍由学生自己的在线轨迹产生。
+
+## 17. 多智能体审查记录
+
+2026-08-15 由三个独立只读 reviewer 完成审查：
+
+| reviewer | 初审结论 | 主要阻断问题 | 修订处置 |
+|---|---|---|---|
+| data/evaluation | 方向正确，未达到 execution-ready | 历史 exposure 未完整枚举；self control 非同状态；64/128 task 无法判断 +1 pp；资格与 corpus 门不一致 | 新增 fail-closed exposure union；state-matched self probe；monitor A/B；500-task dev3；资格门改为20/32 |
+| optimization | 算法边界正确，四项阻断 | control 无法匹配；缺少 control->RL 分支；现有 trainer 不支持多源 task loss；统计功效不足 | 新增 rehearsal/state-self feasibility；2x2 RL；明确新 multi-source trainer 与 pi0 reference；paired CI 门 |
+| reward/credit | conditional approval | public-only selector 混入 oracle 风险；teacher query 泄漏与 replay 分母；homogeneous batch 合同；小样本安全门 | 纠错点与终局分类分离；query provenance；fresh replay/y-minus replay；10 fixed batches/最多10 updates；failure transition 与 CI |
+
+审查共识确认：
+
+- teacher suffix 只进入 corrective SFT，student on-policy GRPO 边界正确；
+- 首轮不增加 DPO，不改变 strict binary reward，不重新引入 tail/preterminal credit；
+- 在 exposure registry、8-task smoke、single-update probe、control feasibility、统计门全部完成前，
+  本计划不授权提交正式训练；
+- 资格门过严导致 fail-fast、teacher 数据随 `pi_1` 产生 state shift、单一 SFT seed 的机制噪声属于
+  可接受 pilot 风险，但不得扩写为通用或显著性结论。
+
+第二次复核又补充并已关闭以下合同：无 eligible failure state 的 qualification task 计 fail；GRPO
+loss 恒除以4个 attempted group；纠错 SFT 只用冻结 CE retention、不保留 Raw/reference 二选一；
+RL 原子 batch 恢复；所有 purchase failure 共用 public pre-Buy selector；monitor 同时要求
+`pi_1 > pi_0`；关键失败类使用数值化 paired non-inferiority 门。
+
+最终复核状态：data/evaluation 为 `conditional execution-ready`，optimization 为 `PASS`，
+reward/credit 为 `PASS`。这里的 conditional 表示可以进入实现与 readiness，不表示可以跳过前置门
+直接提交正式纠错训练或 RL。
+
+经修订，三个 reviewer 的阻断意见均已转化为显式 readiness gate。实现阶段若无法满足其中任一项，
+必须停止或降级结论，不得静默放宽。
