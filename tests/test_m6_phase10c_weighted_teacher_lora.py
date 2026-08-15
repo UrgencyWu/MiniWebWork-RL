@@ -148,3 +148,4 @@ def test_two_gpu_loader_reserves_more_than_half_each_device():
     source = (ROOT / "scripts/m6_phase10c_train_weighted_teacher_lora.py").read_text()
     assert "total_memory * 0.45" in source
     assert "torch.cuda.device_count() == 2" in source
+    assert source.index("load_raw35_lora(BASE_MODEL)") < source.index("torch.cuda.reset_peak_memory_stats(index)")

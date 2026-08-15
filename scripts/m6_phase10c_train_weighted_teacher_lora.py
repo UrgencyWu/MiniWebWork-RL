@@ -417,8 +417,6 @@ def main() -> None:
     _require(not (output / "training_report.json").exists(), "Phase10-C training report already exists")
     output.mkdir(parents=True, exist_ok=True)
     _set_seed(SEED)
-    for index in range(torch.cuda.device_count()):
-        torch.cuda.reset_peak_memory_stats(index)
 
     train_rows, train_binding = load_and_validate_rows(args.corpus_dir, "train")
     dev_rows, dev_binding = load_and_validate_rows(args.corpus_dir, "dev")
@@ -445,6 +443,9 @@ def main() -> None:
 
     started = time.monotonic()
     model, target_modules, placement = load_raw35_lora(BASE_MODEL)
+    # CUDA contexts are guaranteed to exist only after the sharded model load.
+    for index in range(torch.cuda.device_count()):
+        torch.cuda.reset_peak_memory_stats(index)
     trainable = [parameter for parameter in model.parameters() if parameter.requires_grad]
     _require(trainable, "Phase10-C LoRA has no trainable parameters")
     collator = CompletionOnlyCollator(tokenizer.pad_token_id)
