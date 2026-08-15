@@ -4,6 +4,7 @@ import argparse
 import copy
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -146,3 +147,61 @@ def test_phase10_smoke_code_has_suffix_only_and_no_training_contracts():
     assert "--role train --k 2 --seed 20260841" in job
     assert "#SBATCH --gres=gpu:1" in job and "#SBATCH --array=0-1%2" in job
     assert "optimizer.step(" not in collector and "optimizer" not in job
+
+
+def test_query_provenance_accepts_public_terms_and_rejects_unseen_terms():
+    module = _module("m6_phase10_smoke_audit_query", "scripts/m6_phase10_audit_state_suffix_smoke.py")
+    trajectory = {
+        "turns": [
+            {
+                "observation": {
+                    "instruction": "Find a red cotton shirt",
+                    "visible_text": "red cotton item",
+                    "available_actions": ["search[<your query>]"],
+                },
+                "action": {"command": "search[red cotton]"},
+            }
+        ]
+    }
+    assert module.query_provenance(trajectory, prefix_turn_count=0)["passed"] is True
+    trajectory["turns"][0]["action"]["command"] = "search[secret titanium]"
+    result = module.query_provenance(trajectory, prefix_turn_count=0)
+    assert result["passed"] is False
+    assert result["violations"][0]["unknown_query_tokens"] == ["secret", "titanium"]
+
+
+def test_suffix_mask_labels_only_canonical_assistant_action():
+    module = _module("m6_phase10_smoke_audit_mask", "scripts/m6_phase10_audit_state_suffix_smoke.py")
+
+    class Tokenizer:
+        def apply_chat_template(self, messages, **kwargs):
+            assert kwargs == {"tokenize": True, "add_generation_prompt": True, "enable_thinking": False}
+            return [1, 2, 3]
+
+        def encode(self, completion, *, add_special_tokens):
+            assert completion == '{"command":"click[Buy Now]"}'
+            assert add_special_tokens is False
+            return [7, 8]
+
+    observation = {
+        "task_id": "webshop_goal_00001",
+        "instruction": "buy it",
+        "page_type": "item",
+        "step_index": 0,
+        "visible_text": "item",
+        "text_truncated": False,
+        "available_actions": ["click[Buy Now]"],
+    }
+    messages = module.prompt.build_messages(SimpleNamespace(**observation), [])
+    trajectory = {
+        "turns": [{
+            "observation": observation,
+            "post_action_observation": {"page_type": "done"},
+            "rendered_prompt_sha256": module.prompt.compute_message_hash(messages),
+            "action": {"command": "click[Buy Now]"},
+            "action_result": {"success": True, "error_code": ""},
+        }]
+    }
+    rows = module.suffix_mask_rows(trajectory, prefix_turn_count=0, tokenizer=Tokenizer())
+    assert rows[0]["prompt_token_count"] == rows[0]["masked_token_count"] == 3
+    assert rows[0]["action_label_token_count"] == 2

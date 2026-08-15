@@ -433,6 +433,13 @@ historical train task 完成端到端 smoke：exact student prefix replay、stat
 teacher live suffix、first strict、fresh-session full replay strict、query provenance 和 tokenizer mask。
 该 smoke 只证明工程链可运行，不产生教师能力结论。
 
+在查看该 smoke 结果前冻结工程门：student/teacher 均须 8/8 exact prefix replay，8/8 task 的
+correction prompt hash 跨身份一致；teacher 至少产生 1 条 first-strict suffix，且所有 first-strict
+suffix 的 fresh-session full replay strict 率必须为 100%；student non-strict suffix 的 fresh replay
+failure class 必须稳定；所有 suffix search 均通过 public-query provenance；所有进入候选 corpus 的
+assistant action row 在学生 tokenizer 下 label token 非空，system/instruction/public observation/prefix token
+全部为 `-100`。任何一项失败即修实现错误或停止，不得放宽该工程门来进入 qualification。
+
 随后用已暴露样本完成 teacher/rehearsal matched single-update probe，验证 source weighting、prefix
 gradient=0、action gradient>0、`pi_0` reference/retention、sampler recovery 和参数更新。两项任一失败，
 不得启动 32-task teacher qualification 或正式训练。
