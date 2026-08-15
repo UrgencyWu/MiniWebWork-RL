@@ -1139,3 +1139,16 @@ matched single-update、40-task OPD pilot、monitor、OPD后Student-only GRPO和
 `OPD增量 = pi_opd - pi_0`，避免Raw→OPD把基础动作模仿与专项蒸馏混在一起。教师SFT语料必须包含现有
 学生SFT corpus之外的严格重放专项纠错信息；新教师仍须使用全新qualification片重新证明相对`pi_0`
 的优势，至少2/3通过后才允许重新启动零更新OPD smoke。
+
+## 40. Phase10-C精简数据划分实施
+
+按快速验证原则，本轮把执行前门禁压缩为三项：排除所有历史及Phase10-B已查看任务；训练、开发、
+资格、OPD与最终开发角色在task、goal-index和normalized instruction上互斥；专项教师必须先在独立片
+证明相对`pi_0`的收益。新增纯CPU划分构建器，预留三个Specialist各128 train、32 dev、32
+qualification，以及OPD smoke 8、train 40、monitor A/B各64和final dev 500，共1252个fresh
+train-role任务。静态goal proxy仅用于把任务分到nav/match/finish池，不产生监督label。
+
+为避免一开始消耗完整教师训练预算，首个验证只从每个冻结teacher-train角色取前16个任务，构造公开
+状态专项纠错并做小语料/单更新smoke；只有对应dev片出现净收益才扩到128任务。该实现只冻结任务用途，
+不授权教师训练或正式OPD；下一步需在远端当前数据上生成不可覆盖的`exposure_union.json`与
+`split_lock.json`并确认可用任务数。

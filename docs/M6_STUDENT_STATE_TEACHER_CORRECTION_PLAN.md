@@ -1214,3 +1214,30 @@ Specialist target。原因是Raw→OPD的大部分增益会与动作格式、页
 
 在教师资格通过前，不实现或提交正式OPD Student更新。教师SFT成功只表示产生候选教师；是否能指导
 Student仍由新资格片、零更新target smoke和matched single-update共同决定。
+
+### 19.4 Phase10-C精简数据划分与快速验证顺序
+
+本轮不先构建复杂审计制度。执行前只保留三项必要约束：所有历史与Phase10-B已查看任务排除；各用途
+在task、goal-index与normalized instruction上互斥；教师训练后必须先证明相对`pi_0`的专项收益。
+版本化划分固定为：
+
+| 用途 | 每个Specialist/全局规模 | 是否训练 | 说明 |
+|---|---:|---|---|
+| `teacher_{nav,match,finish}_train` | 128×3 | 是 | 专项教师SFT任务池 |
+| `teacher_{nav,match,finish}_dev` | 32×3 | 否 | 教师SFT早期方向验证 |
+| `teacher_{nav,match,finish}_qualification` | 32×3 | 否 | 与同条件`pi_0`配对准入 |
+| `opd_smoke` | 8 | 否 | exact-prefix target与单更新探针 |
+| `opd_train` | 40 | 是 | Specialist合格后才启用 |
+| `opd_monitor_a/b` | 64+64 | 否 | 开发期迁移复核 |
+| `opd_final_dev` | 500 | 否 | 冻结配置的一次最终开发结论 |
+
+合计预留1252个fresh train-role任务，但预留不等于立即全部采样或训练。快速路径先只从每个冻结
+`teacher_*_train`角色取前16个任务，合成并重放专项action labels，完成一个小语料/单更新smoke；只有对应
+`teacher_*_dev`出现专项净收益才扩到完整128-task教师训练池。教师资格仍使用独立32-task片；任何教师
+没有通过资格时，不查询其OPD logits。该顺序把首次有意义GPU成本限制在`3×16`个任务，而不牺牲后续
+评测互斥性。
+
+静态任务proxy只用于划分，不作为label：`nav`优先无option且约束较少的搜索/导航任务；`match`优先
+含option且约束较多的商品匹配任务；`finish`优先同时含option、价格与多约束的购买边界任务。真正训练
+样本仍须由公开状态上的专项纠错、canonical action与fresh-session严格重放决定。输出固定为
+`$PHASE10C_ROOT/{exposure_union.json,split_lock.json}`；不得读取promotion/holdout。
