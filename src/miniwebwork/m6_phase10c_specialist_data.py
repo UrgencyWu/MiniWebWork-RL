@@ -248,8 +248,7 @@ def build_specialist_smoke_corpus(
             row["content_sha256"] = sha256_json(row)
             rows.append(row)
             family_counts[turn["action_family"]] += 1
-    _require(len(verified_tasks) >= minimum_verified_tasks, "Phase10-C smoke verified-task floor failed")
-    _require(rows, "Phase10-C smoke corpus has no specialist action labels")
+    passed = len(verified_tasks) >= minimum_verified_tasks and bool(rows)
     result = {
         "schema_version": CORPUS_SCHEMA,
         "development_only": True,
@@ -263,6 +262,8 @@ def build_specialist_smoke_corpus(
         "verified_task_ids": verified_tasks,
         "verified_task_id_sha256": sha256_json(verified_tasks),
         "minimum_verified_tasks": minimum_verified_tasks,
+        "passed": passed,
+        "decision": "ready_for_single_update_probe" if passed else "stop_specialist_data_method",
         "label_row_count": len(rows),
         "label_action_family_counts": dict(sorted(family_counts.items())),
         "rejection_counts": dict(sorted(rejection_counts.items())),

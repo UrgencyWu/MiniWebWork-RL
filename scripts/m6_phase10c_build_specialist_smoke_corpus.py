@@ -100,7 +100,11 @@ def main() -> None:
         "rejections": corpus["rejection_counts"],
         "output_dir": str(output),
         "manifest_sha": corpus["content_sha256"],
+        "passed": corpus["passed"],
+        "decision": corpus["decision"],
     }, indent=2, sort_keys=True))
+    if corpus["passed"] is not True:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import pytest
 from miniwebwork.m6_phase10c_specialist_data import (
     SPECIALIST_FAMILIES,
     action_family,
+    build_specialist_smoke_corpus,
     public_instruction_query,
 )
 
@@ -42,3 +43,31 @@ def test_specialist_masks_are_narrow_but_cover_full_purchase_chain():
 def test_public_query_rejects_empty_instruction():
     with pytest.raises(ValueError, match="no public query tokens"):
         public_instruction_query("[] !!!")
+
+
+def test_failed_smoke_returns_a_persistent_stop_report(monkeypatch: pytest.MonkeyPatch):
+    import miniwebwork.m6_phase10c_specialist_data as module
+
+    class EmptyEnvironment:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        module,
+        "build_verified_public_query_trajectory",
+        lambda environment, goal: (_ for _ in ()).throw(module.SpecialistDataFailure("not_public")),
+    )
+    tasks = [f"webshop_goal_{index:05d}" for index in range(16)]
+    goals = [{"goal_index": index} for index in range(16)]
+    report = build_specialist_smoke_corpus(
+        specialist="S_nav_sft",
+        goals=goals,
+        task_ids=tasks,
+        environment_factory=EmptyEnvironment,
+        phase10c_split_content_sha256="a" * 64,
+        producer_git_sha="b" * 40,
+    )
+    assert report["passed"] is False
+    assert report["decision"] == "stop_specialist_data_method"
+    assert report["verified_task_count"] == 0
+    assert report["rejection_counts"] == {"not_public": 16}
