@@ -208,7 +208,7 @@ def tokenize_weighted_row(row: Mapping[str, Any], tokenizer: Any) -> WeightedExa
     turn_index = int(row.get("turn_index", -1))
     _require(task_id and trajectory_id and turn_index >= 0, "Phase10-C weighted provenance is incomplete")
     tokenized = TokenizedSFTExample(
-        sample_id=f"{trajectory_id}:{turn_index:03d}",
+        sample_id=f"{task_id}:{trajectory_id}:{turn_index:03d}",
         task_id=task_id,
         task_family="webshop",
         horizon_stratum=str(row["capability"]),

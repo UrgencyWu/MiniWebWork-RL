@@ -59,6 +59,13 @@ def test_tokenization_masks_every_prompt_token():
     assert value.tokenized.input_ids[value.tokenized.prompt_tokens :] == value.tokenized.labels[value.tokenized.prompt_tokens :]
 
 
+def test_sample_identity_includes_task_for_task_local_trajectory_ids():
+    module = _module()
+    first = module.tokenize_weighted_row(_row("nav", "task-a", "rollout-0", 0.1), FakeTokenizer())
+    second = module.tokenize_weighted_row(_row("nav", "task-b", "rollout-0", 0.1), FakeTokenizer())
+    assert first.tokenized.sample_id != second.tokenized.sample_id
+
+
 def test_probe_selection_realizes_capability_mass_with_unique_tasks():
     module = _module()
     examples = []
