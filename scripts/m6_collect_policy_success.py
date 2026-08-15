@@ -70,11 +70,17 @@ PHASE4_TEACHER_MODELS = {
     Path("/data/share/model/Qwen3.5-9B").resolve(),
     Path("/data/share/model/Qwen3.6-35B-A3B-FP8").resolve(),
 }
+PHASE10_STUDENT_MODEL = Path("/data/share/model/Qwen3.5-4B").resolve()
+PHASE10_TEACHER_MODEL = Path("/data/share/model/Qwen3.6-35B-A3B-FP8").resolve()
 
 
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def _normalized_command(value: Any) -> str:
+    return " ".join(str(value or "").strip().casefold().split())
 
 
 def _git_sha() -> str:
@@ -380,6 +386,30 @@ def validate_phase9_shared_prefix_smoke_contract(args: argparse.Namespace) -> No
     _require(args.maximum_action_tokens is None, "M6 Phase9 cannot claim a training token budget")
     _require(args.replay_prefix_root is None, "M6 Phase9 cannot use the Phase2 replay source")
     _require(args.shared_prefix_manifest is not None, "M6 Phase9 shared-prefix manifest is required")
+
+
+def validate_phase10_state_suffix_smoke_contract(args: argparse.Namespace) -> None:
+    """Freeze the matched student/teacher K2 historical-state engineering smoke."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase10 smoke roster drift")
+    _require(args.k == 2, "M6 Phase10 smoke must use K2")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase10 smoke must preserve the original full-episode budget",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase10 smoke task slicing is forbidden")
+    _require(args.maximum_action_tokens is None, "M6 Phase10 smoke cannot claim a training token budget")
+    _require(args.replay_prefix_root is None, "M6 Phase10 smoke cannot use the Phase2 replay source")
+    _require(args.shared_prefix_manifest is None, "M6 Phase10 smoke cannot use the Phase9 manifest")
+    _require(args.state_correction_manifest is not None, "M6 Phase10 state-correction manifest is required")
+    _require(args.phase10_smoke_identity in {"student", "teacher"}, "M6 Phase10 smoke identity drift")
+    model = args.base_model.expanduser().resolve()
+    if args.phase10_smoke_identity == "student":
+        _require(args.adapter is not None, "M6 Phase10 student smoke requires pi_0")
+        _require(model == PHASE10_STUDENT_MODEL, "M6 Phase10 student model drift")
+    else:
+        _require(args.adapter is None, "M6 Phase10 teacher smoke cannot use a student adapter")
+        _require(model == PHASE10_TEACHER_MODEL, "M6 Phase10 teacher model drift")
 
 
 def _validate_group_run_contract(
@@ -715,7 +745,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         task_ids = task_ids[: args.maximum_tasks]
     _require(task_ids, "M6 selected task roster is empty")
     expected_k = int(
-        protocol["mini"]["evaluation_K"]
+        2
+        if args.mode == "phase10_state_suffix_smoke"
+        else protocol["mini"]["evaluation_K"]
         if args.mode in {
             "evaluation",
             "phase2_horizon_evaluation",
@@ -736,6 +768,23 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _require(
         getattr(args, "shared_prefix_manifest", None) is None or args.mode == "phase9_shared_prefix_smoke",
         "M6 shared-prefix manifest is restricted to the Phase9 smoke",
+    )
+    _require(
+        getattr(args, "state_correction_manifest", None) is None
+        or args.mode == "phase10_state_suffix_smoke",
+        "M6 state-correction manifest is restricted to the Phase10 smoke",
+    )
+    _require(
+        getattr(args, "phase10_smoke_identity", None) is None
+        or args.mode == "phase10_state_suffix_smoke",
+        "M6 Phase10 identity is restricted to the Phase10 smoke",
+    )
+    _require(
+        not (
+            getattr(args, "shared_prefix_manifest", None) is not None
+            and getattr(args, "state_correction_manifest", None) is not None
+        ),
+        "M6 rollout cannot combine Phase9 and Phase10 manifests",
     )
     if args.mode == "raw_collection":
         _require(args.role == "mini_train", "M6 Raw collection must use mini_train")
@@ -761,6 +810,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     elif args.mode == "phase9_shared_prefix_smoke":
         validate_phase9_shared_prefix_smoke_contract(args)
         _require(len(task_ids) == 8, "M6 Phase9 roster must contain exactly eight tasks")
+    elif args.mode == "phase10_state_suffix_smoke":
+        validate_phase10_state_suffix_smoke_contract(args)
+        _require(len(task_ids) == 8, "M6 Phase10 smoke roster must contain exactly eight tasks")
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -826,16 +878,26 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         }
     shared_prefix_specs: dict[str, dict[str, Any]] = {}
     shared_prefix_source: dict[str, Any] | None = None
-    if getattr(args, "shared_prefix_manifest", None) is not None:
-        manifest_path = args.shared_prefix_manifest.expanduser().resolve()
+    prefix_manifest_arg = (
+        getattr(args, "shared_prefix_manifest", None)
+        or getattr(args, "state_correction_manifest", None)
+    )
+    phase10_prefix = getattr(args, "state_correction_manifest", None) is not None
+    if prefix_manifest_arg is not None:
+        manifest_path = prefix_manifest_arg.expanduser().resolve()
         _require(
             not ({"promotion", "holdout"} & {part.casefold() for part in manifest_path.parts}),
-            "M6 Phase9 manifest touches promotion/holdout",
+            "M6 prefix manifest touches promotion/holdout",
         )
         manifest = _load_json(manifest_path)
-        _require(manifest.get("content_sha256") == _self_hash(manifest), "M6 Phase9 manifest self-hash drift")
+        _require(manifest.get("content_sha256") == _self_hash(manifest), "M6 prefix manifest self-hash drift")
+        expected_manifest_schema = (
+            "m6_phase10_state_suffix_smoke_manifest_v1"
+            if phase10_prefix
+            else "m6_phase9_shared_prefix_manifest_v1"
+        )
         _require(
-            manifest.get("schema_version") == "m6_phase9_shared_prefix_manifest_v1"
+            manifest.get("schema_version") == expected_manifest_schema
             and manifest.get("complete") is True
             and manifest.get("development_only") is True
             and manifest.get("training_performed") is False
@@ -843,8 +905,15 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             and manifest.get("public_fields_only") is True
             and manifest.get("target_asin_or_hidden_answer_used") is False
             and manifest.get("post_action_internal_state_used") is False,
-            "M6 Phase9 manifest contract drift",
+            "M6 prefix manifest contract drift",
         )
+        if phase10_prefix:
+            _require(
+                manifest.get("task_score_used_for_selector") is False
+                and manifest.get("correction_selector")
+                == "last_public_prebuy_state_for_all_nonstrict_purchase_v1",
+                "M6 Phase10 public correction selector drift",
+            )
         _require(
             manifest.get("producer_git_sha") == git_sha
             and manifest.get("protocol_sha256") == protocol_bundle["sha256"]
@@ -853,40 +922,48 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             and manifest.get("task_order_sha256") == sha256_json(task_ids)
             and manifest.get("K") == args.k
             and manifest.get("task_count") == len(task_ids),
-            "M6 Phase9 manifest identity drift",
+            "M6 prefix manifest identity drift",
         )
         manifest_tasks = manifest.get("tasks")
         _require(
             isinstance(manifest_tasks, list)
             and [row.get("task_id") for row in manifest_tasks] == task_ids,
-            "M6 Phase9 manifest task order drift",
+            "M6 prefix manifest task order drift",
         )
+        source_k = 4 if phase10_prefix else args.k
         for row in manifest_tasks:
             root = Path(str(row["source_collection_root"])).expanduser().resolve()
             _require(
                 not ({"promotion", "holdout"} & {part.casefold() for part in root.parts}),
-                "M6 Phase9 source touches promotion/holdout",
+                "M6 prefix source touches promotion/holdout",
             )
             source_report = _load_json(root / "collection_report.json")
             _require(
                 source_report.get("content_sha256") == _self_hash(source_report)
                 and source_report.get("content_sha256")
-                == row["source_collection_report_content_sha256"],
-                "M6 Phase9 source report binding drift",
+                == row["source_collection_report_content_sha256"]
+                and source_report.get("policy_lineage") == row["source_policy_lineage"],
+                "M6 prefix source report binding drift",
             )
+            if phase10_prefix:
+                _require(
+                    source_report.get("mode") == "phase4_data_synthesis"
+                    and source_report.get("K") == 4,
+                    "M6 Phase10 historical source shape drift",
+                )
             group_path = root / "groups" / f"{row['source_group_id']}.json"
-            source_group = validate_committed_group(_load_json(group_path), require_k=args.k)
+            source_group = validate_committed_group(_load_json(group_path), require_k=source_k)
             _require(
                 source_group["content_sha256"] == row["source_group_content_sha256"]
                 and source_group["content_sha256"] in source_report["group_content_sha256"]
                 and source_group["task_id"] == row["task_id"],
-                "M6 Phase9 source group binding drift",
+                "M6 prefix source group binding drift",
             )
             rollout_index = int(row["source_rollout_index"])
-            _require(0 <= rollout_index < args.k, "M6 Phase9 source rollout index drift")
+            _require(0 <= rollout_index < source_k, "M6 prefix source rollout index drift")
             source_trajectory = source_group["trajectories"][rollout_index]
             prefix_turn_count = int(row["prefix_turn_count"])
-            _require(0 < prefix_turn_count < len(source_trajectory["turns"]), "M6 Phase9 prefix boundary drift")
+            _require(0 < prefix_turn_count < len(source_trajectory["turns"]), "M6 prefix boundary drift")
             prefix_turns = source_trajectory["turns"][:prefix_turn_count]
             commands = [str((turn.get("action") or {}).get("command", "")).strip() for turn in prefix_turns]
             token_evidence = [
@@ -898,23 +975,41 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 }
                 for turn in prefix_turns
             ]
-            _require(
+            prefix_evidence_ok = (
                 sha256_json(commands) == row["prefix_action_sequence_sha256"]
                 and sha256_json(token_evidence) == row["prefix_token_evidence_sha256"]
-                and re.fullmatch(r"click\[B[0-9A-Z]{9}\]", commands[-1], re.IGNORECASE) is not None,
-                "M6 Phase9 source prefix evidence drift",
             )
+            if phase10_prefix:
+                _require(
+                    prefix_evidence_ok
+                    and source_trajectory["turns"][prefix_turn_count]["pre_action_public_state_sha256"]
+                    == row["correction_public_state_sha256"]
+                    and _normalized_command(
+                        source_trajectory["turns"][prefix_turn_count]["action"]["command"]
+                    )
+                    == "click[buy now]",
+                    "M6 Phase10 source correction evidence drift",
+                )
+            else:
+                _require(
+                    prefix_evidence_ok
+                    and re.fullmatch(r"click\[B[0-9A-Z]{9}\]", commands[-1], re.IGNORECASE)
+                    is not None,
+                    "M6 Phase9 source prefix evidence drift",
+                )
             spec = dict(row)
             spec["source_group"] = source_group
             spec["manifest_content_sha256"] = manifest["content_sha256"]
             shared_prefix_specs[str(row["task_id"])] = spec
-        _require(set(shared_prefix_specs) == set(task_ids), "M6 Phase9 source roster incomplete")
+        _require(set(shared_prefix_specs) == set(task_ids), "M6 prefix source roster incomplete")
         shared_prefix_source = {
             "manifest": str(manifest_path),
             "manifest_content_sha256": manifest["content_sha256"],
             "producer_git_sha": manifest["producer_git_sha"],
-            "policy_lineage": dict(manifest["policy_lineage"]),
+            "policy_lineage": dict(manifest["source_policy_lineage"] if phase10_prefix else manifest["policy_lineage"]),
             "future_policy_loss_contract": dict(manifest["future_policy_loss_contract"]),
+            "manifest_schema_version": expected_manifest_schema,
+            "phase10_smoke_identity": args.phase10_smoke_identity if phase10_prefix else None,
         }
     # Reconstruct already charged budget before allocating GPU memory.  A
     # timeout after generation but before group commit must not receive a new
@@ -937,10 +1032,22 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "M6 Phase2 replay source SFT policy drift",
         )
     if shared_prefix_source is not None:
-        _require(
-            shared_prefix_source["policy_lineage"] == dict(lineage),
-            "M6 Phase9 shared-prefix SFT policy drift",
-        )
+        if phase10_prefix:
+            if args.phase10_smoke_identity == "student":
+                _require(
+                    shared_prefix_source["policy_lineage"] == dict(lineage),
+                    "M6 Phase10 student/source pi_0 lineage drift",
+                )
+            else:
+                _require(
+                    shared_prefix_source["policy_lineage"] != dict(lineage),
+                    "M6 Phase10 teacher unexpectedly reuses the student lineage",
+                )
+        else:
+            _require(
+                shared_prefix_source["policy_lineage"] == dict(lineage),
+                "M6 Phase9 shared-prefix SFT policy drift",
+            )
     loop = asyncio.get_running_loop()
     loop_thread_id = threading.get_ident()
     try:
@@ -973,6 +1080,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "policy_lineage": dict(lineage),
             "replay_prefix_source": replay_prefix_source,
             "shared_prefix_source": shared_prefix_source,
+            "phase10_smoke_identity": getattr(args, "phase10_smoke_identity", None),
         }
         invocation["content_sha256"] = _self_hash(invocation)
         invocation_path = output / "invocation.json"
@@ -1109,6 +1217,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "group_content_sha256": [group["content_sha256"] for group in groups],
         "replay_prefix_source": replay_prefix_source,
         "shared_prefix_source": shared_prefix_source,
+        "phase10_smoke_identity": getattr(args, "phase10_smoke_identity", None),
         "exact_shared_prefix_replay_task_count": (
             sum(
                 all(
@@ -1144,6 +1253,7 @@ def parse_args() -> argparse.Namespace:
             "phase4_online_rl_collection",
             "phase4_tuning_evaluation",
             "phase9_shared_prefix_smoke",
+            "phase10_state_suffix_smoke",
             "rl_collection",
         ),
         required=True,
@@ -1155,7 +1265,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base-model", type=Path, default=Path("/data/share/model/Qwen3.5-4B"))
     parser.add_argument("--base-model-manifest", type=Path, default=BASE_MODEL_MANIFEST_PATH)
     parser.add_argument("--adapter", type=Path)
-    parser.add_argument("--k", type=int, choices=(4, 8), required=True)
+    parser.add_argument("--k", type=int, choices=(2, 4, 8), required=True)
     parser.add_argument("--seed", type=int, default=20260812)
     parser.add_argument("--iteration-index", type=int, default=0)
     parser.add_argument("--maximum-tasks", type=int)
@@ -1163,6 +1273,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task-roster-producer-git-sha")
     parser.add_argument("--replay-prefix-root", type=Path)
     parser.add_argument("--shared-prefix-manifest", type=Path)
+    parser.add_argument("--state-correction-manifest", type=Path)
+    parser.add_argument("--phase10-smoke-identity", choices=("student", "teacher"))
     parser.add_argument("--task-offset", type=int, default=0)
     parser.add_argument("--max-model-turns", type=int, default=18)
     parser.add_argument("--max-environment-steps", type=int, default=15)

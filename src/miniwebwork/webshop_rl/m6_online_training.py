@@ -185,7 +185,7 @@ def build_committed_group(
     adapter_semantic_sha256: str,
     training_updates_allowed: bool,
 ) -> dict[str, Any]:
-    _require(expected_k in {4, GROUP_SIZE}, "M6 group K must be evaluation K4 or training K8")
+    _require(expected_k in {2, 4, GROUP_SIZE}, "M6 group K must be smoke K2, evaluation K4 or training K8")
     _require(len(trajectories) == expected_k, "M6 group trajectory count drift")
     payload = {
         "schema_version": GROUP_SCHEMA,
@@ -222,7 +222,7 @@ def validate_committed_group(
     for field in ("protocol_sha256", "adapter_sha256", "rollout_adapter_sha256", "adapter_semantic_sha256"):
         _require(SHA256_PATTERN.fullmatch(str(value.get(field, ""))) is not None, f"M6 group {field} drift")
     k = value.get("K")
-    _require(k in {4, GROUP_SIZE} and (require_k is None or k == require_k), "M6 group K drift")
+    _require(k in {2, 4, GROUP_SIZE} and (require_k is None or k == require_k), "M6 group K drift")
     trajectories = value.get("trajectories")
     _require(isinstance(trajectories, list) and len(trajectories) == k, "M6 group trajectory roster drift")
     task_id = value.get("task_id")
