@@ -111,6 +111,7 @@ def fresh_replay(
 
     environment = WebShopHTTPEnvironment(base_url=base_url, split="train", timeout_seconds=120)
     commands: list[str] = []
+    executed_commands = 0
     score = 0.0
     terminated = False
     try:
@@ -130,12 +131,18 @@ def fresh_replay(
                 continue
             command = str(action.get("command", ""))
             commands.append(command)
+            recorded_action_result = turn.get("action_result")
+            if not isinstance(recorded_action_result, Mapping):
+                _require(
+                    turn["pre_action_public_state_sha256"] == turn["post_action_public_state_sha256"],
+                    "Phase10 unexecuted budget-bound action changed public state",
+                )
+                continue
             result = environment.step(WebShopCommand(command))
             action_result = result.info.get("action_result", {})
-            recorded_action_result = turn.get("action_result")
+            executed_commands += 1
             _require(
-                isinstance(recorded_action_result, Mapping)
-                and bool(action_result.get("success", False))
+                bool(action_result.get("success", False))
                 is bool(recorded_action_result.get("success", False)),
                 "Phase10 fresh replay action-result class drift",
             )
@@ -155,7 +162,8 @@ def fresh_replay(
     return {
         "fresh_session": True,
         "public_state_exact": True,
-        "executed_command_count": len(commands),
+        "generated_command_count": len(commands),
+        "executed_command_count": executed_commands,
         "terminated": terminated,
         "task_score": score,
         "strict_success": score >= 0.999,
