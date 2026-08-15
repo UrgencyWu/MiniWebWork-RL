@@ -73,7 +73,7 @@ def test_public_router_recovery_precedes_page_type_and_uses_only_prior_public_ev
 
 
 def test_topk_compression_is_sorted_finite_and_mass_closed():
-    result = compress_topk_logprobs({2: -0.1, 1: -2.0, 3: -3.0}, k=2)
+    result = compress_topk_logprobs({2: -0.5, 1: -1.5, 3: -3.0}, k=2)
     assert [row["token_id"] for row in result["topk"]] == [2, 1]
     assert 0.0 < result["topk_probability_mass"] <= 1.0
     assert result["probability_sum_abs_error"] <= 1e-12
