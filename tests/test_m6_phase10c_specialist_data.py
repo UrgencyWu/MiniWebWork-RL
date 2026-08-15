@@ -1,0 +1,44 @@
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from miniwebwork.m6_phase10c_specialist_data import (
+    SPECIALIST_FAMILIES,
+    action_family,
+    public_instruction_query,
+)
+
+
+def test_public_query_contains_only_instruction_tokens():
+    instruction = "Find a blue 12 inch desk lamp under $40, please."
+    query = public_instruction_query(instruction)
+    assert query == "Find a blue 12 inch desk lamp under 40 please"
+    assert "B000" not in query
+
+
+@pytest.mark.parametrize(
+    ("command", "family"),
+    [
+        ("search[blue lamp]", "search"),
+        ("click[Next >]", "navigation"),
+        ("click[B012345678]", "candidate"),
+        ("click[Blue]", "option"),
+        ("click[Buy Now]", "buy"),
+    ],
+)
+def test_action_family_is_public_and_deterministic(command: str, family: str):
+    assert action_family(command) == family
+
+
+def test_specialist_masks_are_narrow_but_cover_full_purchase_chain():
+    assert SPECIALIST_FAMILIES["S_nav_sft"] == {"search", "navigation", "candidate"}
+    assert SPECIALIST_FAMILIES["S_match_sft"] == {"candidate", "option"}
+    assert SPECIALIST_FAMILIES["S_finish_sft"] == {"option", "buy"}
+    assert set().union(*SPECIALIST_FAMILIES.values()) == {"search", "navigation", "candidate", "option", "buy"}
+
+
+def test_public_query_rejects_empty_instruction():
+    with pytest.raises(ValueError, match="no public query tokens"):
+        public_instruction_query("[] !!!")

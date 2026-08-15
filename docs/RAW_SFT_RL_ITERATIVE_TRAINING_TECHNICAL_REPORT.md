@@ -1152,3 +1152,14 @@ train-role任务。静态goal proxy仅用于把任务分到nav/match/finish池�
 状态专项纠错并做小语料/单更新smoke；只有对应dev片出现净收益才扩到128任务。该实现只冻结任务用途，
 不授权教师训练或正式OPD；下一步需在远端当前数据上生成不可覆盖的`exposure_union.json`与
 `split_lock.json`并确认可用任务数。
+
+远端已生成并复核冻结划分：历史暴露并集2852个任务，base train中扣除后仍有5033个fresh任务；14个
+角色共预留1252个，数量与三重身份互斥检查全部通过。exposure SHA为
+`1ad7f9441dbde56dfc7cb709a65f4253b2c955105a7689b43ac1c9c6969c0af0`，split SHA为
+`e75ea719562e8f5f221d4548f41960448597d0ca2fafd5ae46d8215476014e20`。
+
+下一步数据smoke只处理3×16个冻结teacher-train任务。为了避免“离线oracle标题直接泄漏给模型”，
+搜索query严格由公开instruction token构造；离线target/option metadata只用于从当前页面已公开的动作中
+选择正确label，绝不写入prompt。每条完整轨迹必须fresh-session strict成功，再按职责保留nav的
+search/navigation/candidate、match的candidate/option、finish的option/buy action row。每个Specialist至少
+12/16任务成功才值得进入单更新训练探针。

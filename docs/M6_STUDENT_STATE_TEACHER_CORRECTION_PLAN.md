@@ -1241,3 +1241,9 @@ Student仍由新资格片、零更新target smoke和matched single-update共同�
 含option且约束较多的商品匹配任务；`finish`优先同时含option、价格与多约束的购买边界任务。真正训练
 样本仍须由公开状态上的专项纠错、canonical action与fresh-session严格重放决定。输出固定为
 `$PHASE10C_ROOT/{exposure_union.json,split_lock.json}`；不得读取promotion/holdout。
+
+首个`3×16`数据smoke使用程序化expert而不是再次让原Student自采。搜索query只能由public instruction
+token组成；离线target/option metadata只允许在当前页面的`available_actions`中选择正确label，不能写入
+prompt或生成页面上未出现的动作。完整轨迹fresh-session strict成功后才录取，再按职责保留nav的
+search/navigation/candidate、match的candidate/option、finish的option/buy completion-only行。单个
+Specialist不足12/16个verified task时直接判当前数据生成方式不可用，不启动LoRA训练。
