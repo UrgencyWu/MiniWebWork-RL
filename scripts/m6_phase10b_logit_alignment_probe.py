@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import gc
 import importlib.metadata
 import json
@@ -143,27 +144,43 @@ def _run_model(args: argparse.Namespace) -> None:
 
     started = time.monotonic()
     torch.cuda.reset_peak_memory_stats()
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        local_files_only=True,
-        trust_remote_code=True,
-        torch_dtype="auto",
-        low_cpu_mem_usage=True,
-        device_map={"": "cuda:0"},
-    )
-    if adapter is not None:
-        from peft import PeftModel
+    kernel_trust = None
+    kernel_context = nullcontext()
+    if identity == "S_finish":
+        from transformers.integrations import hub_kernels
 
-        model = PeftModel.from_pretrained(model, str(adapter), is_trainable=False)
-    model.eval()
-    input_ids = torch.tensor([student_prefix], dtype=torch.long, device="cuda:0")
-    attention_mask = torch.ones_like(input_ids)
-    with torch.inference_mode():
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
-        logits = outputs.logits[:, -1, :].float()
-        probabilities = torch.softmax(logits, dim=-1)
-        probability_sum_error = abs(float(probabilities.sum().cpu()) - 1.0)
-        top_values, top_indices = torch.topk(probabilities, k=16, dim=-1)
+        mapping = hub_kernels._HUB_KERNEL_MAPPING.get("finegrained-fp8")  # noqa: SLF001
+        _require(
+            mapping == {"repo_id": "kernels-community/finegrained-fp8", "version": 4},
+            "Phase10-B S_finish FP8 kernel mapping drift",
+        )
+        kernel_trust = dict(mapping)
+        # Scope remote-code trust to one audited Transformers mapping and only
+        # around this frozen model load/forward. The shared environment remains
+        # unchanged and the global flag is restored on context exit.
+        kernel_context = hub_kernels.allow_all_hub_kernels()
+    with kernel_context:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            local_files_only=True,
+            trust_remote_code=True,
+            torch_dtype="auto",
+            low_cpu_mem_usage=True,
+            device_map={"": "cuda:0"},
+        )
+        if adapter is not None:
+            from peft import PeftModel
+
+            model = PeftModel.from_pretrained(model, str(adapter), is_trainable=False)
+        model.eval()
+        input_ids = torch.tensor([student_prefix], dtype=torch.long, device="cuda:0")
+        attention_mask = torch.ones_like(input_ids)
+        with torch.inference_mode():
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, use_cache=False)
+            logits = outputs.logits[:, -1, :].float()
+            probabilities = torch.softmax(logits, dim=-1)
+            probability_sum_error = abs(float(probabilities.sum().cpu()) - 1.0)
+            top_values, top_indices = torch.topk(probabilities, k=16, dim=-1)
     finite = bool(torch.isfinite(logits).all().item())
     runtime_vocab = int(logits.shape[-1])
     topk = [
@@ -185,6 +202,7 @@ def _run_model(args: argparse.Namespace) -> None:
         "input_adapter_sha256": directory_sha256(adapter) if adapter else None,
         "runtime_dependencies": {
             "kernels": importlib.metadata.version("kernels") if identity == "S_finish" else None,
+            "trusted_fp8_kernel": kernel_trust,
         },
         "model_manifest_content_sha256": manifest["content_sha256"],
         "student_tokenizer_path": str(student_tokenizer_path),

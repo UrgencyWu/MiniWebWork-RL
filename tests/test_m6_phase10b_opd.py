@@ -180,3 +180,12 @@ def test_logit_model_report_binds_student_adapter_and_self_hash():
     changed["content_sha256"] = sha256_json({key: value for key, value in changed.items() if key != "content_sha256"})
     with pytest.raises(ValueError, match="adapter drift"):
         opd.validate_logit_model_report(changed)
+
+
+def test_s_finish_fp8_kernel_trust_is_scoped_to_frozen_mapping():
+    source = (Path(__file__).resolve().parents[1] / "scripts" / "m6_phase10b_logit_alignment_probe.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"repo_id": "kernels-community/finegrained-fp8", "version": 4' in source
+    assert "with kernel_context:" in source
+    assert "allow_all_hub_kernels()" in source
