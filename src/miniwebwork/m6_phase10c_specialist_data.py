@@ -15,6 +15,7 @@ from .webshop_rl.actions import MAX_SEARCH_QUERY_CHARACTERS, WebShopCommand, par
 
 
 CORPUS_SCHEMA = "m6_phase10c_specialist_smoke_corpus_v1"
+PUBLIC_QUERY_FORMULA = "strip_request_price_first_sentence_v2"
 ASIN_RE = re.compile(r"^B[0-9A-Z]{9}$", re.IGNORECASE)
 WORD_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 SPECIALIST_FAMILIES = {
@@ -46,7 +47,17 @@ def _click_argument(command: str) -> str | None:
 def public_instruction_query(instruction: str) -> str:
     """Create a deterministic search query using instruction tokens only."""
 
-    tokens = [match.group(0) for match in WORD_RE.finditer(str(instruction or ""))]
+    public_text = str(instruction or "").strip()
+    public_text = re.split(r",?\s+and price lower than\b", public_text, maxsplit=1, flags=re.IGNORECASE)[0]
+    public_text = re.split(r"\.\s+", public_text, maxsplit=1)[0]
+    public_text = re.sub(
+        r"^(?:i am looking for|i['’]m looking for|looking for|i would like|i want to find|i want)\s+",
+        "",
+        public_text,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    tokens = [match.group(0) for match in WORD_RE.finditer(public_text)]
     _require(tokens, "Phase10-C instruction has no public query tokens")
     retained: list[str] = []
     for token in tokens:
@@ -190,6 +201,7 @@ def build_verified_public_query_trajectory(environment: Any, goal: Mapping[str, 
         "strict_success": True,
         "task_score": score,
         "query_tokens_from_public_instruction_only": True,
+        "public_query_formula": PUBLIC_QUERY_FORMULA,
         "offline_verifier_metadata_used_only_for_public_action_selection": True,
         "policy_input_contains_hidden_metadata": False,
         "turns": turns,
@@ -269,6 +281,7 @@ def build_specialist_smoke_corpus(
         "rejection_counts": dict(sorted(rejection_counts.items())),
         "source_trajectory_content_sha256": dict(sorted(full_trajectory_hashes.items())),
         "query_tokens_from_public_instruction_only": True,
+        "public_query_formula": PUBLIC_QUERY_FORMULA,
         "offline_verifier_metadata_used_only_for_public_action_selection": True,
         "policy_input_contains_hidden_metadata": False,
         "fresh_session_strict_replay_required": True,

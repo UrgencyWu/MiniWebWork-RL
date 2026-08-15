@@ -1163,3 +1163,8 @@ train-role任务。静态goal proxy仅用于把任务分到nav/match/finish池�
 选择正确label，绝不写入prompt。每条完整轨迹必须fresh-session strict成功，再按职责保留nav的
 search/navigation/candidate、match的candidate/option、finish的option/buy action row。每个Specialist至少
 12/16任务成功才值得进入单更新训练探针。
+
+首个`S_nav_sft` v1 smoke只有4/16 verified task；其余12条统一失败为目标未进入公开search top-50。
+这否定了“把完整instruction直接作为query”的公式，但尚未否定公开输入专家数据。下一次只修改query
+公式：删除请求套话与价格尾句、保留第一句产品描述，所有query token仍必须来自原instruction；使用
+同16任务、同oracle、同12/16门和新输出根，避免覆盖v1负结果。

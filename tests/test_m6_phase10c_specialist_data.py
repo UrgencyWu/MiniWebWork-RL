@@ -19,6 +19,21 @@ def test_public_query_contains_only_instruction_tokens():
     assert "B000" not in query
 
 
+def test_public_query_removes_request_boilerplate_and_price_clause():
+    query = public_instruction_query(
+        "i am looking for a high performance dslr camera lenses that are certified refurbished, "
+        "and price lower than 230.00 dollars"
+    )
+    assert query == "a high performance dslr camera lenses that are certified refurbished"
+
+
+def test_public_query_preserves_decimal_product_attributes():
+    query = public_instruction_query(
+        "looking for a honiway decorative wall mirror 12.3 inch rustic wood frame for living room. keep in touch"
+    )
+    assert query == "a honiway decorative wall mirror 12 3 inch rustic wood frame for living room"
+
+
 @pytest.mark.parametrize(
     ("command", "family"),
     [
