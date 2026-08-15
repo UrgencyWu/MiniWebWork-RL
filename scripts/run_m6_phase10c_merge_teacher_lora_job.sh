@@ -4,8 +4,8 @@
 #SBATCH --time=06:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=160G
-#SBATCH --gres=gpu:2
+#SBATCH --mem=96G
+#SBATCH --gres=gpu:1
 #SBATCH --output=logs/m6_phase10c_merge_sft35_%j.out
 #SBATCH --error=logs/m6_phase10c_merge_sft35_%j.err
 
@@ -25,6 +25,7 @@ phase_root="$study_root/phase10c_qwen35_sft_specialist_opd_v1"
 export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
 "$python_bin" scripts/m6_phase10c_merge_teacher_lora.py \
   --base-model /data/share/model/Qwen3.5-35B-A3B \
+  --base-model-manifest "$study_root/phase10b_multi_specialist_opd_v1/base_model_manifests/S_match.json" \
   --adapter "$phase_root/teacher_self_sft_v1/weighted_lora_v1/final_adapter" \
   --output "$M6_PHASE10C_MERGED_MODEL" \
   --manifest "$M6_PHASE10C_MERGED_MANIFEST" \

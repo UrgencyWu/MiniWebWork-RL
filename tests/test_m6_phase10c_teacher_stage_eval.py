@@ -109,8 +109,8 @@ def test_eval_wrapper_freezes_budget_and_model_paths():
 def test_merge_wrapper_is_inference_only_and_atomic():
     wrapper = (ROOT / "scripts/run_m6_phase10c_merge_teacher_lora_job.sh").read_text()
     runtime = (ROOT / "scripts/m6_phase10c_merge_teacher_lora.py").read_text()
-    assert "#SBATCH --gres=gpu:2" in wrapper
-    assert "merge_and_unload(safe_merge=True" in runtime
+    assert "#SBATCH --gres=gpu:1" in wrapper
+    assert "complete_raw35_shard_lora_delta_v2" in runtime
     assert '"training_performed": False' in runtime
     assert '"optimizer_steps": 0' in runtime
     assert "temporary.replace(output)" in runtime
@@ -122,14 +122,14 @@ def test_merge_maps_only_portable_lora_ab_keys():
         "m6_phase10c_merge_teacher_lora",
         "scripts/m6_phase10c_merge_teacher_lora.py",
     )
-    assert merge.canonical_runtime_lora_key(
-        "base_model.model.layers.0.q_proj.lora_A.weight"
-    ).endswith("q_proj.lora_A.default.weight")
-    assert merge.canonical_runtime_lora_key(
-        "base_model.model.layers.0.q_proj.lora_B.weight"
-    ).endswith("q_proj.lora_B.default.weight")
+    assert merge.portable_lora_target(
+        "base_model.model.model.layers.0.q_proj.lora_A.weight"
+    ) == ("model.language_model.layers.0.q_proj.weight", "A")
+    assert merge.portable_lora_target(
+        "base_model.model.model.layers.0.q_proj.lora_B.weight"
+    ) == ("model.language_model.layers.0.q_proj.weight", "B")
     with pytest.raises(ValueError, match="non-LoRA"):
-        merge.canonical_runtime_lora_key("base_model.model.layers.0.q_proj.weight")
+        merge.portable_lora_target("base_model.model.model.layers.0.q_proj.weight")
 
 
 def test_task_bootstrap_is_paired_and_deterministic():
