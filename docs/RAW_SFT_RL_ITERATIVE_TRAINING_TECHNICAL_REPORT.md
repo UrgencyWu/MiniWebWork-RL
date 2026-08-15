@@ -1237,3 +1237,18 @@ completion-only LoRA语料；不得把同任务K8重复成功当作8倍任务权
 避免nav的大量成功样本淹没match/finish。损失层级为capability→task→path→action-row→row内label-token均值，
 每个能力先分固定总质量、能力内task等权、task内path等权、path内action row等权；train/dev按能力分层、
 task级90/10拆分。该权重只作用于35B completion-only LoRA，不改变环境奖励或后续Student OPD权重。
+
+重放Job 2361已`COMPLETED 0:0`：399/399首次strict轨迹在独立fresh session中再次strict，公开状态、
+动作结果和终局均无拒绝；每任务最多4条不同command sequence后保留93任务、238路径。task-stratified
+90/10拆分得到85个train任务、8个dev任务，分别为975/109条action row和12143/1351个label token，
+task overlap为0。train/dev能力质量均精确为nav/match/finish=`0.20/0.40/0.40`，manifest SHA为
+`e37690c522b2fab62882475d324fa7da911bd70d1de38a2f84868d0fce1e5f0b`。
+
+35B训练采用专用文本LoRA而不复用4B trainer。冻结配置为Qwen3.5-35B-A3B BF16、两卡模型并行、
+rank8/alpha16/dropout0.05、LR `5e-5`、最大16384 token且禁止截断。LoRA只覆盖40层文本token mixer：
+full-attention的q/k/v/o projection与linear-attention的qkv/z/b/a/out projection；256个MoE expert、router、
+vision tower和MTP全部冻结。损失逐row计算label-token mean CE，再乘语料中已冻结的层级质量；正式训练
+每次optimizer update完整消费一次train corpus，因此能力质量不随batch padding或轨迹长度漂移。先用5个
+互异任务（nav1/match2/finish2，各row质量0.2）做单update探针；只在参数真实变化、有限梯度、train NLL
+下降、dev NLL不灾难性上升且两卡显存余量通过后，才提交最多2个full-corpus update。两个update是必要的
+最小值：默认LoRA的首个update主要改变零初始化的B矩阵，第二个update才允许A/B共同适配。
