@@ -1098,3 +1098,32 @@ available actions、selected marker、上一动作success、预算proxy和public
 位置保存统一top-64+rest target；prefix、instruction和observation全部mask，Specialist token永不执行到
 环境。该smoke只验证可行性，`optimizer_steps=0`；至少两个已合格Specialist实际获得路由且所有target
 有限、质量闭合后，才允许进入matched single-update probe。
+
+## 38. Phase10-B Specialist资格结果与正式OPD停止决策
+
+六个配对采样Jobs 2347–2352全部`COMPLETED 0:0`。每个专项片均为24个fresh task×K4、相同
+task order/group ID/seed 20260851与18/15预算；三个Student arm均使用完全相同`pi_0`，Specialist arm
+不加载Student adapter。三份pair报告sampling seed mismatch均为0，collection与group自哈希闭合；本阶段
+共576条推理轨迹，`optimizer_steps=0`。
+
+结果如下：
+
+- `S_nav`：Student 66/96=68.75%，Specialist 70/96=72.92%，增益`+4.167 pp`；trajectory flips
+  9/5、task-rate positive/negative=6/3，schema/action安全门通过。但增益低于冻结`+5 pp`，故不合格。
+- `S_match`：Student 26/96=27.08%，Specialist 15/96=15.63%，增益`-11.458 pp`；trajectory flips
+  4/15、task-rate positive/negative=1/7，same-item option正向flip为0。该35B匹配候选显著弱于SFT后的4B。
+- `S_finish`：Student 21/96=21.88%，Specialist 23/96=23.96%，增益`+2.083 pp`；trajectory flips
+  10/8，但task-rate positive/negative=4/4，且nonstrict purchase由Student的69条增加为71条，专项安全门
+  失败。它在部分轨迹上能恢复成功，却没有形成稳定任务级净优势。
+
+最终资格报告
+`outputs/m6_monotonic_posttraining_v1/phase10b_multi_specialist_opd_v1/specialist_qualification/report.json`
+SHA为`835da0daa5ce824d9cdd49bd9e6d2d77a74ead16625ad27acb6f9877a6c0f2e6`，
+`qualified_specialist_count=0`、decision=`stop_opd`。这直接触发预注册停止门：至少2/3合格才允许
+multi-Specialist OPD，而当前连single-Specialist feasibility也不成立。
+
+因此Gate3代码虽已完成并通过21项聚焦测试，但**不会提交8-task行为采样或Specialist target作业**；
+matched single-update、40-task OPD pilot、monitor、OPD后Student-only GRPO和正式OPD训练全部停止。
+不通过增加K/seed、放宽`+5 pp`、改资格任务或在同一批上选择prompt来刷门。本轮结论是：token级OPD
+工程路径可实现，但当前三份现成大模型没有在冻结专项分布上证明相对SFT 4B的可靠教师优势，所以
+正式OPD训练不具备方法学可行性，而非算力或tokenizer阻塞。

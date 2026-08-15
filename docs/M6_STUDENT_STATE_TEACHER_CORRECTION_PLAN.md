@@ -1144,3 +1144,15 @@ $PHASE10B_ROOT/
 本节只批准进入实现、资格和 readiness，不授权绕过门禁直接提交正式 OPD 或 RL。它的核心目标是
 验证多个更强模型能否在 Student 自己访问的前缀上提供互补 token distribution，并把这些能力压回
 单一 Qwen3.5-4B，而不是把教师 sequence 冒充成 on-policy 数据。
+
+### 18.11 执行结果：Gate2停止（2026-08-15）
+
+Gate0 exposure/split与Gate1四模型Student-token logit alignment均通过；Gate2六个配对推理作业也全部
+工程成功。但冻结资格门结果为`0/3`：`S_nav`增益`+4.167 pp`未达到`+5 pp`；`S_match`相对Student
+`-11.458 pp`且无same-item option正向flip；`S_finish`仅`+2.083 pp`、任务级净flip为0并增加nonstrict
+purchase。聚合报告SHA为`835da0da...c0f2e6`，decision=`stop_opd`。
+
+按本节原始停止条件，Gate3零更新smoke虽已实现和测试，但不得提交；single-update、40-task pilot、
+monitor、OPD后GRPO及正式OPD训练全部不执行。该结果确认的是“当前三份现成Specialist不具备训练前
+资格”，不是OPD算法在合格Specialist下必然无效。若未来更换或专项训练Specialist，必须新建fresh
+qualification片并重新从Gate1/Gate2开始，不能复用本轮已查看的72个资格task。
