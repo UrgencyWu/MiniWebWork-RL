@@ -488,6 +488,7 @@ class RawVLLMBackendConfig:
     max_num_seqs: int = 32
     enforce_eager: bool = True
     stream_interval: int = 8
+    tensor_parallel_size: int = 1
 
     def validate(self) -> None:
         _require(Path(self.base_model).is_absolute(), "raw vLLM base model path must be absolute")
@@ -501,6 +502,7 @@ class RawVLLMBackendConfig:
         _require(math.isclose(self.gpu_memory_utilization, 0.5), "raw vLLM memory fraction drift")
         _require(self.max_num_seqs == 32, "raw vLLM maximum sequence count drift")
         _require(self.enforce_eager is True and self.stream_interval == 8, "raw vLLM runtime drift")
+        _require(self.tensor_parallel_size in {1, 2}, "raw vLLM tensor-parallel size drift")
 
     def engine_kwargs(self) -> dict[str, Any]:
         self.validate()
@@ -523,6 +525,7 @@ class RawVLLMBackendConfig:
             "stream_interval": self.stream_interval,
             "trust_remote_code": True,
             "disable_log_stats": False,
+            "tensor_parallel_size": self.tensor_parallel_size,
         }
 
 

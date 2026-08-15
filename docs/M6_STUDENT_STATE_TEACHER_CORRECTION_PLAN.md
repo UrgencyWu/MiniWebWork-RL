@@ -958,6 +958,26 @@ Qwen3.6-35B-A3B-FP8 的 `tokenizer_config.json` SHA256 不同：
 其他模型自动替换；若只通过一个 Specialist，本轮降级为 single-specialist OPD feasibility，不宣称
 multi-Specialist consolidation。至少两个候选通过才允许进入多 Specialist OPD 主臂。
 
+实现时每个 24-task 专项片拆成一对独立 collection：`student_<specialist>` 与 `<specialist>`；不能用
+一个 72-task Student collection 代替三个配对 Student arm，因为 vLLM sampling seed 包含 group ID，
+后两个专项片会因此失去逐 rollout 配对。六个 arm 均冻结 `seed=20260851`、K4、18/15、相同 task order；
+Student 使用 `pi_0`，Specialist 不加载 Student adapter。资格输出固定为：
+
+```text
+$PHASE10B_ROOT/specialist_qualification/
+  rosters/{student_S_nav,S_nav,student_S_match,S_match,student_S_finish,S_finish}.json
+  nav/{student,S_nav}/
+  match/{student,S_match}/
+  finish/{student,S_finish}/
+  {nav,match,finish}/pair_report.json
+  report.json
+```
+
+`S_match` 的 BF16 checkpoint 约 70GB，资格推理冻结为 2-GPU tensor parallel；`S_nav`、`S_finish` 和
+三个 Student arm 各使用 1 GPU。该差异只解决模型装载，不改变 task、seed、K、horizon、prompt 或性能
+门；资格报告必须记录 `tensor_parallel_size`。三个 Specialist 的完整文件 manifest 固定写入
+`$PHASE10B_ROOT/base_model_manifests/{S_nav,S_match,S_finish}.json`，collection 启动前逐文件复核。
+
 路由器首轮不训练，只依据 action turn 开始前的公开状态确定一个 Specialist：
 
 ```text
