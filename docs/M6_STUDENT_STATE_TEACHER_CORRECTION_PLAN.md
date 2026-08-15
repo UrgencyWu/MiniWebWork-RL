@@ -1,6 +1,6 @@
 # M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
 
-> 状态：多智能体审查后修订计划，development-only；完成 readiness 前禁止提交训练
+> 状态：exposure union 与六角色 fresh split 已通过；8-task smoke / single-update readiness 未完成前禁止提交正式训练
 >
 > 日期：2026-08-15
 >

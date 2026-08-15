@@ -957,3 +957,24 @@ same-item strict-partial（要求`>=4`），也只有1个任务形成option cont
 把瓶颈进一步定位为“需要同商品页且处于真实决策边界的前缀”，而非任意strict成功前缀。若继续快速
 探索，下一项单变量应先做零GPU前缀难度排序：利用既有prescan中同task的strict/partial行为，筛选
 更早或更不确定的公开商品页状态；只有能预期产生足够mixed的8-task smoke才值得再次采样。
+
+## 32. Phase10 exposure union 与六角色fresh split readiness结果
+
+本阶段只验证新教师纠错计划的数据隔离是否可执行，不采样、不训练，也不打开promotion/holdout。
+实现先冻结20类历史来源，包含完整Raw mini-train 256、SFT train/dev、mini/formal/tuning-dev2、
+Phase1–Phase3诊断、Phase4学生/教师/online数据，以及Phase5–Phase9所有用于训练、评测或假设选择的
+任务。每类来源均绑定明确路径、预期唯一任务数和文件内容hash；来源缺失、数量变化或hash漂移都会
+fail closed。远端49项聚焦/相邻协议测试全部通过。
+
+真实历史产物生成的`phase10_exposure_union.json`共含1,340个unique task，source spec SHA为
+`c443128e...e4f6eec`，union SHA为`c270d7e2...b9be478`。旧train role扣除task identity与
+normalized instruction exposure后仍有6,545个候选。随后按category × constraint-count ×
+instruction-length分层并冻结六个互斥角色：teacher qualification 32、correction train 64、
+monitor A 64、monitor B 64、RL train 40、dev3 500；split SHA为
+`f05ded9e...2ffeca7`。
+
+任务、goal-index与normalized instruction在六角色之间的交集均为0；相对历史exposure union的三类
+交集也均为0。该结果只通过了Phase10第一道readiness门，`optimizer_steps=0`，不构成教师能力或性能
+结论。下一步严格停在8个已暴露历史任务的端到端工程smoke：验证公开失败点、student/teacher同状态
+suffix、fresh-session strict replay、query provenance与token mask。smoke和matched single-update
+任一失败，都不得启用已冻结的32-task teacher qualification。
