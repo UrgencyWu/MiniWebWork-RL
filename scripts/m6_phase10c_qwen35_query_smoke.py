@@ -82,7 +82,6 @@ async def generate_queries(
         base_model_functional_sha256=manifest["payload"]["functional_file_set_sha256"],
         seed=seed,
         tensor_parallel_size=2,
-        max_new_tokens=64,
     ))
     records: list[dict[str, Any]] = []
 
