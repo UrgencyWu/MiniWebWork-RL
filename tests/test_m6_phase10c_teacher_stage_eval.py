@@ -117,6 +117,21 @@ def test_merge_wrapper_is_inference_only_and_atomic():
     assert "build_base_model_manifest" in runtime
 
 
+def test_merge_maps_only_portable_lora_ab_keys():
+    merge = _module(
+        "m6_phase10c_merge_teacher_lora",
+        "scripts/m6_phase10c_merge_teacher_lora.py",
+    )
+    assert merge.canonical_runtime_lora_key(
+        "base_model.model.layers.0.q_proj.lora_A.weight"
+    ).endswith("q_proj.lora_A.default.weight")
+    assert merge.canonical_runtime_lora_key(
+        "base_model.model.layers.0.q_proj.lora_B.weight"
+    ).endswith("q_proj.lora_B.default.weight")
+    with pytest.raises(ValueError, match="non-LoRA"):
+        merge.canonical_runtime_lora_key("base_model.model.layers.0.q_proj.weight")
+
+
 def test_task_bootstrap_is_paired_and_deterministic():
     stats = _module(
         "m6_phase10c_teacher_stage_stats",

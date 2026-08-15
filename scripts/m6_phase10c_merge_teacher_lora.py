@@ -38,6 +38,16 @@ def _git_sha() -> str:
     ).stdout.strip()
 
 
+def canonical_runtime_lora_key(key: str) -> str:
+    """Map PEFT's portable adapter key to its instantiated default-adapter key."""
+
+    for component in ("lora_A", "lora_B"):
+        suffix = f".{component}.weight"
+        if key.endswith(suffix):
+            return f"{key[:-len(suffix)]}.{component}.default.weight"
+    raise ValueError(f"Phase10-C merge found a non-LoRA tensor: {key}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-model", type=Path, required=True)
@@ -58,7 +68,8 @@ def main() -> None:
     _require(not output.exists() and not manifest.exists() and not report.exists(), "Phase10-C merge refuses overwrite")
     _require(torch.cuda.is_available() and torch.cuda.device_count() == 2, "Phase10-C merge requires two GPUs")
 
-    from peft import PeftModel
+    from peft import LoraConfig, get_peft_model
+    from safetensors.torch import load_file
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     max_memory = {
@@ -74,7 +85,19 @@ def main() -> None:
         device_map="auto",
         max_memory=max_memory,
     )
-    model = PeftModel.from_pretrained(base, str(adapter), is_trainable=False)
+    # PEFT 0.19.1 attempts an incompatible Transformers WeightConverter path
+    # for this Qwen3.5 checkpoint.  Instantiate the exact saved LoRA contract,
+    # then load only its portable A/B tensors into the default adapter slots.
+    model = get_peft_model(base, LoraConfig.from_pretrained(str(adapter)))
+    portable = load_file(str(adapter / "adapter_model.safetensors"), device="cpu")
+    runtime = {canonical_runtime_lora_key(key): value for key, value in portable.items()}
+    expected = {
+        key for key in model.state_dict()
+        if key.endswith(".lora_A.default.weight") or key.endswith(".lora_B.default.weight")
+    }
+    _require(set(runtime) == expected, "Phase10-C merge LoRA key roster drift")
+    incompatible = model.load_state_dict(runtime, strict=False)
+    _require(not incompatible.unexpected_keys, "Phase10-C merge produced unexpected LoRA keys")
     merged = model.merge_and_unload(safe_merge=True, progressbar=True)
     tokenizer = AutoTokenizer.from_pretrained(str(base_model), local_files_only=True, trust_remote_code=True)
 
@@ -106,6 +129,8 @@ def main() -> None:
         "merged_model_manifest_sha256": built["sha256"],
         "merged_model_functional_sha256": checked["payload"]["functional_file_set_sha256"],
         "merge_method": "peft_merge_and_unload_safe_v1",
+        "adapter_load_method": "portable_lora_ab_direct_v1",
+        "adapter_tensor_count": len(runtime),
     }
     atomic_write_json(report, payload)
     print(json.dumps(payload, indent=2, sort_keys=True))
