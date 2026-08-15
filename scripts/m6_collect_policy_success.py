@@ -366,6 +366,22 @@ def validate_phase4_teacher_probe_contract(args: argparse.Namespace) -> None:
     _require(args.replay_prefix_root is None, "M6 Phase4 teacher probe cannot reuse a diagnostic prefix")
 
 
+def validate_phase9_shared_prefix_smoke_contract(args: argparse.Namespace) -> None:
+    """Freeze one eight-task SFT inference smoke with a shared public prefix."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase9 roster drift")
+    _require(args.adapter is not None, "M6 Phase9 requires the frozen SFT adapter")
+    _require(args.k == 4, "M6 Phase9 must use K4")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase9 must use the full horizon",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0, "M6 Phase9 task slicing is forbidden")
+    _require(args.maximum_action_tokens is None, "M6 Phase9 cannot claim a training token budget")
+    _require(args.replay_prefix_root is None, "M6 Phase9 cannot use the Phase2 replay source")
+    _require(args.shared_prefix_manifest is not None, "M6 Phase9 shared-prefix manifest is required")
+
+
 def _validate_group_run_contract(
     group: Mapping[str, Any],
     *,
@@ -422,8 +438,13 @@ async def _one_group(
     max_model_turns: int,
     max_environment_steps: int,
     replay_prefix_group: Mapping[str, Any] | None = None,
+    shared_prefix_spec: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     group_id = f"g{group_index:04d}"
+    _require(
+        replay_prefix_group is None or shared_prefix_spec is None,
+        "M6 rollout cannot combine Phase2 and Phase9 prefix sources",
+    )
     if replay_prefix_group is not None:
         replay_prefix_group = validate_committed_group(replay_prefix_group, require_k=k)
         _require(replay_prefix_group["group_id"] == group_id, "M6 Phase2 replay group id drift")
@@ -452,6 +473,12 @@ async def _one_group(
         "replay_prefix_group_content_sha256": (
             replay_prefix_group.get("content_sha256") if replay_prefix_group is not None else None
         ),
+        "shared_prefix_manifest_content_sha256": (
+            shared_prefix_spec.get("manifest_content_sha256") if shared_prefix_spec is not None else None
+        ),
+        "shared_prefix_source_group_content_sha256": (
+            shared_prefix_spec.get("source_group_content_sha256") if shared_prefix_spec is not None else None
+        ),
     }
     attempt_start["content_sha256"] = _self_hash(attempt_start)
     atomic_write_json(attempts_root / f"{group_id}.a{attempt_index}.started.json", attempt_start)
@@ -465,6 +492,13 @@ async def _one_group(
                 "M6 Phase2 replay rollout index drift",
             )
             source_turns = list(source_trajectory["turns"])
+        elif shared_prefix_spec is not None:
+            source_group = shared_prefix_spec["source_group"]
+            _require(source_group["task_id"] == task_id, "M6 Phase9 shared-prefix task drift")
+            source_trajectory = source_group["trajectories"][int(shared_prefix_spec["source_rollout_index"])]
+            prefix_turn_count = int(shared_prefix_spec["prefix_turn_count"])
+            _require(0 < prefix_turn_count < len(source_trajectory["turns"]), "M6 Phase9 prefix boundary drift")
+            source_turns = list(source_trajectory["turns"][:prefix_turn_count])
         context = RolloutRequestContext(
             run_seed=seed,
             iteration_index=iteration_index,
@@ -472,7 +506,7 @@ async def _one_group(
             attempt_index=attempt_index,
             trajectory_id=f"{group_id}.a{attempt_index}.r{rollout_index}",
             rollout_index=rollout_index,
-            shared_prefix_turns=0,
+            shared_prefix_turns=len(source_turns) if shared_prefix_spec is not None else 0,
             sampling_attempt_index=0,
         )
         backend = ThreadsafeVLLMBackend(
@@ -559,6 +593,15 @@ async def _one_group(
                     replay_backend.consumed_prefix_turns == len(source_turns),
                     "M6 Phase2 replay terminated before consuming the audited prefix",
                 )
+            if shared_prefix_spec is not None:
+                episode["shared_prefix_turns"] = len(source_turns)
+                episode["shared_prefix_manifest_content_sha256"] = shared_prefix_spec[
+                    "manifest_content_sha256"
+                ]
+                episode["shared_prefix_source_group_content_sha256"] = shared_prefix_spec[
+                    "source_group_content_sha256"
+                ]
+                episode["shared_prefix_exact_replay"] = True
             if episode.get("rollout_valid") is True:
                 episode = annotate_episode_with_verifier(episode, goal=goal)
             return episode
@@ -596,14 +639,30 @@ async def _one_group(
         trajectory_id = f"{group_id}.a{attempt_index}.r{rollout_index}"
         episode["trajectory_id"] = trajectory_id
         _atomic_episode(episodes_root / f"{trajectory_id}.json", episode)
-        trajectories.append(
-            trajectory_from_episode(
-                episode,
-                trajectory_id=trajectory_id,
-                rollout_index=rollout_index,
-                **lineage,
-            )
+        trajectory = trajectory_from_episode(
+            episode,
+            trajectory_id=trajectory_id,
+            rollout_index=rollout_index,
+            **lineage,
         )
+        if shared_prefix_spec is not None:
+            prefix_turns = int(episode["shared_prefix_turns"])
+            prefix_tokens = sum(
+                len(turn["generated_token_ids"]) for turn in trajectory["turns"][:prefix_turns]
+            )
+            trajectory.update(
+                shared_prefix_turns=prefix_turns,
+                shared_prefix_exact_replay=True,
+                prefix_policy_loss_eligible=False,
+                suffix_policy_turn_start=prefix_turns + 1,
+                prefix_generated_action_tokens=prefix_tokens,
+                suffix_generated_action_tokens=trajectory["generated_action_tokens"] - prefix_tokens,
+                shared_prefix_manifest_content_sha256=shared_prefix_spec["manifest_content_sha256"],
+                shared_prefix_source_group_content_sha256=shared_prefix_spec[
+                    "source_group_content_sha256"
+                ],
+            )
+        trajectories.append(trajectory)
     group = build_committed_group(
         task_id=task_id,
         group_id=group_id,
@@ -664,6 +723,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "phase4_teacher_probe",
             "phase4_online_rl_collection",
             "phase4_tuning_evaluation",
+            "phase9_shared_prefix_smoke",
         }
         else protocol["rl"]["group_size"]
     )
@@ -672,6 +732,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _require(
         args.replay_prefix_root is None or args.mode == "phase2_horizon_evaluation",
         "M6 prefix replay is restricted to the Phase2 horizon diagnostic",
+    )
+    _require(
+        getattr(args, "shared_prefix_manifest", None) is None or args.mode == "phase9_shared_prefix_smoke",
+        "M6 shared-prefix manifest is restricted to the Phase9 smoke",
     )
     if args.mode == "raw_collection":
         _require(args.role == "mini_train", "M6 Raw collection must use mini_train")
@@ -694,6 +758,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         validate_phase4_tuning_evaluation_contract(args)
     elif args.mode == "phase4_teacher_probe":
         validate_phase4_teacher_probe_contract(args)
+    elif args.mode == "phase9_shared_prefix_smoke":
+        validate_phase9_shared_prefix_smoke_contract(args)
+        _require(len(task_ids) == 8, "M6 Phase9 roster must contain exactly eight tasks")
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -757,6 +824,98 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "producer_git_sha": replay_report["git_sha"],
             "group_content_sha256": list(replay_report["group_content_sha256"]),
         }
+    shared_prefix_specs: dict[str, dict[str, Any]] = {}
+    shared_prefix_source: dict[str, Any] | None = None
+    if getattr(args, "shared_prefix_manifest", None) is not None:
+        manifest_path = args.shared_prefix_manifest.expanduser().resolve()
+        _require(
+            not ({"promotion", "holdout"} & {part.casefold() for part in manifest_path.parts}),
+            "M6 Phase9 manifest touches promotion/holdout",
+        )
+        manifest = _load_json(manifest_path)
+        _require(manifest.get("content_sha256") == _self_hash(manifest), "M6 Phase9 manifest self-hash drift")
+        _require(
+            manifest.get("schema_version") == "m6_phase9_shared_prefix_manifest_v1"
+            and manifest.get("complete") is True
+            and manifest.get("development_only") is True
+            and manifest.get("training_performed") is False
+            and manifest.get("optimizer_steps") == 0
+            and manifest.get("public_fields_only") is True
+            and manifest.get("target_asin_or_hidden_answer_used") is False
+            and manifest.get("post_action_internal_state_used") is False,
+            "M6 Phase9 manifest contract drift",
+        )
+        _require(
+            manifest.get("producer_git_sha") == git_sha
+            and manifest.get("protocol_sha256") == protocol_bundle["sha256"]
+            and manifest.get("split_lock_content_sha256") == split_lock["content_sha256"]
+            and manifest.get("task_roster_content_sha256") == roster_sha256
+            and manifest.get("task_order_sha256") == sha256_json(task_ids)
+            and manifest.get("K") == args.k
+            and manifest.get("task_count") == len(task_ids),
+            "M6 Phase9 manifest identity drift",
+        )
+        manifest_tasks = manifest.get("tasks")
+        _require(
+            isinstance(manifest_tasks, list)
+            and [row.get("task_id") for row in manifest_tasks] == task_ids,
+            "M6 Phase9 manifest task order drift",
+        )
+        for row in manifest_tasks:
+            root = Path(str(row["source_collection_root"])).expanduser().resolve()
+            _require(
+                not ({"promotion", "holdout"} & {part.casefold() for part in root.parts}),
+                "M6 Phase9 source touches promotion/holdout",
+            )
+            source_report = _load_json(root / "collection_report.json")
+            _require(
+                source_report.get("content_sha256") == _self_hash(source_report)
+                and source_report.get("content_sha256")
+                == row["source_collection_report_content_sha256"],
+                "M6 Phase9 source report binding drift",
+            )
+            group_path = root / "groups" / f"{row['source_group_id']}.json"
+            source_group = validate_committed_group(_load_json(group_path), require_k=args.k)
+            _require(
+                source_group["content_sha256"] == row["source_group_content_sha256"]
+                and source_group["content_sha256"] in source_report["group_content_sha256"]
+                and source_group["task_id"] == row["task_id"],
+                "M6 Phase9 source group binding drift",
+            )
+            rollout_index = int(row["source_rollout_index"])
+            _require(0 <= rollout_index < args.k, "M6 Phase9 source rollout index drift")
+            source_trajectory = source_group["trajectories"][rollout_index]
+            prefix_turn_count = int(row["prefix_turn_count"])
+            _require(0 < prefix_turn_count < len(source_trajectory["turns"]), "M6 Phase9 prefix boundary drift")
+            prefix_turns = source_trajectory["turns"][:prefix_turn_count]
+            commands = [str((turn.get("action") or {}).get("command", "")).strip() for turn in prefix_turns]
+            token_evidence = [
+                {
+                    "prompt_token_ids": list(turn["prompt_token_ids"]),
+                    "generated_token_ids": list(turn["generated_token_ids"]),
+                    "behavior_logprobs": list(turn["behavior_logprobs"]),
+                    "sampling_logprobs": list(turn["sampling_logprobs"]),
+                }
+                for turn in prefix_turns
+            ]
+            _require(
+                sha256_json(commands) == row["prefix_action_sequence_sha256"]
+                and sha256_json(token_evidence) == row["prefix_token_evidence_sha256"]
+                and re.fullmatch(r"click\[B[0-9A-Z]{9}\]", commands[-1], re.IGNORECASE) is not None,
+                "M6 Phase9 source prefix evidence drift",
+            )
+            spec = dict(row)
+            spec["source_group"] = source_group
+            spec["manifest_content_sha256"] = manifest["content_sha256"]
+            shared_prefix_specs[str(row["task_id"])] = spec
+        _require(set(shared_prefix_specs) == set(task_ids), "M6 Phase9 source roster incomplete")
+        shared_prefix_source = {
+            "manifest": str(manifest_path),
+            "manifest_content_sha256": manifest["content_sha256"],
+            "producer_git_sha": manifest["producer_git_sha"],
+            "policy_lineage": dict(manifest["policy_lineage"]),
+            "future_policy_loss_contract": dict(manifest["future_policy_loss_contract"]),
+        }
     # Reconstruct already charged budget before allocating GPU memory.  A
     # timeout after generation but before group commit must not receive a new
     # budget simply because this process restarted.
@@ -776,6 +935,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         _require(
             replay_report.get("policy_lineage") == dict(lineage),
             "M6 Phase2 replay source SFT policy drift",
+        )
+    if shared_prefix_source is not None:
+        _require(
+            shared_prefix_source["policy_lineage"] == dict(lineage),
+            "M6 Phase9 shared-prefix SFT policy drift",
         )
     loop = asyncio.get_running_loop()
     loop_thread_id = threading.get_ident()
@@ -808,6 +972,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "adapter": str(args.adapter.expanduser().resolve()) if args.adapter else None,
             "policy_lineage": dict(lineage),
             "replay_prefix_source": replay_prefix_source,
+            "shared_prefix_source": shared_prefix_source,
         }
         invocation["content_sha256"] = _self_hash(invocation)
         invocation_path = output / "invocation.json"
@@ -876,6 +1041,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         max_model_turns=args.max_model_turns,
                         max_environment_steps=args.max_environment_steps,
                         replay_prefix_group=replay_prefix_groups.get(f"g{index:04d}"),
+                        shared_prefix_spec=shared_prefix_specs.get(task_id),
                     )
                     for index, task_id in wave
                 )
@@ -942,6 +1108,21 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "policy_lineage": dict(lineage),
         "group_content_sha256": [group["content_sha256"] for group in groups],
         "replay_prefix_source": replay_prefix_source,
+        "shared_prefix_source": shared_prefix_source,
+        "exact_shared_prefix_replay_task_count": (
+            sum(
+                all(
+                    trajectory.get("shared_prefix_exact_replay") is True
+                    and trajectory.get("prefix_policy_loss_eligible") is False
+                    and int(trajectory.get("shared_prefix_turns", 0)) > 0
+                    for trajectory in group["trajectories"]
+                )
+                for group in groups
+            )
+            if shared_prefix_source is not None
+            else 0
+        ),
+        "future_policy_loss_scope": "suffix_tokens_only" if shared_prefix_source is not None else None,
         "elapsed_seconds": time.time() - args.started_at,
     }
     report["content_sha256"] = _self_hash(report)
@@ -962,6 +1143,7 @@ def parse_args() -> argparse.Namespace:
             "phase4_teacher_probe",
             "phase4_online_rl_collection",
             "phase4_tuning_evaluation",
+            "phase9_shared_prefix_smoke",
             "rl_collection",
         ),
         required=True,
@@ -980,6 +1162,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task-roster", type=Path)
     parser.add_argument("--task-roster-producer-git-sha")
     parser.add_argument("--replay-prefix-root", type=Path)
+    parser.add_argument("--shared-prefix-manifest", type=Path)
     parser.add_argument("--task-offset", type=int, default=0)
     parser.add_argument("--max-model-turns", type=int, default=18)
     parser.add_argument("--max-environment-steps", type=int, default=15)

@@ -917,3 +917,24 @@ optimizer step或adapter更新。
 在看到结果前冻结继续门：至少6/8任务精确重放前缀，至少4个任务形成strict mixed且same-item
 strict-partial对比，至少3个任务形成option contrast。smoke仍不训练；未通过就停止，不能直接扩大到
 20任务或RL更新。通过后才设计“共享前缀、只优化suffix token”的最小5-step trajectory-GRPO。
+
+## 30. Phase9 共享前缀K4 suffix smoke实现冻结
+
+本阶段只实现8-task推理smoke，不执行RL更新。确定性builder从Phase8的85个branchable task中以
+seed `20260833`按类别/约束bucket分层选8个，并为每个task绑定一条strict source trajectory：
+source collection/group自哈希、rollout index、截止最后公开ASIN click的prefix turn数、action序列
+hash和token/logprob证据hash。builder重新核对四份prescan、SFT-disjoint train role、同一SFT
+policy lineage和Phase8通过报告；不读取target ASIN、隐藏答案、post-action内部state、promotion或
+holdout。
+
+collector复用既有prefix replay backend。每个task的四条K4 rollout严格重放同一source prefix，
+逐turn比较rendered prompt、prompt/generated token、action以及pre/post public-state hash；prefix完成
+后才用rollout-specific seed从冻结SFT live-generate suffix。产物显式记录`shared_prefix_turns`、
+`prefix_policy_loss_eligible=false`、prefix/suffix token数和`suffix_policy_turn_start`；smoke本身
+`training_updates_allowed=false`且`optimizer_steps=0`。因此prefix token仍计入推理成本，但被排除在
+任何未来policy loss合同之外。运行资源冻结为1 GPU、4 CPU、24 GiB、24 h上限，K4、18/15，
+预计只需数分钟。
+
+继续门保持Phase8结果前已冻结的三项：至少6/8任务精确重放；至少4个任务同时形成strict mixed和
+same-item strict-partial；至少3个任务形成option contrast。未通过即停止，不扩到20任务、不训练；
+通过后也只允许设计一个5-step、仅优化suffix token的trajectory-GRPO小试。
