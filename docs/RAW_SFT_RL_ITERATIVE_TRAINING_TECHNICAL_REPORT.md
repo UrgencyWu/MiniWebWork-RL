@@ -978,3 +978,38 @@ monitor A 64、monitor B 64、RL train 40、dev3 500；split SHA为
 结论。下一步严格停在8个已暴露历史任务的端到端工程smoke：验证公开失败点、student/teacher同状态
 suffix、fresh-session strict replay、query provenance与token mask。smoke和matched single-update
 任一失败，都不得启用已冻结的32-task teacher qualification。
+## 33. Phase10 8-task 学生状态/教师 suffix 工程 smoke（2026-08-15）
+
+### 33.1 假设与唯一目的
+
+本阶段只验证计划中的工程链：从已暴露历史学生失败轨迹冻结公开 pre-Buy 状态，同一状态下分别让
+`pi_0=Qwen3.5-4B+pilot_sft` 与预注册教师 `Qwen3.6-35B-A3B-FP8` 各生成 K2 suffix；不训练、
+不作教师能力结论。所有 prefix 计入原始 18/15 总预算，future policy-loss 边界仅允许 suffix action
+token。8-task roster 与 state manifest 分别为 `eb3d7f20...` 与 `1e5ef228...`。
+
+### 33.2 运行与结果
+
+- student Job 2337：`COMPLETED 0:0`，1m24s；
+- teacher Job 2336：`COMPLETED 0:0`，2m33s；
+- 两臂均为 8 tasks × K2，共 32 条轨迹，`optimizer_steps=0`；
+- student/teacher 均 8/8 exact public prefix replay；8/8 task 的 correction prompt hash 跨身份一致；
+- student first-strict 2/16；teacher first-strict 2/16；teacher 两条 first-strict 均通过 fresh-session
+  full replay strict，重放稳定率 100%；
+- 所有 suffix query provenance 通过；student non-strict fresh replay failure class 稳定；
+- 学生 tokenizer 下所有 suffix assistant action label 非空，system/instruction/public observation/prefix
+  token 均保持 `-100`；
+- 最终 smoke audit 报告
+  `outputs/m6_monotonic_posttraining_v1/phase10_student_state_teacher_correction_v1/smoke/smoke_audit_report.json`
+  的 content SHA 为 `5a2937289e8db988dfe1f4fe40af271994df2a14fd12a90076d68973f7129aad`，全部预注册门通过。
+
+首次 CPU roster 构建发现部分历史状态已耗尽 15-step 环境预算；直接根因是 builder 错误地把单个
+不可用状态升级为全局失败。最小修复为只跳过 remaining budget 为零的状态，最终仍有 144 个合格
+候选。fresh replay 审计器随后补齐了“预算耗尽后已生成但未执行动作”的精确语义；两者均发生在
+训练前，无 GPU 训练、无参数更新，也未改变任务、seed、K、horizon 或门槛。
+
+### 33.3 决策
+
+工程 smoke 通过，只批准进入 matched single-update readiness probe。2/16 对 2/16 不说明教师优于
+学生；教师能力仍必须由独立 32-task qualification 的 20/32 task 门判定。在 single-update probe
+证明 source-weighted task/state/path loss、prefix gradient=0、action gradient>0、冻结 `pi_0`
+reference/retention 与恢复合同前，不提交 qualification 或 corrective SFT。

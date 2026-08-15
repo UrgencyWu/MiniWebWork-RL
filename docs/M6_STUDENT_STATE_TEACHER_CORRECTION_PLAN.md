@@ -1,6 +1,6 @@
 # M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
 
-> 状态：exposure union 与六角色 fresh split 已通过；8-task smoke / single-update readiness 未完成前禁止提交正式训练
+> 状态：exposure union、六角色 fresh split 与 8-task engineering smoke 已通过；single-update readiness 未完成前禁止提交正式训练
 >
 > 日期：2026-08-15
 >
@@ -497,6 +497,13 @@ teacher/rehearsal 两 arm 使用完全相同的 update、RNG、sampler schedule 
 - teacher suffix NLL 按预期下降；
 - `pi_0` fixed-state KL、retention 和参数位移在安全范围；
 - sampler/recovery 保存并恢复 source cursor、task/state/path order、optimizer、adapter 和全部 RNG。
+
+该探针在读取结果前冻结为：从同一 `pi_0` 起点各运行 teacher/rehearsal 一个 optimizer update，
+学习率沿用 M6 mini-SFT 的 `2e-5`、weight decay 0、gradient clip 1.0；`new/old-SFT/current-student`
+loss mass 精确为 `0.60/0.25/0.15`。两臂均要求 new-source NLL 严格下降、fixed-state sampled k3 KL
+`<=0.01`、old-SFT 与 current-student NLL 各自增加 `<=0.10 nat`、LoRA 相对 L2 位移位于
+`(0,0.01]`，且 optimizer-boundary recovery/RNG round-trip 完整通过。该一次更新的 adapter 标记为
+`formal_checkpoint_reusable=false`，只用于 readiness，不进入 qualification 或任何性能评测。
 
 ### 8.3 同状态自恢复探针与训练对照
 
