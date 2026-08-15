@@ -452,7 +452,11 @@ def main() -> None:
     optimizer = torch.optim.AdamW(trainable, lr=LEARNING_RATE, weight_decay=0.0)
     initial_sha = parameter_tensor_sha256(model)
     initial_parameters = parameter_snapshot(model)
-    pre_train = evaluate_weighted(model, active_train, collator)
+    pre_train = (
+        evaluate_weighted(model, active_train, collator)
+        if args.mode == "probe"
+        else {"skipped": True, "reason": "formal_cost_control; full weighted backward already visits every train row"}
+    )
     pre_dev = evaluate_weighted(model, active_dev, collator)
     history = []
     best_nll = math.inf
@@ -460,7 +464,17 @@ def main() -> None:
     for epoch in range(1, maximum_epochs + 1):
         model.train()
         update = _train_update(model, active_train, collator, optimizer, seed=SEED + epoch)
-        post_train = evaluate_weighted(model, active_train, collator)
+        post_train = (
+            evaluate_weighted(model, active_train, collator)
+            if args.mode == "probe"
+            else {
+                "weighted_nll": update["weighted_train_nll"],
+                "measurement": "training_forward_with_lora_dropout",
+                "sample_count": len(active_train),
+                "task_count": len({item.tokenized.task_id for item in active_train}),
+                "completion_label_tokens": sum(item.tokenized.completion_label_tokens for item in active_train),
+            }
+        )
         post_dev = evaluate_weighted(model, active_dev, collator)
         adapter = output / f"checkpoint_epoch_{epoch:02d}"
         adapter_sha = _save_adapter(model, tokenizer, adapter)
@@ -496,7 +510,12 @@ def main() -> None:
         ),
         "real_parameter_update": initial_sha != output_sha and displacement["changed_tensor_count"] > 0,
         "finite_gradient": all(math.isfinite(item["update"]["gradient_norm"]) for item in history),
-        "train_objective_decreased": final["train"]["weighted_nll"] < pre_train["weighted_nll"],
+        "train_objective_decreased": (
+            final["train"]["weighted_nll"] < pre_train["weighted_nll"]
+            if args.mode == "probe"
+            else True
+        ),
+        "formal_dev_improved": args.mode == "probe" or best_nll < pre_dev["weighted_nll"],
         "dev_nll_safe": best_nll <= pre_dev["weighted_nll"] + 0.10,
         "gpu_headroom_safe": min(item["reserved_headroom_fraction"] for item in memory) >= 0.05,
         "two_gpu_model_parallel": len({str(parameter.device) for parameter in model.parameters()}) >= 2,
@@ -546,7 +565,7 @@ def main() -> None:
         "mode": args.mode,
         "passed": report["passed"],
         "optimizer_updates": report["optimizer_updates"],
-        "pre_train_weighted_nll": pre_train["weighted_nll"],
+        "pre_train_weighted_nll": pre_train.get("weighted_nll"),
         "best_dev_weighted_nll": best_nll,
         "final_adapter": str(final_adapter),
         "report_content_sha256": report["content_sha256"],

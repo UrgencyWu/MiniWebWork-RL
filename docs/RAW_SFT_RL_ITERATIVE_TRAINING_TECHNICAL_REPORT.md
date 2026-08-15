@@ -1252,3 +1252,12 @@ vision tower和MTP全部冻结。损失逐row计算label-token mean CE，再乘�
 互异任务（nav1/match2/finish2，各row质量0.2）做单update探针；只在参数真实变化、有限梯度、train NLL
 下降、dev NLL不灾难性上升且两卡显存余量通过后，才提交最多2个full-corpus update。两个update是必要的
 最小值：默认LoRA的首个update主要改变零初始化的B矩阵，第二个update才允许A/B共同适配。
+
+单更新探针最终由Job 2364完成（此前2362/2363均在模型加载或optimizer前因入口身份检查退出，未更新
+参数）。正式探针使用5个互异train任务和5个互异dev任务，train weighted NLL从`0.024852`降至
+`0.022700`，dev从`0.050276`降至`0.042128`；gradient norm为`0.595084`，190个LoRA tensor均变化，
+relative displacement为`0.004629`。两张RTX PRO 6000 Blackwell各自peak reserved约35.61GB、余量
+65.08%；190个文本token-mixer module共8,125,440个trainable参数。报告SHA为
+`9b9ade93cd9d4fff61735758b64164ef2df49bbe9a533082d039350c24fdfd82`，报告与adapter哈希闭合，全部门通过。
+正式两更新训练保留每次完整975-row加权backward和每轮109-row独立dev，但取消重复的975-row全train
+前向评测；训练forward本身已完整覆盖所有row，该修改只减少计算，不改变梯度、权重或checkpoint选择。
