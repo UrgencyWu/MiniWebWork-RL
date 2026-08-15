@@ -305,7 +305,9 @@ def pair_report(*, student_root: Path, specialist_root: Path, identity: str) -> 
 
 def aggregate_reports(paths: list[Path], *, alignment_report: Path) -> dict[str, Any]:
     alignment = _load_hashed(alignment_report.expanduser().resolve())
-    _require(alignment.get("decision", {}).get("all_models_pass") is True,
+    _require(
+        alignment.get("all_models_pass") is True
+        or alignment.get("decision", {}).get("all_models_pass") is True,
              "Phase10-B logits alignment did not pass")
     reports = [_load_hashed(path.expanduser().resolve()) for path in paths]
     _require([report.get("identity") for report in reports] == list(IDENTITIES),

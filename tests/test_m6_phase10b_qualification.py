@@ -140,3 +140,20 @@ def test_qualification_wrapper_is_inference_only_and_model_bounded():
     assert "--tensor-parallel-size \"$tp\"" in job
     assert "optimizer" not in job
     assert "S_match:S_match" in job and "tp=2" in job
+
+
+def test_qualification_aggregate_accepts_current_top_level_alignment_gate(monkeypatch: pytest.MonkeyPatch):
+    evaluator = _module("m6_phase10b_qualification_aggregate", "scripts/m6_phase10b_specialist_qualification.py")
+    reports = {
+        "alignment": {"all_models_pass": True, "content_sha256": "a" * 64},
+        "nav": {"identity": "S_nav", "decision": {"specialist_qualified": False}, "content_sha256": "b" * 64},
+        "match": {"identity": "S_match", "decision": {"specialist_qualified": True}, "content_sha256": "c" * 64},
+        "finish": {"identity": "S_finish", "decision": {"specialist_qualified": True}, "content_sha256": "d" * 64},
+    }
+    monkeypatch.setattr(evaluator, "_load_hashed", lambda path: reports[path.name])
+    result = evaluator.aggregate_reports(
+        [Path("nav"), Path("match"), Path("finish")],
+        alignment_report=Path("alignment"),
+    )
+    assert result["qualified_specialists"] == ["S_match", "S_finish"]
+    assert result["decision"]["multi_specialist_opd_feasible"] is True
