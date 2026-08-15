@@ -384,7 +384,7 @@ def teacher_to_student_kl(student_logits: torch.Tensor, specialist_logits: torch
     specialist_log_probs = torch.log_softmax(specialist_logits.float() / temperature, dim=-1)
     specialist_probs = specialist_log_probs.exp()
     value = torch.sum(specialist_probs * (specialist_log_probs - student_log_probs), dim=-1).mean()
-    _require(torch.isfinite(value).item() and float(value) >= -1e-6, "Phase10-B KL is invalid")
+    _require(torch.isfinite(value).item() and float(value.detach()) >= -1e-6, "Phase10-B KL is invalid")
     return value * (temperature ** 2)
 
 
