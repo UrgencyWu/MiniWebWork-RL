@@ -82,6 +82,7 @@ PHASE10B_QUALIFICATION_MODELS = {
     "S_finish": Path("/data/share/model/Qwen3.6-35B-A3B-FP8").resolve(),
 }
 PHASE10B_QUALIFICATION_TASK_COUNTS = {"student": 24, "S_nav": 24, "S_match": 24, "S_finish": 24}
+PHASE10B_OPD_SMOKE_TASK_COUNT = 8
 
 
 def _require(condition: bool, message: str) -> None:
@@ -456,6 +457,30 @@ def validate_phase10b_specialist_qualification_contract(args: argparse.Namespace
         _require(args.tensor_parallel_size == expected_tp, "M6 Phase10-B Specialist tensor parallelism drift")
 
 
+def validate_phase10b_opd_smoke_behavior_contract(args: argparse.Namespace) -> None:
+    """Freeze an eight-task pi_0 behavior batch before any Specialist query."""
+
+    _require(args.role == "train" and args.task_roster is not None, "M6 Phase10-B OPD smoke roster drift")
+    _require(args.k == 4, "M6 Phase10-B OPD smoke must use K4")
+    _require(
+        (args.max_model_turns, args.max_environment_steps) == (18, 15),
+        "M6 Phase10-B OPD smoke must use the full horizon",
+    )
+    _require(args.maximum_tasks is None and args.task_offset == 0,
+             "M6 Phase10-B OPD smoke task slicing is forbidden")
+    _require(args.maximum_action_tokens is None, "M6 Phase10-B OPD smoke cannot claim a training token budget")
+    _require(args.replay_prefix_root is None, "M6 Phase10-B OPD smoke cannot replay a diagnostic prefix")
+    _require(args.shared_prefix_manifest is None and args.state_correction_manifest is None,
+             "M6 Phase10-B OPD smoke cannot use historical state manifests")
+    _require(args.base_model.expanduser().resolve() == PHASE10_STUDENT_MODEL,
+             "M6 Phase10-B OPD smoke Student model drift")
+    _require(
+        args.adapter is not None and args.adapter.expanduser().resolve() == PHASE10B_STUDENT_ADAPTER,
+        "M6 Phase10-B OPD smoke requires frozen pi_0",
+    )
+    _require(args.tensor_parallel_size == 1, "M6 Phase10-B OPD smoke tensor parallelism drift")
+
+
 def _validate_group_run_contract(
     group: Mapping[str, Any],
     *,
@@ -801,6 +826,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "phase4_tuning_evaluation",
             "phase9_shared_prefix_smoke",
             "phase10b_specialist_qualification",
+            "phase10b_opd_smoke_behavior",
         }
         else protocol["rl"]["group_size"]
     )
@@ -881,6 +907,19 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             len(task_ids) == PHASE10B_QUALIFICATION_TASK_COUNTS[args.phase10b_qualification_identity],
             "M6 Phase10-B qualification roster task count drift",
         )
+    elif args.mode == "phase10b_opd_smoke_behavior":
+        validate_phase10b_opd_smoke_behavior_contract(args)
+        smoke_roster = _load_json(args.task_roster)
+        _require(
+            smoke_roster.get("schema_version") == "m6_phase10b_opd_smoke_roster_v1"
+            and smoke_roster.get("phase10b_role") == "opd_smoke"
+            and smoke_roster.get("identity") == "student"
+            and smoke_roster.get("training_performed") is False
+            and smoke_roster.get("optimizer_steps") == 0,
+            "M6 Phase10-B OPD smoke roster identity drift",
+        )
+        _require(len(task_ids) == PHASE10B_OPD_SMOKE_TASK_COUNT,
+                 "M6 Phase10-B OPD smoke roster task count drift")
     else:
         _require(args.role == "mini_train" and args.task_roster is not None, "M6 RL collection curriculum drift")
     _require(not training_updates_allowed or args.adapter is not None, "M6 RL collection requires an adapter")
@@ -1328,6 +1367,7 @@ def parse_args() -> argparse.Namespace:
             "phase9_shared_prefix_smoke",
             "phase10_state_suffix_smoke",
             "phase10b_specialist_qualification",
+            "phase10b_opd_smoke_behavior",
             "rl_collection",
         ),
         required=True,

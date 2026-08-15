@@ -1068,3 +1068,33 @@ token的概率比位移敏感，说明continued-SFT更新方向仍显著改变�
 `formal_checkpoint_reusable=false`，不进入模型候选。32-task teacher qualification、corrective SFT和
 后续RL均不提交。本结果只否定当前等loss-mass rehearsal安全合同，不能解释为教师纠错本身无效；
 但在没有可接受对照前，不能继续声称可识别的teacher package增益。
+
+## 37. Phase10-B 多 Specialist OPD Gate0/Gate1 与资格采样启动
+
+Phase10-A的离线teacher-suffix corrective SFT在对照安全门停止后，本轮转为严格on-policy的多
+Specialist distillation：所有环境动作/token仍由`pi_0=Qwen3.5-4B+M6 SFT LoRA`生成；9B导航、
+35B匹配和Qwen3.6-35B收尾模型只在Student已经访问的完全相同token prefix上提供概率target，不把
+Specialist动作送入环境。部署模型仍是单一4B Student。
+
+Gate0已生成Phase10-B扩展exposure union和互斥fresh roles，共排除2,104个历史暴露task；资格三片
+各24任务，另冻结OPD smoke 8、OPD train 40、monitor A/B各64和一次性final dev 500。Gate1确认四模型
+共享`tokenizer.json` SHA `5f9e4d49...1cb42`、vocab 248,320、canonical action token逐位一致，并能接受
+Student chat-template prefix。最终alignment报告SHA为
+`01c749a513562caaf02b61e9ac40810610ac3167bfd9efbd26e4065523a034d7`，四模型全部通过。
+
+Qwen3.6 FP8的HF前向三次因外部kernel不可获取而在训练前失败（Jobs 2339_3、2343、2344）；这被明确
+归为离线集群后端问题。Job 2346改用vLLM原生FP8 loader，在同一Student token IDs上成功返回有限
+top-64 raw log-prob与rest mass，总概率质量闭合，未放宽token/action/prefix一致性门。
+
+Gate2冻结为三对独立K4配对采样，统一seed 20260851与18/15预算：三个Student arm各自匹配
+`S_nav`、`S_match`、`S_finish`的task order/group ID，避免用单一72-task Student arm造成sampling seed
+错位；`S_match`只因约70GB BF16 checkpoint使用2-GPU tensor parallel，其余arm均1 GPU。正式多
+Specialist OPD必须至少2/3候选分别通过`>=+5 pp` strict、paired net flips及专项安全门。资格结果未出
+前不提交OPD更新。
+
+Gate3的实现同时冻结为8-task×K4零更新smoke：先由`pi_0`独立采样behavior；公开路由器只看page type、
+available actions、selected marker、上一动作success、预算proxy和public-state hash；每turn最多路由一个
+已合格Specialist。目标查询强制复用Student prompt/action token IDs，只在Student assistant action token
+位置保存统一top-64+rest target；prefix、instruction和observation全部mask，Specialist token永不执行到
+环境。该smoke只验证可行性，`optimizer_steps=0`；至少两个已合格Specialist实际获得路由且所有target
+有限、质量闭合后，才允许进入matched single-update probe。

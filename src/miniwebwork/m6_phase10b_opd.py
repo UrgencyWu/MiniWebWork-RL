@@ -22,6 +22,9 @@ SPLIT_SCHEMA = "m6_phase10b_split_lock_v1"
 MODEL_MANIFEST_SCHEMA = "m6_phase10b_model_tokenizer_manifest_v1"
 LOGIT_PROBE_SCHEMA = "m6_phase10b_logit_alignment_probe_v1"
 LOGIT_MODEL_SCHEMA = "m6_phase10b_logit_alignment_model_v1"
+ROUTER_MANIFEST_SCHEMA = "m6_phase10b_public_router_manifest_v1"
+SPECIALIST_TARGET_SCHEMA = "m6_phase10b_specialist_token_targets_v1"
+OPD_SMOKE_REPORT_SCHEMA = "m6_phase10b_zero_update_opd_smoke_v1"
 SELECTION_SEED = 20260850
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -63,10 +66,118 @@ ROLE_COUNTS = {
     "opd_final_dev": 500,
 }
 
+SPECIALIST_IDENTITIES = ("S_nav", "S_match", "S_finish")
+ROUTER_MODEL_TURN_CAP = 18
+ROUTER_ENV_STEP_CAP = 15
+
 
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def _public_actions(observation: Mapping[str, Any]) -> tuple[str, ...]:
+    values = observation.get("available_actions") or []
+    _require(isinstance(values, list), "Phase10-B public available-actions drift")
+    return tuple(" ".join(str(value).strip().casefold().split()) for value in values)
+
+
+def _has_public_selected_marker(observation: Mapping[str, Any]) -> bool:
+    """Read only policy-visible selected markers, never internal option state."""
+
+    visible = str(observation.get("visible_text") or "")
+    return any(
+        marker in visible.casefold()
+        for marker in ("[selected]", "selected:", "selected =", "selected option")
+    )
+
+
+def frozen_public_router(
+    turn: Mapping[str, Any],
+    *,
+    qualified_specialists: Sequence[str],
+    previous_action_success: bool | None,
+    prior_public_state_sha256: Sequence[str],
+    model_turn_cap: int = ROUTER_MODEL_TURN_CAP,
+    environment_step_cap: int = ROUTER_ENV_STEP_CAP,
+) -> dict[str, Any]:
+    """Route one Student action turn from pre-action public evidence only."""
+
+    qualified = tuple(dict.fromkeys(str(value) for value in qualified_specialists))
+    _require(set(qualified) <= set(SPECIALIST_IDENTITIES), "Phase10-B qualified Specialist identity drift")
+    observation = turn.get("observation")
+    _require(isinstance(observation, Mapping), "Phase10-B routed turn lacks public observation")
+    turn_index = int(turn.get("turn_index", 0))
+    _require(turn_index > 0, "Phase10-B routed turn index drift")
+    state_sha = str(turn.get("pre_action_public_state_sha256") or "")
+    _require(SHA256_RE.fullmatch(state_sha) is not None, "Phase10-B routed public-state hash drift")
+    page_type = " ".join(str(observation.get("page_type") or "").strip().casefold().split())
+    actions = _public_actions(observation)
+    buy_available = any("buy now" in action for action in actions)
+    selected = _has_public_selected_marker(observation)
+    repeated = state_sha in set(prior_public_state_sha256)
+    remaining_model_turns = max(0, model_turn_cap - (turn_index - 1))
+    remaining_environment_steps_proxy = max(0, environment_step_cap - (turn_index - 1))
+
+    desired: str | None
+    rule: str
+    if previous_action_success is False or repeated or min(remaining_model_turns, remaining_environment_steps_proxy) <= 2:
+        desired, rule = "S_finish", "recovery_or_budget_boundary"
+    elif page_type in {"search", "search_results", "results", "list", "listing", "home"}:
+        desired, rule = "S_nav", "search_or_navigation_page"
+    elif page_type in {"item", "product", "product_detail"} and selected and buy_available:
+        desired, rule = "S_finish", "selected_option_near_purchase"
+    elif page_type in {"item", "product", "product_detail"}:
+        desired, rule = "S_match", "item_constraint_or_option_decision"
+    else:
+        desired, rule = None, "no_specialist_public_rule"
+    assigned = desired if desired in qualified else None
+    return {
+        "desired_specialist": desired,
+        "assigned_specialist": assigned,
+        "route_rule": rule,
+        "qualified_route_available": assigned is not None,
+        "public_features": {
+            "page_type": page_type,
+            "available_action_count": len(actions),
+            "buy_now_available": buy_available,
+            "selected_marker_present": selected,
+            "previous_action_success": previous_action_success,
+            "repeated_public_state": repeated,
+            "remaining_model_turns": remaining_model_turns,
+            "remaining_environment_steps_proxy": remaining_environment_steps_proxy,
+            "pre_action_public_state_sha256": state_sha,
+        },
+        "forbidden_fields_used": False,
+    }
+
+
+def compress_topk_logprobs(
+    values: Mapping[int, float],
+    *,
+    k: int,
+) -> dict[str, Any]:
+    """Canonicalize raw top-logprob output and account for omitted mass."""
+
+    _require(k > 0, "Phase10-B top-k must be positive")
+    rows = []
+    for token_id, logprob in values.items():
+        token = int(token_id)
+        value = float(logprob)
+        _require(0 <= token < 248320 and math.isfinite(value), "Phase10-B top-k token/logprob drift")
+        rows.append({"token_id": token, "logprob": value, "probability": math.exp(value)})
+    rows.sort(key=lambda row: (-row["logprob"], row["token_id"]))
+    rows = rows[:k]
+    _require(rows, "Phase10-B top-k target is empty")
+    top_mass = sum(float(row["probability"]) for row in rows)
+    _require(0.0 < top_mass <= 1.0 + 1e-5, "Phase10-B top-k probability mass drift")
+    rest_mass = max(0.0, 1.0 - top_mass)
+    return {
+        "topk": rows,
+        "topk_probability_mass": top_mass,
+        "rest_mass": rest_mass,
+        "probability_sum_abs_error": abs(top_mass + rest_mass - 1.0),
+    }
 
 
 def _self_hash(value: Mapping[str, Any]) -> str:
