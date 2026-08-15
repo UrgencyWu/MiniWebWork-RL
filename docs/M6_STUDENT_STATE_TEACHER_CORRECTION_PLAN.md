@@ -223,6 +223,7 @@ normalized instruction hash、暴露原因和来源产物 hash。该并集至少
 - SFT corpus train/dev 与历史 mini-dev、formal-dev、tuning-dev2；
 - M6 Phase1–Phase3 的所有 probe/diagnostic roster；
 - Phase4 三批 student prescan、16-task 9B/35B teacher probe、40-task online roster；
+- Phase5 tail-credit 与 Phase6 preterminal-credit 的探针、在线训练任务和对应已看评测任务；
 - Phase7 targeted prescan、Phase8 branchable source 和 Phase9 8-task smoke；
 - 所有虽未进入 optimizer、但已用于假设选择或数据筛选的任务。
 

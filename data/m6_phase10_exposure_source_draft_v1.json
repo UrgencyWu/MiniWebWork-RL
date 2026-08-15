@@ -1,0 +1,143 @@
+{
+  "schema_version": "m6_phase10_exposure_source_draft_v1",
+  "development_only": true,
+  "promotion_and_holdout_read": false,
+  "path_base": "..",
+  "sources": [
+    {
+      "label": "raw_mini_train_256",
+      "reason": "complete two-seed Raw mini_train exposure",
+      "expected_task_count": 256,
+      "extractor": "split_role",
+      "role": "mini_train",
+      "paths": ["outputs/m6_monotonic_posttraining_v1/locks/m6_webshop_split_v1.json"]
+    },
+    {
+      "label": "sft_train",
+      "reason": "SFT train corpus exposure",
+      "expected_task_count": 141,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/mini/corpus_v2/train.jsonl"]
+    },
+    {
+      "label": "sft_dev",
+      "reason": "SFT dev corpus exposure",
+      "expected_task_count": 15,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/mini/corpus_v2/dev.jsonl"]
+    },
+    {
+      "label": "mini_dev",
+      "reason": "historical mini-dev evaluation exposure",
+      "expected_task_count": 200,
+      "extractor": "split_role",
+      "role": "mini_dev",
+      "paths": ["outputs/m6_monotonic_posttraining_v1/locks/m6_webshop_split_v1.json"]
+    },
+    {
+      "label": "formal_dev",
+      "reason": "burned historical formal-dev exposure",
+      "expected_task_count": 500,
+      "extractor": "split_role",
+      "role": "formal_dev",
+      "paths": ["outputs/m6_monotonic_posttraining_v1/locks/m6_webshop_split_v1.json"]
+    },
+    {
+      "label": "tuning_dev2",
+      "reason": "burned Phase4 tuning-dev2 exposure",
+      "expected_task_count": 128,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase4_online_v1/tuning_rosters"]
+    },
+    {
+      "label": "phase1_diagnostics",
+      "reason": "Phase1 probe and seen-task diagnostic exposure",
+      "expected_task_count": 24,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase1_diagnostics_v1"]
+    },
+    {
+      "label": "phase2_diagnostics",
+      "reason": "Phase2 causal validation exposure",
+      "expected_task_count": 72,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase2_causal_validation_v1"]
+    },
+    {
+      "label": "phase3_diagnostics",
+      "reason": "Phase3 residual-credit validation exposure",
+      "expected_task_count": 8,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase3_residual_credit_v1"]
+    },
+    {
+      "label": "phase4_student_prescan_a",
+      "reason": "Phase4 student prescan partition A exposure",
+      "expected_task_count": 64,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase4_rl_data_v1/student_prescan/partition_a"]
+    },
+    {
+      "label": "phase4_student_prescan_b",
+      "reason": "Phase4 student prescan partition B exposure",
+      "expected_task_count": 64,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase4_rl_data_v1/student_prescan/partition_b"]
+    },
+    {
+      "label": "phase4_student_extension",
+      "reason": "Phase4 targeted student extension exposure",
+      "expected_task_count": 64,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase4_rl_data_v1/student_extension_v1/student_prescan/partition_a"]
+    },
+    {
+      "label": "phase4_teacher_probe_9b",
+      "reason": "Phase4 Qwen3.5-9B teacher probe exposure",
+      "expected_task_count": 16,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase4_rl_data_v1/teacher_probe_qwen35_9b_v1/prep/teacher_roster.json"]
+    },
+    {
+      "label": "phase4_teacher_probe_35b",
+      "reason": "Phase4 Qwen3.6-35B-A3B-FP8 teacher probe exposure",
+      "expected_task_count": 16,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase4_rl_data_v1/teacher_probe_qwen36_35b_a3b_fp8_v1/prep/teacher_roster.json"]
+    },
+    {
+      "label": "phase4_online_roster",
+      "reason": "Phase4 online RL 40-task exposure",
+      "expected_task_count": 40,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase4_online_v1/roster_40.json"]
+    },
+    {
+      "label": "phase5_credit_and_online",
+      "reason": "Phase5 tail-credit probe and online exposure",
+      "expected_task_count": 20,
+      "paths": [
+        "outputs/m6_monotonic_posttraining_v1/phase5_tail_credit_v1/report.json",
+        "outputs/m6_monotonic_posttraining_v1/phase5_tail2_online_v1/seed_20260827"
+      ]
+    },
+    {
+      "label": "phase6_credit_and_online",
+      "reason": "Phase6 preterminal-credit probe and online exposure",
+      "expected_task_count": 20,
+      "paths": [
+        "outputs/m6_monotonic_posttraining_v1/phase6_preterminal_credit_v1/report.json",
+        "outputs/m6_monotonic_posttraining_v1/phase6_preterminal_online_v1/seed_20260827"
+      ]
+    },
+    {
+      "label": "phase7_targeted_prescan",
+      "reason": "Phase7 targeted prescan exposure",
+      "expected_task_count": 32,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase7_targeted_prescan_v1/roster_32.json"]
+    },
+    {
+      "label": "phase8_prefix_feasibility",
+      "reason": "Phase8 branchable shared-prefix source exposure",
+      "expected_task_count": 85,
+      "paths": ["outputs/m6_monotonic_posttraining_v1/phase8_prefix_reset_feasibility_v1/report.json"]
+    },
+    {
+      "label": "phase9_shared_prefix_smoke",
+      "reason": "Phase9 shared-prefix smoke and selection exposure",
+      "expected_task_count": 8,
+      "paths": [
+        "outputs/m6_monotonic_posttraining_v1/phase9_shared_prefix_smoke_v1/roster_8.json",
+        "outputs/m6_monotonic_posttraining_v1/phase9_shared_prefix_smoke_v1/smoke_gate_report.json"
+      ]
+    }
+  ]
+}

@@ -51,6 +51,8 @@ def _source_ranges(tmp_path: Path) -> tuple[list[dict], set[int]]:
         "phase1_diagnostics": 5,
         "phase2_diagnostics": 5,
         "phase3_diagnostics": 5,
+        "phase5_credit_and_online": 20,
+        "phase6_credit_and_online": 20,
     }
     for label in sorted(REQUIRED_SOURCE_LABELS):
         count = FIXED_SOURCE_TASK_COUNTS[label] if label in FIXED_SOURCE_TASK_COUNTS else variable_counts[label]
@@ -62,15 +64,25 @@ def _source_ranges(tmp_path: Path) -> tuple[list[dict], set[int]]:
             cursor += count
         selected.update(indices)
         path = tmp_path / f"{label}.json"
-        _write_task_file(path, indices)
-        sources.append(
-            {
-                "label": label,
-                "reason": f"historical exposure from {label}",
-                "expected_task_count": count,
-                "paths": [path.name],
-            }
-        )
+        source = {
+            "label": label,
+            "reason": f"historical exposure from {label}",
+            "expected_task_count": count,
+            "paths": [path.name],
+        }
+        if label == "raw_mini_train_256":
+            path.write_text(json.dumps({
+                "roles": {
+                    "mini_train": {
+                        "goal_indices": indices,
+                        "task_ids": [_task_id(index) for index in indices],
+                    }
+                }
+            }), encoding="utf-8")
+            source.update({"extractor": "split_role", "role": "mini_train"})
+        else:
+            _write_task_file(path, indices)
+        sources.append(source)
     return sources, selected
 
 

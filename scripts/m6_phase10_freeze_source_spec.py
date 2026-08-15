@@ -25,7 +25,13 @@ def main() -> None:
     sources = draft.get("sources")
     if not isinstance(sources, list):
         raise ValueError("Phase10 source draft must contain a sources list")
-    report = freeze_source_spec(sources=sources, source_base_dir=draft_path.parent)
+    path_base = draft.get("path_base", ".")
+    if not isinstance(path_base, str) or not path_base:
+        raise ValueError("Phase10 source draft path_base must be a non-empty string")
+    report = freeze_source_spec(
+        sources=sources,
+        source_base_dir=(draft_path.parent / path_base).resolve(),
+    )
     publish_immutable_json(args.output, report)
     print(json.dumps({
         "output": str(args.output.expanduser().resolve()),

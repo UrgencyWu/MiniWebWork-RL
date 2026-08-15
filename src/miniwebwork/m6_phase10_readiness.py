@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 from collections import Counter
@@ -34,6 +35,8 @@ REQUIRED_SOURCE_LABELS = {
     "phase4_teacher_probe_9b",
     "phase4_teacher_probe_35b",
     "phase4_online_roster",
+    "phase5_credit_and_online",
+    "phase6_credit_and_online",
     "phase7_targeted_prescan",
     "phase8_prefix_feasibility",
     "phase9_shared_prefix_smoke",
@@ -51,7 +54,7 @@ FIXED_SOURCE_TASK_COUNTS = {
     "phase4_teacher_probe_35b": 16,
     "phase4_online_roster": 40,
     "phase7_targeted_prescan": 32,
-    "phase8_prefix_feasibility": 120,
+    "phase8_prefix_feasibility": 85,
     "phase9_shared_prefix_smoke": 8,
 }
 EXPECTED_SFT_UNION_TASK_COUNT = 156
@@ -134,6 +137,16 @@ def validate_source_spec(payload: Mapping[str, Any]) -> dict[str, Any]:
             isinstance(paths, list) and paths and all(isinstance(path, str) and path for path in paths),
             f"Phase10 source paths missing: {label}",
         )
+        extractor = source.get("extractor", "text_task_identity")
+        _require(
+            extractor in {"text_task_identity", "split_role"},
+            f"Phase10 source extractor drift: {label}",
+        )
+        if extractor == "split_role":
+            _require(
+                source.get("role") in {"mini_train", "mini_dev", "formal_dev"},
+                f"Phase10 split-role extractor is not an allowed historical role: {label}",
+            )
         _require(
             SHA256_RE.fullmatch(str(source.get("expected_source_content_sha256"))) is not None,
             f"Phase10 expected source hash missing: {label}",
@@ -193,10 +206,30 @@ def _file_inventory(files: Sequence[Path]) -> list[dict[str, Any]]:
         {
             "path": str(path),
             "sha256": sha256_file(path),
-            "matched_task_count": len(_task_indices_from_file(path)),
+            "size_bytes": path.stat().st_size,
         }
         for path in files
     ]
+
+
+def _source_task_indices(source: Mapping[str, Any], files: Sequence[Path]) -> set[int]:
+    extractor = source.get("extractor", "text_task_identity")
+    if extractor == "text_task_identity":
+        return set().union(*(_task_indices_from_file(path) for path in files))
+    _require(extractor == "split_role" and len(files) == 1, "Phase10 split-role source must bind one file")
+    payload = json.loads(files[0].read_text(encoding="utf-8"))
+    role = str(source["role"])
+    roles = payload.get("roles")
+    _require(isinstance(roles, Mapping) and isinstance(roles.get(role), Mapping), f"Phase10 split role missing: {role}")
+    item = roles[role]
+    indices = item.get("goal_indices")
+    task_ids = item.get("task_ids")
+    _require(isinstance(indices, list) and indices == sorted(set(indices)), f"Phase10 split role indices drift: {role}")
+    _require(
+        task_ids == [task_id_for_goal_index(index) for index in indices],
+        f"Phase10 split role task identities drift: {role}",
+    )
+    return set(indices)
 
 
 def freeze_source_spec(
@@ -215,6 +248,7 @@ def freeze_source_spec(
             "Phase10 source draft paths missing",
         )
         files = _expand_source_files(paths, base_dir=source_base_dir)
+        source["paths"] = [str(_safe_path(path, base_dir=source_base_dir)) for path in paths]
         source["expected_source_content_sha256"] = sha256_json(_file_inventory(files))
         frozen_sources.append(source)
     result = {
@@ -249,12 +283,9 @@ def build_exposure_union(
     source_bindings: list[dict[str, Any]] = []
     for source in sorted(spec["sources"], key=lambda item: str(item["label"])):
         files = _expand_source_files(source["paths"], base_dir=source_base_dir)
-        matched: set[int] = set()
+        matched = _source_task_indices(source, files)
         file_inventory = _file_inventory(files)
-        for path in files:
-            indices = _task_indices_from_file(path)
-            _require(all(index in goal_map for index in indices), f"Phase10 source task is outside goals: {path}")
-            matched.update(indices)
+        _require(all(index in goal_map for index in matched), f"Phase10 source task is outside goals: {source['label']}")
         source_content_sha256 = sha256_json(file_inventory)
         _require(
             source_content_sha256 == source["expected_source_content_sha256"],
