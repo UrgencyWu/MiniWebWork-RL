@@ -80,7 +80,7 @@ def test_phase10c_eval_contract_freezes_three_model_identities():
         phase10c_evaluation_identity="sft35",
         base_model=Path("/data/share/model/Qwen3.5-35B-A3B"),
         adapter=collector.PHASE10C_SFT35_ADAPTER,
-        tensor_parallel_size=2,
+        tensor_parallel_size=1,
     )
     collector.validate_phase10c_teacher_stage_evaluation_contract(sft35)
     sft4 = argparse.Namespace(
@@ -91,7 +91,7 @@ def test_phase10c_eval_contract_freezes_three_model_identities():
         tensor_parallel_size=1,
     )
     collector.validate_phase10c_teacher_stage_evaluation_contract(sft4)
-    sft35.tensor_parallel_size = 1
+    sft35.tensor_parallel_size = 2
     with pytest.raises(ValueError, match="SFT35 identity"):
         collector.validate_phase10c_teacher_stage_evaluation_contract(sft35)
 

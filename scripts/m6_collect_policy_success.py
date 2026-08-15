@@ -282,6 +282,12 @@ async def _create_identity(
                 seed=seed,
                 tensor_parallel_size=tensor_parallel_size,
                 max_lora_rank=lora_rank,
+                gpu_memory_utilization=(
+                    0.8
+                    if base_model.expanduser().resolve() == PHASE10C_TEACHER_MODEL
+                    and tensor_parallel_size == 1
+                    else 0.5
+                ),
                 **lineage,
             )
         )
@@ -555,7 +561,7 @@ def validate_phase10c_teacher_stage_evaluation_contract(args: argparse.Namespace
         _require(
             args.adapter is not None
             and args.adapter.expanduser().resolve() == PHASE10C_SFT35_ADAPTER
-            and args.tensor_parallel_size == 2,
+            and args.tensor_parallel_size == 1,
             "M6 Phase10-C SFT35 identity drift",
         )
     else:

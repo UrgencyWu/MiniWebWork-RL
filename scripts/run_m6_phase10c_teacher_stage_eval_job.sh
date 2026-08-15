@@ -40,7 +40,10 @@ case "$M6_PHASE10C_EVAL_IDENTITY" in
     base_model=/data/share/model/Qwen3.5-35B-A3B
     base_manifest="$study_root/phase10b_multi_specialist_opd_v1/base_model_manifests/S_match.json"
     adapter_args=(--adapter "$phase_root/teacher_self_sft_v1/weighted_lora_v1/final_adapter")
-    tp=2
+    # vLLM 0.17 cannot activate packed Qwen3.5 LoRA slices under TP=2.
+    # The 35B-A3B BF16 checkpoint fits one 102GB device at the frozen 0.8
+    # engine memory fraction; sampling semantics stay identical to Raw35.
+    tp=1
     ;;
   sft4)
     base_model=/data/share/model/Qwen3.5-4B

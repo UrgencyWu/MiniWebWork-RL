@@ -94,7 +94,10 @@ class M5VLLMBackendConfig(VLLMBackendConfig):
         _require(self.dtype == "bfloat16", "M5 vLLM dtype drift")
         _require(self.max_model_len == MAX_SEQUENCE_TOKENS, "M5 vLLM context drift")
         _require(self.max_new_tokens == MAX_NEW_TOKENS, "M5 vLLM turn-token cap drift")
-        _require(math.isclose(self.gpu_memory_utilization, 0.5), "M5 vLLM memory fraction drift")
+        _require(
+            any(math.isclose(self.gpu_memory_utilization, value) for value in (0.5, 0.8)),
+            "M5 vLLM memory fraction drift",
+        )
         _require(self.max_num_seqs == 32, "M5 vLLM concurrency drift")
         _require(self.enforce_eager is True, "M5 vLLM eager-mode gate disabled")
         _require(self.adapter_id == 1 and self.stream_interval == 8, "M5 vLLM adapter/stream contract drift")
