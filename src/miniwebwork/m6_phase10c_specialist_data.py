@@ -21,6 +21,7 @@ QUERY_STOPWORDS = frozenset({
     "high", "quality", "performance", "power", "definition", "looking", "find", "want", "would", "like",
 })
 ASIN_RE = re.compile(r"^B[0-9A-Z]{9}$", re.IGNORECASE)
+EMBEDDED_ASIN_RE = re.compile(r"\bB[0-9A-Z]{9}\b", re.IGNORECASE)
 WORD_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
 SPECIALIST_FAMILIES = {
     "S_nav_sft": frozenset({"search", "navigation", "candidate"}),
@@ -126,7 +127,13 @@ def _goal_options(raw: Any) -> tuple[str, ...]:
     return result
 
 
-def build_verified_public_query_trajectory(environment: Any, goal: Mapping[str, Any]) -> dict[str, Any]:
+def build_verified_public_query_trajectory(
+    environment: Any,
+    goal: Mapping[str, Any],
+    *,
+    external_query_candidates: Sequence[str] | None = None,
+    query_formula: str = PUBLIC_QUERY_FORMULA,
+) -> dict[str, Any]:
     """Use hidden metadata only to choose among actions already public on-page."""
 
     goal_index = goal.get("goal_index")
@@ -198,7 +205,22 @@ def build_verified_public_query_trajectory(environment: Any, goal: Mapping[str, 
                 probe_observation = probe_result.observation
         return False
 
-    query_candidates = public_instruction_query_candidates(str(goal.get("instruction") or ""))
+    if external_query_candidates is None:
+        query_candidates = public_instruction_query_candidates(str(goal.get("instruction") or ""))
+    else:
+        query_candidates = tuple(dict.fromkeys(str(value).strip() for value in external_query_candidates if str(value).strip()))
+        if not 1 <= len(query_candidates) <= 2:
+            raise SpecialistDataFailure("no_valid_external_query_candidates")
+        for candidate in query_candidates:
+            if len(candidate) > MAX_SEARCH_QUERY_CHARACTERS:
+                raise SpecialistDataFailure("external_query_too_long")
+            if "[" in candidate or "]" in candidate:
+                raise SpecialistDataFailure("external_query_contains_delimiters")
+            embedded_asin = EMBEDDED_ASIN_RE.search(candidate)
+            if embedded_asin is not None and embedded_asin.group(0).casefold() not in str(
+                goal.get("instruction") or ""
+            ).casefold():
+                raise SpecialistDataFailure("external_query_introduced_unseen_asin")
     query = next((candidate for candidate in query_candidates if target_is_public_for_query(candidate)), "")
     if not query:
         raise SpecialistDataFailure("target_not_in_public_top50_for_instruction_query_candidates")
@@ -252,8 +274,9 @@ def build_verified_public_query_trajectory(environment: Any, goal: Mapping[str, 
         "goal_index": goal_index,
         "strict_success": True,
         "task_score": score,
-        "query_tokens_from_public_instruction_only": True,
-        "public_query_formula": PUBLIC_QUERY_FORMULA,
+        "query_tokens_from_public_instruction_only": external_query_candidates is None,
+        "query_generator_input_is_public_instruction_only": True,
+        "public_query_formula": query_formula,
         "public_query_candidate_count": len(query_candidates),
         "selected_public_query_rank": query_candidates.index(query) + 1,
         "offline_verifier_metadata_used_only_for_public_action_selection": True,
@@ -273,6 +296,8 @@ def build_specialist_smoke_corpus(
     phase10c_split_content_sha256: str,
     producer_git_sha: str,
     minimum_verified_tasks: int = 12,
+    query_candidates_by_task: Mapping[str, Sequence[str]] | None = None,
+    query_formula: str = PUBLIC_QUERY_FORMULA,
 ) -> dict[str, Any]:
     _require(specialist in SPECIALIST_FAMILIES, "Phase10-C specialist identity drift")
     _require(len(task_ids) == len(set(task_ids)) == 16, "Phase10-C smoke task count drift")
@@ -284,10 +309,22 @@ def build_specialist_smoke_corpus(
     family_counts: Counter[str] = Counter()
     for task_id in task_ids:
         _require(task_id in goal_map, "Phase10-C smoke task missing from goals")
+        if query_candidates_by_task is not None and not query_candidates_by_task.get(task_id):
+            rejection_counts["no_valid_external_query_candidates"] += 1
+            continue
         environment = environment_factory()
         try:
             try:
-                trajectory = build_verified_public_query_trajectory(environment, goal_map[task_id])
+                trajectory = build_verified_public_query_trajectory(
+                    environment,
+                    goal_map[task_id],
+                    external_query_candidates=(
+                        query_candidates_by_task.get(task_id)
+                        if query_candidates_by_task is not None
+                        else None
+                    ),
+                    query_formula=query_formula,
+                )
             except SpecialistDataFailure as exc:
                 rejection_counts[str(exc)] += 1
                 continue
@@ -334,9 +371,11 @@ def build_specialist_smoke_corpus(
         "label_action_family_counts": dict(sorted(family_counts.items())),
         "rejection_counts": dict(sorted(rejection_counts.items())),
         "source_trajectory_content_sha256": dict(sorted(full_trajectory_hashes.items())),
-        "query_tokens_from_public_instruction_only": True,
-        "public_query_formula": PUBLIC_QUERY_FORMULA,
-        "maximum_public_query_candidates": 3,
+        "query_tokens_from_public_instruction_only": query_candidates_by_task is None,
+        "query_generator_input_is_public_instruction_only": True,
+        "public_query_formula": query_formula,
+        "maximum_public_query_candidates": 2 if query_candidates_by_task is not None else 3,
+        "query_generator_is_external_model": query_candidates_by_task is not None,
         "offline_verifier_metadata_used_only_for_public_action_selection": True,
         "policy_input_contains_hidden_metadata": False,
         "fresh_session_strict_replay_required": True,

@@ -1173,3 +1173,8 @@ query v2把nav verified由4/16提高到7/16，但仍未过门，9个失败仍为
 CPU实验v3只增加“每条公开instruction预生成最多3个固定压缩query并选择可重放者”；候选token仍全是
 instruction子集，最终label从fresh reset重放。若v3仍低于12/16，不再继续调query规则，转为独立评估
 35B public-query generator或停止规则式专家数据方向。
+
+v3最终为8/16 verified、29个nav action rows，未过门，因此规则式query方向停止。下一最小实验仅让
+`Qwen3.5-35B-A3B`对相同16条public instruction各生成2个query候选；模型不看target/option/score，
+候选不得含未在instruction出现的ASIN。环境仍从fresh reset验证目标是否进入公开top-50并完成严格轨迹。
+该Job只生成query与数据，2 GPU、0 optimizer step；达到12/16才允许教师单更新probe。

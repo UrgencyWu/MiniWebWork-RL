@@ -81,7 +81,7 @@ def test_failed_smoke_returns_a_persistent_stop_report(monkeypatch: pytest.Monke
     monkeypatch.setattr(
         module,
         "build_verified_public_query_trajectory",
-        lambda environment, goal: (_ for _ in ()).throw(module.SpecialistDataFailure("not_public")),
+        lambda environment, goal, **_kwargs: (_ for _ in ()).throw(module.SpecialistDataFailure("not_public")),
     )
     tasks = [f"webshop_goal_{index:05d}" for index in range(16)]
     goals = [{"goal_index": index} for index in range(16)]
@@ -97,3 +97,42 @@ def test_failed_smoke_returns_a_persistent_stop_report(monkeypatch: pytest.Monke
     assert report["decision"] == "stop_specialist_data_method"
     assert report["verified_task_count"] == 0
     assert report["rejection_counts"] == {"not_public": 16}
+
+
+def test_qwen35_query_parser_accepts_json_and_rejects_unseen_asin():
+    from scripts.m6_phase10c_qwen35_query_smoke import parse_query_completion
+
+    assert parse_query_completion('{"query":"butterfly hair clip women"}', instruction="find a butterfly clip") \
+        == "butterfly hair clip women"
+    with pytest.raises(ValueError, match="unseen ASIN"):
+        parse_query_completion('{"query":"B012345678"}', instruction="find a butterfly clip")
+
+
+def test_external_query_missing_task_is_persisted_as_a_data_rejection(monkeypatch: pytest.MonkeyPatch):
+    import miniwebwork.m6_phase10c_specialist_data as module
+
+    monkeypatch.setattr(module, "build_verified_public_query_trajectory", lambda *_args, **_kwargs: None)
+    tasks = [f"webshop_goal_{index:05d}" for index in range(16)]
+    goals = [{"goal_index": index} for index in range(16)]
+    report = module.build_specialist_smoke_corpus(
+        specialist="S_nav_sft",
+        goals=goals,
+        task_ids=tasks,
+        environment_factory=lambda: None,
+        phase10c_split_content_sha256="split",
+        producer_git_sha="0" * 40,
+        query_candidates_by_task={},
+    )
+    assert report["verified_task_count"] == 0
+    assert report["rejection_counts"] == {"no_valid_external_query_candidates": 16}
+    assert report["query_tokens_from_public_instruction_only"] is False
+    assert report["query_generator_input_is_public_instruction_only"] is True
+
+
+def test_qwen35_query_wrapper_is_query_only_and_two_gpu():
+    from pathlib import Path
+
+    wrapper = (Path(__file__).resolve().parents[1] / "scripts/run_m6_phase10c_qwen35_query_smoke_job.sh").read_text()
+    assert "#SBATCH --gres=gpu:2" in wrapper
+    assert "m6_phase10c_qwen35_query_smoke.py" in wrapper
+    assert "optimizer" not in wrapper
