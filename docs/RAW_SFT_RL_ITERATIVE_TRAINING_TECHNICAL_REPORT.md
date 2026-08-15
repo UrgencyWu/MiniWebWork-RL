@@ -887,3 +887,17 @@ task仍为77。same-item强对比任务从11增加到15，option-contrast任务�
 该自采样数据方向停止。下一项若继续验证数据质量，只允许先做零GPU的共享公开前缀可行性诊断：检查
 既有轨迹能否在同一公开商品页前缀上重放并分支option/购买决策。只有覆盖足够时才考虑prefix-reset
 suffix rollouts；否则不实现新collector，也不提交训练。
+
+## 28. Phase8 共享公开前缀可行性预注册
+
+Phase7表明从任务起点独立重采样仍主要在不同商品之间分叉。Phase8不训练、不新增采样，先检查
+能否把现有strict-success轨迹的公开成功action链重放到同一个商品页，再从该共同状态采样suffix。
+前缀严格结束在`Buy Now`前最后一次公开ASIN click；只接受从起点到该click的每个
+`action_result.success=true`。商品页状态从下一turn的policy-visible observation读取，只使用
+`page_type`与`available_actions`，不读取post-action内部state、target ASIN、隐藏答案或完整正文。
+
+目标必须含明确option约束；product页公开click actions排除搜索、Description/Features/Reviews、
+Back to Search、Buy Now、分页导航和ASIN后，至少剩两个不同值才算branchable。四份prescan按task
+去重并保留最短可重放前缀，只记录action sequence与option集合的hash。门槛在结果前冻结：至少20个
+replayable任务且其中至少12个branchable，才允许设计共享前缀K4 suffix rollout；否则停止
+prefix-reset方向。该诊断全程CPU，`optimizer_steps=0`，不会产生adapter或策略更新。
