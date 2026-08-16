@@ -1,5 +1,8 @@
 # M6 Phase10：学生状态教师纠错蒸馏与学生在线 GRPO 计划
 
+> 上位研究假设与完整结果分支见
+> [`M6_MODEL_SCALE_SELF_CORRECTION_OPD_HYPOTHESIS.md`](M6_MODEL_SCALE_SELF_CORRECTION_OPD_HYPOTHESIS.md)。
+
 > 状态：原“单教师纠错 SFT -> 学生 GRPO”路径在 equal-source-loss-mass single-update readiness 中因
 > rehearsal fixed-state KL=`0.03016 > 0.01` 停止，未进入 qualification 或正式训练；本文件新增
 > Phase10-B 多 Specialist On-policy Distillation（OPD）后续计划，目前只完成模型可用性/tokenizer

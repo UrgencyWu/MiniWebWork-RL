@@ -1330,3 +1330,23 @@ match `44 vs 42`（+1.562 pp）、finish `36 vs 35`（+0.781 pp）。match/finis
 5 pp，不足以声明专项教师优势。结论是：新范式成功修复35B自SFT，但当前93-task自探索语料尚未让35B
 稳定超过成熟SFT4 Student；不得据此启动正式multi-Specialist OPD。下一轮若继续，应增加35B专项能力
 语料和同状态纠错质量，而不是继续增加同一语料的epoch或把参数规模当作教师资格。
+
+### 43. Phase10-D 同语料模型规模screen：`S4(D4)` 对 `S35(D4)`
+
+上一节的`SFT4(D4)≈SFT35(D35)`混合了模型规模与训练数据来源，不能回答35B是否比4B更能吸收同一批
+监督信息。本阶段只新增`S35(D4)`：从Raw Qwen3.5-35B-A3B起点读取现有SFT4的冻结D4 JSONL，
+不重新采样、不增删任务、不引入D35能力权重。D4当前身份固定为train 2209行/141任务、dev 232行/
+15任务，train/dev文件SHA分别为`9f8dcd1f...df1e`与`1de4a6f...67a`，两者任务零重叠。
+
+损失合同严格迁移原4B范式：每个optimizer update含9个imitation action row，先把每行completion-only
+CE按其有效action token数合并，再除以9行全部有效token数；不使用task/path等权，也不使用D35的
+nav/match/finish=`20/40/40`重加权。正式一轮为`floor(2209/9)=245`次更新、2205行进入监督，4行
+确定性unused。LR=`2e-5`、LoRA `r16/alpha32/dropout0.05`、35B的310个有界target module以及
+Raw-reference KL系数`0.03`均沿用已经证明`Raw35<SFT35(D35)`的35B训练配置。
+
+跨模型时不能复用D4 `retention.json`中的Raw4 token ID。`S35(D4)`只复用D4的public prompt/action
+信息，由35B tokenizer重新编码，并在LoRA关闭时以Raw35计算相同action上的reference logprob；因此
+retention仍控制向各自Raw起点的漂移，而不会把Raw4分布错误注入35B。实现先运行冻结正式schedule前两批、
+共18个imitation row的2-update探针；仅在语料哈希、无截断token边界、有限非零梯度、真实参数变化、
+Raw35 retention与dev NLL安全全部通过后，才运行245-update正式训练。该阶段的唯一主要变化是承载
+同一D4监督目标的模型规模，正式checkpoint仍需与`SFT4(D4)`做同task/K/seed/horizon配对环境评测。
