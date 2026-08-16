@@ -37,7 +37,10 @@ min_free_mib="${M6_MIN_FREE_MIB_PER_GPU:-60000}"
 # M6_CUDA_VISIBLE_DEVICES are normalized to the comma list vLLM expects.
 selected_devices="$(printf '%s' "${M6_CUDA_VISIBLE_DEVICES:-$CUDA_VISIBLE_DEVICES}" | sed 's/[:, ]/,/g')"
 for dev in ${selected_devices//,/ }; do
-  free_mib="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$dev")"
+  # nvidia-smi -i indexes CUDA_VISIBLE_DEVICES, which Slurm already narrowed
+  # to its own (physical-agnostic) assignment; unset it to query physical IDs.
+  free_mib="$(env -u CUDA_VISIBLE_DEVICES nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$dev")"
+  case "$free_mib" in ''|*[!0-9]*) echo "refusing to start: GPU $dev is not queryable ($free_mib)" >&2; exit 3 ;; esac
   if [ "$free_mib" -lt "$min_free_mib" ]; then
     echo "refusing to start: GPU $dev has ${free_mib}MiB free (< ${min_free_mib}MiB)" >&2
     exit 3
