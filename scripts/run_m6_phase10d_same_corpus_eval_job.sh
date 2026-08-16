@@ -33,7 +33,9 @@ curl --fail --silent --show-error --max-time 30 "$M6_SERVICE_BASE_URL/health" >/
 # M6_CUDA_VISIBLE_DEVICES.  Either way every device used below must pass a
 # physical free-memory gate before any model memory is touched.
 min_free_mib="${M6_MIN_FREE_MIB_PER_GPU:-60000}"
-selected_devices="${M6_CUDA_VISIBLE_DEVICES:-$CUDA_VISIBLE_DEVICES}"
+# sbatch --export cannot carry commas inside values, so colons or spaces in
+# M6_CUDA_VISIBLE_DEVICES are normalized to the comma list vLLM expects.
+selected_devices="$(printf '%s' "${M6_CUDA_VISIBLE_DEVICES:-$CUDA_VISIBLE_DEVICES}" | sed 's/[:, ]/,/g')"
 for dev in ${selected_devices//,/ }; do
   free_mib="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$dev")"
   if [ "$free_mib" -lt "$min_free_mib" ]; then
