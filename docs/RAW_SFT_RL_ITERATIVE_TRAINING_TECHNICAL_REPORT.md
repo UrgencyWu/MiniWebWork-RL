@@ -1299,3 +1299,17 @@ teacher-forced改善稳定转化为闭环策略改善。
 两卡探针；只有显存余量、有限非零梯度、Raw retention KL、真实参数变化与dev安全均通过，才从Raw35
 重新开始108-update正式训练。正式模型仍须在同任务、同K4、同seed的环境中先证明`Raw35<SFT35-v2`，
 通过后才与SFT4 Student比较，不能用NLL下降替代闭环增益。
+
+两更新探针Job 2376已`COMPLETED 0:0`：310个目标module（190个token mixer加120个shared-expert
+MLP）共21,166,080个可训练参数，2/2 update真实执行；probe dev weighted NLL从`0.092900`降到
+`0.081625`，Raw retention KL均值为`2.29e-5`，全部训练门通过。正式Job 2377从Raw35重新初始化，
+以同一冻结语料完成108/108 update，972/975条imitation row进入梯度，能力质量精确保持20/40/40；
+耗时`01:10:17`，dev weighted NLL从`0.073977`降至`0.061211`，620个LoRA tensor全部改变，
+relative displacement=`0.025915`，报告SHA为
+`9836d7dd567c664d435baa6ed056d1c0e19ddb6fdb992a837bb890cea4686f72`。训练工程门全部通过，
+但NLL改善仍不构成闭环性能结论。
+
+后续验证冻结为两级：先将该rank16/310-target adapter合并进完整Raw35 shards，并复用上一轮已完成的
+同一96-task/K4/seed20260864 Raw35轨迹，只重新运行新SFT35 arm，判断`Raw35<SFT35-v2`；只有
+strict point gain、task-level和trajectory-level净flip均为正，才打开qualification集上的
+`SFT35-v2 vs SFT4B`配对评测。不得因上一版SFT35失败而重采Raw基线或更换task/seed/horizon。

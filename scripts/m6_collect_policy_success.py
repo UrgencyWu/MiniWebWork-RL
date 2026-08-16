@@ -90,7 +90,7 @@ PHASE10C_SFT35_ADAPTER = Path(
 ).resolve()
 PHASE10C_SFT35_MERGED_MODEL = Path(
     "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/"
-    "phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v1/merged_model_v2/model"
+    "phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v2_4b_paradigm/merged_model_v1/model"
 ).resolve()
 PHASE10C_EVALUATION_MODELS = {
     "raw35": PHASE10C_TEACHER_MODEL,

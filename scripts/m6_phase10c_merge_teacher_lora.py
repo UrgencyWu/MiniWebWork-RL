@@ -73,6 +73,9 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--expected-git-sha", required=True)
+    parser.add_argument("--expected-lora-r", type=int, default=8)
+    parser.add_argument("--expected-lora-alpha", type=int, default=16)
+    parser.add_argument("--expected-target-count", type=int, default=190)
     args = parser.parse_args()
 
     base_model = args.base_model.expanduser().resolve()
@@ -89,11 +92,13 @@ def main() -> None:
         path=base_manifest, expected_base_model=base_model, verify_files=True
     )
     adapter_config = json.loads((adapter / "adapter_config.json").read_text(encoding="utf-8"))
-    _require(adapter_config.get("r") == 8 and adapter_config.get("lora_alpha") == 16,
+    _require(
+        adapter_config.get("r") == args.expected_lora_r
+        and adapter_config.get("lora_alpha") == args.expected_lora_alpha,
              "Phase10-C merge LoRA scale drift")
     scale = float(adapter_config["lora_alpha"]) / float(adapter_config["r"])
     pairs = _adapter_pairs(adapter)
-    _require(len(pairs) == 190, "Phase10-C merge target count drift")
+    _require(len(pairs) == args.expected_target_count, "Phase10-C merge target count drift")
     weight_index = json.loads((base_model / "model.safetensors.index.json").read_text(encoding="utf-8"))
     weight_map = weight_index["weight_map"]
     _require(set(pairs).issubset(weight_map), "Phase10-C merge target missing from Raw35")
@@ -151,6 +156,9 @@ def main() -> None:
         "merge_method": "complete_raw35_shard_lora_delta_v2",
         "adapter_tensor_count": len(pairs) * 2,
         "merged_target_count": len(pairs),
+        "expected_lora_r": args.expected_lora_r,
+        "expected_lora_alpha": args.expected_lora_alpha,
+        "expected_target_count": args.expected_target_count,
         "lora_scale": scale,
         "all_delta_norms_finite_positive": all(value > 0 and torch.isfinite(torch.tensor(value)) for value in delta_norms.values()),
         "unchanged_weight_count": len(weight_map) - len(pairs),

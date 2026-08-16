@@ -115,6 +115,10 @@ def test_merge_wrapper_is_inference_only_and_atomic():
     assert '"optimizer_steps": 0' in runtime
     assert "temporary.replace(output)" in runtime
     assert "build_base_model_manifest" in runtime
+    assert "M6_PHASE10C_MERGE_ADAPTER" in wrapper
+    assert "--expected-lora-r" in wrapper
+    assert "--expected-lora-alpha" in wrapper
+    assert "--expected-target-count" in wrapper
 
 
 def test_merge_maps_only_portable_lora_ab_keys():
