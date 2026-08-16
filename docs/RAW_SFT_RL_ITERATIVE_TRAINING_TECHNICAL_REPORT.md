@@ -1313,3 +1313,20 @@ relative displacement=`0.025915`，报告SHA为
 同一96-task/K4/seed20260864 Raw35轨迹，只重新运行新SFT35 arm，判断`Raw35<SFT35-v2`；只有
 strict point gain、task-level和trajectory-level净flip均为正，才打开qualification集上的
 `SFT35-v2 vs SFT4B`配对评测。不得因上一版SFT35失败而重采Raw基线或更换task/seed/horizon。
+
+完整分片合并Job 2378已`COMPLETED 0:0`，rank16/alpha32的310个目标delta全部有限非零，合并模型
+functional SHA为`36fa230acbe3dd11a25691fbd9e40254be6867f928986d69b8258abc07d4a5b7`。
+第一阶段新SFT35 arm Job 2379在冻结dev roster上完成96 tasks×K4；复用同任务、同seed的Raw35后，
+Raw35为`159/384=41.406%`，新SFT35为`179/384=46.615%`，净增`+5.208 pp`，task bootstrap
+95% CI=`[+1.302,+9.635] pp`，candidate-only/baseline-only flips=`30/10`、正/负task=`18/8`。
+能力拆分为nav `87→90`、match `39→46`、finish `33→43`（每桶128轨迹），证明4B范式已把35B的
+teacher-forced改善转化为闭环增益，`Raw35<SFT35-v2`成立。
+
+随后在独立qualification roster上并行完成新SFT35 Job 2380与SFT4 Job 2381，各96 tasks×K4、相同
+seed20260865与18/15 horizon。SFT4为`175/384=45.573%`，SFT35为`172/384=44.792%`，差
+`-0.781 pp`，95% CI=`[-6.510,+5.208] pp`；SFT35-only/SFT4-only flips=`34/37`、正/负task=
+`14/20`，因此总体`+5 pp`教师资格门失败。分项SFT35对SFT4为：nav `92 vs 98`（-4.688 pp）、
+match `44 vs 42`（+1.562 pp）、finish `36 vs 35`（+0.781 pp）。match/finish仅点估计微正且远低于
+5 pp，不足以声明专项教师优势。结论是：新范式成功修复35B自SFT，但当前93-task自探索语料尚未让35B
+稳定超过成熟SFT4 Student；不得据此启动正式multi-Specialist OPD。下一轮若继续，应增加35B专项能力
+语料和同状态纠错质量，而不是继续增加同一语料的epoch或把参数规模当作教师资格。
