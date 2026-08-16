@@ -83,7 +83,7 @@ SFT4(D4)  vs  SFT35(D4)
   12项远端聚焦测试与D4数据身份检查通过；
 - 远端仓库：`/home/wushaohua/data/MiniWebWork-RL`；
 - 远端访问：aTrust隧道，SSH别名`610.160.22.96`；
-- 当前远端训练HEAD：`9c06d74b1b55bf0b2ac61dab37ed6636f4d3641d`；远端仅保留未跟踪
+- 当前远端训练HEAD：`c8626710907356017c8ac773e11575e5f0c5bd74`；远端仅保留未跟踪
   `.m5_patch_staging/`。
 
 ## 7. 已完成Job与关键产物
@@ -92,8 +92,13 @@ SFT4(D4)  vs  SFT35(D4)
 - Job2378：SFT35合并模型，`COMPLETED 0:0`；
 - Job2379：Raw35 vs SFT35(D35)配对评测，`COMPLETED 0:0`；
 - Jobs2380/2381：SFT35(D35) vs SFT4(D4)资格评测，均`COMPLETED 0:0`；
-- Job2382：`S35(D4)` 2-update探针，已于2026-08-16提交并确认`PENDING`；输出
-  `outputs/m6_monotonic_posttraining_v1/phase10d_same_corpus_scale_v1/s35_d4/probe_v1`；
+- Job2382：`S35(D4)` 2-update探针，`COMPLETED 0:0`；18条唯一imitation row、两次有限非零梯度，
+  adapter 620个语义张量发生变化；dev token-NLL由`0.199705`降至`0.197499`，Raw35 retention KL为
+  `0/0.003897`，两卡reserved headroom均约`64%`，全部预注册工程门通过；报告SHA256为
+  `209d64fc2fd5832dbe41f8d621fb0fcfa3e534b31c63bb63562e92e50d79b155`；
+- Job2383：`S35(D4)` 245-update正式训练，已提交并确认`PENDING`；运行Git为
+  `c8626710907356017c8ac773e11575e5f0c5bd74`，输出
+  `outputs/m6_monotonic_posttraining_v1/phase10d_same_corpus_scale_v1/s35_d4/formal_v1`；
 - Raw35 vs SFT35统计：
   `outputs/m6_monotonic_posttraining_v1/phase10c_qwen35_sft_specialist_opd_v1/teacher_stage_eval_v2_4b_paradigm/dev/raw35_vs_sft35_stats.json`；
 - SFT4 vs SFT35统计：
@@ -101,9 +106,9 @@ SFT4(D4)  vs  SFT35(D4)
 
 ## 8. 下一步唯一动作
 
-按预计20-30分钟查收Job2382一次，不轮询。审计`training_report.json`中的D4文件身份、35B tokenizer
-无截断、2次有限非零梯度、真实参数更新、dev NLL安全、Raw35 retention KL和两卡余量；全部通过才提交
-同一代码/数据/LR/LoRA配置的245-update正式训练，输出新目录`.../s35_d4/formal_v1`。
+按预计3-4小时查收Job2383，不轮询。完成后审计245次更新、2205条唯一训练row、有限梯度、真实参数变化、
+dev NLL、Raw35 retention KL、D4身份与最终adapter完整性；工程门通过后再在冻结的同任务、同K、同seed、
+同horizon评测上比较`SFT4(D4)`与`SFT35(D4)`。
 
 ## 9. 后续决策
 
