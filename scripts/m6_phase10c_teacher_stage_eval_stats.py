@@ -24,6 +24,12 @@ K = 4
 PAIR_BY_STAGE = {
     "dev": ("raw35", "sft35"),
     "qualification": ("sft4", "sft35"),
+    "same_corpus": ("sft4", "sft35_d4"),
+}
+EXPECTED_SEEDS = {
+    "dev": 20260864,
+    "qualification": 20260865,
+    "same_corpus": 20260867,
 }
 
 
@@ -81,7 +87,7 @@ def _load_arm(root: Path, *, identity: str, stage: str) -> dict[str, Any]:
         and invocation.get("training_updates_allowed") is False,
         "Phase10-C evaluation collection contract drift",
     )
-    expected_seed = 20260864 if stage == "dev" else 20260865
+    expected_seed = EXPECTED_SEEDS[stage]
     _require(invocation.get("seed") == expected_seed, "Phase10-C evaluation seed drift")
     groups = [
         validate_committed_group(json.loads(path.read_text(encoding="utf-8")), require_k=K)
@@ -158,9 +164,7 @@ def pair_stage(
         "paired_task_net_flips_positive": positive_tasks > negative_tasks,
         "trajectory_net_flips_positive": candidate_only > baseline_only,
     }
-    if stage == "dev":
-        gates = common
-    else:
+    if stage == "qualification":
         gates = {
             **common,
             "strict_point_gain_at_least_5pp": delta_pp >= 5.0,
@@ -177,6 +181,8 @@ def pair_stage(
                 + classes["baseline"].get("zero_score_purchase", 0)
             ),
         }
+    else:
+        gates = common
     return {
         "schema_version": "m6_phase10c_teacher_stage_eval_stats_v1",
         "complete": True,

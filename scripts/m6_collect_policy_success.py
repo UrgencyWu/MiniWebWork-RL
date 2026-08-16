@@ -92,9 +92,14 @@ PHASE10C_SFT35_MERGED_MODEL = Path(
     "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/"
     "phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v2_4b_paradigm/merged_model_v1/model"
 ).resolve()
+PHASE10D_SFT35_D4_MERGED_MODEL = Path(
+    "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/"
+    "phase10d_same_corpus_scale_v1/s35_d4/formal_v1/merged_model_v1/model"
+).resolve()
 PHASE10C_EVALUATION_MODELS = {
     "raw35": PHASE10C_TEACHER_MODEL,
     "sft35": PHASE10C_SFT35_MERGED_MODEL,
+    "sft35_d4": PHASE10D_SFT35_D4_MERGED_MODEL,
     "sft4": PHASE10_STUDENT_MODEL,
 }
 PHASE10C_EVALUATION_TASK_COUNT = 96
@@ -555,7 +560,7 @@ def validate_phase10c_teacher_stage_evaluation_contract(args: argparse.Namespace
     if identity == "raw35":
         _require(args.adapter is None and args.tensor_parallel_size == 2,
                  "M6 Phase10-C Raw35 identity drift")
-    elif identity == "sft35":
+    elif identity in ("sft35", "sft35_d4"):
         _require(
             args.adapter is None and args.tensor_parallel_size == 2,
             "M6 Phase10-C SFT35 identity drift",
@@ -1044,14 +1049,24 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         validate_phase10c_teacher_stage_evaluation_contract(args)
         evaluation_roster = _load_json(args.task_roster)
         _require(
-            evaluation_roster.get("purpose") == "phase10c_teacher_stage_paired_evaluation"
-            and evaluation_roster.get("phase10c_evaluation_stage") in {"dev", "qualification"}
+            evaluation_roster.get("purpose") in {
+                "phase10c_teacher_stage_paired_evaluation",
+                "phase10d_same_corpus_scale_paired_evaluation",
+            }
+            and evaluation_roster.get("phase10c_evaluation_stage") in {
+                "dev", "qualification", "same_corpus",
+            }
             and evaluation_roster.get("task_count") == PHASE10C_EVALUATION_TASK_COUNT
             and evaluation_roster.get("K") == 4
             and evaluation_roster.get("training_performed") is False
             and evaluation_roster.get("optimizer_steps") == 0,
             "M6 Phase10-C evaluation roster identity drift",
         )
+        if evaluation_roster.get("phase10c_evaluation_stage") == "same_corpus":
+            _require(
+                evaluation_roster.get("rollout_seed") == args.seed,
+                "M6 Phase10-D same-corpus rollout seed drift",
+            )
         _require(len(task_ids) == PHASE10C_EVALUATION_TASK_COUNT,
                  "M6 Phase10-C evaluation roster task count drift")
     else:
