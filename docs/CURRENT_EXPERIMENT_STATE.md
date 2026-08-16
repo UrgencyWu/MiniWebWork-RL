@@ -76,11 +76,10 @@ SFT4(D4)  vs  SFT35(D4)
 
 - 本地工作树：`/Users/wsh/Documents/MiniWebWork-RL/m5_worktree`；
 - 本地分支：`codex/m6-monotonic-posttraining`；
-- 当前已提交HEAD：`9fa210662516875c401513dbcd1adf5f3e5bc778`；
-- 当前未提交文档：
-  - `docs/M6_STUDENT_STATE_TEACHER_CORRECTION_PLAN.md`；
-  - `docs/M6_MODEL_SCALE_SELF_CORRECTION_OPD_HYPOTHESIS.md`；
-  - 本状态文件；
+- 本轮开始时的已提交基线HEAD：`9fa210662516875c401513dbcd1adf5f3e5bc778`；
+- `S35(D4)`实现与计划提交：`f7d506faa1c9ca1f1703054a92f5d9b98c3f749d`；
+- 本地实现已通过19项聚焦测试、Python语法、wrapper语法和diff检查；
+- 2026-08-16首次推送时aTrust在远端响应前关闭SSH；提交尚未同步、远端未修改、尚未提交Job；
 - 远端仓库：`/home/wushaohua/data/MiniWebWork-RL`；
 - 远端访问：aTrust隧道，SSH别名`610.160.22.96`；
 - 最近一次只读确认远端HEAD：`d1e71759bb8fa9d9f4ddf538897c2246029c8d32`；
@@ -99,7 +98,8 @@ SFT4(D4)  vs  SFT35(D4)
 
 ## 8. 下一步唯一动作
 
-实现并验证`SFT35(D4)`训练入口：直接读取冻结D4 JSONL，使用35B tokenizer重编码相同public prompt/action，
+待aTrust恢复后推送并安全快进提交`f7d506f`，运行远端聚焦测试；随后验证`SFT35(D4)`训练入口：
+直接读取冻结D4 JSONL，使用35B tokenizer重编码相同public prompt/action，
 保留原4B的9行合并后action-token归一目标、一轮训练和9:1 Raw-reference合同；Raw retention使用相同D4
 public action但以adapter-disabled Raw35为reference，绝不跨模型复用Raw4 token ID。先提交2-update GPU probe；
 只有D4身份、有限梯度、真实参数更新、dev安全和Raw35 retention通过，才提交245-update正式训练。
