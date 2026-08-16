@@ -201,7 +201,9 @@ def test_same_corpus_eval_wrapper_freezes_merge_and_budget():
     assert "--mode phase10c_teacher_stage_evaluation --role train --k 4" in source
     assert "--max-model-turns 18 --max-environment-steps 15" in source
     assert "sft4)" in source and "sft35_d4)" in source
-    assert "CUDA_VISIBLE_DEVICES=0" in source
+    assert "M6_MIN_FREE_MIB_PER_GPU" in source
+    assert "M6_CUDA_VISIBLE_DEVICES" in source
+    assert 'merge_device="$(echo "$selected_devices" | cut -d, -f1)"' in source
     assert "--expected-lora-r 16" in source
     assert "--expected-lora-alpha 32" in source
     assert "--expected-target-count 310" in source

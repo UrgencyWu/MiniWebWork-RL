@@ -28,6 +28,21 @@ test -f "$M6_PHASE10D_EVAL_ROSTER"
 test ! -e "$M6_PHASE10D_EVAL_OUTPUT/collection_report.json"
 curl --fail --silent --show-error --max-time 30 "$M6_SERVICE_BASE_URL/health" >/dev/null
 
+# This shared node's Slurm device indices do not always match physical GPU
+# occupancy, so a submission-time verified device list may be pinned via
+# M6_CUDA_VISIBLE_DEVICES.  Either way every device used below must pass a
+# physical free-memory gate before any model memory is touched.
+min_free_mib="${M6_MIN_FREE_MIB_PER_GPU:-60000}"
+selected_devices="${M6_CUDA_VISIBLE_DEVICES:-$CUDA_VISIBLE_DEVICES}"
+for dev in ${selected_devices//,/ }; do
+  free_mib="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$dev")"
+  if [ "$free_mib" -lt "$min_free_mib" ]; then
+    echo "refusing to start: GPU $dev has ${free_mib}MiB free (< ${min_free_mib}MiB)" >&2
+    exit 3
+  fi
+done
+export CUDA_VISIBLE_DEVICES="$selected_devices"
+
 python_bin=/home/wushaohua/miniconda3/envs/miniwebwork/bin/python
 study_root="$repo_root/outputs/m6_monotonic_posttraining_v1"
 phase10d_root="$study_root/phase10d_same_corpus_scale_v1"
@@ -47,7 +62,8 @@ case "$M6_PHASE10D_EVAL_IDENTITY" in
     merge_report="$merged_root/merge_report.json"
     test -d "$adapter"
     if [ ! -d "$base_model" ]; then
-      CUDA_VISIBLE_DEVICES=0 "$python_bin" scripts/m6_phase10c_merge_teacher_lora.py \
+      merge_device="$(echo "$selected_devices" | cut -d, -f1)"
+      CUDA_VISIBLE_DEVICES="$merge_device" "$python_bin" scripts/m6_phase10c_merge_teacher_lora.py \
         --base-model /data/share/model/Qwen3.5-35B-A3B \
         --base-model-manifest "$study_root/phase10b_multi_specialist_opd_v1/base_model_manifests/S_match.json" \
         --adapter "$adapter" \
@@ -73,6 +89,7 @@ test -f "$base_manifest"
 test -d "$base_model"
 mkdir -p "$M6_PHASE10D_EVAL_OUTPUT"
 export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
+echo "selected_devices=$selected_devices"
 "$python_bin" scripts/m6_collect_policy_success.py \
   --mode phase10c_teacher_stage_evaluation --role train --k 4 --seed "$seed" \
   --split-lock "$study_root/locks/m6_webshop_split_v1.json" \
