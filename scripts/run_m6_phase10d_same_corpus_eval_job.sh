@@ -28,25 +28,20 @@ test -f "$M6_PHASE10D_EVAL_ROSTER"
 test ! -e "$M6_PHASE10D_EVAL_OUTPUT/collection_report.json"
 curl --fail --silent --show-error --max-time 30 "$M6_SERVICE_BASE_URL/health" >/dev/null
 
-# This shared node's Slurm device indices do not always match physical GPU
-# occupancy, so a submission-time verified device list may be pinned via
-# M6_CUDA_VISIBLE_DEVICES.  Either way every device used below must pass a
-# physical free-memory gate before any model memory is touched.
+# Physical free-memory gate over the job-local devices Slurm assigned.
+# Slurm remaps its per-device assignment into this job's CUDA_VISIBLE_DEVICES,
+# and devices held by untracked processes (e.g. long-lived manual services)
+# can still be handed out, so every assigned device must have real free
+# memory before any model memory is touched.
 min_free_mib="${M6_MIN_FREE_MIB_PER_GPU:-60000}"
-# sbatch --export cannot carry commas inside values, so colons or spaces in
-# M6_CUDA_VISIBLE_DEVICES are normalized to the comma list vLLM expects.
-selected_devices="$(printf '%s' "${M6_CUDA_VISIBLE_DEVICES:-$CUDA_VISIBLE_DEVICES}" | sed 's/[:, ]/,/g')"
-for dev in ${selected_devices//,/ }; do
-  # nvidia-smi -i indexes CUDA_VISIBLE_DEVICES, which Slurm already narrowed
-  # to its own (physical-agnostic) assignment; unset it to query physical IDs.
-  free_mib="$(env -u CUDA_VISIBLE_DEVICES nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$dev")"
-  case "$free_mib" in ''|*[!0-9]*) echo "refusing to start: GPU $dev is not queryable ($free_mib)" >&2; exit 3 ;; esac
+for dev in ${CUDA_VISIBLE_DEVICES//,/ }; do
+  free_mib="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$dev")"
+  case "$free_mib" in ''|*[!0-9]*) echo "refusing to start: assigned GPU $dev is not queryable ($free_mib)" >&2; exit 3 ;; esac
   if [ "$free_mib" -lt "$min_free_mib" ]; then
-    echo "refusing to start: GPU $dev has ${free_mib}MiB free (< ${min_free_mib}MiB)" >&2
+    echo "refusing to start: assigned GPU $dev has ${free_mib}MiB free (< ${min_free_mib}MiB)" >&2
     exit 3
   fi
 done
-export CUDA_VISIBLE_DEVICES="$selected_devices"
 
 python_bin=/home/wushaohua/miniconda3/envs/miniwebwork/bin/python
 study_root="$repo_root/outputs/m6_monotonic_posttraining_v1"
@@ -67,7 +62,8 @@ case "$M6_PHASE10D_EVAL_IDENTITY" in
     merge_report="$merged_root/merge_report.json"
     test -d "$adapter"
     if [ ! -d "$base_model" ]; then
-      merge_device="$(echo "$selected_devices" | cut -d, -f1)"
+      # The merge requires exactly one visible GPU: the first assigned device.
+      merge_device="$(echo "$CUDA_VISIBLE_DEVICES" | cut -d, -f1)"
       CUDA_VISIBLE_DEVICES="$merge_device" "$python_bin" scripts/m6_phase10c_merge_teacher_lora.py \
         --base-model /data/share/model/Qwen3.5-35B-A3B \
         --base-model-manifest "$study_root/phase10b_multi_specialist_opd_v1/base_model_manifests/S_match.json" \
@@ -94,7 +90,7 @@ test -f "$base_manifest"
 test -d "$base_model"
 mkdir -p "$M6_PHASE10D_EVAL_OUTPUT"
 export PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}"
-echo "selected_devices=$selected_devices"
+echo "assigned_devices=$CUDA_VISIBLE_DEVICES"
 "$python_bin" scripts/m6_collect_policy_success.py \
   --mode phase10c_teacher_stage_evaluation --role train --k 4 --seed "$seed" \
   --split-lock "$study_root/locks/m6_webshop_split_v1.json" \
