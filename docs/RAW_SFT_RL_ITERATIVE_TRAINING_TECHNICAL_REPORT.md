@@ -1274,3 +1274,28 @@ gradient norm为`0.594984 -> 0.416939`。独立8-task/109-row dev weighted NLL�
 以K4、seed `20260865`和同一horizon配对比较SFT35与现有SFT4B Student；正式教师资格仍要求SFT35
 至少`+5 pp`、task-level net flips为正，且schema/action与非strict purchase不恶化。两步均为推理，
 不产生optimizer update；Raw35不得直接越过第一步充当SFT4B教师对照。
+
+### 42. Phase10-C 35B重训：迁移4B SFT训练范式
+
+首次35B自SFT虽将独立dev weighted NLL从`0.07398`附近降至`0.06310`，但在96任务、K4的配对
+环境评测中Raw35与SFT35均为`159/384=41.406%`，净变化`0 pp`，因此没有进入SFT35对SFT4的
+教师资格比较。该负结果说明“整份975-row语料聚合成一个梯度、只更新两次”的35B专用范式不能把
+teacher-forced改善稳定转化为闭环策略改善。
+
+本轮按用户授权迁移已在4B Student上验证过的M6 SFT范式，同时保留35B语料已经冻结的能力层级权重：
+
+- Raw35起点、同一975条train action row与109条dev row，不新增任务或标签；
+- one epoch，严格每个optimizer batch为9条strict imitation与1条Raw-action retention，正式训练为
+  `floor(975/9)=108`次更新、972条imitation row，剩余3条确定性记录为unused；
+- LR=`2e-5`，LoRA `r=16/alpha=32/dropout=0.05`，Raw reference采用
+  `0.03 * KL(Raw||SFT)`的sampled-action k3估计，retention action不产生CE标签；
+- completion-only mask不变，能力质量仍精确为nav/match/finish=`0.20/0.40/0.40`；被确定性丢弃的
+  最多8条尾样本只在各能力内部重新归一，不改变task/path/action-row之间的相对权重；
+- 35B为MoE，不能把4B的gate/up/down suffix无界地施加到全部256个routed experts。本轮覆盖原190个
+  text token-mixer projection并增加每层always-active shared-expert的gate/up/down，router、routed
+  experts、vision与MTP继续冻结。这是参数规模下对4B attention+MLP范式的有界等价实现。
+
+这是一次有意的“训练范式整体迁移”而非单变量消融。先提交18条imitation、2次optimizer update的
+两卡探针；只有显存余量、有限非零梯度、Raw retention KL、真实参数变化与dev安全均通过，才从Raw35
+重新开始108-update正式训练。正式模型仍须在同任务、同K4、同seed的环境中先证明`Raw35<SFT35-v2`，
+通过后才与SFT4 Student比较，不能用NLL下降替代闭环增益。
