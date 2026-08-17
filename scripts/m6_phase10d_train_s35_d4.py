@@ -375,16 +375,24 @@ def main() -> None:
             name: parameter for name, parameter in model.named_parameters()
             if "lora_" in name
         }
-        if set(adapter_state) != set(lora_params):
+
+        def _resume_param_name(key: str) -> str:
+            # save_pretrained writes plain lora_A/B keys while the live
+            # PeftModel names its parameters with the adapter-name suffix.
+            return key.replace(".lora_A.weight", ".lora_A.default.weight").replace(
+                ".lora_B.weight", ".lora_B.default.weight"
+            )
+
+        mapped_state = {_resume_param_name(key): tensor for key, tensor in adapter_state.items()}
+        if set(mapped_state) != set(lora_params):
             print(json.dumps({
                 "adapter_keys": len(adapter_state),
                 "model_lora_params": len(lora_params),
-                "model_lora_samples": sorted(lora_params)[:3],
-                "adapter_only": sorted(set(adapter_state) - set(lora_params))[:3],
-                "model_only": sorted(set(lora_params) - set(adapter_state))[:3],
+                "adapter_only": sorted(set(mapped_state) - set(lora_params))[:3],
+                "model_only": sorted(set(lora_params) - set(mapped_state))[:3],
             }, indent=2), file=sys.stderr)
-        _require(set(adapter_state) == set(lora_params), "S35(D4) resume state-dict drift")
-        for name, tensor in adapter_state.items():
+        _require(set(mapped_state) == set(lora_params), "S35(D4) resume state-dict drift")
+        for name, tensor in mapped_state.items():
             parameter = lora_params[name]
             with torch.no_grad():
                 parameter.copy_(tensor.to(parameter.device, dtype=parameter.dtype))
