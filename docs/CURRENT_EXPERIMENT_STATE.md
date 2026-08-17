@@ -149,6 +149,10 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
 - Jobs2404/2406/2407：extend训练初版尝试，均`FAILED 1:0`（peft.load_adapter WeightConverter
   TypeError；load_state_dict被PeftModel覆写误报；lora_A/B key与live参数`.default`后缀不一致）；
   修复提交`6b71ab5`/`94a9d23`/`4d3a1d6`后重投成功；
+- Job2409：`S4(D35)` 2-update探针，`COMPLETED 0:0`（01:01）；9/9门通过（含exact capability
+  loss mass、single GPU placement）、128个LoRA target（q/k/v/o+gate/up/down）、256张量真实更新；
+- Job2410：`S4(D35)` 108-update正式训练（2×2第四格），已确认`RUNNING`；输出
+  `outputs/m6_monotonic_posttraining_v1/phase10d_same_corpus_scale_v1/s4_d35/formal_v1`；
 - Job2408：`SFT35(D4)` extend训练（第2 epoch，+245 updates，输出`.../s35_d4/formal_v2`），
   `COMPLETED 0:0`（02:42:44）；12/12门通过（含resume参数SHA恒等、dev NLL连续性）；dev NLL
   `0.116896 -> 0.119291`（无下降），retention KL均值27.86、raw梯度范数均值117；报告
@@ -171,13 +175,12 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
 
 ## 8. 下一步唯一动作
 
-Job2408已完成且plateau确认（见第7节），规模screen负结果定案。下一步为**用户决策**：
-1. `complete_2x2_sft4_d35`：在冻结D35语料（975 train row/93任务 + 109 dev row，SHA已冻结）上
-   训练`SFT4(D35)`（4B，复用4B范式，预计约1h），与原`SFT35(D35)`形成2×2，分离模型规模效应与
-   数据来源效应；配对评测roster按same-corpus同款排除规则新建（不复用任何已查看任务）；
-2. `stop_attribution_go_4b_specialist`：接受现有证据（4B在自身行为数据上不弱于35B），停止归因，
-   直接转向4B专项自纠错/OPD路线。
-未获授权前不提交任何训练作业。
+用户已选择`complete_2x2_sft4_d35`。Job2409探针已过、Job2410正式训练已提交并确认`RUNNING`
+（预计约30-60分钟，按+50分钟查收一次）。查收时审计formal_v1报告（self-hash、108次更新、
+capability mass、dev NLL、passed）；通过后进入2×2配对评测轮：用same-corpus同款排除规则**新建**
+fresh roster（额外排除已查看的Phase10-D 96-task roster与S4(D35)训练任务），对
+`SFT4(D35)`（需合并adapter到Raw4）vs `SFT35(D35)`（已有merged model）做同task/K/seed配对；
+该评测提交需在Job2410审计通过后再申请授权。若Job2410 FAILED：读日志定位，如实汇报，不自动重投。
 
 ## 9. 后续决策
 
