@@ -139,6 +139,11 @@ SFT4(D4)  vs  SFT35(D4)
 - Job2401：`SFT4(D4)` same-corpus评测arm，`COMPLETED 0:0`（33:41）；96 task×K4=384轨迹，
   143 strict success；collection_report `content_sha256`
   `a44f4931f9a5d309354c0384784865710f82b8ad4e1fa84d7674b8e77e665829`；
+- Jobs2404/2406/2407：extend训练初版尝试，均`FAILED 1:0`（peft.load_adapter WeightConverter
+  TypeError；load_state_dict被PeftModel覆写误报；lora_A/B key与live参数`.default`后缀不一致）；
+  修复提交`6b71ab5`/`94a9d23`/`4d3a1d6`后重投成功；
+- Job2408：`SFT35(D4)` extend训练（第2 epoch，+245 updates，输出`.../s35_d4/formal_v2`），
+  2026-08-17T11:49:31开始，已确认`RUNNING`；预计约2.6h，按14:40查收；
 - Job2402：`SFT35(D4)` same-corpus评测arm（含formal adapter合并Raw35），`COMPLETED 0:0`（50:31）；
   384轨迹，142 strict success；collection_report `content_sha256`
   `be03c5c0d88ca42fd2b542f8a4cc5375d01f44f2dd24ed54a2209b33ab43c760`；
@@ -157,10 +162,10 @@ SFT4(D4)  vs  SFT35(D4)
 
 ## 8. 下一步唯一动作
 
-用户已选择`extend_budget_single_variable`。执行顺序：提交extend训练job（`run_m6_phase10d_s35_d4_job.sh`，
-mode=extend，输出`.../s35_d4/formal_v2`，约2.5-3h）→ 仅确认Job ID与RUNNING → 按预计耗时设置一次
-查收并结束会话。查收时审计formal_v2报告：resume参数SHA/连续性门、245次更新、dev NLL下降情况；
-按第5节冻结判定标准决定是否重跑SFT35(D4)评测arm；无论哪种结果都更新状态文件并汇报。
+用户已选择`extend_budget_single_variable`。Job2408已提交并确认`RUNNING`（2026-08-17T11:49开始，
+预计约2.6h，查收时间14:40）。查收时审计formal_v2报告：resume参数SHA/连续性门、245次更新、
+dev NLL下降情况；按第5节冻结判定标准决定是否重跑SFT35(D4)评测arm；无论哪种结果都更新状态文件
+并汇报。若14:40仍RUNNING则静默顺延一次查收。
 
 ## 9. 后续决策
 
