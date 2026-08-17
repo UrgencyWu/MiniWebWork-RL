@@ -43,6 +43,12 @@ Raw < SFT < corrected/OPD < Student-only on-policy RL
   更一致的解读：D4是Raw4自身行为的采样（SFT4近乎自蒸馏），而SFT35(D4)是跨策略模仿且只被给了
   1个epoch（245×9=2205行恰好一遍）——same-corpus持平带**协议混杂**，不能单独归因于"35B无法从
   D4获益"。
+- **规模screen已以负结果定案（用户授权后的单变量预算实验完成）**：Job2408（extend，第2 epoch，
+  +245 updates，resume参数SHA恒等、dev NLL连续性门全过）后dev NLL
+  `0.116896 -> 0.119291`——不降反升；batch NLL窗口均值仍0.11-0.16波动，retention KL均值
+  27.86（epoch 1为~0）、raw梯度范数均值117（epoch 1为~2），证明35B在冻结D4协议下已进入
+  记忆/漂移区而非欠拟合。**结论：D4固定时，4B吸收与泛化均不弱于35B；35B无法通过更多epoch
+  追上4B的dev NLL 0.0957。模型规模screen负结果成立，带源策略混杂（D4为Raw4自身行为）。**
 - 历史4B在线数据与当前35B strict-success语料都缺少高覆盖的same-state、same-item、option和购买边界强对比。
 
 ## 3. 当前数据身份
@@ -81,10 +87,11 @@ Raw < SFT < corrected/OPD < Student-only on-policy RL
 SFT4(D4)  vs  SFT35(D4)
 ```
 
-该规模screen已于本轮完成，结果为**统计持平**（-0.260 pp，CI含0，见第2节），假设未获支持。
-按冻结决策树，当前唯一待检验假设转为：**D4（141任务/36,244 completion-label token）对35B是否构成
-信息瓶颈**——即35B已把D4拟合到低NLL但任务多样性/覆盖不足以让规模产生泛化差异。这决定是否值得在
-现有语料上补 `SFT4(D35)` 形成2×2，还是必须先扩大/增强D4类语料。
+该规模screen已完整走完（环境配对持平 + 瓶颈检查否定 + 预算扩展plateau，见第2节），**负结果定案**：
+D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 vs 数据来源效应**尚未分离——D4是Raw4
+自身行为（SFT4近乎自蒸馏），所以仍需 `SFT4(D35)` 完成现有语料2×2才能断言"规模无益"而非
+"数据来源决定吸收"。当前唯一待检验假设转为：**D35语料上4B是否同样不弱于35B（即每个模型都在
+自己的行为数据上更优，规模效应无独立贡献）**。
 
 ## 5. 本轮唯一变化
 
@@ -143,7 +150,9 @@ SFT4(D4)  vs  SFT35(D4)
   TypeError；load_state_dict被PeftModel覆写误报；lora_A/B key与live参数`.default`后缀不一致）；
   修复提交`6b71ab5`/`94a9d23`/`4d3a1d6`后重投成功；
 - Job2408：`SFT35(D4)` extend训练（第2 epoch，+245 updates，输出`.../s35_d4/formal_v2`），
-  2026-08-17T11:49:31开始，已确认`RUNNING`；预计约2.6h，按14:40查收；
+  `COMPLETED 0:0`（02:42:44）；12/12门通过（含resume参数SHA恒等、dev NLL连续性）；dev NLL
+  `0.116896 -> 0.119291`（无下降），retention KL均值27.86、raw梯度范数均值117；报告
+  `content_sha256 82575cde451f8a6c7c9e476891d42b90569952b4cd879f3e28d93567a65fbe64`；
 - Job2402：`SFT35(D4)` same-corpus评测arm（含formal adapter合并Raw35），`COMPLETED 0:0`（50:31）；
   384轨迹，142 strict success；collection_report `content_sha256`
   `be03c5c0d88ca42fd2b542f8a4cc5375d01f44f2dd24ed54a2209b33ab43c760`；
@@ -162,10 +171,13 @@ SFT4(D4)  vs  SFT35(D4)
 
 ## 8. 下一步唯一动作
 
-用户已选择`extend_budget_single_variable`。Job2408已提交并确认`RUNNING`（2026-08-17T11:49开始，
-预计约2.6h，查收时间14:40）。查收时审计formal_v2报告：resume参数SHA/连续性门、245次更新、
-dev NLL下降情况；按第5节冻结判定标准决定是否重跑SFT35(D4)评测arm；无论哪种结果都更新状态文件
-并汇报。若14:40仍RUNNING则静默顺延一次查收。
+Job2408已完成且plateau确认（见第7节），规模screen负结果定案。下一步为**用户决策**：
+1. `complete_2x2_sft4_d35`：在冻结D35语料（975 train row/93任务 + 109 dev row，SHA已冻结）上
+   训练`SFT4(D35)`（4B，复用4B范式，预计约1h），与原`SFT35(D35)`形成2×2，分离模型规模效应与
+   数据来源效应；配对评测roster按same-corpus同款排除规则新建（不复用任何已查看任务）；
+2. `stop_attribution_go_4b_specialist`：接受现有证据（4B在自身行为数据上不弱于35B），停止归因，
+   直接转向4B专项自纠错/OPD路线。
+未获授权前不提交任何训练作业。
 
 ## 9. 后续决策
 
