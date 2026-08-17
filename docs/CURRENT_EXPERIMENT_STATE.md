@@ -35,6 +35,14 @@ Raw < SFT < corrected/OPD < Student-only on-policy RL
   zero_score_purchase 17/18≈持平；无schema/action失败类。
 - 按冻结决策树（见第9节），统计持平后不直接否定35B、不重刷相同训练：下一步先检查D4是否对35B形成
   信息瓶颈。
+- **瓶颈检查已完成（只读分析，报告`content_sha256 8d9b3366...`）：瓶颈不成立。** 同一冻结dev split
+  （1de4a6f2）与完全相同的tokenizer（sha 5f9e4d49，vocab 248,044）下：
+  `SFT4(D4)` dev NLL `0.095675`，`SFT35(D4)` dev NLL `0.157152 -> 0.116896`——35B比4B高22.2%，
+  且两模型都远未接近0；SFT35(D4)逐batch训练NLL窗口均值0.13-0.18持续波动、末update仍0.1544，
+  无收敛证据。D4语料覆盖本身不差（156互异任务/指令、493条互异命令序列、5类均衡、无截断）。
+  更一致的解读：D4是Raw4自身行为的采样（SFT4近乎自蒸馏），而SFT35(D4)是跨策略模仿且只被给了
+  1个epoch（245×9=2205行恰好一遍）——same-corpus持平带**协议混杂**，不能单独归因于"35B无法从
+  D4获益"。
 - 历史4B在线数据与当前35B strict-success语料都缺少高覆盖的same-state、same-item、option和购买边界强对比。
 
 ## 3. 当前数据身份
@@ -80,16 +88,14 @@ SFT4(D4)  vs  SFT35(D4)
 
 ## 5. 本轮唯一变化
 
-- `SFT35(D4)` 正式训练已完成且工程门全部通过（见第2、7节），模型不再变化；
-- 本轮唯一变化是**评测集合**：构建全新96-task same-corpus paired环境评测
-  `SFT4(D4) vs SFT35(D4)`；
-- 确定性roster：从base train role排除版本化历史exposure union（M5 registry + Phase10/10B/10C
-  exposure union）、SFT D4/D35语料任务、Phase10-C全split角色及全部已查看评测任务后，按公开
-  category/constraint proxy分层选取96个fresh development-only任务（当前fresh池1088个）；
-- 冻结 `K=4`、`18/15` horizon、相同task order与rollout seed `20260867`；
-- `SFT4` 保持既有adapter路径；`SFT35(D4)` 用formal adapter按Job2378同款合并门合并到Raw35
-  （r=16、alpha=32、310 target），合并在评测arm内执行；
-- 不得读取promotion/holdout；不改数据、LR、epoch、LoRA覆盖或既有Phase10-C评测结论。
+- `SFT4(D4)`、`SFT35(D4)` 1-epoch正式模型及same-corpus评测结果均已冻结（见第2、7节）；
+- 瓶颈检查判定后（用户已选择`extend_budget_single_variable`），本轮唯一变化是**SFT35(D4)训练预算**：
+  从formal_v1 adapter精确恢复（参数SHA与dev NLL连续性门），用与epoch 1完全相同的245-update
+  schedule再训练一遍（共2 epochs / 490 updates），输出新目录`.../s35_d4/formal_v2`；
+- 数据、LR、batch、LoRA覆盖、保留KL、seed全部不变；epoch 2复用的schedule与epoch 1逐位一致；
+- `formal_v1`产物保持不动；判定标准已冻结：若formal_v2 dev NLL逼近或低于`SFT4(D4)`的`0.0957`，
+  则重跑原冻结96-task roster的SFT35(D4) arm重评规模效应；若plateau，则规模screen以负结果定案；
+- 不得读取promotion/holdout；不重复相同训练轮次刷结果（本轮是预算变量，不是重跑）。
 
 ## 6. 代码与Git状态
 
@@ -139,6 +145,9 @@ SFT4(D4)  vs  SFT35(D4)
 - 配对统计（seed错配0，task order一致）：
   `outputs/m6_monotonic_posttraining_v1/phase10d_same_corpus_scale_v1/same_corpus_eval/sft4_vs_sft35_d4_stats.json`
   （`content_sha256 dcb4cfb04b94f5cb9a4b04f09e187a5adb42a66d16629f9145c272e19af37e3a`）；
+- D4信息瓶颈检查（只读分析）：
+  `outputs/m6_monotonic_posttraining_v1/phase10d_same_corpus_scale_v1/bottleneck_analysis/d4_bottleneck_check_v1.json`
+  （`content_sha256 8d9b3366fb43ef5792d3c924558dce9e1e7d9d0bcdc9e56d0f9df2d57e707a64`）；
   SFT35(D4)合并模型
   `outputs/m6_monotonic_posttraining_v1/phase10d_same_corpus_scale_v1/s35_d4/formal_v1/merged_model_v1/`；
 - Raw35 vs SFT35统计：
@@ -148,13 +157,10 @@ SFT4(D4)  vs  SFT35(D4)
 
 ## 8. 下一步唯一动作
 
-Same-corpus评测已完成，结果为统计持平（见第2节）。按冻结决策树进入瓶颈检查：只做本地只读分析，
-不训练、不提交作业。第一步用现有冻结产物检查D4是否对35B构成信息瓶颈：
-对比`SFT4(D4)`与`SFT35(D4)`在同一冻结D4 dev split上的训练/dev NLL（两训练报告已有dev NLL字段），
-并核对D4的任务/路径/唯一指令覆盖度与35B报告中的dev NLL下降空间；若35B的dev NLL与4B同水平且
-仍接近0，说明D4已被两模型拟合到极限而任务多样性不足——瓶颈成立，结论指向扩大/增强语料（或补
-`SFT4(D35)`2×2）而非继续重训35B；若35B dev NLL明显高于4B，则瓶颈不成立，需重新检查训练/评测协议。
-产出分析报告与状态文件更新后再定下一步，不重复相同训练轮次刷结果。
+用户已选择`extend_budget_single_variable`。执行顺序：提交extend训练job（`run_m6_phase10d_s35_d4_job.sh`，
+mode=extend，输出`.../s35_d4/formal_v2`，约2.5-3h）→ 仅确认Job ID与RUNNING → 按预计耗时设置一次
+查收并结束会话。查收时审计formal_v2报告：resume参数SHA/连续性门、245次更新、dev NLL下降情况；
+按第5节冻结判定标准决定是否重跑SFT35(D4)评测arm；无论哪种结果都更新状态文件并汇报。
 
 ## 9. 后续决策
 

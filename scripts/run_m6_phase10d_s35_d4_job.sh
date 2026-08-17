@@ -17,7 +17,17 @@ cd "$repo_root"
 : "${M6_PHASE10D_D4_CORPUS:?missing M6_PHASE10D_D4_CORPUS}"
 : "${M6_PHASE10D_OUTPUT:?missing M6_PHASE10D_OUTPUT}"
 mode="${M6_PHASE10D_MODE:-probe}"
-case "$mode" in probe|train) ;; *) echo "invalid mode: $mode" >&2; exit 2 ;; esac
+study_root="$repo_root/outputs/m6_monotonic_posttraining_v1"
+resume_args=()
+case "$mode" in
+  probe|train) ;;
+  extend)
+    resume_adapter="${M6_PHASE10D_RESUME_ADAPTER:-$study_root/phase10d_same_corpus_scale_v1/s35_d4/formal_v1/final_adapter}"
+    test -d "$resume_adapter"
+    resume_args=(--resume-adapter "$resume_adapter")
+    ;;
+  *) echo "invalid mode: $mode" >&2; exit 2 ;;
+esac
 test "$(git rev-parse HEAD)" = "$M6_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
 test -f "$M6_PHASE10D_D4_CORPUS/train.jsonl"
@@ -30,4 +40,5 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
   --mode "$mode" \
   --corpus-dir "$M6_PHASE10D_D4_CORPUS" \
   --base-model /data/share/model/Qwen3.5-35B-A3B \
-  --output-dir "$M6_PHASE10D_OUTPUT"
+  --output-dir "$M6_PHASE10D_OUTPUT" \
+  "${resume_args[@]}"

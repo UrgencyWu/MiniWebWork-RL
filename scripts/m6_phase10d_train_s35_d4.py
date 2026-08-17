@@ -214,10 +214,21 @@ def build_update_schedule(imitation_count: int, *, seed: int = SEED) -> tuple[di
 
 
 def active_schedule(formal: Sequence[Mapping[str, Any]], mode: str) -> tuple[dict[str, Any], ...]:
-    _require(mode in {"probe", "train"}, "S35(D4) mode drift")
+    _require(mode in {"probe", "train", "extend"}, "S35(D4) mode drift")
     selected = tuple(formal[:PROBE_UPDATES]) if mode == "probe" else tuple(formal)
     _require(len(selected) == (PROBE_UPDATES if mode == "probe" else len(formal)), "S35(D4) schedule drift")
     return selected
+
+
+def validate_extend_contract(*, mode: str, resume_adapter: Path | None) -> None:
+    """The budget extension resumes from the audited formal adapter; probe and
+    train must not claim a resume adapter."""
+
+    _require(mode in {"probe", "train", "extend"}, "S35(D4) mode drift")
+    if mode == "extend":
+        _require(resume_adapter is not None, "S35(D4) extend requires --resume-adapter")
+    else:
+        _require(resume_adapter is None, "S35(D4) probe/train cannot claim a resume adapter")
 
 
 def select_probe_dev(examples: Sequence[Any], *, count: int = 18, seed: int = SEED + 1) -> tuple[Any, ...]:
@@ -308,11 +319,13 @@ def run_update(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("probe", "train"), required=True)
+    parser.add_argument("--mode", choices=("probe", "train", "extend"), required=True)
     parser.add_argument("--corpus-dir", type=Path, required=True)
     parser.add_argument("--base-model", type=Path, default=BASE_MODEL)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--resume-adapter", type=Path)
     args = parser.parse_args()
+    validate_extend_contract(mode=args.mode, resume_adapter=args.resume_adapter)
     _require(args.base_model.expanduser().resolve() == BASE_MODEL, "S35(D4) base-model path drift")
     output = args.output_dir.expanduser().resolve()
     _require(not (output / "training_report.json").exists(), "S35(D4) training report already exists")
@@ -335,6 +348,39 @@ def main() -> None:
 
     started = time.monotonic()
     model, targets, placement = paradigm.load_raw35_4b_paradigm_lora(BASE_MODEL)
+    resume_identity: dict[str, Any] | None = None
+    if args.mode == "extend":
+        resume_adapter = args.resume_adapter.expanduser().resolve()
+        _require((resume_adapter / "adapter_config.json").is_file(), "S35(D4) resume adapter is incomplete")
+        resume_report_path = resume_adapter.parent / "training_report.json"
+        _require(resume_report_path.is_file(), "S35(D4) resume report is missing")
+        resume_payload = json.loads(resume_report_path.read_text(encoding="utf-8"))
+        observed_resume_hash = resume_payload.pop("content_sha256", None)
+        _require(observed_resume_hash == _self_hash(resume_payload), "S35(D4) resume report self-hash drift")
+        _require(
+            resume_payload.get("mode") == "train"
+            and resume_payload.get("passed") is True
+            and resume_payload.get("formal_checkpoint_reusable") is True,
+            "S35(D4) resume report is not a passed formal checkpoint",
+        )
+        model.load_adapter(str(resume_adapter), "formal_v1")
+        model.set_adapter("formal_v1")
+        # The fresh get_peft_model LoRA must be removed so the trainable
+        # parameter set (and its hash) is exactly the resumed formal adapter.
+        model.delete_adapter("default")
+        resume_sha = parameter_tensor_sha256(model)
+        _require(
+            resume_sha == resume_payload["output_parameter_sha256"],
+            "S35(D4) resume parameter identity drift",
+        )
+        resume_identity = {
+            "resume_report_content_sha256": observed_resume_hash,
+            "resume_adapter": str(resume_adapter),
+            "resume_adapter_sha256": resume_payload["final_adapter_sha256"],
+            "resume_parameter_sha256": resume_sha,
+            "resume_dev_token_mean_nll": float(resume_payload["post_dev"]["token_mean_nll"]),
+            "resume_optimizer_updates": int(resume_payload["formal_optimizer_updates"]),
+        }
     for index in range(torch.cuda.device_count()):
         torch.cuda.reset_peak_memory_stats(index)
     trainable = [parameter for parameter in model.parameters() if parameter.requires_grad]
@@ -344,6 +390,11 @@ def main() -> None:
     initial_sha = parameter_tensor_sha256(model)
     initial_parameters = parameter_snapshot(model)
     pre_dev = evaluate_token_weighted(model, active_dev, collator)
+    if resume_identity is not None:
+        _require(
+            abs(pre_dev["token_mean_nll"] - resume_identity["resume_dev_token_mean_nll"]) <= 1e-4,
+            "S35(D4) resume dev NLL continuity drift",
+        )
     history = []
     for item in schedule:
         imitation = [train[index] for index in item["imitation_indices"]]
@@ -375,6 +426,14 @@ def main() -> None:
         "dev_nll_safe": post_dev["token_mean_nll"] <= pre_dev["token_mean_nll"] + 0.10,
         "gpu_headroom_safe": min(item["reserved_headroom_fraction"] for item in memory) >= 0.05,
         "two_gpu_model_parallel": len({str(parameter.device) for parameter in model.parameters()}) >= 2,
+        "resume_parameter_identity": (
+            resume_identity is None
+            or resume_identity["resume_parameter_sha256"] == initial_sha
+        ),
+        "resume_dev_nll_continuity": (
+            resume_identity is None
+            or abs(pre_dev["token_mean_nll"] - resume_identity["resume_dev_token_mean_nll"]) <= 1e-4
+        ),
     }
     report = {
         "schema_version": "m6_phase10d_s35_d4_training_v1",
@@ -382,7 +441,11 @@ def main() -> None:
         "development_only": True,
         "mode": args.mode,
         "formal_checkpoint_reusable": args.mode == "train",
-        "causal_variable": "model_scale_with_frozen_D4_supervision_and_objective",
+        "causal_variable": (
+            "training_budget_with_frozen_D4_supervision_and_objective"
+            if args.mode == "extend"
+            else "model_scale_with_frozen_D4_supervision_and_objective"
+        ),
         "base_model": str(BASE_MODEL),
         "seed": SEED,
         "maximum_sequence_tokens": MAX_SEQUENCE_TOKENS,
@@ -398,6 +461,13 @@ def main() -> None:
         "capability_reweighting": None,
         "optimizer_updates": len(schedule),
         "formal_optimizer_updates": len(formal_schedule),
+        "total_effective_updates": (
+            int(resume_identity["resume_optimizer_updates"]) + len(schedule)
+            if resume_identity is not None
+            else len(schedule)
+        ),
+        "total_effective_epochs": 2 if resume_identity is not None else 1,
+        "resume_identity": resume_identity,
         "imitation_rows_available": len(train),
         "imitation_rows_used": len(used_indices),
         "formal_imitation_rows_unused": len(train) - len(formal_schedule) * IMITATION_PER_UPDATE,

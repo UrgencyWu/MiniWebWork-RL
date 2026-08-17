@@ -5,6 +5,8 @@ import math
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -45,6 +47,24 @@ def test_probe_is_first_two_frozen_formal_updates():
     assert len({index for item in probe for index in item["imitation_indices"]}) == 18
 
 
+def test_extend_reuses_the_exact_formal_schedule():
+    module = _module()
+    formal = module.build_update_schedule(2209)
+    extended = module.active_schedule(formal, "extend")
+    assert extended == formal
+    assert len(extended) == 245
+
+
+def test_extend_contract_requires_resume_adapter():
+    module = _module()
+    module.validate_extend_contract(mode="extend", resume_adapter=Path("formal_v1/final_adapter"))
+    with pytest.raises(ValueError, match="requires --resume-adapter"):
+        module.validate_extend_contract(mode="extend", resume_adapter=None)
+    module.validate_extend_contract(mode="train", resume_adapter=None)
+    with pytest.raises(ValueError, match="cannot claim a resume adapter"):
+        module.validate_extend_contract(mode="train", resume_adapter=Path("formal_v1/final_adapter"))
+
+
 def test_token_objective_matches_original_d4_batch_normalization():
     module = _module()
     examples = [Example("a", "t1", 1), Example("b", "t2", 3), Example("c", "t3", 6)]
@@ -81,3 +101,12 @@ def test_wrapper_freezes_probe_default_and_two_gpu_model_parallel():
     assert "M6_PHASE10D_MODE:-probe" in source
     assert "--base-model /data/share/model/Qwen3.5-35B-A3B" in source
     assert "m6_phase10d_train_s35_d4.py" in source
+
+
+def test_wrapper_supports_extend_resume_from_formal_adapter():
+    source = (ROOT / "scripts/run_m6_phase10d_s35_d4_job.sh").read_text()
+    assert "probe|train) ;;" in source or "probe|train)" in source
+    assert "extend)" in source
+    assert "M6_PHASE10D_RESUME_ADAPTER" in source
+    assert "s35_d4/formal_v1/final_adapter" in source
+    assert "--resume-adapter" in source
