@@ -363,11 +363,16 @@ def main() -> None:
             and resume_payload.get("formal_checkpoint_reusable") is True,
             "S35(D4) resume report is not a passed formal checkpoint",
         )
-        model.load_adapter(str(resume_adapter), "formal_v1")
-        model.set_adapter("formal_v1")
-        # The fresh get_peft_model LoRA must be removed so the trainable
-        # parameter set (and its hash) is exactly the resumed formal adapter.
-        model.delete_adapter("default")
+        # Load the saved LoRA tensors directly instead of peft.load_adapter,
+        # whose weight-conversion path is broken in this environment's
+        # peft/accelerate pairing.  The adapter file's keys are exactly the
+        # PeftModel named-parameter keys, so a strict state-dict load restores
+        # the formal weights into the fresh placeholder LoRA.
+        from safetensors.torch import load_file
+
+        adapter_state = load_file(str(resume_adapter / "adapter_model.safetensors"), device="cpu")
+        missing, unexpected = model.load_state_dict(adapter_state, strict=False)
+        _require(not missing and not unexpected, "S35(D4) resume state-dict drift")
         resume_sha = parameter_tensor_sha256(model)
         _require(
             resume_sha == resume_payload["output_parameter_sha256"],
