@@ -372,6 +372,13 @@ def main() -> None:
 
         adapter_state = load_file(str(resume_adapter / "adapter_model.safetensors"), device="cpu")
         missing, unexpected = model.load_state_dict(adapter_state, strict=False)
+        if missing or unexpected:
+            print(json.dumps({
+                "missing_count": len(missing),
+                "missing_sample": missing[:3],
+                "unexpected_count": len(unexpected),
+                "unexpected_sample": unexpected[:3],
+            }, indent=2), file=sys.stderr)
         _require(not missing and not unexpected, "S35(D4) resume state-dict drift")
         resume_sha = parameter_tensor_sha256(model)
         _require(
