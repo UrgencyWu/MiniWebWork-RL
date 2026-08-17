@@ -371,15 +371,23 @@ def main() -> None:
         from safetensors.torch import load_file
 
         adapter_state = load_file(str(resume_adapter / "adapter_model.safetensors"), device="cpu")
-        missing, unexpected = model.load_state_dict(adapter_state, strict=False)
-        if missing or unexpected:
+        lora_params = {
+            name: parameter for name, parameter in model.named_parameters()
+            if "lora_" in name
+        }
+        if set(adapter_state) != set(lora_params):
             print(json.dumps({
-                "missing_count": len(missing),
-                "missing_sample": missing[:3],
-                "unexpected_count": len(unexpected),
-                "unexpected_sample": unexpected[:3],
+                "adapter_keys": len(adapter_state),
+                "model_lora_params": len(lora_params),
+                "model_lora_samples": sorted(lora_params)[:3],
+                "adapter_only": sorted(set(adapter_state) - set(lora_params))[:3],
+                "model_only": sorted(set(lora_params) - set(adapter_state))[:3],
             }, indent=2), file=sys.stderr)
-        _require(not missing and not unexpected, "S35(D4) resume state-dict drift")
+        _require(set(adapter_state) == set(lora_params), "S35(D4) resume state-dict drift")
+        for name, tensor in adapter_state.items():
+            parameter = lora_params[name]
+            with torch.no_grad():
+                parameter.copy_(tensor.to(parameter.device, dtype=parameter.dtype))
         resume_sha = parameter_tensor_sha256(model)
         _require(
             resume_sha == resume_payload["output_parameter_sha256"],
