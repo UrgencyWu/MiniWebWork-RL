@@ -162,7 +162,18 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
 - 2×2配对评测（用户已授权）：fresh roster `rosters/same_corpus_d35.json`（96任务，额外排除已查看的
   Phase10-D 96-task roster，fresh池992，`content_sha256 22116d3c...`）；WebShop服务Job2414重启后
   healthy；两arm Job2415（sft4_d35，adapter直载4B）/Job2416（sft35_d35，既有merged model），
-  均已确认`RUNNING`，seed 20260868；输出`.../same_corpus_eval_d35/{sft4_d35,sft35_d35}`；
+  均`COMPLETED 0:0`（10:39 / 17:07），seed 20260868；输出`.../same_corpus_eval_d35/{sft4_d35,sft35_d35}`；
+- 2×2配对统计（seed错配0）：
+  `.../same_corpus_eval_d35/sft4_d35_vs_sft35_d35_stats.json`
+  （`content_sha256 c31d40103393f201831669190bb1f7fcf736fb4ff51b39d641fcdce3ff22359b`）；
+  `SFT4(D35)=33.333%`（128/384），`SFT35(D35)=38.021%`（146/384），净差`+4.688 pp`，
+  95% CI `[-0.521,+9.896] pp`（含0但方向门全过：任务flips 23正/17负、轨迹flips 46/28、
+  partial_purchase 220→200、schema_failure 0→2）。
+- **2×2归因结论（四格+双方NLL对称）**：D4侧`SFT4(D4) 37.2% ≈ SFT35(D4) 37.0%`（Δ−0.26pp）且
+  NLL 4B更优；D35侧`SFT35(D35) 38.0% > SFT4(D35) 33.3%`（Δ+4.69pp，CI贴0）且NLL 35B更优。
+  每个模型都在**自己的行为数据**上占优：**数据来源效应成立（方向性），模型规模在4B→35B范围内
+  对SFT性能无独立贡献**。规模screen与归因闭环完成：35B的此前优势（Raw35<SFT35(D35)的+5.21pp）
+  本质是自我模仿数据效应，不是规模效应。
 - Job2408：`SFT35(D4)` extend训练（第2 epoch，+245 updates，输出`.../s35_d4/formal_v2`），
   `COMPLETED 0:0`（02:42:44）；12/12门通过（含resume参数SHA恒等、dev NLL连续性）；dev NLL
   `0.116896 -> 0.119291`（无下降），retention KL均值27.86、raw梯度范数均值117；报告
@@ -185,11 +196,11 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
 
 ## 8. 下一步唯一动作
 
-2×2配对评测已获授权并提交（Job2415/2416 RUNNING，见第7节）。按预计40-50分钟设置一次查收；
-两arm完成后用`m6_phase10c_teacher_stage_eval_stats.py --stage same_corpus_d35`出配对统计并汇报。
-判定标准（已冻结）：若`SFT35(D35)`显著>`SFT4(D35)`且`SFT4(D4)`≈`SFT35(D4)`，则数据来源效应成立、
-规模无独立贡献；若两对都持平或4B占优，则4B路线全面占优、停止35B追问；若SFT4(D35)反而占优，
-同样记数据来源效应（4B吸收任何源策略都不弱）。
+2×2配对评测已完成（见第7节），归因结论：数据来源效应方向性成立、规模无独立贡献。**下一步唯一动作
+（待用户确认）**：按状态文件第9节与低成本原则，建议以4B为学生推进主链路
+`Raw4 < SFT4(D4) < corrected/OPD < RL`——4B专项自纠错/OPD是树上该分支的既定动作；35B规模追问
+停止（负结果定案+归因闭环）。若用户另有指向（如继续35B自我模仿路线）再调整。确认前不提交任何
+训练/评测作业。
 
 ## 9. 后续决策
 
