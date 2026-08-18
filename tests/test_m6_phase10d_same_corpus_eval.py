@@ -195,12 +195,60 @@ def test_phase10d_sft35_d4_contract_freezes_merged_identity():
         collector.validate_phase10c_teacher_stage_evaluation_contract(arm)
 
 
+def test_phase10d_d35_pair_contract_freezes_2x2_identities():
+    pytest.importorskip("playwright")
+    collector = _module(
+        "m6_collect_phase10d_same_corpus_eval",
+        "scripts/m6_collect_policy_success.py",
+    )
+    common = dict(
+        role="train",
+        task_roster=Path("roster.json"),
+        k=4,
+        max_model_turns=18,
+        max_environment_steps=15,
+        maximum_tasks=None,
+        task_offset=0,
+        maximum_action_tokens=None,
+        replay_prefix_root=None,
+        shared_prefix_manifest=None,
+        state_correction_manifest=None,
+    )
+    s4 = argparse.Namespace(
+        **common,
+        phase10c_evaluation_identity="sft4_d35",
+        base_model=Path("/data/share/model/Qwen3.5-4B"),
+        adapter=collector.PHASE10D_S4_D35_ADAPTER,
+        tensor_parallel_size=1,
+    )
+    collector.validate_phase10c_teacher_stage_evaluation_contract(s4)
+    s4.adapter = collector.PHASE10B_STUDENT_ADAPTER
+    with pytest.raises(ValueError, match="SFT4 identity"):
+        collector.validate_phase10c_teacher_stage_evaluation_contract(s4)
+    s35 = argparse.Namespace(
+        **common,
+        phase10c_evaluation_identity="sft35_d35",
+        base_model=collector.PHASE10C_SFT35_MERGED_MODEL,
+        adapter=None,
+        tensor_parallel_size=2,
+    )
+    collector.validate_phase10c_teacher_stage_evaluation_contract(s35)
+    s35.tensor_parallel_size = 1
+    with pytest.raises(ValueError, match="SFT35 identity"):
+        collector.validate_phase10c_teacher_stage_evaluation_contract(s35)
+
+
 def test_same_corpus_eval_wrapper_freezes_merge_and_budget():
     source = (ROOT / "scripts/run_m6_phase10d_same_corpus_eval_job.sh").read_text()
     assert "#SBATCH --gres=gpu:2" in source
     assert "--mode phase10c_teacher_stage_evaluation --role train --k 4" in source
     assert "--max-model-turns 18 --max-environment-steps 15" in source
     assert "sft4)" in source and "sft35_d4)" in source
+    assert "sft4_d35)" in source and "sft35_d35)" in source
+    assert "M6_PHASE10D_EVAL_STAGE" in source
+    assert "same_corpus) seed=20260867" in source
+    assert "same_corpus_d35) seed=20260868" in source
+    assert "s4_d35/formal_v1/final_adapter" in source
     assert "M6_MIN_FREE_MIB_PER_GPU" in source
     assert "refusing to start" in source
     assert 'merge_device="$(echo "$CUDA_VISIBLE_DEVICES" | cut -d, -f1)"' in source
@@ -208,7 +256,6 @@ def test_same_corpus_eval_wrapper_freezes_merge_and_budget():
     assert "--expected-lora-r 16" in source
     assert "--expected-lora-alpha 32" in source
     assert "--expected-target-count 310" in source
-    assert "seed=20260867" in source
     assert "formal_v1/merged_model_v1" in source
 
 
@@ -219,5 +266,35 @@ def test_same_corpus_pairing_and_seed_are_frozen():
     )
     assert stats.PAIR_BY_STAGE["same_corpus"] == ("sft4", "sft35_d4")
     assert stats.EXPECTED_SEEDS["same_corpus"] == 20260867
+    assert stats.PAIR_BY_STAGE["same_corpus_d35"] == ("sft4_d35", "sft35_d35")
+    assert stats.EXPECTED_SEEDS["same_corpus_d35"] == 20260868
     assert stats.EXPECTED_SEEDS["dev"] == 20260864
     assert stats.EXPECTED_SEEDS["qualification"] == 20260865
+
+
+def test_same_corpus_d35_roster_excludes_the_viewed_96_task_roster():
+    builder, base, goals, exclusions = _load_roster_inputs()
+    viewed = json.loads(
+        (STUDY / "phase10d_same_corpus_scale_v1/rosters/same_corpus.json").read_text()
+    )
+    exclusions = exclusions + [{
+        "name": "phase10d_viewed_eval_roster",
+        "paths": [STUDY / "phase10d_same_corpus_scale_v1/rosters/same_corpus.json"],
+        "file_sha256": ["a" * 64],
+        "task_ids": set(viewed["task_ids"]),
+    }]
+    roster = builder.build_roster(
+        goals=goals,
+        base_split=base,
+        exclusions=exclusions,
+        protocol_sha256="c" * 64,
+        git_sha="d" * 40,
+        evaluation_stage="same_corpus_d35",
+    )
+    assert roster["task_count"] == 96
+    assert roster["phase10c_evaluation_stage"] == "same_corpus_d35"
+    assert roster["purpose"] == "phase10d_same_corpus_d35_paired_evaluation"
+    assert roster["rollout_seed"] == 20260868
+    assert set(roster["task_ids"]).isdisjoint(set(viewed["task_ids"]))
+    assert set(roster["task_ids"]).isdisjoint(set().union(*[e["task_ids"] for e in exclusions]))
+    assert roster["fresh_train_task_count"] == 1088 - 96

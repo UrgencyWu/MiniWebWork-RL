@@ -43,11 +43,18 @@ TASK_ID_RE = re.compile(r"^webshop_goal_\d{5}$")
 GOAL_COUNT = 12087
 TASK_COUNT = 96
 SELECTION_SEED = 20260866
-ROLLOUT_SEED = 20260867
 CONSTRAINT_BUCKET_CAP = 4
 SELECTION_NAMESPACE = "m6-phase10d-same-corpus-eval-v1"
-PURPOSE = "phase10d_same_corpus_scale_paired_evaluation"
-EVALUATION_STAGE = "same_corpus"
+STAGE_SPECS = {
+    "same_corpus": {
+        "purpose": "phase10d_same_corpus_scale_paired_evaluation",
+        "rollout_seed": 20260867,
+    },
+    "same_corpus_d35": {
+        "purpose": "phase10d_same_corpus_d35_paired_evaluation",
+        "rollout_seed": 20260868,
+    },
+}
 
 
 def _require(condition: bool, message: str) -> None:
@@ -156,9 +163,12 @@ def build_roster(
     exclusions: Sequence[Mapping[str, Any]],
     protocol_sha256: str,
     git_sha: str,
+    evaluation_stage: str = "same_corpus",
 ) -> dict[str, Any]:
     """Select 96 fresh train tasks stratified by public category/constraint proxy."""
 
+    _require(evaluation_stage in STAGE_SPECS, "Phase10-D evaluation stage drift")
+    stage_spec = STAGE_SPECS[evaluation_stage]
     _require(len(goals) == GOAL_COUNT, "Phase10-D canonical goal count drift")
     for index, goal in enumerate(goals):
         _require(isinstance(goal, Mapping) and goal.get("goal_index") == index,
@@ -179,7 +189,8 @@ def build_roster(
                           "phase10c_exposure_union",
                           "phase10c_split_all_roles",
                           "sft_d4_corpus",
-                          "sft_d35_corpus"}, f"Phase10-D unknown exclusion: {name}")
+                          "sft_d35_corpus",
+                          "phase10d_viewed_eval_roster"}, f"Phase10-D unknown exclusion: {name}")
         _require(name not in excluded, f"Phase10-D duplicate exclusion: {name}")
         task_ids = set(item["task_ids"])
         _require(bool(task_ids), f"Phase10-D exclusion is empty: {name}")
@@ -255,7 +266,7 @@ def build_roster(
         "schema_version": "m6_rl_curriculum_v1",
         "development_only": True,
         "formal_training": False,
-        "purpose": PURPOSE,
+        "purpose": stage_spec["purpose"],
         "selection": "phase10d_same_corpus_fresh_stratified_v1",
         "selection_seed": SELECTION_SEED,
         "selection_namespace": SELECTION_NAMESPACE,
@@ -263,7 +274,7 @@ def build_roster(
         "source_split_lock_content_sha256": base_split["content_sha256"],
         "protocol_sha256": protocol_sha256,
         "git_sha": git_sha,
-        "phase10c_evaluation_stage": EVALUATION_STAGE,
+        "phase10c_evaluation_stage": evaluation_stage,
         "constraint_proxy": {
             "public_category": "goals.category",
             "public_constraint_count": (
@@ -285,7 +296,7 @@ def build_roster(
         "K": 4,
         "max_model_turns": 18,
         "max_environment_steps": 15,
-        "rollout_seed": ROLLOUT_SEED,
+        "rollout_seed": stage_spec["rollout_seed"],
         "training_performed": False,
         "optimizer_steps": 0,
         "checks": {
@@ -315,6 +326,8 @@ def main() -> None:
     parser.add_argument("--d35-dev", type=Path, required=True)
     parser.add_argument("--producer-git-sha", required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--evaluation-stage", choices=tuple(STAGE_SPECS), default="same_corpus")
+    parser.add_argument("--viewed-eval-roster", type=Path)
     args = parser.parse_args()
     current_git = _git_sha()
     _require(args.producer_git_sha == current_git, "Phase10-D roster producer Git drift")
@@ -389,16 +402,33 @@ def main() -> None:
             "task_ids": _corpus_task_ids(args.d35_train) | _corpus_task_ids(args.d35_dev),
         },
     ]
+    if args.viewed_eval_roster is not None:
+        viewed_path = args.viewed_eval_roster.expanduser().resolve()
+        viewed = json.loads(viewed_path.read_text(encoding="utf-8"))
+        _require(viewed.get("content_sha256") == _self_hash(viewed), "Phase10-D viewed roster self-hash drift")
+        _require(viewed.get("schema_version") == "m6_rl_curriculum_v1"
+                 and viewed.get("development_only") is True
+                 and viewed.get("training_performed") is False,
+                 "Phase10-D viewed roster contract drift")
+        exclusions.append({
+            "name": "phase10d_viewed_eval_roster",
+            "paths": [viewed_path],
+            "file_sha256": [sha256_file(viewed_path)],
+            "task_ids": _validate_exposure_rows(
+                {"exposures": [{"task_id": task_id} for task_id in viewed.get("task_ids", [])]},
+                "Phase10-D viewed evaluation roster"),
+        })
     roster = build_roster(
         goals=goals,
         base_split=base,
         exclusions=exclusions,
         protocol_sha256=protocol["sha256"],
         git_sha=current_git,
+        evaluation_stage=args.evaluation_stage,
     )
     root = args.output_root.expanduser().resolve()
-    destination = root / f"{EVALUATION_STAGE}.json"
-    _require(not destination.exists(), f"Phase10-D evaluation roster exists: {EVALUATION_STAGE}")
+    destination = root / f"{args.evaluation_stage}.json"
+    _require(not destination.exists(), f"Phase10-D evaluation roster exists: {args.evaluation_stage}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(destination, roster)
     print(json.dumps({

@@ -22,6 +22,12 @@ cd "$repo_root"
 : "${M6_PHASE10D_EVAL_ROSTER:?missing M6_PHASE10D_EVAL_ROSTER}"
 : "${M6_PHASE10D_ROSTER_PRODUCER_GIT_SHA:?missing M6_PHASE10D_ROSTER_PRODUCER_GIT_SHA}"
 : "${M6_PHASE10D_EVAL_OUTPUT:?missing M6_PHASE10D_EVAL_OUTPUT}"
+stage="${M6_PHASE10D_EVAL_STAGE:-same_corpus}"
+case "$stage" in
+  same_corpus) seed=20260867 ;;
+  same_corpus_d35) seed=20260868 ;;
+  *) echo "invalid Phase10-D evaluation stage: $stage" >&2; exit 2 ;;
+esac
 test "$(git rev-parse HEAD)" = "$M6_EXPECTED_GIT_SHA"
 test -z "$(git status --porcelain --untracked-files=no)"
 test -f "$M6_PHASE10D_EVAL_ROSTER"
@@ -54,6 +60,17 @@ case "$M6_PHASE10D_EVAL_IDENTITY" in
     adapter_args=(--adapter "$study_root/mini/pilot_sft/final_adapter")
     tp=1
     ;;
+  sft4_d35)
+    base_model=/data/share/model/Qwen3.5-4B
+    base_manifest="$repo_root/data/m4_long_horizon_base_model_manifest_v1.json"
+    adapter_args=(--adapter "$phase10d_root/s4_d35/formal_v1/final_adapter")
+    tp=1
+    ;;
+  sft35_d35)
+    base_model="$study_root/phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v2_4b_paradigm/merged_model_v1/model"
+    base_manifest="$study_root/phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v2_4b_paradigm/merged_model_v1/model_manifest.json"
+    tp=2
+    ;;
   sft35_d4)
     adapter="$phase10d_root/s35_d4/formal_v1/final_adapter"
     merged_root="$phase10d_root/s35_d4/formal_v1/merged_model_v1"
@@ -85,7 +102,6 @@ case "$M6_PHASE10D_EVAL_IDENTITY" in
     exit 2
     ;;
 esac
-seed=20260867
 test -f "$base_manifest"
 test -d "$base_model"
 mkdir -p "$M6_PHASE10D_EVAL_OUTPUT"
