@@ -159,6 +159,10 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
   adapter `.../s4_d35/formal_v1/final_adapter`（sha `0383acca...`）。
   交叉NLL对称性：D4侧`SFT4(D4) 0.0957 < SFT35(D4) 0.1169`，D35侧`SFT35(D35) 0.0612 <
   SFT4(D35) 0.0792`——每个模型都更拟合自己的行为数据，与"数据来源效应主导"一致；环境配对为决定性证据。
+- 2×2配对评测（用户已授权）：fresh roster `rosters/same_corpus_d35.json`（96任务，额外排除已查看的
+  Phase10-D 96-task roster，fresh池992，`content_sha256 22116d3c...`）；WebShop服务Job2414重启后
+  healthy；两arm Job2415（sft4_d35，adapter直载4B）/Job2416（sft35_d35，既有merged model），
+  均已确认`RUNNING`，seed 20260868；输出`.../same_corpus_eval_d35/{sft4_d35,sft35_d35}`；
 - Job2408：`SFT35(D4)` extend训练（第2 epoch，+245 updates，输出`.../s35_d4/formal_v2`），
   `COMPLETED 0:0`（02:42:44）；12/12门通过（含resume参数SHA恒等、dev NLL连续性）；dev NLL
   `0.116896 -> 0.119291`（无下降），retention KL均值27.86、raw梯度范数均值117；报告
@@ -181,12 +185,11 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
 
 ## 8. 下一步唯一动作
 
-Job2410审计通过（见第7节），2×2四格全部就绪。下一步为**用户授权**（已申请）：
-用same-corpus同款排除规则**新建**fresh roster（额外排除已查看的Phase10-D 96-task roster），对
-`SFT4(D35)`（formal_v1 adapter需先合并到Raw4）vs `SFT35(D35)`（已有merged model）做同task/K4/
-18-15/seed配对评测；两arm输出`.../same_corpus_eval_d35/{sft4_d35,sft35_d35}`（新目录，不覆盖）。
-判定标准：若`SFT35(D35)`显著> `SFT4(D35)`且`SFT4(D4)`≈`SFT35(D4)`，则数据来源效应成立、规模无独立
-贡献；若两对都持平/4B占优，则4B路线全面占优，停止35B追问。授权前不提交任何评测作业。
+2×2配对评测已获授权并提交（Job2415/2416 RUNNING，见第7节）。按预计40-50分钟设置一次查收；
+两arm完成后用`m6_phase10c_teacher_stage_eval_stats.py --stage same_corpus_d35`出配对统计并汇报。
+判定标准（已冻结）：若`SFT35(D35)`显著>`SFT4(D35)`且`SFT4(D4)`≈`SFT35(D4)`，则数据来源效应成立、
+规模无独立贡献；若两对都持平或4B占优，则4B路线全面占优、停止35B追问；若SFT4(D35)反而占优，
+同样记数据来源效应（4B吸收任何源策略都不弱）。
 
 ## 9. 后续决策
 
