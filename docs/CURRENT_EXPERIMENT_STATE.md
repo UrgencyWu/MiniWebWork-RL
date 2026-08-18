@@ -151,8 +151,14 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
   修复提交`6b71ab5`/`94a9d23`/`4d3a1d6`后重投成功；
 - Job2409：`S4(D35)` 2-update探针，`COMPLETED 0:0`（01:01）；9/9门通过（含exact capability
   loss mass、single GPU placement）、128个LoRA target（q/k/v/o+gate/up/down）、256张量真实更新；
-- Job2410：`S4(D35)` 108-update正式训练（2×2第四格），已确认`RUNNING`；输出
-  `outputs/m6_monotonic_posttraining_v1/phase10d_same_corpus_scale_v1/s4_d35/formal_v1`；
+- Job2410：`S4(D35)` 108-update正式训练（2×2第四格），`COMPLETED 0:0`（24:59）；9/9门通过
+  （exact capability mass、D35语料SHA绑定、256张量更新、relative displacement 0.0391）；
+  dev weighted_nll `0.091546 -> 0.079169`（finish 0.0996→0.0826、nav 0.1096→0.0803、
+  match 0.0745→0.0752），retention KL均值0.537、梯度2.26；报告`content_sha256
+  649b1a9d9c5f0f3a7fb3194bd5bc29f8a4d537f9d8d5cf52ce533f65203da0f8`；
+  adapter `.../s4_d35/formal_v1/final_adapter`（sha `0383acca...`）。
+  交叉NLL对称性：D4侧`SFT4(D4) 0.0957 < SFT35(D4) 0.1169`，D35侧`SFT35(D35) 0.0612 <
+  SFT4(D35) 0.0792`——每个模型都更拟合自己的行为数据，与"数据来源效应主导"一致；环境配对为决定性证据。
 - Job2408：`SFT35(D4)` extend训练（第2 epoch，+245 updates，输出`.../s35_d4/formal_v2`），
   `COMPLETED 0:0`（02:42:44）；12/12门通过（含resume参数SHA恒等、dev NLL连续性）；dev NLL
   `0.116896 -> 0.119291`（无下降），retention KL均值27.86、raw梯度范数均值117；报告
@@ -175,12 +181,12 @@ D4固定下35B不优于4B。遗留的唯一归因缺口是**模型规模效应 v
 
 ## 8. 下一步唯一动作
 
-用户已选择`complete_2x2_sft4_d35`。Job2409探针已过、Job2410正式训练已提交并确认`RUNNING`
-（预计约30-60分钟，按+50分钟查收一次）。查收时审计formal_v1报告（self-hash、108次更新、
-capability mass、dev NLL、passed）；通过后进入2×2配对评测轮：用same-corpus同款排除规则**新建**
-fresh roster（额外排除已查看的Phase10-D 96-task roster与S4(D35)训练任务），对
-`SFT4(D35)`（需合并adapter到Raw4）vs `SFT35(D35)`（已有merged model）做同task/K/seed配对；
-该评测提交需在Job2410审计通过后再申请授权。若Job2410 FAILED：读日志定位，如实汇报，不自动重投。
+Job2410审计通过（见第7节），2×2四格全部就绪。下一步为**用户授权**（已申请）：
+用same-corpus同款排除规则**新建**fresh roster（额外排除已查看的Phase10-D 96-task roster），对
+`SFT4(D35)`（formal_v1 adapter需先合并到Raw4）vs `SFT35(D35)`（已有merged model）做同task/K4/
+18-15/seed配对评测；两arm输出`.../same_corpus_eval_d35/{sft4_d35,sft35_d35}`（新目录，不覆盖）。
+判定标准：若`SFT35(D35)`显著> `SFT4(D35)`且`SFT4(D4)`≈`SFT35(D4)`，则数据来源效应成立、规模无独立
+贡献；若两对都持平/4B占优，则4B路线全面占优，停止35B追问。授权前不提交任何评测作业。
 
 ## 9. 后续决策
 
