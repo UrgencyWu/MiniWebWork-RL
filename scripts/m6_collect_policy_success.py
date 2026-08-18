@@ -100,6 +100,7 @@ PHASE10D_S4_D35_ADAPTER = Path(
     "/home/wushaohua/data/MiniWebWork-RL/outputs/m6_monotonic_posttraining_v1/"
     "phase10d_same_corpus_scale_v1/s4_d35/formal_v1/final_adapter"
 ).resolve()
+PHASE10D_QWEN38_27B_MODEL = Path("/data/share/model/Qwen3.8-27B").resolve()
 PHASE10C_EVALUATION_MODELS = {
     "raw35": PHASE10C_TEACHER_MODEL,
     "sft35": PHASE10C_SFT35_MERGED_MODEL,
@@ -107,6 +108,7 @@ PHASE10C_EVALUATION_MODELS = {
     "sft35_d35": PHASE10C_SFT35_MERGED_MODEL,
     "sft4": PHASE10_STUDENT_MODEL,
     "sft4_d35": PHASE10_STUDENT_MODEL,
+    "raw27": PHASE10D_QWEN38_27B_MODEL,
 }
 PHASE10C_EVALUATION_TASK_COUNT = 96
 PHASE10C_TEACHER_EXPLORATION_TASK_COUNTS = {
@@ -563,7 +565,7 @@ def validate_phase10c_teacher_stage_evaluation_contract(args: argparse.Namespace
     _require(identity in PHASE10C_EVALUATION_MODELS, "M6 Phase10-C evaluation identity drift")
     _require(args.base_model.expanduser().resolve() == PHASE10C_EVALUATION_MODELS[identity],
              "M6 Phase10-C evaluation model drift")
-    if identity == "raw35":
+    if identity in ("raw35", "raw27"):
         _require(args.adapter is None and args.tensor_parallel_size == 2,
                  "M6 Phase10-C Raw35 identity drift")
     elif identity in ("sft35", "sft35_d4", "sft35_d35"):

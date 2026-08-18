@@ -26,12 +26,14 @@ PAIR_BY_STAGE = {
     "qualification": ("sft4", "sft35"),
     "same_corpus": ("sft4", "sft35_d4"),
     "same_corpus_d35": ("sft4_d35", "sft35_d35"),
+    "same_corpus_raw27": ("sft4", "raw27"),
 }
 EXPECTED_SEEDS = {
     "dev": 20260864,
     "qualification": 20260865,
     "same_corpus": 20260867,
     "same_corpus_d35": 20260868,
+    "same_corpus_raw27": 20260867,
 }
 
 

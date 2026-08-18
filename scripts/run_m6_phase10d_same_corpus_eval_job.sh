@@ -66,6 +66,12 @@ case "$M6_PHASE10D_EVAL_IDENTITY" in
     adapter_args=(--adapter "$phase10d_root/s4_d35/formal_v1/final_adapter")
     tp=1
     ;;
+  raw27)
+    base_model=/data/share/model/Qwen3.8-27B
+    base_manifest="$repo_root/data/m6_qwen38_27b_base_model_manifest_v1.json"
+    adapter_args=()
+    tp=2
+    ;;
   sft35_d35)
     base_model="$study_root/phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v2_4b_paradigm/merged_model_v1/model"
     base_manifest="$study_root/phase10c_qwen35_sft_specialist_opd_v1/teacher_self_sft_v2_4b_paradigm/merged_model_v1/model_manifest.json"
